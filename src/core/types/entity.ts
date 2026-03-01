@@ -1,0 +1,39 @@
+export type EntityType =
+  | 'goal'
+  | 'task'
+  | 'habit'
+  | 'skill'
+  | 'transaction'
+  | 'budget'
+  | 'account'
+  | 'workout'
+  | 'body-metric'
+  | 'book'
+  | 'course'
+  | 'event'
+  | 'device'
+  | 'service'
+  | 'chore'
+
+export type EntityStatus = 'active' | 'completed' | 'archived' | 'paused'
+
+export type EntityPriority = 'low' | 'medium' | 'high' | 'urgent'
+
+export type EntityVisibility = 'private' | 'shared'
+
+export interface Entity {
+  id: string
+  type: EntityType
+  title: string
+  description?: string
+  status: EntityStatus
+  priority: EntityPriority
+  tags: string[]
+  metadata: Record<string, unknown>
+  parentId?: string
+  ownerId: string
+  visibility: EntityVisibility
+  dueDate?: string
+  createdAt: string
+  updatedAt: string
+}
