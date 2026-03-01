@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Calendar, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -9,6 +9,9 @@ import { EntityDialog } from '@/core/components/entity-dialog'
 import { StatusBadge } from '@/core/components/status-badge'
 import { PriorityBadge } from '@/core/components/priority-badge'
 import { EmptyState } from '@/core/components/empty-state'
+import { useICalEvents } from '@/hooks/use-ical-events'
+import { groupEventsByDate, type ICalEvent } from '@/lib/ical'
+import { ICalSettingsDialog } from './calendar/ical-settings-dialog'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -35,12 +38,14 @@ function formatDateKey(year: number, month: number, day: number) {
 export function CalendarPage() {
   const { items: allEntities, create } = useEntities()
   const currentUser = useAuthStore((s) => s.currentUser)
+  const { feeds, events: icalEvents, add, remove, toggle } = useICalEvents()
 
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
 
@@ -56,6 +61,18 @@ export function CalendarPage() {
     }
     return map
   }, [allEntities])
+
+  // Group iCal events by date
+  const icalByDate = useMemo(() => groupEventsByDate(icalEvents), [icalEvents])
+
+  // Build color lookup for feeds
+  const feedColorMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const feed of feeds) {
+      map[feed.url] = feed.color
+    }
+    return map
+  }, [feeds])
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth)
   const firstDay = getFirstDayOfWeek(viewYear, viewMonth)
@@ -115,10 +132,10 @@ export function CalendarPage() {
   const cells: (number | null)[] = []
   for (let i = 0; i < firstDay; i++) cells.push(null)
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
-  // Pad to complete the last week
   while (cells.length % 7 !== 0) cells.push(null)
 
   const selectedEntities = selectedDate ? (entitiesByDate[selectedDate] ?? []) : []
+  const selectedICalEvents = selectedDate ? (icalByDate[selectedDate] ?? []) : []
 
   return (
     <div className="space-y-4">
@@ -136,9 +153,14 @@ export function CalendarPage() {
             Today
           </Button>
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> New Event
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+            <Settings className="h-4 w-4 mr-1" /> Feeds
+          </Button>
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> New Event
+          </Button>
+        </div>
       </div>
 
       {/* Calendar grid */}
@@ -160,6 +182,8 @@ export function CalendarPage() {
             }
             const dateKey = formatDateKey(viewYear, viewMonth, day)
             const dayEntities = entitiesByDate[dateKey] ?? []
+            const dayICalEvents = icalByDate[dateKey] ?? []
+            const totalCount = dayEntities.length + dayICalEvents.length
             const isToday = dateKey === todayKey
             const isSelected = dateKey === selectedDate
 
@@ -179,23 +203,29 @@ export function CalendarPage() {
                   >
                     {day}
                   </span>
-                  {dayEntities.length > 0 && (
-                    <span className="text-xs text-muted-foreground">{dayEntities.length}</span>
+                  {totalCount > 0 && (
+                    <span className="text-xs text-muted-foreground">{totalCount}</span>
                   )}
                 </div>
                 {/* Entity dots / pills */}
                 <div className="mt-1 space-y-0.5">
-                  {dayEntities.slice(0, 3).map((entity) => (
-                    <div
-                      key={entity.id}
-                      className="flex items-center gap-1 truncate"
-                    >
+                  {dayEntities.slice(0, 2).map((entity) => (
+                    <div key={entity.id} className="flex items-center gap-1 truncate">
                       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${typeColor[entity.type] ?? 'bg-gray-500'}`} />
                       <span className="text-[10px] truncate">{entity.title}</span>
                     </div>
                   ))}
-                  {dayEntities.length > 3 && (
-                    <span className="text-[10px] text-muted-foreground">+{dayEntities.length - 3} more</span>
+                  {dayICalEvents.slice(0, 3 - Math.min(dayEntities.length, 2)).map((ev) => (
+                    <div key={ev.id} className="flex items-center gap-1 truncate">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: feedColorMap[ev.sourceUrl] ?? '#6b7280' }}
+                      />
+                      <span className="text-[10px] italic truncate">{ev.title}</span>
+                    </div>
+                  ))}
+                  {totalCount > 3 && (
+                    <span className="text-[10px] text-muted-foreground">+{totalCount - 3} more</span>
                   )}
                 </div>
               </div>
@@ -218,7 +248,7 @@ export function CalendarPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {selectedEntities.length === 0 ? (
+            {selectedEntities.length === 0 && selectedICalEvents.length === 0 ? (
               <EmptyState
                 icon={Calendar}
                 title="Nothing scheduled"
@@ -241,6 +271,25 @@ export function CalendarPage() {
                     </div>
                   </div>
                 ))}
+                {selectedICalEvents.map((ev: ICalEvent) => (
+                  <div key={ev.id} className="flex items-center justify-between gap-2 p-2 rounded-md border">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: feedColorMap[ev.sourceUrl] ?? '#6b7280' }}
+                      />
+                      <span className="text-sm font-medium italic truncate">{ev.title}</span>
+                      <Badge variant="secondary" className="text-xs shrink-0">{ev.sourceName}</Badge>
+                    </div>
+                    {!ev.isAllDay && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {ev.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {' – '}
+                        {ev.end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
@@ -255,6 +304,16 @@ export function CalendarPage() {
         title="New Event"
         defaultValues={selectedDate ? { dueDate: selectedDate } : undefined}
         onSubmit={handleCreate}
+      />
+
+      {/* iCal settings dialog */}
+      <ICalSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        feeds={feeds}
+        onAdd={add}
+        onRemove={remove}
+        onToggle={toggle}
       />
     </div>
   )

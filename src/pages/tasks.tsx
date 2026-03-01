@@ -1,8 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Plus, CheckSquare, List, Columns3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -14,9 +12,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
-import { PriorityBadge } from '@/core/components/priority-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
+import { TaskCard } from './tasks/task-card'
+import { KanbanBoard } from './tasks/kanban-board'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 
 type SortKey = 'priority' | 'dueDate' | 'createdAt'
@@ -28,13 +27,6 @@ const priorityOrder: Record<EntityPriority, number> = {
   medium: 2,
   low: 3,
 }
-
-const kanbanColumns: { status: EntityStatus; label: string }[] = [
-  { status: 'active', label: 'Active' },
-  { status: 'paused', label: 'Paused' },
-  { status: 'completed', label: 'Completed' },
-  { status: 'archived', label: 'Archived' },
-]
 
 export function TasksPage() {
   const { items: tasks, isLoading, create, update, remove } = useEntities('task')
@@ -126,74 +118,9 @@ export function TasksPage() {
     setEditingTask(null)
   }
 
-  const isOverdue = (task: Entity) =>
-    task.dueDate && task.status !== 'completed' && task.dueDate < new Date().toISOString().split('T')[0]
-
   if (isLoading) {
     return <div className="p-4 text-muted-foreground">Loading...</div>
   }
-
-  const TaskCard = ({ task, showStatusMove }: { task: Entity; showStatusMove?: boolean }) => (
-    <Card className="group">
-      <CardContent className="flex items-start gap-3 py-3">
-        <Checkbox
-          checked={task.status === 'completed'}
-          onCheckedChange={() => toggleComplete(task)}
-          className="mt-0.5"
-        />
-        <div className="flex-1 min-w-0 space-y-1">
-          <div className="flex items-start justify-between gap-2">
-            <span className={`text-sm font-medium ${task.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>
-              {task.title}
-            </span>
-            <div className="flex gap-1 shrink-0">
-              <PriorityBadge priority={task.priority} />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {task.dueDate && (
-              <span className={`text-xs ${isOverdue(task) ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
-                {isOverdue(task) ? 'Overdue: ' : 'Due: '}
-                {new Date(task.dueDate).toLocaleDateString()}
-              </span>
-            )}
-            {task.tags.map((tag) => (
-              <span key={tag} className="text-xs bg-secondary px-1.5 py-0.5 rounded">{tag}</span>
-            ))}
-          </div>
-          {/* Quick actions */}
-          {showStatusMove && (
-            <div className="flex gap-1 pt-1">
-              {kanbanColumns
-                .filter((c) => c.status !== task.status)
-                .map((c) => (
-                  <Button
-                    key={c.status}
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs px-2"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      moveToStatus(task, c.status)
-                    }}
-                  >
-                    → {c.label}
-                  </Button>
-                ))}
-            </div>
-          )}
-        </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setEditingTask(task)}>
-            <span className="sr-only">Edit</span>✎
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setDeleteTarget(task)}>
-            <span className="sr-only">Delete</span>×
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
 
   return (
     <div className="space-y-4">
@@ -267,7 +194,14 @@ export function TasksPage() {
       ) : view === 'list' ? (
         <div className="space-y-2">
           {filteredTasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              onToggleComplete={toggleComplete}
+              onMoveToStatus={moveToStatus}
+              onEdit={setEditingTask}
+              onDelete={setDeleteTarget}
+            />
           ))}
           {filteredTasks.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-8">
@@ -276,30 +210,13 @@ export function TasksPage() {
           )}
         </div>
       ) : (
-        /* Kanban view */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {kanbanColumns.map((col) => {
-            const columnTasks = tasks.filter((t) => t.status === col.status)
-            return (
-              <div key={col.status} className="space-y-2">
-                <div className="flex items-center justify-between px-1">
-                  <h3 className="text-sm font-medium">
-                    {col.label}
-                    <span className="ml-1.5 text-xs text-muted-foreground">({columnTasks.length})</span>
-                  </h3>
-                </div>
-                <div className="space-y-2 min-h-[100px] rounded-lg border border-dashed p-2">
-                  {columnTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} showStatusMove />
-                  ))}
-                  {columnTasks.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-4">No tasks</p>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        <KanbanBoard
+          tasks={tasks}
+          onToggleComplete={toggleComplete}
+          onMoveToStatus={moveToStatus}
+          onEdit={setEditingTask}
+          onDelete={setDeleteTarget}
+        />
       )}
 
       {/* Create dialog */}
