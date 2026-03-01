@@ -6,11 +6,11 @@ import { AppLayout } from '@/layout/app-layout'
 import { ProtectedRoute } from '@/layout/protected-route'
 import { LoginPage } from '@/pages/login'
 import { DashboardPage } from '@/pages/dashboard'
+import { GoalsPage } from '@/pages/goals'
+import { TasksPage } from '@/pages/tasks'
+import { CalendarPage } from '@/pages/calendar'
 import { NotFoundPage } from '@/pages/not-found'
 import {
-  GoalsPage,
-  TasksPage,
-  CalendarPage,
   SkillsPage,
   HabitsPage,
   HealthPage,
