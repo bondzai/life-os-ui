@@ -7,6 +7,7 @@ import { Progress } from '@/components/ui/progress'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { EntityDialog } from '@/core/components/entity-dialog'
 import { useAuthStore } from '@/stores/auth-store'
+import { DailyBriefWidget } from '@/pages/ai/daily-brief-widget'
 import type { Entity, EntityType, EntityStatus, EntityPriority } from '@/core/types'
 
 export function DashboardPage() {
@@ -94,6 +95,9 @@ export function DashboardPage() {
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
+      {/* Daily Brief */}
+      <DailyBriefWidget />
+
       {/* Today's Tasks */}
       <Card>
         <CardHeader className="pb-2">
