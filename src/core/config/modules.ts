@@ -4,6 +4,7 @@ import {
   Calendar,
   Brain,
   Repeat,
+  BookOpen,
   Heart,
   Wallet,
   Home,
@@ -61,7 +62,7 @@ export const modules: ModuleConfig[] = [
     icon: Brain,
     path: '/skills',
     group: 'Grow',
-    entityTypes: ['skill', 'course', 'book'],
+    entityTypes: ['skill'],
   },
   {
     id: 'habits',
@@ -70,6 +71,14 @@ export const modules: ModuleConfig[] = [
     path: '/habits',
     group: 'Grow',
     entityTypes: ['habit'],
+  },
+  {
+    id: 'reading',
+    label: 'Reading',
+    icon: BookOpen,
+    path: '/reading',
+    group: 'Grow',
+    entityTypes: ['book', 'course'],
   },
   {
     id: 'health',

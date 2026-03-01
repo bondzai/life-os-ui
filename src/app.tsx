@@ -10,9 +10,10 @@ import { GoalsPage } from '@/pages/goals'
 import { TasksPage } from '@/pages/tasks'
 import { CalendarPage } from '@/pages/calendar'
 import { NotFoundPage } from '@/pages/not-found'
+import { HabitsPage } from '@/pages/habits'
+import { SkillsPage } from '@/pages/skills'
+import { ReadingPage } from '@/pages/reading'
 import {
-  SkillsPage,
-  HabitsPage,
   HealthPage,
   WealthPage,
   HomePage,
@@ -37,6 +38,7 @@ export function App() {
                   <Route path="calendar" element={<CalendarPage />} />
                   <Route path="skills" element={<SkillsPage />} />
                   <Route path="habits" element={<HabitsPage />} />
+                  <Route path="reading" element={<ReadingPage />} />
                   <Route path="health" element={<HealthPage />} />
                   <Route path="wealth" element={<WealthPage />} />
                   <Route path="home" element={<HomePage />} />
