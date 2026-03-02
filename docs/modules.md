@@ -12,12 +12,17 @@ Defined in `src/core/config/modules.ts`:
 | Goals | `/goals` | `goal` | Plan | Done |
 | Tasks | `/tasks` | `task` | Plan | Done |
 | Calendar | `/calendar` | `event` | Plan | Done |
-| Skills | `/skills` | `skill`, `course`, `book` | Grow | Stub |
-| Habits | `/habits` | `habit` | Grow | Stub |
+| Skills | `/skills` | `skill`, `course`, `book` | Grow | Done |
+| Habits | `/habits` | `habit` | Grow | Done |
 | Health | `/health` | `body-metric`, `workout` | Health | Stub |
 | Wealth | `/wealth` | `transaction`, `budget`, `account` | Wealth | Stub |
 | Home | `/home` | `device`, `service` | Home | Stub |
 | Family | `/family` | `chore` | Family | Stub |
+| Notes | `/notes` | `note` | Capture | Done |
+| Posts | `/posts` | `post` | Family | Done |
+| Notifications | `/notifications` | (none) | Overview | Done |
+| Places | `/places` | `place` | Explore | Done |
+| Travel | `/travel` | `trip` | Explore | Done |
 
 ## Implemented modules
 
@@ -51,9 +56,39 @@ Four widgets + daily brief:
 - Inline event creation (click a day)
 - Feed management dialog for adding/removing iCal sources
 
+### Notes
+- Tabs: Notes tab + Journal tab
+- Notes tab: card grid with status filter, search, CRUD
+- Journal tab: date-grouped entries with mood tracking
+- Uses entity type `note` with `metadata.isJournal` to differentiate
+
+### Posts
+- Activity feed for household status updates
+- Inline compose box with visibility selector (private/shared)
+- Reverse-chronological card feed with author avatars
+- Edit/delete for own posts only
+
+### Notifications
+- Client-side notification system using Zustand store
+- `notify()` utility fires sonner toast + persists to store
+- Bell icon in TopBar with unread badge and dropdown
+- Full history page at `/notifications` with mark-read and clear-all
+
+### Places
+- Two-column layout: sidebar list + interactive Leaflet map
+- OpenStreetMap tiles (no API key required)
+- Markers with popups, search, category filtering
+- CRUD via entity dialog
+
+### Travel
+- Trip planner linking places via Relations
+- Two-column: trip list + map with connected markers
+- Polyline connecting trip places on map
+- Add/remove places from trips
+
 ## Stub modules
 
-Skills, Habits, Health, Wealth, Home, and Family have placeholder pages. Each will be implemented in its roadmap phase using the same entity + hook + dialog pattern.
+Health, Wealth, Home, and Family have placeholder pages. Each will be implemented in its roadmap phase using the same entity + hook + dialog pattern.
 
 ## Adding a new module
 

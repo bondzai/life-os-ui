@@ -18,6 +18,7 @@ import { StatusBadge } from '@/core/components/status-badge'
 import { PriorityBadge } from '@/core/components/priority-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
+import { notify } from '@/lib/notify'
 import type { Entity, EntityStatus } from '@/core/types'
 
 export function GoalsPage() {
@@ -63,6 +64,7 @@ export function GoalsPage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
+    notify({ title: 'Goal created', type: 'success' })
   }
 
   const handleEdit = (values: Record<string, unknown>) => {
@@ -82,6 +84,7 @@ export function GoalsPage() {
         updatedAt: new Date().toISOString(),
       },
     })
+    notify({ title: 'Goal updated', type: 'success' })
     setEditingGoal(null)
   }
 
@@ -162,6 +165,7 @@ export function GoalsPage() {
           onConfirm={() => {
             if (deleteTarget) {
               remove.mutate(deleteTarget.id)
+              notify({ title: 'Goal deleted', type: 'success' })
               setSelectedGoal(null)
               setDeleteTarget(null)
             }

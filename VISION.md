@@ -189,6 +189,15 @@ Manage objectives and daily work.
 | Tasks | Daily/weekly todos — list view, kanban board, priority sorting |
 | Calendar | Unified calendar merging internal events + Google Calendar |
 
+### Capture
+
+Free-form writing and daily reflection.
+
+| Feature | Description |
+|---|---|
+| Notes | Free-form notes with tags, search, and status tracking |
+| Journal | Daily journal entries with mood tracking, date-grouped |
+
 ### Grow
 
 Track learning and personal development.
@@ -199,6 +208,15 @@ Track learning and personal development.
 | Reading | Book list with status (want / reading / done), notes, ratings |
 | Courses | Online courses and certifications with progress tracking |
 | Habits | Daily/weekly habit checkins with streak counting and visualizations |
+
+### Explore
+
+Discover and plan places and trips.
+
+| Feature | Description |
+|---|---|
+| Places | Saved locations on an interactive Leaflet/OpenStreetMap map |
+| Travel | Trip planner linking saved places with map routes and polylines |
 
 ### Health
 
@@ -245,6 +263,7 @@ Shared space for household coordination.
 | Shared Goals | Family objectives both users contribute to |
 | Events | Shared calendar — birthdays, trips, appointments |
 | Activity Feed | Timeline of completed tasks, achievements, milestones |
+| Posts | Household activity feed with inline compose and visibility controls |
 | Chores | Rotating household task assignments |
 
 ---
@@ -426,7 +445,7 @@ Chat, command bar, and daily briefs.
 
 **Outcome:** AI becomes the primary way to interact with Life-OS.
 
-### Phase 4 — Grow
+### Phase 4 — Grow *(complete)*
 
 Skills, habits, and learning.
 
@@ -437,6 +456,18 @@ Skills, habits, and learning.
 - Dashboard widgets: streak counter, skill progress
 
 **Outcome:** Track personal development in one place.
+
+### Phase 4.5 — Capture, Social & Explore
+
+Notes, posts, notifications, places, and travel.
+
+- Notes: free-form notes + daily journal with mood tracking
+- Posts: household activity feed with inline compose
+- Notification system: sonner toasts, bell icon, history page
+- Places: saved locations on interactive Leaflet map
+- Travel: trip planner linking places with map routes
+
+**Outcome:** Capture ideas, share updates, explore and plan trips — all from Life-OS.
 
 ### Phase 5 — Wealth
 
@@ -526,7 +557,6 @@ Features beyond the initial roadmap — not planned, but designed to be possible
 | **Telegram Bot** | Quick-add entities, receive notifications, check status from Telegram |
 | **Shared with Extended Family** | Invite parents/siblings with limited access roles |
 | **Recipe & Meal Planning** | Weekly meal plans linked to nutrition tracking and shopping lists |
-| **Travel Planning** | Trip entities with checklists, budgets, itineraries, document storage |
 
 ### Mid-Term Possibilities
 

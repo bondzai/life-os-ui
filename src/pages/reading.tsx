@@ -16,6 +16,7 @@ import { EntityDialog } from '@/core/components/entity-dialog'
 import { StatusBadge } from '@/core/components/status-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
+import { notify } from '@/lib/notify'
 import type { Entity, EntityStatus, EntityType } from '@/core/types'
 
 export function ReadingPage() {
@@ -66,6 +67,7 @@ export function ReadingPage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
+    notify({ title: `${dialogType === 'book' ? 'Book' : 'Course'} created`, type: 'success' })
   }
 
   const handleEdit = (values: Record<string, unknown>) => {
@@ -85,6 +87,7 @@ export function ReadingPage() {
         updatedAt: new Date().toISOString(),
       },
     })
+    notify({ title: 'Item updated', type: 'success' })
     setEditingItem(null)
   }
 
@@ -258,6 +261,7 @@ export function ReadingPage() {
         onConfirm={() => {
           if (deleteTarget) {
             remove.mutate(deleteTarget.id)
+            notify({ title: 'Item deleted', type: 'success' })
             setDeleteTarget(null)
           }
         }}

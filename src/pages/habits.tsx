@@ -17,6 +17,7 @@ import { StatusBadge } from '@/core/components/status-badge'
 import { PriorityBadge } from '@/core/components/priority-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
+import { notify } from '@/lib/notify'
 import type { Entity, EntityStatus } from '@/core/types'
 
 function getTodayStart(): string {
@@ -103,6 +104,7 @@ export function HabitsPage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
+    notify({ title: 'Habit created', type: 'success' })
   }
 
   const handleEdit = (values: Record<string, unknown>) => {
@@ -122,6 +124,7 @@ export function HabitsPage() {
         updatedAt: new Date().toISOString(),
       },
     })
+    notify({ title: 'Habit updated', type: 'success' })
     setEditingHabit(null)
   }
 
@@ -286,6 +289,7 @@ export function HabitsPage() {
         onConfirm={() => {
           if (deleteTarget) {
             remove.mutate(deleteTarget.id)
+            notify({ title: 'Habit deleted', type: 'success' })
             setDeleteTarget(null)
           }
         }}

@@ -24,6 +24,8 @@ const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
 const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
 const nextMonth = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]
 const lastWeek = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
+const twoHoursAgo = new Date(Date.now() - 2 * 3600000).toISOString()
+const fiveHoursAgo = new Date(Date.now() - 5 * 3600000).toISOString()
 
 const entities: Entity[] = [
   // === Goals ===
@@ -346,12 +348,118 @@ const entities: Entity[] = [
     createdAt: now,
     updatedAt: now,
   },
+
+  // === Notes ===
+  {
+    id: 'note-1',
+    type: 'note',
+    title: 'Life-OS Architecture Notes',
+    description: 'Key decisions and patterns for the Life-OS project.',
+    status: 'active',
+    priority: 'medium',
+    tags: ['dev', 'life-os'],
+    metadata: { body: 'Entity-driven architecture with DRY core engine. All modules reuse the same CRUD hooks and dialog patterns. Zustand for client state, TanStack Query for data sync.', isJournal: false },
+    ownerId: 'user-jb',
+    visibility: 'private',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'note-2',
+    type: 'note',
+    title: 'Morning reflection',
+    status: 'active',
+    priority: 'low',
+    tags: ['journal'],
+    metadata: { body: 'Feeling productive today. Made good progress on Life-OS Phase 4.5. The notification system and map integration are coming together nicely.', isJournal: true, date: today, mood: 'happy' },
+    ownerId: 'user-jb',
+    visibility: 'private',
+    createdAt: now,
+    updatedAt: now,
+  },
+
+  // === Posts ===
+  {
+    id: 'post-1',
+    type: 'post',
+    title: 'Post',
+    status: 'active',
+    priority: 'medium',
+    tags: [],
+    metadata: { body: 'Just deployed Phase 4.5 — notes, places, and travel planning are live!' },
+    ownerId: 'user-jb',
+    visibility: 'shared',
+    createdAt: twoHoursAgo,
+    updatedAt: twoHoursAgo,
+  },
+  {
+    id: 'post-2',
+    type: 'post',
+    title: 'Post',
+    status: 'active',
+    priority: 'medium',
+    tags: [],
+    metadata: { body: 'Added our favorite Chiang Mai spots to the Places module. Weekend trip planning is so much easier now!' },
+    ownerId: 'user-sunny',
+    visibility: 'shared',
+    createdAt: fiveHoursAgo,
+    updatedAt: fiveHoursAgo,
+  },
+
+  // === Places ===
+  {
+    id: 'place-1',
+    type: 'place',
+    title: 'Home',
+    description: 'Our home in Bangkok.',
+    status: 'active',
+    priority: 'medium',
+    tags: ['home', 'bangkok'],
+    metadata: { lat: 13.7563, lng: 100.5018, address: 'Bangkok, Thailand' },
+    ownerId: 'user-jb',
+    visibility: 'shared',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'place-2',
+    type: 'place',
+    title: 'Chiang Mai Night Bazaar',
+    description: 'Famous night market with food, crafts, and entertainment.',
+    status: 'active',
+    priority: 'low',
+    tags: ['travel', 'chiang-mai', 'food'],
+    metadata: { lat: 18.7871, lng: 98.9936, address: 'Chang Khlan Rd, Chiang Mai' },
+    ownerId: 'user-sunny',
+    visibility: 'shared',
+    createdAt: now,
+    updatedAt: now,
+  },
+
+  // === Trips ===
+  {
+    id: 'trip-1',
+    type: 'trip',
+    title: 'Chiang Mai Weekend',
+    description: 'Quick weekend getaway to explore Chiang Mai.',
+    status: 'active',
+    priority: 'medium',
+    tags: ['travel', 'weekend'],
+    metadata: { endDate: nextWeek },
+    ownerId: 'user-jb',
+    visibility: 'shared',
+    dueDate: tomorrow,
+    createdAt: now,
+    updatedAt: now,
+  },
 ]
 
 const relations: Relation[] = [
   // goal-3a and goal-3b are sub-goals of goal-3
   { id: 'rel-1', fromId: 'goal-3', toId: 'goal-3a', type: 'parent' },
   { id: 'rel-2', fromId: 'goal-3', toId: 'goal-3b', type: 'parent' },
+  // Trip → Place link
+  { id: 'rel-3', fromId: 'trip-1', toId: 'place-2', type: 'relates' },
 ]
 
 const trackers: Tracker[] = [

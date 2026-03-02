@@ -98,3 +98,21 @@ Currently implemented by `LocalRepository` (localStorage). Will be swapped to `A
 ## Deployment
 
 Everything runs in Docker Compose on the mini PC. See [Deployment docs](./deployment.md).
+
+## Notification System
+
+Client-side only notification system using Zustand with `persist` middleware (key: `life-os:notifications`).
+
+- `notify()` utility in `src/lib/notify.ts` fires both a sonner toast and persists to the notification store
+- Bell icon in TopBar shows unread count badge and dropdown with latest 5 notifications
+- Full history page at `/notifications` with mark-read and clear-all actions
+- Extensible to server-sent events when API server is built
+
+## Map Integration
+
+Leaflet + react-leaflet with OpenStreetMap tiles for the Places and Travel modules.
+
+- No API keys required — OpenStreetMap is free and open-source
+- Markers with popups for places, polylines for trip routes
+- Default map center: Bangkok (13.7563, 100.5018)
+- Leaflet default marker icon fix applied for Vite bundler compatibility

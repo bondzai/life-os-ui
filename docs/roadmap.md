@@ -38,6 +38,20 @@ Swappable AI providers, chat sidebar, command bar, daily brief.
 - Daily brief dashboard widget with session-cached AI summary
 - Prompt templates (daily brief, task breakdown, weekly review)
 
+### Phase 4: Grow
+Skills, habits, and reading tracking.
+- Habits page with daily check-in, streaks, frequency badges
+- Skills page with proficiency levels (beginner → expert) and related resources
+- Reading page for books and courses with status and rating tracking
+
+### Phase 4.5: Capture, Social & Explore
+Notes, posts, notifications, places, and travel.
+- Notes page with free-form notes + daily journal with mood tracking
+- Posts page — household activity feed with inline compose
+- Notification system: sonner toasts, bell icon with dropdown, history page
+- Places page with Leaflet map and OpenStreetMap tiles
+- Travel page — trip planner linking places with map routes
+
 ## Planned
 
 ### Phase 3.5: OpenClaw Bridge
@@ -51,15 +65,6 @@ Connect Life-OS to OpenClaw on the mini PC. This is the pivotal phase that turns
 - Configure OpenClaw channels (Telegram for JB, WhatsApp for Sunny)
 - Add cron skills (daily brief, overdue nudges, habit reminders)
 - Docker Compose for full stack deployment
-
-### Phase 4: Grow
-
-Skills, habits, reading, and learning tracking.
-
-- Habits page with daily check-in grid, streaks, and weekly heatmap
-- Skills page with skill tree and progress tracking
-- Reading list (books, courses) with status and notes
-- GitHub connector for commit/contribution tracking
 
 ### Phase 5: Wealth
 

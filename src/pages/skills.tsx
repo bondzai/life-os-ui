@@ -17,6 +17,7 @@ import { EntityDetail } from '@/core/components/entity-detail'
 import { StatusBadge } from '@/core/components/status-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
+import { notify } from '@/lib/notify'
 import type { Entity, EntityStatus } from '@/core/types'
 
 const LEVELS = ['beginner', 'intermediate', 'advanced', 'expert'] as const
@@ -73,6 +74,7 @@ export function SkillsPage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
+    notify({ title: 'Skill created', type: 'success' })
   }
 
   const handleEdit = (values: Record<string, unknown>) => {
@@ -92,6 +94,7 @@ export function SkillsPage() {
         updatedAt: new Date().toISOString(),
       },
     })
+    notify({ title: 'Skill updated', type: 'success' })
     setEditingSkill(null)
   }
 
@@ -189,6 +192,7 @@ export function SkillsPage() {
           onConfirm={() => {
             if (deleteTarget) {
               remove.mutate(deleteTarget.id)
+              notify({ title: 'Skill deleted', type: 'success' })
               setSelectedSkill(null)
               setDeleteTarget(null)
             }

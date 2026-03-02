@@ -14,6 +14,10 @@ export type EntityType =
   | 'device'
   | 'service'
   | 'chore'
+  | 'note'
+  | 'post'
+  | 'place'
+  | 'trip'
 
 export type EntityStatus = 'active' | 'completed' | 'archived' | 'paused'
 

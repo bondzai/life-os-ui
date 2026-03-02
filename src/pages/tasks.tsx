@@ -14,6 +14,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
+import { notify } from '@/lib/notify'
 import { TaskCard } from './tasks/task-card'
 import { KanbanBoard } from './tasks/kanban-board'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
@@ -96,6 +97,7 @@ export function TasksPage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
+    notify({ title: 'Task created', type: 'success' })
   }
 
   const handleEdit = (values: Record<string, unknown>) => {
@@ -115,6 +117,7 @@ export function TasksPage() {
         updatedAt: new Date().toISOString(),
       },
     })
+    notify({ title: 'Task updated', type: 'success' })
     setEditingTask(null)
   }
 
@@ -246,6 +249,7 @@ export function TasksPage() {
         onConfirm={() => {
           if (deleteTarget) {
             remove.mutate(deleteTarget.id)
+            notify({ title: 'Task deleted', type: 'success' })
             setDeleteTarget(null)
           }
         }}

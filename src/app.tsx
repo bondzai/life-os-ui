@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Toaster } from 'sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AppLayout } from '@/layout/app-layout'
@@ -13,6 +14,11 @@ import { NotFoundPage } from '@/pages/not-found'
 import { HabitsPage } from '@/pages/habits'
 import { SkillsPage } from '@/pages/skills'
 import { ReadingPage } from '@/pages/reading'
+import { NotesPage } from '@/pages/notes'
+import { PostsPage } from '@/pages/posts'
+import { NotificationsPage } from '@/pages/notifications'
+import { PlacesPage } from '@/pages/places'
+import { TravelPage } from '@/pages/travel'
 import {
   HealthPage,
   WealthPage,
@@ -36,9 +42,14 @@ export function App() {
                   <Route path="goals" element={<GoalsPage />} />
                   <Route path="tasks" element={<TasksPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="notes" element={<NotesPage />} />
                   <Route path="skills" element={<SkillsPage />} />
                   <Route path="habits" element={<HabitsPage />} />
                   <Route path="reading" element={<ReadingPage />} />
+                  <Route path="posts" element={<PostsPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="places" element={<PlacesPage />} />
+                  <Route path="travel" element={<TravelPage />} />
                   <Route path="health" element={<HealthPage />} />
                   <Route path="wealth" element={<WealthPage />} />
                   <Route path="home" element={<HomePage />} />
@@ -48,6 +59,7 @@ export function App() {
               </Route>
             </Routes>
           </BrowserRouter>
+          <Toaster position="bottom-right" richColors />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
