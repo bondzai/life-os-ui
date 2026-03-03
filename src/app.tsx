@@ -21,10 +21,8 @@ import { PlacesPage } from '@/pages/places'
 import { TravelPage } from '@/pages/travel'
 import { WealthPage } from '@/pages/wealth'
 import { HealthPage } from '@/pages/health'
-import {
-  HomePage,
-  FamilyPage,
-} from '@/pages/stubs'
+import { HomePage } from '@/pages/home'
+import { FamilyPage } from '@/pages/stubs'
 
 const queryClient = new QueryClient()
 

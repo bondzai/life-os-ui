@@ -76,6 +76,14 @@ Body metrics, workouts, sleep, and mood tracking.
 - Custom zod-validated dialogs for each entry type
 - New `sleep-mood` entity type for combined daily wellness entries
 
+### Phase 7: Home
+Device inventory and service monitoring for the home server environment.
+- Device cards: server, desktop, laptop, phone, tablet, router, IoT — with IP, MAC, OS, location
+- Service cards: docker, web, database, API, monitoring, media — with status tracking (running/stopped/error)
+- Services linked to devices via deviceId
+- Summary strip: device count, service count, running count, error count
+- Custom zod-validated dialogs for each entity type
+
 ## Planned
 
 ### Phase 3.5: OpenClaw Bridge
@@ -89,15 +97,6 @@ Connect Life-OS to OpenClaw on the mini PC. This is the pivotal phase that turns
 - Configure OpenClaw channels (Telegram for JB, WhatsApp for Sunny)
 - Add cron skills (daily brief, overdue nudges, habit reminders)
 - Docker Compose for full stack deployment
-
-### Phase 7: Home
-
-Docker, Home Assistant, and service monitoring.
-
-- Docker container status and management (via API)
-- Home Assistant integration (OpenClaw skill likely)
-- Service uptime monitoring
-- Device inventory
 
 ### Phase 8: Family
 

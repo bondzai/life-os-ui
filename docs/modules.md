@@ -16,7 +16,7 @@ Defined in `src/core/config/modules.ts`:
 | Habits | `/habits` | `habit` | Grow | Done |
 | Health | `/health` | `body-metric`, `workout`, `sleep-mood` | Health | Done |
 | Wealth | `/wealth` | `transaction`, `budget`, `account`, `asset`, `wallet`, `crypto-tx` | Wealth | Done |
-| Home | `/home` | `device`, `service` | Home | Stub |
+| Home | `/home` | `device`, `service` | Home | Done |
 | Family | `/family` | `chore` | Family | Stub |
 | Notes | `/notes` | `note` | Capture | Done |
 | Posts | `/posts` | `post` | Family | Done |
@@ -108,9 +108,18 @@ Four widgets + daily brief:
 - Sleep & mood cards with sleep hours, quality badge, mood badge, energy level
 - Custom dialogs for each entry type (react-hook-form + zod)
 
+### Home
+- Two tabs: Devices, Services
+- Summary strip: Device count, Service count, Running (green), Errors (red)
+- Device cards with type badges (server, desktop, laptop, phone, tablet, router, IoT), IP, MAC, OS, location
+- Service cards with type + status badges, URL/port, linked device name, Docker image
+- Service types: docker, web, database, api, monitoring, media
+- Service statuses: running (green), stopped (gray), error (red), unknown (yellow)
+- Custom dialogs for each entity type (react-hook-form + zod)
+
 ## Stub modules
 
-Home and Family have placeholder pages. Each will be implemented in its roadmap phase using the same entity + hook + dialog pattern.
+Family has a placeholder page. It will be implemented in its roadmap phase using the same entity + hook + dialog pattern.
 
 ## Adding a new module
 
