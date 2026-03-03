@@ -22,7 +22,7 @@ import { TravelPage } from '@/pages/travel'
 import { WealthPage } from '@/pages/wealth'
 import { HealthPage } from '@/pages/health'
 import { HomePage } from '@/pages/home'
-import { FamilyPage } from '@/pages/stubs'
+import { FamilyPage } from '@/pages/family'
 
 const queryClient = new QueryClient()
 

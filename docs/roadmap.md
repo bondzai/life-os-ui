@@ -84,6 +84,15 @@ Device inventory and service monitoring for the home server environment.
 - Summary strip: device count, service count, running count, error count
 - Custom zod-validated dialogs for each entity type
 
+### Phase 8: Family
+Shared chore management and household activity feed.
+- Chore cards with category, frequency, assignee, and due date tracking
+- Category badges: cleaning, cooking, laundry, shopping, maintenance, pets
+- Category and assignee filter dropdowns
+- Activity tab: chronological feed of all shared entities across all modules
+- Summary strip: total chores, due/overdue, my chores, shared tasks
+- Custom zod-validated chore dialog
+
 ## Planned
 
 ### Phase 3.5: OpenClaw Bridge
@@ -98,14 +107,13 @@ Connect Life-OS to OpenClaw on the mini PC. This is the pivotal phase that turns
 - Add cron skills (daily brief, overdue nudges, habit reminders)
 - Docker Compose for full stack deployment
 
-### Phase 8: Family
+### Phase 8b: Family Enhancements
 
-Shared entities and activity feed.
+Additional family features (post-MVP).
 
-- Shared task lists and chore rotation
-- Activity feed showing both users' actions
-- Shared calendar view
-- Family dashboard
+- Shared calendar view overlaying both users' events
+- Chore auto-rotation (swap assignee on completion)
+- Family dashboard with combined stats
 
 ### Phase 9: Automate
 

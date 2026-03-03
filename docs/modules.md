@@ -17,7 +17,7 @@ Defined in `src/core/config/modules.ts`:
 | Health | `/health` | `body-metric`, `workout`, `sleep-mood` | Health | Done |
 | Wealth | `/wealth` | `transaction`, `budget`, `account`, `asset`, `wallet`, `crypto-tx` | Wealth | Done |
 | Home | `/home` | `device`, `service` | Home | Done |
-| Family | `/family` | `chore` | Family | Stub |
+| Family | `/family` | `chore` | Family | Done |
 | Notes | `/notes` | `note` | Capture | Done |
 | Posts | `/posts` | `post` | Family | Done |
 | Notifications | `/notifications` | (none) | Overview | Done |
@@ -117,9 +117,18 @@ Four widgets + daily brief:
 - Service statuses: running (green), stopped (gray), error (red), unknown (yellow)
 - Custom dialogs for each entity type (react-hook-form + zod)
 
-## Stub modules
+### Family
+- Two tabs: Chores, Activity
+- Summary strip: Total chores, Due/Overdue (red), My Chores, Shared Tasks
+- Chore cards with category badges (cleaning, cooking, laundry, shopping, maintenance, pets), frequency, assignee, due date
+- Category and assignee filter dropdowns
+- Activity tab: chronological feed of all shared entities across all modules (most recent 50)
+- Activity entries show author avatar, entity type badge, relative time, title, status
+- Custom chore dialog (react-hook-form + zod)
 
-Family has a placeholder page. It will be implemented in its roadmap phase using the same entity + hook + dialog pattern.
+## Adding a new module
+
+All modules are now implemented. No stub pages remain.
 
 ## Adding a new module
 
