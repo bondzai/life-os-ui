@@ -23,6 +23,7 @@ import { WealthPage } from '@/pages/wealth'
 import { HealthPage } from '@/pages/health'
 import { HomePage } from '@/pages/home'
 import { FamilyPage } from '@/pages/family'
+import { AutomatePage } from '@/pages/automate'
 
 const queryClient = new QueryClient()
 
@@ -52,6 +53,7 @@ export function App() {
                   <Route path="wealth" element={<WealthPage />} />
                   <Route path="home" element={<HomePage />} />
                   <Route path="family" element={<FamilyPage />} />
+                  <Route path="automate" element={<AutomatePage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
               </Route>

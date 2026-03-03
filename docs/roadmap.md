@@ -93,6 +93,16 @@ Shared chore management and household activity feed.
 - Summary strip: total chores, due/overdue, my chores, shared tasks
 - Custom zod-validated chore dialog
 
+### Phase 9: Automate
+Client-side trigger/action automation engine.
+- Trigger types: schedule (daily/weekly/monthly) and manual
+- Action types: create-entity, notify, update-entities
+- Automation cards with run count, last run, next due, manual run button
+- 5 preset templates: Weekly Review, Monthly Budget Check, Daily Habit Reminder, Weekly Meal Plan, Weekly Grocery List
+- One-click template activation
+- Engine evaluates due automations on page load (once per day per session)
+- Custom dialog with conditional action config fields
+
 ## Planned
 
 ### Phase 3.5: OpenClaw Bridge
@@ -115,14 +125,14 @@ Additional family features (post-MVP).
 - Chore auto-rotation (swap assignee on completion)
 - Family dashboard with combined stats
 
-### Phase 9: Automate
+### Phase 9b: Automate Enhancements
 
-Trigger/action engine.
+Advanced automation features (post-MVP).
 
-- Much of this may be covered by OpenClaw cron and skills
-- Custom trigger definitions (entity status change → action)
+- Event-driven triggers (entity status change, tracker threshold)
 - Webhook endpoints for external integrations
-- Template automations (meal planning, weekly reset, etc.)
+- OpenClaw cron skills integration
+- Conditional logic and chained actions
 
 ### Phase 10: Polish
 

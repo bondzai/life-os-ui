@@ -18,6 +18,7 @@ Defined in `src/core/config/modules.ts`:
 | Wealth | `/wealth` | `transaction`, `budget`, `account`, `asset`, `wallet`, `crypto-tx` | Wealth | Done |
 | Home | `/home` | `device`, `service` | Home | Done |
 | Family | `/family` | `chore` | Family | Done |
+| Automate | `/automate` | `automation` | Automate | Done |
 | Notes | `/notes` | `note` | Capture | Done |
 | Posts | `/posts` | `post` | Family | Done |
 | Notifications | `/notifications` | (none) | Overview | Done |
@@ -127,6 +128,17 @@ Four widgets + daily brief:
 - Custom chore dialog (react-hook-form + zod)
 
 ## Adding a new module
+
+### Automate
+- Two tabs: Automations, Templates
+- Summary strip: Automation count, Active (green), Scheduled, Total Runs
+- Trigger types: schedule (daily/weekly/monthly) and manual (run on demand)
+- Action types: Create Entity, Send Notification, Update Entities
+- Automation cards with trigger/action info, run count, last run, next due, and manual run button
+- Templates tab: 5 preset automations (Weekly Review, Monthly Budget Check, Daily Habit Reminder, Weekly Meal Plan, Weekly Grocery List)
+- One-click template activation (prevents duplicates)
+- Automation engine runs due scheduled automations on page load (once per day per session)
+- Custom automation dialog with conditional action config fields (react-hook-form + zod)
 
 All modules are now implemented. No stub pages remain.
 

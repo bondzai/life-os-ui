@@ -15,6 +15,7 @@ import {
   Bell,
   MapPin,
   Plane,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -140,6 +141,14 @@ export const modules: ModuleConfig[] = [
     path: '/home',
     group: 'Home',
     entityTypes: ['device', 'service'],
+  },
+  {
+    id: 'automate',
+    label: 'Automate',
+    icon: Zap,
+    path: '/automate',
+    group: 'Automate',
+    entityTypes: ['automation'],
   },
   {
     id: 'posts',
