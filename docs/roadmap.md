@@ -67,6 +67,15 @@ Budget, transactions, net worth tracking, and portfolio management.
 - Chain and protocol filters on the portfolio tab
 - Assets linked to wallets via walletId
 
+### Phase 6: Health
+Body metrics, workouts, sleep, and mood tracking.
+- Body metrics table: weight, body fat, waist, chest, arms, BMI — with metric type filter
+- Workout cards: strength, cardio, flexibility, HIIT, sports — duration, calories, exercises
+- Sleep & mood cards: sleep hours + quality, mood (great → terrible), energy level (1-10)
+- Summary strip: latest weight, 7-day workout count, 7-day avg sleep, today's mood
+- Custom zod-validated dialogs for each entry type
+- New `sleep-mood` entity type for combined daily wellness entries
+
 ## Planned
 
 ### Phase 3.5: OpenClaw Bridge
@@ -80,15 +89,6 @@ Connect Life-OS to OpenClaw on the mini PC. This is the pivotal phase that turns
 - Configure OpenClaw channels (Telegram for JB, WhatsApp for Sunny)
 - Add cron skills (daily brief, overdue nudges, habit reminders)
 - Docker Compose for full stack deployment
-
-### Phase 6: Health
-
-Body metrics, workouts, sleep, and mood.
-
-- Body metrics tracking (weight, measurements) with trend charts
-- Workout log with exercise types and volume
-- Sleep and mood daily entries
-- Health dashboard with correlation insights
 
 ### Phase 7: Home
 
@@ -126,3 +126,36 @@ PWA, mobile optimization, performance.
 - Code splitting and lazy loading
 - Performance profiling and optimization
 - Accessibility audit
+
+---
+
+## Improvements & Scaling
+
+Known areas to improve as the project grows. Not urgent — tackle incrementally when touching related code.
+
+### Performance
+- **Code splitting**: Lazy-load route pages with `React.lazy()` — the single bundle is ~1.4 MB gzipped to ~420 KB, which is fine now but will grow
+- **Virtualization**: Long lists (transactions, crypto txs) should use `@tanstack/react-virtual` once they exceed ~100 rows
+- **Memoization**: Wealth page has many `useMemo` chains — consider extracting into custom hooks to reduce component complexity
+- **Query granularity**: `useEntities(type)` fetches *all* entities then filters in-memory. Once the API server exists, push type filters to the query layer
+
+### Data & Storage
+- **localStorage limits**: Currently ~5-10 MB cap depending on browser. Seed data is small but real usage will hit this. API server (Phase 3.5) is the fix
+- **Seed data reset**: `seedIfEmpty()` only seeds if the key is missing — no migration path for schema changes. Adding a version key would help
+- **Tracker volume**: High-frequency trackers (daily habits, body metrics, mood) will accumulate fast. Archive or aggregate old entries once the API exists
+
+### Architecture
+- **Wealth page size**: `wealth.tsx` is the largest single component (~500 lines). Consider extracting tab content into subcomponents if it grows further
+- **Dialog pattern divergence**: Wealth module uses custom zod-based dialogs while other modules use the generic `EntityDialog`. Both patterns work — keep custom dialogs for modules with complex metadata, use `EntityDialog` for simple ones
+- **Entity type proliferation**: 22 entity types sharing one table. Fine for localStorage, but the API schema should support indexed queries by type
+
+### DX & Quality
+- **No tests yet**: Unit tests for helpers (formatTHB, getAssetValue, etc.) and component tests for critical flows (CRUD, filters) would catch regressions
+- **No Storybook**: UI components are only testable in-app. Not urgent for a two-user app
+- **Lint/format**: Ensure ESLint + Prettier are configured and enforced (currently in place via Vite defaults)
+
+### Feature Gaps in Existing Modules
+- **Dashboard**: Could show health summary, wealth snapshot, and recent crypto txs once those modules are live
+- **Calendar**: Only shows entity `dueDate` — could integrate habit check-ins and body metric entries as timeline dots
+- **Goals**: No auto-progress from linked tasks/habits. Manual progress slider works but auto-compute would be better
+- **Wealth**: No recurring transaction support, no multi-currency conversion, no real-time price feeds (all fine for manual tracking)

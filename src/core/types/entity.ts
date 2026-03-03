@@ -21,6 +21,7 @@ export type EntityType =
   | 'asset'
   | 'wallet'
   | 'crypto-tx'
+  | 'sleep-mood'
 
 export type EntityStatus = 'active' | 'completed' | 'archived' | 'paused'
 

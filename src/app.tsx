@@ -20,8 +20,8 @@ import { NotificationsPage } from '@/pages/notifications'
 import { PlacesPage } from '@/pages/places'
 import { TravelPage } from '@/pages/travel'
 import { WealthPage } from '@/pages/wealth'
+import { HealthPage } from '@/pages/health'
 import {
-  HealthPage,
   HomePage,
   FamilyPage,
 } from '@/pages/stubs'

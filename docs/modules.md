@@ -14,7 +14,7 @@ Defined in `src/core/config/modules.ts`:
 | Calendar | `/calendar` | `event` | Plan | Done |
 | Skills | `/skills` | `skill`, `course`, `book` | Grow | Done |
 | Habits | `/habits` | `habit` | Grow | Done |
-| Health | `/health` | `body-metric`, `workout` | Health | Stub |
+| Health | `/health` | `body-metric`, `workout`, `sleep-mood` | Health | Done |
 | Wealth | `/wealth` | `transaction`, `budget`, `account`, `asset`, `wallet`, `crypto-tx` | Wealth | Done |
 | Home | `/home` | `device`, `service` | Home | Stub |
 | Family | `/family` | `chore` | Family | Stub |
@@ -100,9 +100,17 @@ Four widgets + daily brief:
 - Assets can be linked to wallets (walletId) for crypto/defi classes
 - Custom dialogs for each entity type (react-hook-form + zod)
 
+### Health
+- Three tabs: Body Metrics, Workouts, Sleep & Mood
+- Summary strip: Weight (latest), Workouts (7d count), Avg Sleep (7d), Today's Mood
+- Body metrics table with metric type filter (weight, body fat, waist, chest, arms, BMI)
+- Workout cards with type badges, duration, calories, exercises
+- Sleep & mood cards with sleep hours, quality badge, mood badge, energy level
+- Custom dialogs for each entry type (react-hook-form + zod)
+
 ## Stub modules
 
-Health, Home, and Family have placeholder pages. Each will be implemented in its roadmap phase using the same entity + hook + dialog pattern.
+Home and Family have placeholder pages. Each will be implemented in its roadmap phase using the same entity + hook + dialog pattern.
 
 ## Adding a new module
 

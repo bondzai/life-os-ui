@@ -116,3 +116,22 @@ Leaflet + react-leaflet with OpenStreetMap tiles for the Places and Travel modul
 - Markers with popups for places, polylines for trip routes
 - Default map center: Bangkok (13.7563, 100.5018)
 - Leaflet default marker icon fix applied for Vite bundler compatibility
+
+## Scaling Considerations
+
+### Current limits (localStorage era)
+- ~5-10 MB storage cap per origin. Sufficient for seed data and light usage, but real daily tracking will exhaust this within months
+- All queries are in-memory (fetch all → filter). No performance issues at current scale (~100 entities), but O(n) scan for every render
+
+### API server migration path
+- Repository interface (`IRepository<T>`) is the abstraction boundary. Swap `LocalRepository` for `ApiRepository` with zero UI changes
+- Push entity type filtering, pagination, and date-range queries to the server
+- Add indexed lookups by `type`, `ownerId`, `status`, and `dueDate` in SQLite/Drizzle schema
+
+### Bundle size
+- Single-chunk build (~1.4 MB). Acceptable for a self-hosted LAN app, but add route-based code splitting (`React.lazy`) before exceeding ~2 MB
+- Heavy deps: Recharts (~300 KB), Leaflet (~200 KB), dnd-kit (~100 KB). Lazy-load map and chart pages to keep initial load fast
+
+### Multi-user concurrency
+- Currently no conflict resolution — last write wins in localStorage. The API server should use optimistic concurrency (updatedAt check) for shared entities
+- Two users, low contention — simple timestamp-based conflict detection is sufficient

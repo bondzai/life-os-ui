@@ -123,7 +123,7 @@ export const modules: ModuleConfig[] = [
     icon: Heart,
     path: '/health',
     group: 'Health',
-    entityTypes: ['body-metric', 'workout'],
+    entityTypes: ['body-metric', 'workout', 'sleep-mood'],
   },
   {
     id: 'wealth',
