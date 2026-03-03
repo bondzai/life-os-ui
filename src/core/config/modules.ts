@@ -131,7 +131,7 @@ export const modules: ModuleConfig[] = [
     icon: Wallet,
     path: '/wealth',
     group: 'Wealth',
-    entityTypes: ['transaction', 'budget', 'account'],
+    entityTypes: ['transaction', 'budget', 'account', 'asset', 'wallet', 'crypto-tx'],
   },
   {
     id: 'home',

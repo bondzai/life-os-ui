@@ -52,6 +52,21 @@ Notes, posts, notifications, places, and travel.
 - Places page with Leaflet map and OpenStreetMap tiles
 - Travel page — trip planner linking places with map routes
 
+### Phase 5: Wealth
+Budget, transactions, net worth tracking, and portfolio management.
+- Transaction table with type/category filters and CRUD
+- Budget cards with progress bars (spent computed from transactions)
+- Account cards with balances and cash total
+- Spending chart (Recharts bar chart) by category
+- Summary strip: Net Worth, Cash, Portfolio, Monthly P&L
+- Portfolio tab with asset tracking (crypto, defi, stocks, funds, gold, property)
+- Asset cards with gain/loss display, allocation donut chart
+- Custom dialogs with zod validation for each entity type
+- Wallets tab: CEX accounts + cold/hot/hardware wallets with chain and address tracking
+- Crypto transaction ledger: buy/sell/swap/transfer records linked to wallets
+- Chain and protocol filters on the portfolio tab
+- Assets linked to wallets via walletId
+
 ## Planned
 
 ### Phase 3.5: OpenClaw Bridge
@@ -65,15 +80,6 @@ Connect Life-OS to OpenClaw on the mini PC. This is the pivotal phase that turns
 - Configure OpenClaw channels (Telegram for JB, WhatsApp for Sunny)
 - Add cron skills (daily brief, overdue nudges, habit reminders)
 - Docker Compose for full stack deployment
-
-### Phase 5: Wealth
-
-Budget, transactions, and net worth tracking.
-
-- Transaction entry and categorization
-- Budget management with spending progress bars
-- Account balances and net worth chart
-- Monthly summary with category breakdown
 
 ### Phase 6: Health
 

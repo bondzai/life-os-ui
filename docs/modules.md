@@ -15,7 +15,7 @@ Defined in `src/core/config/modules.ts`:
 | Skills | `/skills` | `skill`, `course`, `book` | Grow | Done |
 | Habits | `/habits` | `habit` | Grow | Done |
 | Health | `/health` | `body-metric`, `workout` | Health | Stub |
-| Wealth | `/wealth` | `transaction`, `budget`, `account` | Wealth | Stub |
+| Wealth | `/wealth` | `transaction`, `budget`, `account`, `asset`, `wallet`, `crypto-tx` | Wealth | Done |
 | Home | `/home` | `device`, `service` | Home | Stub |
 | Family | `/family` | `chore` | Family | Stub |
 | Notes | `/notes` | `note` | Capture | Done |
@@ -86,9 +86,23 @@ Four widgets + daily brief:
 - Polyline connecting trip places on map
 - Add/remove places from trips
 
+### Wealth
+- Six tabs: Transactions, Budgets, Accounts, Portfolio, Wallets, Crypto Txs
+- Summary strip: Net Worth, Cash, Portfolio, Monthly P&L
+- Transaction table with type/category filters and inline actions
+- Budget cards with progress bars (computed spent from transactions)
+- Spending chart (Recharts horizontal bar) by category
+- Account cards with balance display and cash total
+- Portfolio tab with asset cards, class/chain/protocol filters, allocation donut chart, and unrealized gain/loss
+- Asset types: crypto, defi, stock, fund, gold, property — quantity-based or value-based
+- Wallets tab: track CEX accounts and cold/hot/hardware wallets with addresses and chains
+- Crypto Txs tab: buy/sell/swap/transfer ledger with action/symbol filters, linked to wallets
+- Assets can be linked to wallets (walletId) for crypto/defi classes
+- Custom dialogs for each entity type (react-hook-form + zod)
+
 ## Stub modules
 
-Health, Wealth, Home, and Family have placeholder pages. Each will be implemented in its roadmap phase using the same entity + hook + dialog pattern.
+Health, Home, and Family have placeholder pages. Each will be implemented in its roadmap phase using the same entity + hook + dialog pattern.
 
 ## Adding a new module
 

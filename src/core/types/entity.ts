@@ -18,6 +18,9 @@ export type EntityType =
   | 'post'
   | 'place'
   | 'trip'
+  | 'asset'
+  | 'wallet'
+  | 'crypto-tx'
 
 export type EntityStatus = 'active' | 'completed' | 'archived' | 'paused'
 
