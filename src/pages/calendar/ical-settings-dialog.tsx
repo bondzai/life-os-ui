@@ -11,6 +11,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import type { ICalFeed } from '@/lib/ical'
+import { normalizeGCalUrl } from '@/lib/ical/fetch'
 
 const PRESET_COLORS = [
   '#3b82f6', // blue
@@ -49,7 +50,7 @@ export function ICalSettingsDialog({
     onAdd({
       id: crypto.randomUUID(),
       name: name.trim(),
-      url: url.trim(),
+      url: normalizeGCalUrl(url.trim()),
       color,
       enabled: true,
     })
