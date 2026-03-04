@@ -103,6 +103,16 @@ Client-side trigger/action automation engine.
 - Engine evaluates due automations on page load (once per day per session)
 - Custom dialog with conditional action config fields
 
+### Phase 10.5: Memories
+Photo journal / memory board.
+- Gallery + Timeline views with image upload and client-side compression (Canvas API)
+- Lightbox overlay for full-resolution image viewing
+- Mood tracking (joyful, peaceful, nostalgic, excited, grateful, bittersweet)
+- Storage budget indicator for localStorage (~3.5MB / ~15 photos)
+- Summary strip: Total Memories, This Month, Top Mood, Storage Used
+- Custom zod-validated dialog with image upload zone
+- New `memory` entity type with base64-encoded images in metadata
+
 ### Phase 10: Polish
 PWA, code splitting, mobile optimization, and performance.
 - PWA manifest + service worker (vite-plugin-pwa) with autoUpdate and offline caching

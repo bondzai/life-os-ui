@@ -50,4 +50,5 @@ export const ENTITY_TYPE_LABELS: Record<string, string> = {
   book: 'Book',
   course: 'Course',
   skill: 'Skill',
+  memory: 'Memory',
 }

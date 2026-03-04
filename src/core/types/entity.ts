@@ -23,6 +23,7 @@ export type EntityType =
   | 'crypto-tx'
   | 'sleep-mood'
   | 'automation'
+  | 'memory'
 
 export type EntityStatus = 'active' | 'completed' | 'archived' | 'paused'
 

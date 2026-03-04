@@ -20,6 +20,7 @@ Defined in `src/core/config/modules.ts`:
 | Family | `/family` | `chore` | Family | Done |
 | Automate | `/automate` | `automation` | Automate | Done |
 | Notes | `/notes` | `note` | Capture | Done |
+| Memories | `/memories` | `memory` | Capture | Done |
 | Posts | `/posts` | `post` | Family | Done |
 | Notifications | `/notifications` | (none) | Overview | Done |
 | Places | `/places` | `place` | Explore | Done |
@@ -127,7 +128,17 @@ Four widgets + daily brief:
 - Activity entries show author avatar, entity type badge, relative time, title, status
 - Custom chore dialog (react-hook-form + zod)
 
-## Adding a new module
+### Memories
+- Photo journal / memory board with image upload and compression
+- Gallery tab: responsive card grid with thumbnail images (aspect 4:3)
+- Timeline tab: chronological feed grouped by month/year
+- Lightbox: full-image overlay with caption and metadata
+- Image compression via Canvas API (max 200KB full, ~30KB thumbnail)
+- Mood tracking: joyful, peaceful, nostalgic, excited, grateful, bittersweet
+- Summary strip: Total Memories, This Month, Top Mood, Storage Used
+- Mood filter + date sort (newest/oldest)
+- Storage budget indicator (~3.5MB for ~15 photos in localStorage)
+- Custom memory dialog with image upload zone (react-hook-form + zod)
 
 ### Automate
 - Two tabs: Automations, Templates
@@ -141,8 +152,6 @@ Four widgets + daily brief:
 - Custom automation dialog with conditional action config fields (react-hook-form + zod)
 
 All modules are now implemented. No stub pages remain.
-
-## Adding a new module
 
 1. Define entity type(s) in `src/core/types/entity.ts`
 2. Add module config to `src/core/config/modules.ts`

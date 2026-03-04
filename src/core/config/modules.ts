@@ -16,6 +16,7 @@ import {
   MapPin,
   Plane,
   Zap,
+  Camera,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -77,6 +78,14 @@ export const modules: ModuleConfig[] = [
     path: '/notes',
     group: 'Capture',
     entityTypes: ['note'],
+  },
+  {
+    id: 'memories',
+    label: 'Memories',
+    icon: Camera,
+    path: '/memories',
+    group: 'Capture',
+    entityTypes: ['memory'],
   },
   {
     id: 'skills',
