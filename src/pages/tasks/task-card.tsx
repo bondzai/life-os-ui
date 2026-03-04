@@ -27,9 +27,16 @@ function isOverdue(task: Entity) {
   return task.dueDate && task.status !== 'completed' && task.dueDate < new Date().toISOString().split('T')[0]
 }
 
+const priorityBorder: Record<string, string> = {
+  urgent: 'border-l-4 border-l-red-500',
+  high: 'border-l-4 border-l-orange-500',
+  medium: 'border-l-4 border-l-yellow-500',
+  low: 'border-l-4 border-l-gray-300 dark:border-l-gray-600',
+}
+
 export const TaskCard = forwardRef<HTMLDivElement, TaskCardProps & React.HTMLAttributes<HTMLDivElement>>(
   ({ task, showStatusMove, onToggleComplete, onMoveToStatus, onEdit, onDelete, style, className, ...attrs }, ref) => (
-    <Card ref={ref} style={style} className={`group ${className ?? ''}`} {...attrs}>
+    <Card ref={ref} style={style} className={`group ${priorityBorder[task.priority] || ''} ${className ?? ''}`} {...attrs}>
       <CardContent className="flex items-start gap-3 py-3">
         <Checkbox
           checked={task.status === 'completed'}

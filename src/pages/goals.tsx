@@ -42,8 +42,18 @@ export function GoalsPage() {
   const getSubGoals = (parentId: string) =>
     allGoals.filter((g) => g.parentId === parentId)
 
-  const getProgress = (goal: Entity) =>
-    typeof goal.metadata.progress === 'number' ? goal.metadata.progress : 0
+  const getProgress = (goal: Entity): number => {
+    // Auto-compute from sub-goals if they exist
+    const subs = allGoals.filter((g) => g.parentId === goal.id)
+    if (subs.length > 0) {
+      const avg = subs.reduce((sum, s) => sum + (typeof s.metadata.progress === 'number' ? (s.metadata.progress as number) : 0), 0) / subs.length
+      return Math.round(avg)
+    }
+    return typeof goal.metadata.progress === 'number' ? goal.metadata.progress : 0
+  }
+
+  const progressColor = (p: number) =>
+    p >= 75 ? 'text-green-600' : p >= 25 ? 'text-yellow-600' : 'text-red-600'
 
   const handleCreate = (values: Record<string, unknown>) => {
     const tags = typeof values.tags === 'string'
@@ -239,7 +249,7 @@ export function GoalsPage() {
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs">
                       <span className="text-muted-foreground">Progress</span>
-                      <span>{progress}%</span>
+                      <span className={progressColor(progress)}>{progress}%</span>
                     </div>
                     <Progress value={progress} className="h-2" />
                   </div>

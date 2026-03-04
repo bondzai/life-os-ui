@@ -18,6 +18,7 @@ import { PriorityBadge } from '@/core/components/priority-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
+import { HabitHeatmap } from './habits/habit-heatmap'
 import type { Entity, EntityStatus } from '@/core/types'
 
 function getTodayStart(): string {
@@ -203,12 +204,18 @@ export function HabitsPage() {
                     </p>
                   )}
 
-                  {/* Streak */}
+                  {/* Streak + milestones */}
                   <div className="flex items-center gap-1.5">
                     <Flame className="h-4 w-4 text-orange-500" />
                     <span className="text-sm font-medium">{streak}</span>
                     <span className="text-xs text-muted-foreground">day streak</span>
+                    {streak >= 90 && <Badge className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">90d</Badge>}
+                    {streak >= 30 && streak < 90 && <Badge className="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">30d</Badge>}
+                    {streak >= 7 && streak < 30 && <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">7d</Badge>}
                   </div>
+
+                  {/* Heatmap */}
+                  <HabitHeatmap trackers={allTrackers} habitId={habit.id} />
 
                   {/* Check-in button */}
                   <Button

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, NotebookPen, Pencil, Trash2, Search } from 'lucide-react'
+import { Plus, NotebookPen, Pencil, Trash2, Search, Pin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -41,9 +41,23 @@ export function NotesPage() {
   const [editingNote, setEditingNote] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
 
+  const [tagFilter, setTagFilter] = useState<string>('all')
+
+  // Collect all unique tags from notes
+  const allTags = useMemo(() => {
+    const tags = new Set<string>()
+    for (const n of allNotes) {
+      if (!n.metadata.isJournal) {
+        for (const t of n.tags) tags.add(t)
+      }
+    }
+    return Array.from(tags).sort()
+  }, [allNotes])
+
   const notes = useMemo(() => {
-    let filtered = allNotes.filter((n) => !n.metadata.isJournal)
+    let filtered = allNotes.filter((n) => !n.metadata.isJournal && !n.metadata.isInbox)
     if (statusFilter !== 'all') filtered = filtered.filter((n) => n.status === statusFilter)
+    if (tagFilter !== 'all') filtered = filtered.filter((n) => n.tags.includes(tagFilter))
     if (search) {
       const q = search.toLowerCase()
       filtered = filtered.filter(
@@ -52,8 +66,14 @@ export function NotesPage() {
           (typeof n.metadata.body === 'string' && n.metadata.body.toLowerCase().includes(q)),
       )
     }
+    // Pinned notes first
+    filtered.sort((a, b) => {
+      const pinA = a.metadata.isPinned ? 1 : 0
+      const pinB = b.metadata.isPinned ? 1 : 0
+      return pinB - pinA
+    })
     return filtered
-  }, [allNotes, statusFilter, search])
+  }, [allNotes, statusFilter, tagFilter, search])
 
   const journalEntries = useMemo(() => {
     const entries = allNotes.filter((n) => n.metadata.isJournal)
@@ -150,6 +170,19 @@ export function NotesPage() {
                   <SelectItem value="archived">Archived</SelectItem>
                 </SelectContent>
               </Select>
+              {allTags.length > 0 && (
+                <Select value={tagFilter} onValueChange={setTagFilter}>
+                  <SelectTrigger className="w-[130px]">
+                    <SelectValue placeholder="Tag" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All tags</SelectItem>
+                    {allTags.map((tag) => (
+                      <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -189,7 +222,10 @@ export function NotesPage() {
                 <Card key={note.id}>
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-sm font-medium">{note.title}</CardTitle>
+                      <CardTitle className="text-sm font-medium flex items-center gap-1">
+                        {note.metadata.isPinned && <Pin className="h-3 w-3 text-primary shrink-0" />}
+                        {note.title}
+                      </CardTitle>
                       <StatusBadge status={note.status} />
                     </div>
                   </CardHeader>
@@ -214,6 +250,22 @@ export function NotesPage() {
                       </div>
                     )}
                     <div className="flex gap-1 pt-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className={`h-7 px-2 ${note.metadata.isPinned ? 'text-primary' : ''}`}
+                        onClick={() =>
+                          update.mutate({
+                            id: note.id,
+                            updates: {
+                              metadata: { ...note.metadata, isPinned: !note.metadata.isPinned },
+                              updatedAt: new Date().toISOString(),
+                            },
+                          })
+                        }
+                      >
+                        <Pin className="h-3.5 w-3.5" />
+                      </Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingNote(note)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>

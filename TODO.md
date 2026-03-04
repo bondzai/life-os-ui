@@ -7,39 +7,39 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 ## Phase 12: Quick Wins & Polish
 
 ### 12a. Cross-Cutting UX
-- [ ] Data export: download all entities as JSON file (backup button in sidebar footer)
-- [ ] Data import: upload JSON to restore from backup
+- [x] Data export: download all entities as JSON file (backup button in sidebar footer)
+- [x] Data import: upload JSON to restore from backup
 - [ ] Undo delete: toast with "Undo" button (soft delete → restore within 5s)
 - [ ] Duplicate item: clone any entity with one click (button on cards)
-- [ ] Sidebar collapsible groups: collapse/expand with remembered preference
-- [ ] Sidebar badges: show due/overdue count next to Tasks and Chores modules
+- [x] Sidebar collapsible groups: collapse/expand with remembered preference
+- [x] Sidebar badges: show due/overdue count next to Tasks and Chores modules
 
 ### 12b. Dashboard v2
-- [ ] Health summary card: latest weight, today's mood, 7d workout count
-- [ ] Wealth snapshot card: net worth, monthly P&L
-- [ ] Habit completion rate card: "85% this week" with mini bar
-- [ ] "Weekly Review due" card: show when review hasn't been done this week
+- [x] Health summary card: latest weight, today's mood, 7d workout count
+- [x] Wealth snapshot card: net worth, monthly P&L
+- [x] Habit completion rate card: "85% this week" with mini bar
+- [x] "Weekly Review due" card: show when review hasn't been done this week
 - [ ] Motivational message when all tasks are complete
 
 ### 12c. Goal Improvements
 - [ ] Progress slider on card: quick-adjust without opening dialog
-- [ ] Color-code cards by progress range (red/yellow/green)
-- [ ] Auto-progress from sub-goals: compute parent % as average of children
+- [x] Color-code cards by progress range (red/yellow/green)
+- [x] Auto-progress from sub-goals: compute parent % as average of children
 
 ### 12d. Task Improvements
-- [ ] Priority color on Kanban cards (red/orange/yellow/gray)
+- [x] Priority color on Kanban cards (red/orange/yellow/gray)
 - [ ] Quick snooze: reschedule by 1 day or 1 week from card menu
 - [ ] Subtask support: nested checklist items within a task (metadata array)
 
 ### 12e. Habit Improvements
-- [ ] Habit heatmap: 90-day grid showing check-in patterns (CSS grid + color scale)
+- [x] Habit heatmap: 90-day grid showing check-in patterns (CSS grid + color scale)
 - [ ] Monthly completion rate badge on cards
-- [ ] Streak milestone badges: 7d, 30d, 90d visual indicators
+- [x] Streak milestone badges: 7d, 30d, 90d visual indicators
 
 ### 12f. Notes Improvements
-- [ ] Pin/favorite toggle: pinned notes always show at top
+- [x] Pin/favorite toggle: pinned notes always show at top
 - [ ] Markdown rendering: render body with bold, links, code blocks
-- [ ] Tag filter dropdown on Notes tab
+- [x] Tag filter dropdown on Notes tab
 
 ### 12g. Memories Improvements
 - [ ] EXIF date extraction: auto-fill date from photo metadata

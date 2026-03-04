@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { CheckSquare, Target, Repeat, Plus } from 'lucide-react'
+import { useNavigate } from 'react-router'
+import { CheckSquare, Target, Repeat, Plus, Heart, Wallet, ClipboardCheck, Flame } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -8,12 +9,14 @@ import { useEntities, useTrackers } from '@/core/hooks'
 import { EntityDialog } from '@/core/components/entity-dialog'
 import { useAuthStore } from '@/stores/auth-store'
 import { DailyBriefWidget } from '@/pages/ai/daily-brief-widget'
+import { isReviewDoneThisWeek } from '@/pages/review/review-helpers'
 import type { Entity, EntityType, EntityStatus, EntityPriority } from '@/core/types'
 
 export function DashboardPage() {
   const { items: allEntities, update, create } = useEntities()
   const { items: allTrackers } = useTrackers()
   const currentUser = useAuthStore((s) => s.currentUser)
+  const navigate = useNavigate()
 
   const [quickAddType, setQuickAddType] = useState<EntityType | null>(null)
 
@@ -58,6 +61,62 @@ export function DashboardPage() {
       })
   }, [allEntities, allTrackers])
 
+  // Habit completion rate (this week)
+  const habitRate = useMemo(() => {
+    const activeHabits = allEntities.filter((e) => e.type === 'habit' && e.status === 'active')
+    if (activeHabits.length === 0) return null
+    const weekStart = new Date()
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay())
+    weekStart.setHours(0, 0, 0, 0)
+    const weekISO = weekStart.toISOString()
+    const daysSoFar = new Date().getDay() + 1
+    const totalSlots = activeHabits.length * daysSoFar
+    const checked = allTrackers.filter(
+      (t) => t.timestamp >= weekISO && activeHabits.some((h) => h.id === t.entityId),
+    ).length
+    return totalSlots > 0 ? Math.round((checked / totalSlots) * 100) : 0
+  }, [allEntities, allTrackers])
+
+  // Health summary
+  const healthSummary = useMemo(() => {
+    const weights = allEntities
+      .filter((e) => e.type === 'body-metric' && e.metadata.metricType === 'weight')
+      .sort((a, b) => ((b.metadata.date as string) || '').localeCompare((a.metadata.date as string) || ''))
+    const latestWeight = weights[0]?.metadata.value as number | undefined
+
+    const todayMood = allEntities.find(
+      (e) => e.type === 'sleep-mood' && (e.metadata.date as string) === today,
+    )
+    const mood = todayMood?.metadata.mood as string | undefined
+
+    const weekStart = new Date()
+    weekStart.setDate(weekStart.getDate() - 7)
+    const weekISO = weekStart.toISOString().split('T')[0]
+    const workouts7d = allEntities.filter(
+      (e) => e.type === 'workout' && ((e.metadata.date as string) || '') >= weekISO,
+    ).length
+
+    return { latestWeight, mood, workouts7d }
+  }, [allEntities, today])
+
+  // Wealth summary
+  const wealthSummary = useMemo(() => {
+    const accounts = allEntities.filter((e) => e.type === 'account' && e.status === 'active')
+    const cash = accounts.reduce((sum, a) => sum + (Number(a.metadata.balance) || 0), 0)
+
+    const monthPrefix = today.slice(0, 7)
+    const monthTx = allEntities.filter(
+      (e) => e.type === 'transaction' && ((e.metadata.date as string) || '').startsWith(monthPrefix),
+    )
+    const income = monthTx.filter((t) => t.metadata.txType === 'income').reduce((s, t) => s + (Number(t.metadata.amount) || 0), 0)
+    const expense = monthTx.filter((t) => t.metadata.txType === 'expense').reduce((s, t) => s + (Number(t.metadata.amount) || 0), 0)
+    const pl = income - expense
+
+    return { cash, pl }
+  }, [allEntities, today])
+
+  const reviewDue = !isReviewDoneThisWeek()
+
   const toggleTaskComplete = (task: Entity) => {
     update.mutate({
       id: task.id,
@@ -93,6 +152,8 @@ export function DashboardPage() {
   const getProgress = (goal: Entity) =>
     typeof goal.metadata.progress === 'number' ? goal.metadata.progress : 0
 
+  const formatTHB = (n: number) => n.toLocaleString('th-TH', { maximumFractionDigits: 0 })
+
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {/* Daily Brief */}
@@ -108,7 +169,7 @@ export function DashboardPage() {
         </CardHeader>
         <CardContent>
           {todaysTasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">All caught up! No tasks due.</p>
+            <p className="text-sm text-green-600">All caught up! No tasks due.</p>
           ) : (
             <div className="space-y-2">
               {todaysTasks.map((task) => (
@@ -141,15 +202,20 @@ export function DashboardPage() {
             <p className="text-sm text-muted-foreground">No active goals.</p>
           ) : (
             <div className="space-y-3">
-              {activeGoals.map((goal) => (
-                <div key={goal.id} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="truncate">{goal.title}</span>
-                    <span className="text-muted-foreground shrink-0">{getProgress(goal)}%</span>
+              {activeGoals.map((goal) => {
+                const p = getProgress(goal)
+                return (
+                  <div key={goal.id} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="truncate">{goal.title}</span>
+                      <span className={`shrink-0 ${p >= 75 ? 'text-green-600' : p >= 25 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                        {p}%
+                      </span>
+                    </div>
+                    <Progress value={p} className="h-2" />
                   </div>
-                  <Progress value={getProgress(goal)} className="h-2" />
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </CardContent>
@@ -161,6 +227,9 @@ export function DashboardPage() {
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <Repeat className="h-4 w-4 text-muted-foreground" />
             Habits
+            {habitRate !== null && (
+              <span className="ml-auto text-xs text-muted-foreground">{habitRate}% this week</span>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -176,9 +245,10 @@ export function DashboardPage() {
                     }`}
                   />
                   <span className="text-sm truncate flex-1">{habit.title}</span>
-                  {typeof habit.metadata.streak === 'number' && habit.metadata.streak > 0 && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {habit.metadata.streak as number}d streak
+                  {typeof habit.metadata.streak === 'number' && (habit.metadata.streak as number) > 0 && (
+                    <span className="text-xs text-muted-foreground shrink-0 flex items-center gap-0.5">
+                      <Flame className="h-3 w-3 text-orange-500" />
+                      {habit.metadata.streak as number}d
                     </span>
                   )}
                 </div>
@@ -187,6 +257,74 @@ export function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Health Summary */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            <Heart className="h-4 w-4 text-muted-foreground" />
+            Health
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">Weight</p>
+              <p className="text-sm font-medium">
+                {healthSummary.latestWeight ? `${healthSummary.latestWeight} kg` : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Workouts</p>
+              <p className="text-sm font-medium">{healthSummary.workouts7d}/7d</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Mood</p>
+              <p className="text-sm font-medium capitalize">{healthSummary.mood || '—'}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Wealth Snapshot */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+            Wealth
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">Cash</p>
+              <p className="text-sm font-medium">{formatTHB(wealthSummary.cash)} THB</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Monthly P&L</p>
+              <p className={`text-sm font-medium ${wealthSummary.pl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {wealthSummary.pl >= 0 ? '+' : ''}{formatTHB(wealthSummary.pl)} THB
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Weekly Review Prompt */}
+      {reviewDue && (
+        <Card className="border-dashed border-primary/30">
+          <CardContent className="p-3 flex items-center gap-3">
+            <ClipboardCheck className="h-5 w-5 text-primary shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Weekly Review</p>
+              <p className="text-xs text-muted-foreground">Time to reflect on your week</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => navigate('/review')}>
+              Start
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Add */}
       <Card>
