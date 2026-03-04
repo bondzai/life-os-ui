@@ -103,6 +103,16 @@ Client-side trigger/action automation engine.
 - Engine evaluates due automations on page load (once per day per session)
 - Custom dialog with conditional action config fields
 
+### Phase 10: Polish
+PWA, code splitting, mobile optimization, and performance.
+- PWA manifest + service worker (vite-plugin-pwa) with autoUpdate and offline caching
+- Workbox runtime caching for iCal feeds (NetworkFirst strategy)
+- App icons (192 + 512 SVG), apple-mobile-web-app meta tags
+- Code splitting: React.lazy for all 17 page routes — each page is a separate chunk
+- Manual vendor chunks: react, ui, data, charts, maps, dnd — split from ~1.5 MB monolith to ~300 KB initial + lazy chunks
+- Mobile-responsive layout padding (p-3 on mobile, p-6 on desktop)
+- Spinner fallback component for lazy-loaded routes
+
 ## Planned
 
 ### Phase 3.5: OpenClaw Bridge
@@ -134,16 +144,6 @@ Advanced automation features (post-MVP).
 - OpenClaw cron skills integration
 - Conditional logic and chained actions
 
-### Phase 10: Polish
-
-PWA, mobile optimization, performance.
-
-- PWA manifest + service worker for offline support
-- Mobile-responsive layouts for all pages
-- Code splitting and lazy loading
-- Performance profiling and optimization
-- Accessibility audit
-
 ---
 
 ## Improvements & Scaling
@@ -151,7 +151,7 @@ PWA, mobile optimization, performance.
 Known areas to improve as the project grows. Not urgent — tackle incrementally when touching related code.
 
 ### Performance
-- **Code splitting**: Lazy-load route pages with `React.lazy()` — the single bundle is ~1.4 MB gzipped to ~420 KB, which is fine now but will grow
+- ~~**Code splitting**~~: Done in Phase 10 — React.lazy for 17 routes + manual vendor chunks
 - **Virtualization**: Long lists (transactions, crypto txs) should use `@tanstack/react-virtual` once they exceed ~100 rows
 - **Memoization**: Wealth page has many `useMemo` chains — consider extracting into custom hooks to reduce component complexity
 - **Query granularity**: `useEntities(type)` fetches *all* entities then filters in-memory. Once the API server exists, push type filters to the query layer

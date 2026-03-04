@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
@@ -6,26 +7,36 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { AppLayout } from '@/layout/app-layout'
 import { ProtectedRoute } from '@/layout/protected-route'
 import { LoginPage } from '@/pages/login'
-import { DashboardPage } from '@/pages/dashboard'
-import { GoalsPage } from '@/pages/goals'
-import { TasksPage } from '@/pages/tasks'
-import { CalendarPage } from '@/pages/calendar'
 import { NotFoundPage } from '@/pages/not-found'
-import { HabitsPage } from '@/pages/habits'
-import { SkillsPage } from '@/pages/skills'
-import { ReadingPage } from '@/pages/reading'
-import { NotesPage } from '@/pages/notes'
-import { PostsPage } from '@/pages/posts'
-import { NotificationsPage } from '@/pages/notifications'
-import { PlacesPage } from '@/pages/places'
-import { TravelPage } from '@/pages/travel'
-import { WealthPage } from '@/pages/wealth'
-import { HealthPage } from '@/pages/health'
-import { HomePage } from '@/pages/home'
-import { FamilyPage } from '@/pages/family'
-import { AutomatePage } from '@/pages/automate'
+
+// Lazy-loaded pages for code splitting
+const DashboardPage = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.DashboardPage })))
+const GoalsPage = lazy(() => import('@/pages/goals').then((m) => ({ default: m.GoalsPage })))
+const TasksPage = lazy(() => import('@/pages/tasks').then((m) => ({ default: m.TasksPage })))
+const CalendarPage = lazy(() => import('@/pages/calendar').then((m) => ({ default: m.CalendarPage })))
+const HabitsPage = lazy(() => import('@/pages/habits').then((m) => ({ default: m.HabitsPage })))
+const SkillsPage = lazy(() => import('@/pages/skills').then((m) => ({ default: m.SkillsPage })))
+const ReadingPage = lazy(() => import('@/pages/reading').then((m) => ({ default: m.ReadingPage })))
+const NotesPage = lazy(() => import('@/pages/notes').then((m) => ({ default: m.NotesPage })))
+const PostsPage = lazy(() => import('@/pages/posts').then((m) => ({ default: m.PostsPage })))
+const NotificationsPage = lazy(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationsPage })))
+const PlacesPage = lazy(() => import('@/pages/places').then((m) => ({ default: m.PlacesPage })))
+const TravelPage = lazy(() => import('@/pages/travel').then((m) => ({ default: m.TravelPage })))
+const WealthPage = lazy(() => import('@/pages/wealth').then((m) => ({ default: m.WealthPage })))
+const HealthPage = lazy(() => import('@/pages/health').then((m) => ({ default: m.HealthPage })))
+const HomePage = lazy(() => import('@/pages/home').then((m) => ({ default: m.HomePage })))
+const FamilyPage = lazy(() => import('@/pages/family').then((m) => ({ default: m.FamilyPage })))
+const AutomatePage = lazy(() => import('@/pages/automate').then((m) => ({ default: m.AutomatePage })))
 
 const queryClient = new QueryClient()
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  )
+}
 
 export function App() {
   return (
@@ -37,24 +48,26 @@ export function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppLayout />}>
-                  <Route index element={<DashboardPage />} />
-                  <Route path="goals" element={<GoalsPage />} />
-                  <Route path="tasks" element={<TasksPage />} />
-                  <Route path="calendar" element={<CalendarPage />} />
-                  <Route path="notes" element={<NotesPage />} />
-                  <Route path="skills" element={<SkillsPage />} />
-                  <Route path="habits" element={<HabitsPage />} />
-                  <Route path="reading" element={<ReadingPage />} />
-                  <Route path="posts" element={<PostsPage />} />
-                  <Route path="notifications" element={<NotificationsPage />} />
-                  <Route path="places" element={<PlacesPage />} />
-                  <Route path="travel" element={<TravelPage />} />
-                  <Route path="health" element={<HealthPage />} />
-                  <Route path="wealth" element={<WealthPage />} />
-                  <Route path="home" element={<HomePage />} />
-                  <Route path="family" element={<FamilyPage />} />
-                  <Route path="automate" element={<AutomatePage />} />
-                  <Route path="*" element={<NotFoundPage />} />
+                  <Suspense fallback={<PageLoader />}>
+                    <Route index element={<DashboardPage />} />
+                    <Route path="goals" element={<GoalsPage />} />
+                    <Route path="tasks" element={<TasksPage />} />
+                    <Route path="calendar" element={<CalendarPage />} />
+                    <Route path="notes" element={<NotesPage />} />
+                    <Route path="skills" element={<SkillsPage />} />
+                    <Route path="habits" element={<HabitsPage />} />
+                    <Route path="reading" element={<ReadingPage />} />
+                    <Route path="posts" element={<PostsPage />} />
+                    <Route path="notifications" element={<NotificationsPage />} />
+                    <Route path="places" element={<PlacesPage />} />
+                    <Route path="travel" element={<TravelPage />} />
+                    <Route path="health" element={<HealthPage />} />
+                    <Route path="wealth" element={<WealthPage />} />
+                    <Route path="home" element={<HomePage />} />
+                    <Route path="family" element={<FamilyPage />} />
+                    <Route path="automate" element={<AutomatePage />} />
+                    <Route path="*" element={<NotFoundPage />} />
+                  </Suspense>
                 </Route>
               </Route>
             </Routes>

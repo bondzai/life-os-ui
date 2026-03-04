@@ -36,7 +36,7 @@ export function AppLayout() {
         <AppSidebar />
         <main className="flex-1 flex flex-col">
           <TopBar title={title} />
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-3 sm:p-6">
             <Outlet />
           </div>
         </main>
