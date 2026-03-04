@@ -31,16 +31,29 @@ export function MemoriesPage() {
 
   const [tab, setTab] = useState('gallery')
   const [moodFilter, setMoodFilter] = useState<string>('all')
+  const [albumFilter, setAlbumFilter] = useState<string>('all')
   const [sort, setSort] = useState<SortOption>('newest')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingMemory, setEditingMemory] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
   const [lightboxMemory, setLightboxMemory] = useState<Entity | null>(null)
 
+  const uniqueAlbums = useMemo(() => {
+    const albums = new Set<string>()
+    for (const m of allMemories) {
+      const album = m.metadata.album as string
+      if (album) albums.add(album)
+    }
+    return Array.from(albums).sort()
+  }, [allMemories])
+
   const memories = useMemo(() => {
     let filtered = [...allMemories]
     if (moodFilter !== 'all') {
       filtered = filtered.filter((m) => m.metadata.mood === moodFilter)
+    }
+    if (albumFilter !== 'all') {
+      filtered = filtered.filter((m) => m.metadata.album === albumFilter)
     }
     filtered.sort((a, b) => {
       const dateA = (a.metadata.date as string) || a.createdAt.split('T')[0]
@@ -48,7 +61,7 @@ export function MemoriesPage() {
       return sort === 'newest' ? dateB.localeCompare(dateA) : dateA.localeCompare(dateB)
     })
     return filtered
-  }, [allMemories, moodFilter, sort])
+  }, [allMemories, moodFilter, albumFilter, sort])
 
   // Summary stats
   const totalMemories = allMemories.length
@@ -104,6 +117,7 @@ export function MemoriesPage() {
         date: values.date,
         mood: values.mood,
         location: values.location || '',
+        album: values.album || '',
         isFavorite: false,
       },
       ownerId: currentUser?.id ?? '',
@@ -132,6 +146,7 @@ export function MemoriesPage() {
           date: values.date,
           mood: values.mood,
           location: values.location || '',
+          album: values.album || '',
         },
         updatedAt: new Date().toISOString(),
       },
@@ -148,6 +163,7 @@ export function MemoriesPage() {
         location: (editingMemory.metadata.location as string) || '',
         caption: (editingMemory.metadata.caption as string) || '',
         tags: editingMemory.tags.join(', '),
+        album: (editingMemory.metadata.album as string) || '',
         imageData: (editingMemory.metadata.imageData as string) || '',
         thumbnailData: (editingMemory.metadata.thumbnailData as string) || '',
       }
@@ -226,6 +242,21 @@ export function MemoriesPage() {
                 ))}
               </SelectContent>
             </Select>
+            {uniqueAlbums.length > 0 && (
+              <Select value={albumFilter} onValueChange={setAlbumFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Album" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All albums</SelectItem>
+                  {uniqueAlbums.map((album) => (
+                    <SelectItem key={album} value={album}>
+                      {album}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Select value={sort} onValueChange={(v) => setSort(v as SortOption)}>
               <SelectTrigger className="w-[120px]">
                 <SelectValue />

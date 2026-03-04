@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Progress } from '@/components/ui/progress'
+import { Slider } from '@/components/ui/slider'
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
@@ -121,7 +122,24 @@ export function GoalsPage() {
                 <span className="text-muted-foreground">Progress</span>
                 <span className="font-medium">{getProgress(fresh)}%</span>
               </div>
-              <Progress value={getProgress(fresh)} />
+              {subGoals.length > 0 ? (
+                <Progress value={getProgress(fresh)} />
+              ) : (
+                <Slider
+                  value={[getProgress(fresh)]}
+                  max={100}
+                  step={5}
+                  onValueChange={([val]) =>
+                    update.mutate({
+                      id: fresh.id,
+                      updates: {
+                        metadata: { ...fresh.metadata, progress: val },
+                        updatedAt: new Date().toISOString(),
+                      },
+                    })
+                  }
+                />
+              )}
             </div>
 
             {/* Sub-goals */}

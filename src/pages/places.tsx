@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, MapPin, Pencil, Trash2, Search } from 'lucide-react'
+import { Plus, MapPin, Pencil, Trash2, Search, ExternalLink } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -20,6 +20,7 @@ import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import type { Entity, EntityStatus } from '@/core/types'
+import { MapPickerDialog } from './places/map-picker-dialog'
 
 // Fix Leaflet default marker icons (Vite bundler issue)
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
@@ -54,6 +55,8 @@ export function PlacesPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingPlace, setEditingPlace] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
+  const [mapPickerOpen, setMapPickerOpen] = useState(false)
+  const [mapPickerTarget, setMapPickerTarget] = useState<Entity | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [panTarget, setPanTarget] = useState<[number, number] | null>(null)
 
@@ -90,6 +93,20 @@ export function PlacesPage() {
     setSelectedId(place.id)
     const coords = getCoords(place)
     if (coords) setPanTarget(coords)
+  }
+
+  const handleMapPick = (lat: number, lng: number) => {
+    if (mapPickerTarget) {
+      update.mutate({
+        id: mapPickerTarget.id,
+        updates: {
+          metadata: { ...mapPickerTarget.metadata, lat, lng },
+          updatedAt: new Date().toISOString(),
+        },
+      })
+      notify({ title: 'Location updated', type: 'success' })
+      setMapPickerTarget(null)
+    }
   }
 
   const handleCreate = (values: Record<string, unknown>) => {
@@ -219,6 +236,32 @@ export function PlacesPage() {
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-1.5"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setMapPickerTarget(place)
+                          setMapPickerOpen(true)
+                        }}
+                      >
+                        <MapPin className="h-3 w-3" />
+                      </Button>
+                      {getCoords(place) && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-1.5"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const [lat, lng] = getCoords(place)!
+                            window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank')
+                          }}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -299,6 +342,13 @@ export function PlacesPage() {
             setDeleteTarget(null)
           }
         }}
+      />
+
+      <MapPickerDialog
+        open={mapPickerOpen}
+        onOpenChange={setMapPickerOpen}
+        onSelect={handleMapPick}
+        initialPosition={mapPickerTarget ? (getCoords(mapPickerTarget) ?? undefined) : undefined}
       />
     </div>
   )

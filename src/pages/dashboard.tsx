@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router'
-import { CheckSquare, Target, Repeat, Plus, Heart, Wallet, ClipboardCheck, Flame } from 'lucide-react'
+import { CheckSquare, Target, Repeat, Plus, Heart, Wallet, ClipboardCheck, Flame, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -9,6 +9,7 @@ import { useEntities, useTrackers } from '@/core/hooks'
 import { EntityDialog } from '@/core/components/entity-dialog'
 import { useAuthStore } from '@/stores/auth-store'
 import { DailyBriefWidget } from '@/pages/ai/daily-brief-widget'
+import { OnThisDayWidget } from '@/pages/memories/on-this-day-widget'
 import { isReviewDoneThisWeek } from '@/pages/review/review-helpers'
 import type { Entity, EntityType, EntityStatus, EntityPriority } from '@/core/types'
 
@@ -115,6 +116,8 @@ export function DashboardPage() {
     return { cash, pl }
   }, [allEntities, today])
 
+  const memories = useMemo(() => allEntities.filter((e) => e.type === 'memory'), [allEntities])
+
   const reviewDue = !isReviewDoneThisWeek()
 
   const toggleTaskComplete = (task: Entity) => {
@@ -188,6 +191,19 @@ export function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Motivational message when all tasks done */}
+      {todaysTasks.length === 0 && (
+        <Card className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20">
+          <CardContent className="p-3 flex items-center gap-3">
+            <Trophy className="h-5 w-5 text-yellow-500 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-green-700 dark:text-green-300">All tasks done!</p>
+              <p className="text-xs text-green-600 dark:text-green-400">You're on top of everything. Great job!</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Goal Progress */}
       <Card>
@@ -325,6 +341,9 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* On This Day */}
+      <OnThisDayWidget memories={memories} />
 
       {/* Quick Add */}
       <Card>

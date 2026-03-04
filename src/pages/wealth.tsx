@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, Wallet, TrendingUp, TrendingDown, Landmark, PieChart as PieChartIcon, Briefcase, HardDrive, ArrowLeftRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +19,7 @@ import {
   formatTHB,
   getCurrentMonthRange,
   computeSpentByCategory,
+  generateRecurringDates,
   INCOME_CATEGORIES,
   EXPENSE_CATEGORIES,
   ASSET_CLASSES,
@@ -28,6 +29,7 @@ import {
   formatGain,
   type AssetClass,
   type CryptoTxAction,
+  type RecurringFrequency,
 } from './wealth/wealth-helpers'
 import { TransactionDialog, type TransactionFormValues } from './wealth/transaction-dialog'
 import { BudgetDialog, type BudgetFormValues } from './wealth/budget-dialog'
@@ -43,6 +45,8 @@ import { WalletCard } from './wealth/wallet-card'
 import { CryptoTxTable } from './wealth/crypto-tx-table'
 import { SpendingChart } from './wealth/spending-chart'
 import { AllocationChart } from './wealth/allocation-chart'
+import { CashflowChart } from './wealth/cashflow-chart'
+import { NetWorthChart } from './wealth/net-worth-chart'
 import type { Entity } from '@/core/types'
 
 export function WealthPage() {
@@ -199,6 +203,55 @@ export function WealthPage() {
   // Budget spending
   const spentByCategory = useMemo(() => computeSpentByCategory(transactions), [transactions])
 
+  // Auto-generate recurring transactions for current month
+  useEffect(() => {
+    const recurringTxs = transactions.filter(
+      (tx) => tx.metadata.recurring && tx.metadata.recurring !== 'none',
+    )
+    if (recurringTxs.length === 0) return
+
+    for (const tx of recurringTxs) {
+      const freq = tx.metadata.recurring as RecurringFrequency
+      const txDate = (tx.metadata.date as string) || tx.dueDate || ''
+      if (!txDate) continue
+
+      const dates = generateRecurringDates(txDate, freq, start, end)
+      for (const date of dates) {
+        // Check if this recurring instance already exists
+        const exists = transactions.some(
+          (t) =>
+            t.metadata.recurringSourceId === tx.id &&
+            ((t.metadata.date as string) || t.dueDate || '') === date,
+        )
+        if (!exists) {
+          create.mutate({
+            id: crypto.randomUUID(),
+            type: 'transaction',
+            title: tx.title,
+            status: 'active',
+            priority: 'medium',
+            tags: [],
+            metadata: {
+              amount: tx.metadata.amount,
+              txType: tx.metadata.txType,
+              category: tx.metadata.category,
+              date,
+              currency: 'THB',
+              recurring: 'none',
+              recurringSourceId: tx.id,
+            },
+            ownerId: tx.ownerId,
+            visibility: tx.visibility,
+            dueDate: date,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactions.length, start, end])
+
   const chartData = useMemo(
     () =>
       Object.entries(spentByCategory)
@@ -231,6 +284,7 @@ export function WealthPage() {
         category: values.category,
         date: values.date,
         currency: 'THB',
+        recurring: values.recurring || 'none',
       },
       ownerId: currentUser?.id ?? '',
       visibility: 'shared',
@@ -253,6 +307,7 @@ export function WealthPage() {
           txType: values.txType,
           category: values.category,
           date: values.date,
+          recurring: values.recurring || 'none',
         },
         dueDate: values.date,
         updatedAt: new Date().toISOString(),
@@ -594,6 +649,8 @@ export function WealthPage() {
 
         {/* Transactions Tab */}
         <TabsContent value="transactions" className="space-y-4">
+          <CashflowChart transactions={transactions} />
+          <NetWorthChart currentNetWorth={netWorth} />
           <div className="flex gap-3 flex-wrap">
             <Select value={txTypeFilter} onValueChange={(v) => setTxTypeFilter(v as 'all' | 'income' | 'expense')}>
               <SelectTrigger className="w-[140px]">
@@ -891,6 +948,7 @@ export function WealthPage() {
                 txType: editingTx.metadata.txType as 'income' | 'expense',
                 category: editingTx.metadata.category as string,
                 date: (editingTx.metadata.date as string) || editingTx.dueDate || '',
+                recurring: (editingTx.metadata.recurring as string) || 'none',
               }
             : undefined
         }

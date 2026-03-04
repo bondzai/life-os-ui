@@ -3,6 +3,7 @@ import { Plus, ChevronLeft, ChevronRight, Calendar, Settings } from 'lucide-reac
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
@@ -12,6 +13,8 @@ import { EmptyState } from '@/core/components/empty-state'
 import { useICalEvents } from '@/hooks/use-ical-events'
 import { groupEventsByDate, type ICalEvent } from '@/lib/ical'
 import { ICalSettingsDialog } from './calendar/ical-settings-dialog'
+import { AgendaView } from './calendar/agenda-view'
+import { WeekView } from './calendar/week-view'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -46,6 +49,8 @@ export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [calendarView, setCalendarView] = useState<'month' | 'week' | 'agenda'>('month')
+  const [typeFilter, setTypeFilter] = useState<string[]>(['task', 'goal', 'event', 'habit'])
 
   const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
 
@@ -53,14 +58,14 @@ export function CalendarPage() {
   const entitiesByDate = useMemo(() => {
     const map: Record<string, Entity[]> = {}
     for (const entity of allEntities) {
-      if (entity.dueDate) {
+      if (entity.dueDate && typeFilter.includes(entity.type)) {
         const key = entity.dueDate
         if (!map[key]) map[key] = []
         map[key].push(entity)
       }
     }
     return map
-  }, [allEntities])
+  }, [allEntities, typeFilter])
 
   // Group iCal events by date
   const icalByDate = useMemo(() => groupEventsByDate(icalEvents), [icalEvents])
@@ -107,6 +112,36 @@ export function CalendarPage() {
     setSelectedDate(null)
   }
 
+  const getWeekStart = (date: Date) => {
+    const d = new Date(date)
+    d.setDate(d.getDate() - d.getDay())
+    return d
+  }
+
+  const [weekStart, setWeekStart] = useState(() => getWeekStart(today))
+
+  const prevWeek = () => {
+    setWeekStart((prev) => {
+      const d = new Date(prev)
+      d.setDate(d.getDate() - 7)
+      return d
+    })
+  }
+
+  const nextWeek = () => {
+    setWeekStart((prev) => {
+      const d = new Date(prev)
+      d.setDate(d.getDate() + 7)
+      return d
+    })
+  }
+
+  const toggleTypeFilter = (type: string) => {
+    setTypeFilter((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
+    )
+  }
+
   const handleCreate = (values: Record<string, unknown>) => {
     const tags = typeof values.tags === 'string'
       ? values.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
@@ -142,16 +177,58 @@ export function CalendarPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={prevMonth}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <h2 className="text-lg font-semibold min-w-[180px] text-center">{monthLabel}</h2>
-          <Button variant="outline" size="sm" onClick={nextMonth}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={goToToday}>
-            Today
-          </Button>
+          <Tabs value={calendarView} onValueChange={(v) => setCalendarView(v as 'month' | 'week' | 'agenda')}>
+            <TabsList className="h-8">
+              <TabsTrigger value="month" className="text-xs px-3">Month</TabsTrigger>
+              <TabsTrigger value="week" className="text-xs px-3">Week</TabsTrigger>
+              <TabsTrigger value="agenda" className="text-xs px-3">Agenda</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {calendarView === 'month' && (
+            <>
+              <Button variant="outline" size="sm" onClick={prevMonth}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <h2 className="text-lg font-semibold min-w-[180px] text-center">{monthLabel}</h2>
+              <Button variant="outline" size="sm" onClick={nextMonth}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={goToToday}>
+                Today
+              </Button>
+            </>
+          )}
+          {calendarView === 'week' && (
+            <>
+              <Button variant="outline" size="sm" onClick={prevWeek}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <h2 className="text-sm font-medium min-w-[180px] text-center">
+                {weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {(() => {
+                  const end = new Date(weekStart)
+                  end.setDate(end.getDate() + 6)
+                  return end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                })()}
+              </h2>
+              <Button variant="outline" size="sm" onClick={nextWeek}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          <div className="flex gap-1 ml-2">
+            {Object.entries(typeColor).map(([type, color]) => (
+              <Button
+                key={type}
+                variant={typeFilter.includes(type) ? 'default' : 'outline'}
+                size="sm"
+                className="h-7 text-xs px-2 gap-1"
+                onClick={() => toggleTypeFilter(type)}
+              >
+                <span className={`w-2 h-2 rounded-full ${color}`} />
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+              </Button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
@@ -163,8 +240,23 @@ export function CalendarPage() {
         </div>
       </div>
 
+      {/* Week view */}
+      {calendarView === 'week' && (
+        <WeekView
+          weekStart={weekStart}
+          entities={allEntities.filter((e) => typeFilter.includes(e.type))}
+          icalEvents={icalEvents}
+          feedColorMap={feedColorMap}
+        />
+      )}
+
+      {/* Agenda view */}
+      {calendarView === 'agenda' && (
+        <AgendaView entities={allEntities} icalEvents={icalEvents} feedColorMap={feedColorMap} />
+      )}
+
       {/* Calendar grid */}
-      <div className="border rounded-lg overflow-hidden">
+      {calendarView === 'month' && <div className="border rounded-lg overflow-hidden">
         {/* Day-of-week header */}
         <div className="grid grid-cols-7 border-b bg-muted/50">
           {DAYS_OF_WEEK.map((day) => (
@@ -232,10 +324,10 @@ export function CalendarPage() {
             )
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Selected date detail */}
-      {selectedDate && (
+      {calendarView === 'month' && selectedDate && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">

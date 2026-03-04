@@ -62,6 +62,15 @@ export const TaskCard = forwardRef<HTMLDivElement, TaskCardProps & React.HTMLAtt
             {task.tags.map((tag) => (
               <span key={tag} className="text-xs bg-secondary px-1.5 py-0.5 rounded">{tag}</span>
             ))}
+            {Array.isArray(task.metadata.subtasks) && (task.metadata.subtasks as Array<{done: boolean}>).length > 0 && (() => {
+              const subs = task.metadata.subtasks as Array<{done: boolean}>
+              const done = subs.filter(s => s.done).length
+              return (
+                <span className="text-xs text-muted-foreground">
+                  Subtasks: {done}/{subs.length}
+                </span>
+              )
+            })()}
           </div>
           {showStatusMove && (
             <div className="flex gap-1 pt-1">

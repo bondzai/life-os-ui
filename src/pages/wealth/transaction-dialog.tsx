@@ -24,7 +24,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from './wealth-helpers'
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, RECURRING_OPTIONS } from './wealth-helpers'
 
 const schema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -32,6 +32,7 @@ const schema = z.object({
   txType: z.enum(['income', 'expense']),
   category: z.string().min(1, 'Category is required'),
   date: z.string().min(1, 'Date is required'),
+  recurring: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -42,6 +43,7 @@ export interface TransactionFormValues {
   txType: 'income' | 'expense'
   category: string
   date: string
+  recurring?: string
 }
 
 interface TransactionDialogProps {
@@ -67,6 +69,7 @@ export function TransactionDialog({
       txType: defaultValues?.txType ?? 'expense',
       category: defaultValues?.category ?? '',
       date: defaultValues?.date ?? new Date().toISOString().split('T')[0],
+      recurring: defaultValues?.recurring ?? 'none',
     },
   })
 
@@ -77,6 +80,7 @@ export function TransactionDialog({
     onSubmit({
       ...values,
       amount: parseFloat(values.amount),
+      recurring: values.recurring,
     })
     form.reset()
     onOpenChange(false)
@@ -184,6 +188,34 @@ export function TransactionDialog({
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="recurring"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Recurring</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="No recurrence" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {RECURRING_OPTIONS.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt === 'none'
+                            ? 'No recurrence'
+                            : opt === 'biweekly'
+                              ? 'Every 2 weeks'
+                              : opt.charAt(0).toUpperCase() + opt.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel

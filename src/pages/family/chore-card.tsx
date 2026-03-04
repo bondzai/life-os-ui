@@ -1,4 +1,4 @@
-import { Pencil, Trash2, CalendarDays, RotateCcw } from 'lucide-react'
+import { Pencil, Trash2, CalendarDays, RotateCcw, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,9 +15,10 @@ interface ChoreCardProps {
   chore: Entity
   onEdit: (chore: Entity) => void
   onDelete: (chore: Entity) => void
+  onComplete: (chore: Entity) => void
 }
 
-export function ChoreCard({ chore, onEdit, onDelete }: ChoreCardProps) {
+export function ChoreCard({ chore, onEdit, onDelete, onComplete }: ChoreCardProps) {
   const category = chore.metadata.category as ChoreCategory
   const frequency = chore.metadata.frequency as ChoreFrequency
   const assigneeId = chore.metadata.assigneeId as string
@@ -60,6 +61,9 @@ export function ChoreCard({ chore, onEdit, onDelete }: ChoreCardProps) {
           <p className="text-xs text-muted-foreground italic">{note}</p>
         )}
         <div className="flex gap-1">
+          <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => onComplete(chore)}>
+            <Check className="h-3.5 w-3.5" />
+          </Button>
           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => onEdit(chore)}>
             <Pencil className="h-3.5 w-3.5" />
           </Button>
@@ -67,6 +71,19 @@ export function ChoreCard({ chore, onEdit, onDelete }: ChoreCardProps) {
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
+        {Array.isArray(chore.metadata.completions) && (chore.metadata.completions as Array<{date: string; completedBy: string}>).length > 0 && (
+          <div className="space-y-0.5">
+            <p className="text-[10px] text-muted-foreground font-medium">Recent completions:</p>
+            {(chore.metadata.completions as Array<{date: string; completedBy: string}>).slice(-3).reverse().map((c, i) => {
+              const name = ASSIGNEES.find(a => a.id === c.completedBy)?.name ?? c.completedBy
+              return (
+                <p key={i} className="text-[10px] text-muted-foreground">
+                  {c.date} — {name}
+                </p>
+              )
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

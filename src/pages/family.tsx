@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
-import { Plus, Users, ClipboardList, Activity, CalendarDays } from 'lucide-react'
+import { Plus, Users, ClipboardList, Activity, CalendarDays, Target } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
 import {
   Select,
   SelectContent,
@@ -87,6 +88,7 @@ export function FamilyPage() {
         frequency: values.frequency,
         assigneeId: values.assigneeId,
         note: values.note,
+        rotationEnabled: values.rotationEnabled ?? false,
       },
       ownerId: currentUser?.id ?? '',
       visibility: 'shared',
@@ -109,6 +111,7 @@ export function FamilyPage() {
           frequency: values.frequency,
           assigneeId: values.assigneeId,
           note: values.note,
+          rotationEnabled: values.rotationEnabled ?? false,
         },
         dueDate: values.dueDate || undefined,
         updatedAt: new Date().toISOString(),
@@ -123,6 +126,59 @@ export function FamilyPage() {
     removeChore.mutate(deleteTarget.id)
     notify({ title: 'Chore deleted', type: 'success' })
     setDeleteTarget(null)
+  }
+
+  const handleCompleteChore = (chore: Entity) => {
+    const completions = Array.isArray(chore.metadata.completions)
+      ? [...(chore.metadata.completions as Array<{ date: string; completedBy: string }>)]
+      : []
+    completions.push({
+      date: new Date().toISOString().split('T')[0],
+      completedBy: chore.metadata.assigneeId as string,
+    })
+
+    if (chore.metadata.rotationEnabled) {
+      const currentIdx = ASSIGNEES.findIndex((a) => a.id === chore.metadata.assigneeId)
+      const nextIdx = (currentIdx + 1) % ASSIGNEES.length
+      const nextAssignee = ASSIGNEES[nextIdx].id
+
+      // Bump due date by frequency
+      let newDueDate = chore.dueDate
+      if (newDueDate) {
+        const d = new Date(newDueDate + 'T00:00:00')
+        const freq = chore.metadata.frequency as string
+        if (freq === 'daily') d.setDate(d.getDate() + 1)
+        else if (freq === 'weekly') d.setDate(d.getDate() + 7)
+        else if (freq === 'biweekly') d.setDate(d.getDate() + 14)
+        else if (freq === 'monthly') d.setMonth(d.getMonth() + 1)
+        newDueDate = d.toISOString().split('T')[0]
+      }
+
+      updateChore.mutate({
+        id: chore.id,
+        updates: {
+          status: 'active',
+          metadata: {
+            ...chore.metadata,
+            assigneeId: nextAssignee,
+            completions,
+          },
+          dueDate: newDueDate,
+          updatedAt: new Date().toISOString(),
+        },
+      })
+      notify({ title: `Chore rotated to ${ASSIGNEES[nextIdx].name}`, type: 'success' })
+    } else {
+      updateChore.mutate({
+        id: chore.id,
+        updates: {
+          status: 'completed',
+          metadata: { ...chore.metadata, completions },
+          updatedAt: new Date().toISOString(),
+        },
+      })
+      notify({ title: 'Chore completed', type: 'success' })
+    }
   }
 
   return (
@@ -172,6 +228,7 @@ export function FamilyPage() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <TabsList>
             <TabsTrigger value="chores">Chores</TabsTrigger>
+            <TabsTrigger value="goals">Goals</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
           {tab === 'chores' && (
@@ -227,10 +284,50 @@ export function FamilyPage() {
                   chore={chore}
                   onEdit={setEditingChore}
                   onDelete={setDeleteTarget}
+                  onComplete={handleCompleteChore}
                 />
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* Goals Tab */}
+        <TabsContent value="goals" className="space-y-4">
+          {(() => {
+            const sharedGoals = allEntities.filter(
+              (e) => e.type === 'goal' && e.visibility === 'shared' && e.status === 'active',
+            )
+            if (sharedGoals.length === 0) {
+              return (
+                <EmptyState
+                  icon={Target}
+                  title="No shared goals"
+                  description="Create goals with 'shared' visibility to see them here."
+                />
+              )
+            }
+            return (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {sharedGoals.map((goal) => {
+                  const progress = typeof goal.metadata.progress === 'number' ? goal.metadata.progress : 0
+                  return (
+                    <Card key={goal.id}>
+                      <CardContent className="pt-4 space-y-2">
+                        <p className="text-sm font-medium">{goal.title}</p>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-muted-foreground">Progress</span>
+                            <span>{progress}%</span>
+                          </div>
+                          <Progress value={progress} className="h-2" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )
+          })()}
         </TabsContent>
 
         {/* Activity Tab */}
@@ -268,6 +365,7 @@ export function FamilyPage() {
                 assigneeId: editingChore.metadata.assigneeId as string,
                 dueDate: editingChore.dueDate || '',
                 note: (editingChore.metadata.note as string) || '',
+                rotationEnabled: (editingChore.metadata.rotationEnabled as boolean) ?? false,
               }
             : undefined
         }

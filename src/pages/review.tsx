@@ -146,11 +146,11 @@ export function ReviewPage() {
       </div>
 
       {/* Step content */}
-      {step === 0 && <StepAccomplishments items={accomplishments} />}
+      {step === 0 && <StepAccomplishments items={accomplishments} allEntities={allEntities} />}
       {step === 1 && <StepStale items={staleItems} onArchive={handleArchive} />}
       {step === 2 && <StepHabits habits={habitSummaries} />}
       {step === 3 && <StepSpending transactions={weekTransactions} budgetTotal={monthlyBudget} />}
-      {step === 4 && <StepReflection onSave={handleReflectionSave} saved={reviewSaved} />}
+      {step === 4 && <StepReflection onSave={handleReflectionSave} saved={reviewSaved} allEntities={allEntities} />}
 
       {/* Navigation */}
       <div className="flex justify-between pt-2">

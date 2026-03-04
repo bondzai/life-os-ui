@@ -103,6 +103,24 @@ Client-side trigger/action automation engine.
 - Engine evaluates due automations on page load (once per day per session)
 - Custom dialog with conditional action config fields
 
+### Phase 12: Quick Wins & Polish
+Dashboard v2, sidebar improvements, and module-level polish.
+- Dashboard v2: health summary, wealth snapshot, habit completion rate, weekly review due card
+- Sidebar: collapsible groups with remembered preference, due/overdue count badges
+- Data export/import: JSON backup download and restore
+- Goal improvements: color-coded progress cards, auto-progress from sub-goals
+- Task improvements: priority color on Kanban cards
+- Habit improvements: 90-day heatmap grid, streak milestone badges (7d, 30d, 90d)
+- Notes improvements: pin/favorite toggle, tag filter dropdown
+
+### Phase 13: Medium Features
+Charts, visualizations, agenda view, Pomodoro timer, and review enhancements.
+- Calendar: Agenda view — 14-day vertical timeline with Month/Agenda tab switcher
+- Wealth: Income vs Expense grouped bar chart (6 months), budget alert badges at 80%+ spending
+- Health: Weight trend line chart, sleep trend line chart (30 days) with 8h reference line
+- Today: Pomodoro timer widget — 25/5 min focus/break cycle with Web Audio beep
+- Review: Week-over-week comparison badge in accomplishments, auto-suggested next-week priorities in reflection
+
 ### Phase 11: Productivity Features
 Focus Mode, Quick Capture, and Weekly Review.
 - Today page: single-screen daily focus with priority picker, due tasks/chores, habit check-ins, events, inbox, and quick journal
@@ -191,7 +209,8 @@ Known areas to improve as the project grows. Not urgent — tackle incrementally
 - **Lint/format**: Ensure ESLint + Prettier are configured and enforced (currently in place via Vite defaults)
 
 ### Feature Gaps in Existing Modules
-- **Dashboard**: Could show health summary, wealth snapshot, and recent crypto txs once those modules are live
-- **Calendar**: Only shows entity `dueDate` — could integrate habit check-ins and body metric entries as timeline dots
-- **Goals**: No auto-progress from linked tasks/habits. Manual progress slider works but auto-compute would be better
-- **Wealth**: No recurring transaction support, no multi-currency conversion, no real-time price feeds (all fine for manual tracking)
+- **Dashboard**: ~~Could show health summary, wealth snapshot~~ Done in Phase 12. Could add recent crypto txs
+- **Calendar**: ~~Only shows entity `dueDate`~~ — Now has Agenda view (Phase 13). Could integrate habit check-ins as timeline dots
+- **Goals**: ~~No auto-progress from linked tasks/habits~~ Done in Phase 12. Manual progress slider works too
+- **Wealth**: ~~No charts~~ Income vs Expense chart added (Phase 13). No recurring transaction support, no multi-currency conversion, no real-time price feeds (all fine for manual tracking)
+- **Health**: ~~No charts~~ Weight trend and sleep trend charts added (Phase 13). Could add workout heatmap and sleep-mood correlation

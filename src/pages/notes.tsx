@@ -19,6 +19,7 @@ import { StatusBadge } from '@/core/components/status-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
+import { Markdown } from '@/core/components/markdown'
 import type { Entity, EntityStatus } from '@/core/types'
 
 const moodEmoji: Record<string, string> = {
@@ -231,9 +232,9 @@ export function NotesPage() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {typeof note.metadata.body === 'string' && note.metadata.body && (
-                      <p className="text-xs text-muted-foreground line-clamp-3">
-                        {note.metadata.body}
-                      </p>
+                      <div className="line-clamp-3">
+                        <Markdown content={note.metadata.body} className="text-xs text-muted-foreground" />
+                      </div>
                     )}
                     {note.description && (
                       <p className="text-xs text-muted-foreground line-clamp-2">

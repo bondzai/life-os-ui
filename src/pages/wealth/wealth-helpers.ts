@@ -83,3 +83,32 @@ export function computeSpentByCategory(transactions: Entity[]): Record<string, n
   }
   return result
 }
+
+export const RECURRING_OPTIONS = ['none', 'weekly', 'biweekly', 'monthly', 'yearly'] as const
+export type RecurringFrequency = (typeof RECURRING_OPTIONS)[number]
+
+export function generateRecurringDates(
+  startDate: string,
+  frequency: RecurringFrequency,
+  rangeStart: string,
+  rangeEnd: string,
+): string[] {
+  if (frequency === 'none') return []
+  const dates: string[] = []
+  const start = new Date(startDate + 'T00:00:00')
+  const end = new Date(rangeEnd + 'T00:00:00')
+  const rStart = new Date(rangeStart + 'T00:00:00')
+
+  const current = new Date(start)
+  while (current <= end) {
+    const key = current.toISOString().split('T')[0]
+    if (current >= rStart && key !== startDate) {
+      dates.push(key)
+    }
+    if (frequency === 'weekly') current.setDate(current.getDate() + 7)
+    else if (frequency === 'biweekly') current.setDate(current.getDate() + 14)
+    else if (frequency === 'monthly') current.setMonth(current.getMonth() + 1)
+    else if (frequency === 'yearly') current.setFullYear(current.getFullYear() + 1)
+  }
+  return dates
+}

@@ -214,6 +214,23 @@ export function HabitsPage() {
                     {streak >= 7 && streak < 30 && <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">7d</Badge>}
                   </div>
 
+                  {/* Monthly completion rate */}
+                  {(() => {
+                    const now = new Date()
+                    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+                    const monthStartISO = monthStart.toISOString()
+                    const daysElapsed = now.getDate()
+                    const monthCheckins = allTrackers.filter(
+                      (t) => t.entityId === habit.id && t.timestamp >= monthStartISO,
+                    ).length
+                    const rate = daysElapsed > 0 ? Math.round((monthCheckins / daysElapsed) * 100) : 0
+                    return (
+                      <Badge variant="outline" className="text-xs">
+                        {rate}% this month
+                      </Badge>
+                    )
+                  })()}
+
                   {/* Heatmap */}
                   <HabitHeatmap trackers={allTrackers} habitId={habit.id} />
 

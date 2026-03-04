@@ -11,6 +11,8 @@ import { PriorityPicker } from './today/priority-picker'
 import { TodayChecklist } from './today/today-checklist'
 import { HabitStrip } from './today/habit-strip'
 import { QuickJournal } from './today/quick-journal'
+import { PomodoroTimer } from './today/pomodoro-timer'
+import { DailyAffirmation } from './today/daily-affirmation'
 import { getTodayPriorities, setTodayPriorities } from './today/today-helpers'
 import type { Entity } from '@/core/types'
 
@@ -231,6 +233,12 @@ export function TodayPage() {
         </CardContent>
       </Card>
 
+      {/* Daily Affirmation */}
+      <DailyAffirmation />
+
+      {/* Pomodoro Timer */}
+      <PomodoroTimer />
+
       {/* Priorities */}
       {priorities.length > 0 ? (
         <Card>
@@ -295,7 +303,7 @@ export function TodayPage() {
         />
       )}
 
-      {/* Today's Events */}
+      {/* Today's Events - grouped by time of day */}
       {todayEvents.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -305,14 +313,61 @@ export function TodayPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {todayEvents.map((event) => (
-                <div key={event.id} className="flex items-center gap-2 text-sm">
-                  <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
-                  <span className="truncate">{event.title}</span>
+            {(() => {
+              const getTimeSection = (event: Entity): string => {
+                const time = event.metadata.time as string | undefined
+                if (!time) return 'All Day'
+                const hour = parseInt(time.split(':')[0], 10)
+                if (hour < 12) return 'Morning'
+                if (hour < 17) return 'Afternoon'
+                return 'Evening'
+              }
+
+              const sections: Record<string, Entity[]> = {}
+              const order = ['Morning', 'Afternoon', 'Evening', 'All Day']
+              for (const event of todayEvents) {
+                const section = getTimeSection(event)
+                if (!sections[section]) sections[section] = []
+                sections[section].push(event)
+              }
+
+              const nonEmpty = order.filter((s) => sections[s]?.length)
+              if (nonEmpty.length <= 1) {
+                // No grouping needed
+                return (
+                  <div className="space-y-2">
+                    {todayEvents.map((event) => (
+                      <div key={event.id} className="flex items-center gap-2 text-sm">
+                        <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                        <span className="truncate">{event.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+
+              return (
+                <div className="space-y-3">
+                  {order.map((section) => {
+                    const items = sections[section]
+                    if (!items?.length) return null
+                    return (
+                      <div key={section}>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">{section}</p>
+                        <div className="space-y-1.5">
+                          {items.map((event) => (
+                            <div key={event.id} className="flex items-center gap-2 text-sm">
+                              <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                              <span className="truncate">{event.title}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
+              )
+            })()}
           </CardContent>
         </Card>
       )}

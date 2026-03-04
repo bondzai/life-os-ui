@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { Pencil, Trash2, Newspaper } from 'lucide-react'
+import { useState, useMemo, useRef } from 'react'
+import { Pencil, Trash2, Newspaper, MessageCircle, ChevronDown, ChevronUp, ImagePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,6 +17,7 @@ import { EntityDialog } from '@/core/components/entity-dialog'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
+import { compressImage } from './memories/image-utils'
 import type { Entity, EntityVisibility } from '@/core/types'
 
 const AUTHORS: Record<string, string> = {
@@ -38,18 +39,39 @@ function formatRelativeTime(iso: string): string {
 }
 
 export function PostsPage() {
-  const { items: posts, isLoading, create, remove } = useEntities('post')
+  const { items: posts, isLoading, create, update, remove } = useEntities('post')
   const currentUser = useAuthStore((s) => s.currentUser)
 
   const [composeBody, setComposeBody] = useState('')
   const [composeVisibility, setComposeVisibility] = useState<EntityVisibility>('shared')
+  const [composeImage, setComposeImage] = useState<string | null>(null)
+  const composeFileRef = useRef<HTMLInputElement>(null)
   const [editingPost, setEditingPost] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set())
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
+  const [replyBody, setReplyBody] = useState('')
 
   const sortedPosts = useMemo(
     () => [...posts].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [posts],
   )
+
+  const topLevelPosts = useMemo(
+    () => sortedPosts.filter((p) => !p.parentId),
+    [sortedPosts],
+  )
+
+  const getReplies = (postId: string) =>
+    sortedPosts.filter((p) => p.parentId === postId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
+  const handleComposeImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const compressed = await compressImage(file)
+    setComposeImage(compressed)
+  }
 
   const handlePost = () => {
     if (!composeBody.trim()) return
@@ -61,14 +83,36 @@ export function PostsPage() {
       status: 'active',
       priority: 'medium',
       tags: [],
-      metadata: { body: composeBody.trim() },
+      metadata: { body: composeBody.trim(), ...(composeImage ? { imageData: composeImage } : {}) },
       ownerId: currentUser?.id ?? '',
       visibility: composeVisibility,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
     setComposeBody('')
+    setComposeImage(null)
     notify({ title: 'Post published', type: 'success' })
+  }
+
+  const handleReply = (parentId: string) => {
+    if (!replyBody.trim()) return
+    create.mutate({
+      id: crypto.randomUUID(),
+      type: 'post',
+      title: 'Reply',
+      status: 'active',
+      priority: 'medium',
+      tags: [],
+      metadata: { body: replyBody.trim() },
+      parentId,
+      ownerId: currentUser?.id ?? '',
+      visibility: 'shared',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    setReplyBody('')
+    setReplyingTo(null)
+    setExpandedThreads((prev) => new Set(prev).add(parentId))
   }
 
   const handleEdit = (_values: Record<string, unknown>) => {
@@ -91,6 +135,16 @@ export function PostsPage() {
             onChange={(e) => setComposeBody(e.target.value)}
             rows={3}
           />
+          <input
+            ref={composeFileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleComposeImage}
+          />
+          {composeImage && (
+            <img src={composeImage} alt="Attachment" className="max-h-32 rounded object-contain" />
+          )}
           <div className="flex items-center justify-between">
             <Select
               value={composeVisibility}
@@ -104,15 +158,20 @@ export function PostsPage() {
                 <SelectItem value="private">Private</SelectItem>
               </SelectContent>
             </Select>
-            <Button size="sm" onClick={handlePost} disabled={!composeBody.trim()}>
-              Post
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => composeFileRef.current?.click()}>
+                <ImagePlus className="h-4 w-4" />
+              </Button>
+              <Button size="sm" onClick={handlePost} disabled={!composeBody.trim()}>
+                Post
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Feed */}
-      {sortedPosts.length === 0 ? (
+      {topLevelPosts.length === 0 ? (
         <EmptyState
           icon={Newspaper}
           title="No posts yet"
@@ -120,7 +179,7 @@ export function PostsPage() {
         />
       ) : (
         <div className="space-y-3">
-          {sortedPosts.map((post) => {
+          {topLevelPosts.map((post) => {
             const authorName = AUTHORS[post.ownerId] || post.ownerId
             const initials = authorName.charAt(0).toUpperCase()
             const isOwn = post.ownerId === currentUser?.id
@@ -144,6 +203,46 @@ export function PostsPage() {
                     </Badge>
                   </div>
                   {body && <p className="text-sm">{body}</p>}
+                  {typeof post.metadata.imageData === 'string' && post.metadata.imageData && (
+                    <img
+                      src={post.metadata.imageData}
+                      alt="Post attachment"
+                      className="max-h-48 rounded object-contain"
+                    />
+                  )}
+                  {/* Reactions */}
+                  {(() => {
+                    const EMOJIS = ['\u2764\uFE0F', '\uD83D\uDC4D', '\uD83D\uDE02', '\uD83C\uDF89', '\uD83E\uDD14']
+                    const reactions = (post.metadata.reactions || {}) as Record<string, number>
+                    return (
+                      <div className="flex gap-1 pt-1">
+                        {EMOJIS.map((emoji) => {
+                          const count = reactions[emoji] || 0
+                          return (
+                            <Button
+                              key={emoji}
+                              variant={count > 0 ? 'secondary' : 'ghost'}
+                              size="sm"
+                              className="h-7 px-2 text-xs gap-1"
+                              onClick={() => {
+                                const newReactions = { ...reactions }
+                                newReactions[emoji] = (newReactions[emoji] || 0) + 1
+                                update.mutate({
+                                  id: post.id,
+                                  updates: {
+                                    metadata: { ...post.metadata, reactions: newReactions },
+                                    updatedAt: new Date().toISOString(),
+                                  },
+                                })
+                              }}
+                            >
+                              {emoji} {count > 0 && count}
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                   {isOwn && (
                     <div className="flex gap-1 pt-1">
                       <Button
@@ -165,6 +264,73 @@ export function PostsPage() {
                     </div>
                   )}
                 </CardContent>
+                {/* Reply section */}
+                {(() => {
+                  const replies = getReplies(post.id)
+                  const isExpanded = expandedThreads.has(post.id)
+                  return (
+                    <>
+                      <div className="flex items-center gap-2 px-4 pb-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs gap-1"
+                          onClick={() => setReplyingTo(replyingTo === post.id ? null : post.id)}
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" /> Reply
+                        </Button>
+                        {replies.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs gap-1"
+                            onClick={() => {
+                              const next = new Set(expandedThreads)
+                              isExpanded ? next.delete(post.id) : next.add(post.id)
+                              setExpandedThreads(next)
+                            }}
+                          >
+                            {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                            {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+                          </Button>
+                        )}
+                      </div>
+                      {/* Reply input */}
+                      {replyingTo === post.id && (
+                        <div className="px-4 pb-3 flex gap-2">
+                          <Textarea
+                            placeholder="Write a reply..."
+                            value={replyBody}
+                            onChange={(e) => setReplyBody(e.target.value)}
+                            rows={2}
+                            className="flex-1"
+                          />
+                          <Button size="sm" onClick={() => handleReply(post.id)} disabled={!replyBody.trim()}>
+                            Send
+                          </Button>
+                        </div>
+                      )}
+                      {/* Thread */}
+                      {isExpanded && replies.length > 0 && (
+                        <div className="px-4 pb-3 space-y-2 ml-8 border-l-2 border-muted">
+                          {replies.map((reply) => {
+                            const rAuthor = AUTHORS[reply.ownerId] || reply.ownerId
+                            const rBody = typeof reply.metadata.body === 'string' ? reply.metadata.body : ''
+                            return (
+                              <div key={reply.id} className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium">{rAuthor}</span>
+                                  <span className="text-[10px] text-muted-foreground">{formatRelativeTime(reply.createdAt)}</span>
+                                </div>
+                                {rBody && <p className="text-sm">{rBody}</p>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </Card>
             )
           })}

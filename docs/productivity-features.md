@@ -111,6 +111,55 @@ A multi-step wizard at `/review` that walks through 5 review stages with real da
 
 ---
 
+## 4. Pomodoro Timer (Phase 13)
+
+### Problem
+Context switching kills deep work. Users need a lightweight way to commit to focused work blocks without leaving the app.
+
+### Solution
+A compact Pomodoro timer widget on the Today page — 25 minutes of focus, 5 minutes of break, with audio notification on cycle completion.
+
+### How It Works
+1. Timer appears between the progress bar and priorities on the Today page
+2. Click Play to start a 25-minute focus session
+3. When the timer reaches 0:00, a Web Audio API beep plays (880Hz, 200ms)
+4. Timer auto-switches to 5-minute break mode
+5. After break, timer resets to idle (ready for next cycle)
+6. Pause/resume and reset controls always available
+
+### UI
+- Single-line Card widget: mode label (Focus/Break/Ready) + mm:ss display + Play/Pause + Reset buttons
+- Mode colors: red for Focus, green for Break, muted for Ready
+- Monospace font for timer digits, tabular-nums for stable layout
+
+### Data
+- Pure client-side — no persistence, no entity types
+- Uses `setInterval` for countdown, `AudioContext` for beep
+- State resets on page navigation (intentional — each session is fresh)
+
+---
+
+## 5. Enhanced Weekly Review (Phase 13)
+
+### Additions to the existing Review wizard
+
+#### Week-over-Week Comparison (Step 1: Accomplishments)
+- Counts completed tasks/goals from the previous week (Sunday–Saturday)
+- Shows a delta badge: "+3 vs last week" or "-2 vs last week"
+- Uses `TrendingUp` / `TrendingDown` / `Minus` icons for visual feedback
+
+#### Next-Week Priority Suggestions (Step 5: Reflection)
+- Queries active tasks/goals with `dueDate` in the next 7 days
+- Sorts by priority (urgent → high → medium → low)
+- Shows top 5 as a bordered suggestion box below the reflection textarea
+- Each item shows title and formatted due date
+
+### Data
+- No new storage — reads from existing entities
+- `allEntities` prop passed from ReviewPage to both step components
+
+---
+
 ## Design Principles
 
 These features share common principles:

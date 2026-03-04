@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { LogOut, Download, Upload } from 'lucide-react'
+import { ChangelogDialog } from '@/components/changelog-dialog'
+import { APP_VERSION } from '@/lib/changelog-data'
 import {
   Sidebar,
   SidebarContent,
@@ -49,6 +51,7 @@ export function AppSidebar() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [collapsed, setCollapsedState] = useState<Record<string, boolean>>(() => getCollapsed())
+  const [changelogOpen, setChangelogOpen] = useState(false)
 
   // Badge counts
   const { items: allEntities } = useEntities()
@@ -91,7 +94,15 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
-        <h1 className="text-lg font-bold tracking-tight">Life-OS</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-bold tracking-tight">Life-OS</h1>
+          <button
+            onClick={() => setChangelogOpen(true)}
+            className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+          >
+            v{APP_VERSION}
+          </button>
+        </div>
       </SidebarHeader>
       <SidebarContent>
         {groups.map(({ group, modules }) => (
@@ -178,6 +189,7 @@ export function AppSidebar() {
           </div>
         </div>
       </SidebarFooter>
+      <ChangelogDialog open={changelogOpen} onOpenChange={setChangelogOpen} />
     </Sidebar>
   )
 }

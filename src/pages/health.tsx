@@ -29,6 +29,9 @@ import { SleepMoodDialog, type SleepMoodFormValues } from './health/sleep-mood-d
 import { BodyMetricTable } from './health/body-metric-table'
 import { WorkoutCard } from './health/workout-card'
 import { SleepMoodCard } from './health/sleep-mood-card'
+import { WeightChart } from './health/weight-chart'
+import { SleepChart } from './health/sleep-chart'
+import { WorkoutHeatmap } from './health/workout-heatmap'
 import type { Entity } from '@/core/types'
 
 export function HealthPage() {
@@ -324,6 +327,7 @@ export function HealthPage() {
 
         {/* Body Metrics Tab */}
         <TabsContent value="body" className="space-y-4">
+          <WeightChart metrics={bodyMetrics} />
           <div className="flex gap-3 flex-wrap">
             <Select value={metricTypeFilter} onValueChange={setMetricTypeFilter}>
               <SelectTrigger className="w-[160px]">
@@ -373,6 +377,7 @@ export function HealthPage() {
               </SelectContent>
             </Select>
           </div>
+          <WorkoutHeatmap workouts={workouts} />
           {filteredWorkouts.length === 0 ? (
             <EmptyState
               icon={Dumbbell}
@@ -397,6 +402,7 @@ export function HealthPage() {
 
         {/* Sleep & Mood Tab */}
         <TabsContent value="sleep-mood" className="space-y-4">
+          <SleepChart entries={sleepMoods} />
           {sortedSleepMoods.length === 0 ? (
             <EmptyState
               icon={Moon}

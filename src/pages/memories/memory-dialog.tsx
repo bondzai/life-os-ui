@@ -29,7 +29,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { MOODS, MOOD_EMOJI } from './memory-helpers'
-import { compressImage, generateThumbnail } from './image-utils'
+import { compressImage, generateThumbnail, extractExifDate } from './image-utils'
 
 const memorySchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -38,6 +38,7 @@ const memorySchema = z.object({
   location: z.string().optional(),
   caption: z.string().optional(),
   tags: z.string().optional(),
+  album: z.string().optional(),
 })
 
 export type MemoryFormValues = z.infer<typeof memorySchema>
@@ -74,6 +75,7 @@ export function MemoryDialog({
           location: '',
           caption: '',
           tags: '',
+          album: '',
         },
   })
 
@@ -92,6 +94,7 @@ export function MemoryDialog({
         location: '',
         caption: '',
         tags: '',
+        album: '',
       })
       setPreview(null)
       setImageData('')
@@ -105,13 +108,22 @@ export function MemoryDialog({
 
     setCompressing(true)
     try {
-      const [compressed, thumb] = await Promise.all([
+      const [compressed, thumb, exifDate] = await Promise.all([
         compressImage(file),
         generateThumbnail(file),
+        extractExifDate(file),
       ])
       setImageData(compressed)
       setThumbnailData(thumb)
       setPreview(thumb)
+      // Auto-fill date from EXIF if available and date field is still default
+      if (exifDate) {
+        const currentDate = form.getValues('date')
+        const today = new Date().toISOString().split('T')[0]
+        if (!currentDate || currentDate === today) {
+          form.setValue('date', exifDate)
+        }
+      }
     } finally {
       setCompressing(false)
     }
@@ -261,6 +273,20 @@ export function MemoryDialog({
                   <FormLabel>Tags</FormLabel>
                   <FormControl>
                     <Input placeholder="travel, family (comma-separated)" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="album"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Album</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. Vacation 2026" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

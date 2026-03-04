@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Plane, Trash2, MapPin } from 'lucide-react'
+import { Plus, Plane, Trash2, MapPin, DollarSign } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Input } from '@/components/ui/input'
 import { useEntities, useRelations } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
@@ -20,6 +22,7 @@ import { StatusBadge } from '@/core/components/status-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
+import { TripItinerary } from './travel/trip-itinerary'
 import type { Entity, EntityStatus } from '@/core/types'
 
 // Fix Leaflet default marker icons
@@ -48,7 +51,7 @@ function MapFitter({ positions }: { positions: [number, number][] }) {
 }
 
 export function TravelPage() {
-  const { items: trips, isLoading: tripsLoading, create, remove } = useEntities('trip')
+  const { items: trips, isLoading: tripsLoading, create, update, remove } = useEntities('trip')
   const { items: allPlaces } = useEntities('place')
   const { items: relations, create: createRelation, remove: removeRelation } = useRelations()
   const currentUser = useAuthStore((s) => s.currentUser)
@@ -306,6 +309,68 @@ export function TravelPage() {
                     </Button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Itinerary */}
+            <TripItinerary places={tripPlaces} />
+
+            {/* Budget */}
+            {selectedTrip && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Trip Budget</h4>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground">Budget</label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={(selectedTrip.metadata.budget as number) || ''}
+                      onChange={(e) => {
+                        update.mutate({
+                          id: selectedTrip.id,
+                          updates: {
+                            metadata: { ...selectedTrip.metadata, budget: parseFloat(e.target.value) || 0 },
+                            updatedAt: new Date().toISOString(),
+                          },
+                        })
+                      }}
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground">Spent</label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={(selectedTrip.metadata.spent as number) || ''}
+                      onChange={(e) => {
+                        update.mutate({
+                          id: selectedTrip.id,
+                          updates: {
+                            metadata: { ...selectedTrip.metadata, spent: parseFloat(e.target.value) || 0 },
+                            updatedAt: new Date().toISOString(),
+                          },
+                        })
+                      }}
+                      className="h-8"
+                    />
+                  </div>
+                </div>
+                {typeof selectedTrip.metadata.budget === 'number' && (selectedTrip.metadata.budget as number) > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">
+                        {((selectedTrip.metadata.spent as number) || 0).toLocaleString()} / {((selectedTrip.metadata.budget as number) || 0).toLocaleString()}
+                      </span>
+                      <span>{Math.round((((selectedTrip.metadata.spent as number) || 0) / (selectedTrip.metadata.budget as number)) * 100)}%</span>
+                    </div>
+                    <Progress
+                      value={Math.min(100, Math.round((((selectedTrip.metadata.spent as number) || 0) / (selectedTrip.metadata.budget as number)) * 100))}
+                      className="h-2"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </>

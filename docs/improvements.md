@@ -10,36 +10,36 @@ Prioritized enhancements across all modules. Organized by effort tier — pick f
 - **Bulk actions**: Multi-select items → bulk delete, archive, or change status
 - **Duplicate item**: Clone any entity (task, goal, chore, etc.) with one click
 - **Undo delete**: Toast with "Undo" button after deleting an entity (soft delete → restore)
-- **Sidebar collapsible groups**: Collapse/expand module groups; remember preference
-- **Sidebar badges**: Show count of due/overdue items next to Tasks, Chores modules
+- ~~**Sidebar collapsible groups**~~: Done (Phase 12)
+- ~~**Sidebar badges**~~: Done (Phase 12)
 - **Keyboard shortcuts**: `N` = new item, `J/K` = navigate list, `/` = search
-- **Data export**: Download all entities as JSON file (backup before API migration)
-- **Data import**: Upload JSON to restore from backup
+- ~~**Data export**~~: Done (Phase 12)
+- ~~**Data import**~~: Done (Phase 12)
 
 ### Dashboard
-- **Richer dashboard**: Add health summary card (weight trend, today's mood), wealth snapshot (net worth, monthly P&L), and habit completion rate
-- **"Start Weekly Review" card**: Show when review is due this week
+- ~~**Richer dashboard**~~: Done (Phase 12) — health summary, wealth snapshot, habit completion rate
+- ~~**"Start Weekly Review" card**~~: Done (Phase 12)
 - **Motivational message**: Show encouraging text when all tasks complete
 
 ### Goals
 - **Progress slider on card**: Quick-adjust progress without opening dialog
-- **Color-code by progress**: Red (<25%), Yellow (25-75%), Green (>75%)
-- **Auto-progress from sub-goals**: Compute parent goal % as average of child goals
+- ~~**Color-code by progress**~~: Done (Phase 12)
+- ~~**Auto-progress from sub-goals**~~: Done (Phase 12)
 
 ### Tasks
-- **Priority color on Kanban cards**: Red = urgent, orange = high, yellow = medium
+- ~~**Priority color on Kanban cards**~~: Done (Phase 12)
 - **Quick snooze**: Reschedule task by 1 day or 1 week from card
 - **Subtask support**: Nested checklist items within a task
 
 ### Habits
-- **Habit heatmap**: GitHub-style grid showing check-in patterns over 90 days
+- ~~**Habit heatmap**~~: Done (Phase 12)
 - **Completion rate badge**: "85% this month" on each habit card
-- **Streak milestone badges**: Visual indicators at 7, 30, 90 day streaks
+- ~~**Streak milestone badges**~~: Done (Phase 12)
 
 ### Notes
-- **Pin/favorite toggle**: Pin important notes to top of list
+- ~~**Pin/favorite toggle**~~: Done (Phase 12)
 - **Markdown rendering**: Render note body as markdown (bold, links, code blocks)
-- **Tags filter dropdown**: Filter notes by tag
+- ~~**Tags filter dropdown**~~: Done (Phase 12)
 
 ### Memories
 - **EXIF date extraction**: Auto-fill date from photo metadata
@@ -52,7 +52,7 @@ Prioritized enhancements across all modules. Organized by effort tier — pick f
 
 ### Calendar
 - **Week view**: 7-day grid with hourly time blocks
-- **Agenda view**: Vertical timeline of upcoming events (next 7-14 days)
+- ~~**Agenda view**~~: Done (Phase 13) — 14-day vertical timeline with Month/Agenda tabs
 - **Drag to reschedule**: Drag entity on calendar grid to change due date
 - **Entity type filter**: Toggle visibility of tasks, events, habits on calendar
 
@@ -63,14 +63,14 @@ Prioritized enhancements across all modules. Organized by effort tier — pick f
 
 ### Wealth
 - **Net worth trend chart**: Monthly line chart showing progression
-- **Income vs Expense chart**: Monthly comparison over past 6-12 months
-- **Budget alerts**: Warning badge when category spending exceeds 80%
+- ~~**Income vs Expense chart**~~: Done (Phase 13) — grouped bar chart, 6 months
+- ~~**Budget alerts**~~: Done (Phase 13) — warning badge at 80%+ spending
 - **Recurring transactions**: Auto-create scheduled expenses/income
 
 ### Health
-- **Weight trend chart**: Line graph showing weight progression over time
+- ~~**Weight trend chart**~~: Done (Phase 13) — line chart with kg formatting
 - **Workout heatmap**: Calendar-style grid showing workout days
-- **Sleep-mood correlation**: Side-by-side chart showing sleep hours vs mood
+- ~~**Sleep trend chart**~~: Done (Phase 13) — 30-day line chart with 8h reference
 - **Water intake tracker**: Simple daily counter
 
 ### Family
@@ -95,14 +95,14 @@ Prioritized enhancements across all modules. Organized by effort tier — pick f
 - **Packing checklist**: Reusable template-based packing list per trip
 
 ### Today Page
-- **Pomodoro timer**: Focus timer attached to a task (25 min work, 5 min break)
+- ~~**Pomodoro timer**~~: Done (Phase 13) — 25/5 cycle with Web Audio beep
 - **Time-of-day sections**: Group items into Morning, Afternoon, Evening blocks
 - **Daily affirmation**: Random motivational quote at top
 
 ### Review
-- **Week-over-week comparison**: Show metrics vs previous week
+- ~~**Week-over-week comparison**~~: Done (Phase 13) — delta badge in accomplishments
 - **Accomplishment highlights**: Top 3 items with larger cards and emoji badges
-- **Next-week priorities**: Auto-suggest based on upcoming due dates
+- ~~**Next-week priorities**~~: Done (Phase 13) — auto-suggest in reflection step
 
 ---
 

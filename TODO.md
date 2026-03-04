@@ -9,8 +9,8 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 ### 12a. Cross-Cutting UX
 - [x] Data export: download all entities as JSON file (backup button in sidebar footer)
 - [x] Data import: upload JSON to restore from backup
-- [ ] Undo delete: toast with "Undo" button (soft delete → restore within 5s)
-- [ ] Duplicate item: clone any entity with one click (button on cards)
+- [x] Undo delete: toast with "Undo" button (soft delete → restore within 5s)
+- [x] Duplicate item: clone any entity with one click (button on cards)
 - [x] Sidebar collapsible groups: collapse/expand with remembered preference
 - [x] Sidebar badges: show due/overdue count next to Tasks and Chores modules
 
@@ -19,79 +19,79 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 - [x] Wealth snapshot card: net worth, monthly P&L
 - [x] Habit completion rate card: "85% this week" with mini bar
 - [x] "Weekly Review due" card: show when review hasn't been done this week
-- [ ] Motivational message when all tasks are complete
+- [x] Motivational message when all tasks are complete
 
 ### 12c. Goal Improvements
-- [ ] Progress slider on card: quick-adjust without opening dialog
+- [x] Progress slider on card: quick-adjust without opening dialog
 - [x] Color-code cards by progress range (red/yellow/green)
 - [x] Auto-progress from sub-goals: compute parent % as average of children
 
 ### 12d. Task Improvements
 - [x] Priority color on Kanban cards (red/orange/yellow/gray)
 - [ ] Quick snooze: reschedule by 1 day or 1 week from card menu
-- [ ] Subtask support: nested checklist items within a task (metadata array)
+- [x] Subtask support: nested checklist items within a task (metadata array)
 
 ### 12e. Habit Improvements
 - [x] Habit heatmap: 90-day grid showing check-in patterns (CSS grid + color scale)
-- [ ] Monthly completion rate badge on cards
+- [x] Monthly completion rate badge on cards
 - [x] Streak milestone badges: 7d, 30d, 90d visual indicators
 
 ### 12f. Notes Improvements
 - [x] Pin/favorite toggle: pinned notes always show at top
-- [ ] Markdown rendering: render body with bold, links, code blocks
+- [x] Markdown rendering: render body with bold, links, code blocks
 - [x] Tag filter dropdown on Notes tab
 
 ### 12g. Memories Improvements
-- [ ] EXIF date extraction: auto-fill date from photo metadata
-- [ ] "On This Day" dashboard widget: memories from same date in past years
-- [ ] Photo albums: group memories into named collections
+- [x] EXIF date extraction: auto-fill date from photo metadata
+- [x] "On This Day" dashboard widget: memories from same date in past years
+- [x] Photo albums: group memories into named collections
 
 ---
 
 ## Phase 13: Medium Features
 
 ### 13a. Calendar Enhancements
-- [ ] Week view: 7-day grid with hourly time blocks
-- [ ] Agenda view: vertical timeline of next 7-14 days
-- [ ] Entity type filter: toggle tasks/events/habits visibility on calendar
+- [x] Week view: 7-day grid with hourly time blocks
+- [x] Agenda view: vertical timeline of next 7-14 days
+- [x] Entity type filter: toggle tasks/events/habits visibility on calendar
 
 ### 13b. Wealth Charts & Alerts
-- [ ] Net worth trend chart: monthly Recharts line graph
-- [ ] Income vs Expense chart: monthly comparison (past 6 months)
-- [ ] Budget alerts: warning badge when category spending > 80%
-- [ ] Recurring transactions: auto-create scheduled expenses/income
+- [x] Net worth trend chart: monthly Recharts line graph
+- [x] Income vs Expense chart: monthly comparison (past 6 months)
+- [x] Budget alerts: warning badge when category spending > 80%
+- [x] Recurring transactions: auto-create scheduled expenses/income
 
 ### 13c. Health Charts
-- [ ] Weight trend chart: line graph progression over time
-- [ ] Workout heatmap: calendar grid showing workout days
-- [ ] Sleep-mood correlation: side-by-side charts
+- [x] Weight trend chart: line graph progression over time
+- [x] Workout heatmap: calendar grid showing workout days
+- [x] Sleep trend chart: line graph of sleep hours over 30 days
 - [ ] Water intake: daily counter widget
 
 ### 13d. Family Enhancements
-- [ ] Chore rotation: auto-swap assignee on completion
-- [ ] Chore completion history: track who did what and when
-- [ ] Household goals tab: shared family goals
+- [x] Chore rotation: auto-swap assignee on completion
+- [x] Chore completion history: track who did what and when
+- [x] Household goals tab: shared family goals
 
 ### 13e. Posts Enhancements
-- [ ] Emoji reactions on posts (heart, thumbs up, laugh)
-- [ ] Reply/thread: comment on posts
-- [ ] Media attachments: images on posts (reuse memory compression)
+- [x] Emoji reactions on posts (heart, thumbs up, laugh)
+- [x] Reply/thread: comment on posts
+- [x] Media attachments: images on posts (reuse memory compression)
 
 ### 13f. Places & Travel
-- [ ] Click map to set location (instead of manual lat/lng)
-- [ ] "Open in Maps" button (Google Maps deep link)
-- [ ] Trip itinerary timeline: day-by-day view with time slots
-- [ ] Trip budget: planned vs actual spending
+- [x] Click map to set location (instead of manual lat/lng)
+- [x] "Open in Maps" button (Google Maps deep link)
+- [x] Trip itinerary timeline: day-by-day view with time slots
+- [x] Trip budget: planned vs actual spending
 
 ### 13g. Today Page Enhancements
-- [ ] Pomodoro timer: 25/5 min focus timer attached to a task
-- [ ] Time-of-day sections: Morning, Afternoon, Evening groups
-- [ ] Daily affirmation/motivational quote
+- [x] Pomodoro timer: 25/5 min focus timer with Web Audio beep
+- [x] Time-of-day sections: Morning, Afternoon, Evening groups
+- [x] Daily affirmation/motivational quote
 
 ### 13h. Review Enhancements
-- [ ] Week-over-week comparison: metrics vs previous week
-- [ ] Accomplishment highlights: top 3 with larger cards
-- [ ] Next-week priorities: auto-suggest from upcoming due dates
+- [x] Week-over-week comparison: metrics vs previous week
+- [x] Accomplishment highlights: top 3 with larger cards
+- [x] Next-week priorities: auto-suggest from upcoming due dates
 
 ---
 
@@ -161,3 +161,6 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 - [x] Phase 10: Polish (PWA, Code Splitting, Mobile)
 - [x] Phase 10.5: Memories (Photo Journal, Gallery, Timeline)
 - [x] Phase 11: Productivity (Today Page, Inbox Capture, Weekly Review)
+- [x] Phase 12: Quick Wins & Polish (Dashboard v2, Sidebar, Module Polish)
+- [x] Phase 13: Medium Features (charts, agenda, pomodoro, review)
+- [x] Phase 12+13 Cleanup: All remaining items (v0.14.0)

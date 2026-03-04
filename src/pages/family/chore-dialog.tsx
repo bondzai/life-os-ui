@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -40,6 +41,7 @@ const choreSchema = z.object({
   assigneeId: z.string().min(1, 'Assignee is required'),
   dueDate: z.string().optional(),
   note: z.string().optional(),
+  rotationEnabled: z.boolean().optional(),
 })
 
 export type ChoreFormValues = z.infer<typeof choreSchema>
@@ -68,6 +70,7 @@ export function ChoreDialog({
       assigneeId: '',
       dueDate: '',
       note: '',
+      rotationEnabled: defaultValues?.rotationEnabled ?? false,
     },
   })
 
@@ -169,6 +172,18 @@ export function ChoreDialog({
                     </SelectContent>
                   </Select>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="rotationEnabled"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0">
+                  <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <FormLabel className="text-sm font-normal">Enable rotation on completion</FormLabel>
                 </FormItem>
               )}
             />
