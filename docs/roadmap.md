@@ -103,6 +103,15 @@ Client-side trigger/action automation engine.
 - Engine evaluates due automations on page load (once per day per session)
 - Custom dialog with conditional action config fields
 
+### Phase 11: Productivity Features
+Focus Mode, Quick Capture, and Weekly Review.
+- Today page: single-screen daily focus with priority picker, due tasks/chores, habit check-ins, events, inbox, and quick journal
+- Inbox: floating capture button + `Cmd+Shift+I` shortcut, saves raw text to inbox for later triage
+- Weekly Review wizard: 5-step guided flow (accomplishments, stale items, habits, spending, reflection)
+- No new entity types — reuses tasks, goals, habits, notes, transactions, budgets
+- Daily priorities stored in localStorage (auto-reset each day)
+- Review completion tracked in localStorage (once per week)
+
 ### Phase 10.5: Memories
 Photo journal / memory board.
 - Gallery + Timeline views with image upload and client-side compression (Canvas API)

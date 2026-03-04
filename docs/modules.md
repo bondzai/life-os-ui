@@ -19,6 +19,8 @@ Defined in `src/core/config/modules.ts`:
 | Home | `/home` | `device`, `service` | Home | Done |
 | Family | `/family` | `chore` | Family | Done |
 | Automate | `/automate` | `automation` | Automate | Done |
+| Today | `/today` | (aggregate) | Overview | Done |
+| Review | `/review` | (aggregate) | Overview | Done |
 | Notes | `/notes` | `note` | Capture | Done |
 | Memories | `/memories` | `memory` | Capture | Done |
 | Posts | `/posts` | `post` | Family | Done |
@@ -127,6 +129,36 @@ Four widgets + daily brief:
 - Activity tab: chronological feed of all shared entities across all modules (most recent 50)
 - Activity entries show author avatar, entity type badge, relative time, title, status
 - Custom chore dialog (react-hook-form + zod)
+
+### Today (Focus Mode)
+- Single-page daily focus view — no tabs, no filters
+- "Pick 3 priorities" prompt (active tasks/goals, resets daily)
+- Due tasks checklist with overdue indicators
+- Due chores checklist
+- Today's events list
+- Habit strip with toggle check-in and streak counts
+- Inbox section: untriaged quick-capture items with "Convert to Task" and "Archive" actions
+- Quick journal: inline textarea that saves as journal note
+- Overall progress bar (tasks + habits done / total)
+- Link to Weekly Review
+
+### Weekly Review Wizard
+- 5-step guided review at `/review`
+- Step 1 — Accomplishments: completed tasks/goals this week
+- Step 2 — Stale Items: active items not updated in 14+ days, with archive action
+- Step 3 — Habits: weekly check-in counts and streaks with progress bars
+- Step 4 — Spending: this week's income/expenses vs monthly budget
+- Step 5 — Reflection: free-text journal that saves as review note
+- Step indicator with clickable navigation
+- Review completion stored in localStorage (once per week)
+
+### Inbox (Quick Capture)
+- Floating action button (bottom-right) visible on all pages
+- `Cmd+Shift+I` keyboard shortcut
+- Minimal capture modal: textarea + Enter to save
+- Saves as `note` entity with `metadata.isInbox: true`
+- Inbox count badge on floating button
+- Triage on Today page: convert to task or archive
 
 ### Memories
 - Photo journal / memory board with image upload and compression

@@ -28,6 +28,8 @@ const HomePage = lazy(() => import('@/pages/home').then((m) => ({ default: m.Hom
 const FamilyPage = lazy(() => import('@/pages/family').then((m) => ({ default: m.FamilyPage })))
 const AutomatePage = lazy(() => import('@/pages/automate').then((m) => ({ default: m.AutomatePage })))
 const MemoriesPage = lazy(() => import('@/pages/memories').then((m) => ({ default: m.MemoriesPage })))
+const TodayPage = lazy(() => import('@/pages/today').then((m) => ({ default: m.TodayPage })))
+const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m.ReviewPage })))
 
 const queryClient = new QueryClient()
 
@@ -59,6 +61,8 @@ export function App() {
                   <Route path="family" element={<FamilyPage />} />
                   <Route path="automate" element={<AutomatePage />} />
                   <Route path="memories" element={<MemoriesPage />} />
+                  <Route path="today" element={<TodayPage />} />
+                  <Route path="review" element={<ReviewPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
               </Route>

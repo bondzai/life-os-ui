@@ -6,6 +6,7 @@ import { TopBar } from './top-bar'
 import { modules } from '@/core/config/modules'
 import { ChatSidebar } from '@/pages/ai/chat-sidebar'
 import { CommandBar } from '@/pages/ai/command-bar'
+import { InboxCapture } from '@/components/inbox-capture'
 import { useUiStore } from '@/stores/ui-store'
 
 function getPageTitle(pathname: string): string {
@@ -51,6 +52,7 @@ export function AppLayout() {
       </div>
       <ChatSidebar />
       <CommandBar />
+      <InboxCapture />
     </SidebarProvider>
   )
 }

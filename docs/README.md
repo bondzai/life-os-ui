@@ -14,6 +14,7 @@ Technical documentation for Life-OS — a private, self-hosted life management s
 | [Modules](./modules.md) | Module registry and per-module details |
 | [Deployment](./deployment.md) | Docker Compose setup for the home server |
 | [Roadmap](./roadmap.md) | Phase-by-phase implementation plan |
+| [Productivity Features](./productivity-features.md) | Today page, Inbox capture, Weekly Review wizard |
 
 ## Quick links
 

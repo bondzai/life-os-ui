@@ -17,6 +17,8 @@ import {
   Plane,
   Zap,
   Camera,
+  Sun,
+  ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -40,10 +42,26 @@ export const modules: ModuleConfig[] = [
     entityTypes: [],
   },
   {
+    id: 'today',
+    label: 'Today',
+    icon: Sun,
+    path: '/today',
+    group: 'Overview',
+    entityTypes: [],
+  },
+  {
     id: 'notifications',
     label: 'Notifications',
     icon: Bell,
     path: '/notifications',
+    group: 'Overview',
+    entityTypes: [],
+  },
+  {
+    id: 'review',
+    label: 'Review',
+    icon: ClipboardCheck,
+    path: '/review',
     group: 'Overview',
     entityTypes: [],
   },
