@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { Outlet, useLocation } from 'react-router'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from './app-sidebar'
@@ -37,7 +37,15 @@ export function AppLayout() {
         <main className="flex-1 flex flex-col">
           <TopBar title={title} />
           <div className="flex-1 p-3 sm:p-6">
-            <Outlet />
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center py-20">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

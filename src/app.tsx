@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
@@ -30,14 +30,6 @@ const AutomatePage = lazy(() => import('@/pages/automate').then((m) => ({ defaul
 
 const queryClient = new QueryClient()
 
-function PageLoader() {
-  return (
-    <div className="flex items-center justify-center py-20">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-    </div>
-  )
-}
-
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -48,26 +40,24 @@ export function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppLayout />}>
-                  <Suspense fallback={<PageLoader />}>
-                    <Route index element={<DashboardPage />} />
-                    <Route path="goals" element={<GoalsPage />} />
-                    <Route path="tasks" element={<TasksPage />} />
-                    <Route path="calendar" element={<CalendarPage />} />
-                    <Route path="notes" element={<NotesPage />} />
-                    <Route path="skills" element={<SkillsPage />} />
-                    <Route path="habits" element={<HabitsPage />} />
-                    <Route path="reading" element={<ReadingPage />} />
-                    <Route path="posts" element={<PostsPage />} />
-                    <Route path="notifications" element={<NotificationsPage />} />
-                    <Route path="places" element={<PlacesPage />} />
-                    <Route path="travel" element={<TravelPage />} />
-                    <Route path="health" element={<HealthPage />} />
-                    <Route path="wealth" element={<WealthPage />} />
-                    <Route path="home" element={<HomePage />} />
-                    <Route path="family" element={<FamilyPage />} />
-                    <Route path="automate" element={<AutomatePage />} />
-                    <Route path="*" element={<NotFoundPage />} />
-                  </Suspense>
+                  <Route index element={<DashboardPage />} />
+                  <Route path="goals" element={<GoalsPage />} />
+                  <Route path="tasks" element={<TasksPage />} />
+                  <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="notes" element={<NotesPage />} />
+                  <Route path="skills" element={<SkillsPage />} />
+                  <Route path="habits" element={<HabitsPage />} />
+                  <Route path="reading" element={<ReadingPage />} />
+                  <Route path="posts" element={<PostsPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="places" element={<PlacesPage />} />
+                  <Route path="travel" element={<TravelPage />} />
+                  <Route path="health" element={<HealthPage />} />
+                  <Route path="wealth" element={<WealthPage />} />
+                  <Route path="home" element={<HomePage />} />
+                  <Route path="family" element={<FamilyPage />} />
+                  <Route path="automate" element={<AutomatePage />} />
+                  <Route path="*" element={<NotFoundPage />} />
                 </Route>
               </Route>
             </Routes>
