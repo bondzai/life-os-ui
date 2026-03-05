@@ -20,6 +20,7 @@ import { PriorityBadge } from '@/core/components/priority-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
+import { SavedFilterBar } from '@/core/components/saved-filter-bar'
 import type { Entity, EntityStatus } from '@/core/types'
 
 export function GoalsPage() {
@@ -114,7 +115,7 @@ export function GoalsPage() {
           <ChevronLeft className="h-4 w-4 mr-1" /> Back to goals
         </Button>
 
-        <EntityDetail entity={fresh}>
+        <EntityDetail entity={fresh} showComments currentUserId={currentUser?.id}>
           <div className="space-y-4">
             {/* Progress */}
             <div className="space-y-1">
@@ -228,6 +229,13 @@ export function GoalsPage() {
           <Plus className="h-4 w-4 mr-1" /> New Goal
         </Button>
       </div>
+
+      {/* Saved filters */}
+      <SavedFilterBar
+        moduleKey="goals"
+        currentCriteria={{ status: statusFilter }}
+        onApply={(c) => setStatusFilter((c.status as EntityStatus | 'all') || 'all')}
+      />
 
       {/* Goal cards grid */}
       {goals.length === 0 ? (

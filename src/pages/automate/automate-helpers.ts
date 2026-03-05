@@ -1,4 +1,4 @@
-export const TRIGGER_TYPES = ['schedule', 'manual'] as const
+export const TRIGGER_TYPES = ['schedule', 'manual', 'event'] as const
 export type TriggerType = (typeof TRIGGER_TYPES)[number]
 
 export const SCHEDULE_INTERVALS = ['daily', 'weekly', 'monthly'] as const
@@ -10,6 +10,7 @@ export type ActionType = (typeof ACTION_TYPES)[number]
 export const TRIGGER_LABELS: Record<TriggerType, string> = {
   schedule: 'Scheduled',
   manual: 'Manual',
+  event: 'Event-Driven',
 }
 
 export const SCHEDULE_LABELS: Record<ScheduleInterval, string> = {
@@ -29,6 +30,30 @@ export const ACTION_COLORS: Record<ActionType, string> = {
   notify: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
   'update-entities': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
 }
+
+export type ConditionField = 'entityStatus' | 'entityType' | 'tag' | 'trackerCount'
+export type ConditionOperator = 'eq' | 'neq' | 'gte' | 'lte' | 'contains'
+
+export interface Condition {
+  field: ConditionField
+  operator: ConditionOperator
+  value: string
+}
+
+export const CONDITION_FIELDS: { value: ConditionField; label: string }[] = [
+  { value: 'entityStatus', label: 'Entity Status' },
+  { value: 'entityType', label: 'Entity Type' },
+  { value: 'tag', label: 'Tag' },
+  { value: 'trackerCount', label: 'Tracker Count' },
+]
+
+export const CONDITION_OPERATORS: { value: ConditionOperator; label: string }[] = [
+  { value: 'eq', label: '=' },
+  { value: 'neq', label: '!=' },
+  { value: 'gte', label: '>=' },
+  { value: 'lte', label: '<=' },
+  { value: 'contains', label: 'contains' },
+]
 
 export interface AutomationTemplate {
   id: string

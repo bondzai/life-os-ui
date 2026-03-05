@@ -18,6 +18,7 @@ import { PriorityBadge } from '@/core/components/priority-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
+import { emitAutomationEvent } from './automate/automation-event-bus'
 import { HabitHeatmap } from './habits/habit-heatmap'
 import type { Entity, EntityStatus } from '@/core/types'
 
@@ -82,6 +83,11 @@ export function HabitsPage() {
           metadata: { ...habit.metadata, streak: streak + 1 },
           updatedAt: new Date().toISOString(),
         },
+      })
+      emitAutomationEvent({
+        type: 'tracker-created',
+        entityId: habit.id,
+        entityType: 'habit',
       })
     }
   }

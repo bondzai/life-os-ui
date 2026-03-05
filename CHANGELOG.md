@@ -4,6 +4,25 @@ All notable changes to Life-OS UI are documented here.
 
 ---
 
+## [0.15.0] — 2026-03-04
+
+### Phase 14 — Larger Features
+
+#### Added
+- **Full-Text Search**: Scored search across titles, descriptions, tags, and metadata via Cmd+K
+- **Inline Editing**: Click-to-edit component for quick field updates
+- **Comment System**: Threaded comments on goals and skills (reuses Entity with parentId)
+- **Saved Filters**: Persistent filter presets on Tasks, Goals, and Reading pages
+- **Skill Practice Log**: Log practice sessions with duration and notes, track totals
+- **Reading Progress**: Page tracking with progress bar on book cards
+- **Reading Challenge**: Annual reading goal with completion tracking
+- **Automation History**: Timestamped execution log with filter and clear
+- **Conditional Logic**: AND-based conditions on automations (status, type, tag, tracker count)
+- **Event-Driven Triggers**: Automations fire on task status change or habit check-in
+- **Dry-Run Mode**: Preview automation effects without executing (Eye button)
+
+---
+
 ## [0.14.0] — 2026-03-04
 
 ### Phase 12+13 Cleanup — All Remaining Items

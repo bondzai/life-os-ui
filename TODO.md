@@ -98,21 +98,21 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 ## Phase 14: Larger Features
 
 ### 14a. Advanced Cross-Cutting
-- [ ] Full-text search across all entities (titles, descriptions, metadata)
-- [ ] Saved filters/views per module
-- [ ] Comment system on any entity
-- [ ] Inline editing on cards (edit fields without dialog)
+- [x] Full-text search across all entities (titles, descriptions, metadata)
+- [x] Saved filters/views per module
+- [x] Comment system on any entity
+- [x] Inline editing on cards (edit fields without dialog)
 
 ### 14b. Skills & Reading
-- [ ] Skill practice log: quick "Log practice" button → tracker entry
-- [ ] Reading progress: pages read / total pages with progress bar
-- [ ] Reading challenge: annual goal with tracker ("Read 24 books in 2026")
+- [x] Skill practice log: quick "Log practice" button → tracker entry
+- [x] Reading progress: pages read / total pages with progress bar
+- [x] Reading challenge: annual goal with tracker ("Read 24 books in 2026")
 
 ### 14c. Automate v2
-- [ ] Execution history log: timestamped past runs with results
-- [ ] Conditional logic: if/then rules for trigger conditions
-- [ ] Event-driven triggers: fire on status change or tracker threshold
-- [ ] Dry-run mode: preview automation effect before executing
+- [x] Execution history log: timestamped past runs with results
+- [x] Conditional logic: if/then rules for trigger conditions
+- [x] Event-driven triggers: fire on status change or tracker threshold
+- [x] Dry-run mode: preview automation effect before executing
 
 ---
 
@@ -164,3 +164,4 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 - [x] Phase 12: Quick Wins & Polish (Dashboard v2, Sidebar, Module Polish)
 - [x] Phase 13: Medium Features (charts, agenda, pomodoro, review)
 - [x] Phase 12+13 Cleanup: All remaining items (v0.14.0)
+- [x] Phase 14: Larger Features (v0.15.0)

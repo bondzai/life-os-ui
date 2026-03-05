@@ -15,6 +15,8 @@ import { EntityDialog } from '@/core/components/entity-dialog'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
+import { emitAutomationEvent } from './automate/automation-event-bus'
+import { SavedFilterBar } from '@/core/components/saved-filter-bar'
 import { TaskCard } from './tasks/task-card'
 import { KanbanBoard } from './tasks/kanban-board'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
@@ -62,12 +64,20 @@ export function TasksPage() {
   }, [tasks, statusFilter, priorityFilter, sortKey])
 
   const toggleComplete = (task: Entity) => {
+    const newStatus = task.status === 'completed' ? 'active' : 'completed'
     update.mutate({
       id: task.id,
       updates: {
-        status: task.status === 'completed' ? 'active' : 'completed',
+        status: newStatus,
         updatedAt: new Date().toISOString(),
       },
+    })
+    emitAutomationEvent({
+      type: 'entity-status-change',
+      entityId: task.id,
+      entityType: 'task',
+      oldStatus: task.status,
+      newStatus,
     })
   }
 
@@ -75,6 +85,13 @@ export function TasksPage() {
     update.mutate({
       id: task.id,
       updates: { status: newStatus, updatedAt: new Date().toISOString() },
+    })
+    emitAutomationEvent({
+      type: 'entity-status-change',
+      entityId: task.id,
+      entityType: 'task',
+      oldStatus: task.status,
+      newStatus,
     })
   }
 
@@ -184,6 +201,17 @@ export function TasksPage() {
           <Plus className="h-4 w-4 mr-1" /> New Task
         </Button>
       </div>
+
+      {/* Saved filters */}
+      <SavedFilterBar
+        moduleKey="tasks"
+        currentCriteria={{ status: statusFilter, priority: priorityFilter, sort: sortKey }}
+        onApply={(c) => {
+          setStatusFilter((c.status as EntityStatus | 'all') || 'all')
+          setPriorityFilter((c.priority as EntityPriority | 'all') || 'all')
+          setSortKey((c.sort as SortKey) || 'priority')
+        }}
+      />
 
       {/* Content */}
       {tasks.length === 0 ? (

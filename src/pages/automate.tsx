@@ -25,17 +25,25 @@ import {
   type ScheduleInterval,
   type ActionType,
 } from './automate/automate-helpers'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AutomationDialog, type AutomationFormValues } from './automate/automation-dialog'
 import { AutomationCard } from './automate/automation-card'
-import { runAutomation, runDueAutomations } from './automate/automation-engine'
+import { AutomationHistory } from './automate/automation-history'
+import { runAutomation, runDueAutomations, handleAutomationEvent } from './automate/automation-engine'
+import { subscribeAutomationEvents } from './automate/automation-event-bus'
+import type { Condition } from './automate/automate-helpers'
 import type { Entity } from '@/core/types'
 
-function formToMetadata(values: AutomationFormValues): Record<string, unknown> {
+function formToMetadata(values: AutomationFormValues, conditions?: Condition[]): Record<string, unknown> {
   const meta: Record<string, unknown> = {
     triggerType: values.triggerType,
     actionType: values.actionType,
     enabled: true,
     runCount: 0,
+  }
+
+  if (conditions && conditions.length > 0) {
+    meta.conditions = conditions
   }
 
   if (values.triggerType === 'schedule') {
@@ -44,6 +52,13 @@ function formToMetadata(values: AutomationFormValues): Record<string, unknown> {
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     meta.nextDue = tomorrow.toISOString().split('T')[0]
+  }
+
+  if (values.triggerType === 'event') {
+    meta.eventConfig = {
+      watchType: values.watchType || undefined,
+      watchStatus: values.watchStatus || undefined,
+    }
   }
 
   const actionConfig: Record<string, unknown> = {}
@@ -71,6 +86,7 @@ function formToMetadata(values: AutomationFormValues): Record<string, unknown> {
 
 function metadataToForm(entity: Entity): AutomationFormValues {
   const actionConfig = (entity.metadata.actionConfig as Record<string, unknown>) || {}
+  const eventConfig = (entity.metadata.eventConfig as Record<string, unknown>) || {}
   return {
     title: entity.title,
     description: entity.description || '',
@@ -85,7 +101,14 @@ function metadataToForm(entity: Entity): AutomationFormValues {
     targetType: (actionConfig.targetType as string) || '',
     targetStatus: (actionConfig.targetStatus as string) || '',
     newStatus: (actionConfig.newStatus as string) || '',
+    watchType: (eventConfig.watchType as string) || '',
+    watchStatus: (eventConfig.watchStatus as string) || '',
   }
+}
+
+function metadataToConditions(entity: Entity): Condition[] {
+  const conditions = entity.metadata.conditions
+  return Array.isArray(conditions) ? (conditions as Condition[]) : []
 }
 
 export function AutomatePage() {
@@ -100,6 +123,7 @@ export function AutomatePage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAutomation, setEditingAutomation] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
+  const [previewResult, setPreviewResult] = useState<string | null>(null)
 
   // Run due automations on mount
   useEffect(() => {
@@ -109,6 +133,15 @@ export function AutomatePage() {
         notify({ title: `Ran ${count} scheduled automation(s)`, type: 'info' })
       }
     }
+  }, [currentUser])
+
+  // Subscribe to event bus
+  useEffect(() => {
+    if (!currentUser) return
+    const unsub = subscribeAutomationEvents((event) => {
+      handleAutomationEvent(event, currentUser.id)
+    })
+    return unsub
   }, [currentUser])
 
   // Summary stats
@@ -134,7 +167,7 @@ export function AutomatePage() {
   }, [automations, triggerFilter, actionFilter])
 
   // CRUD handlers
-  const handleCreate = (values: AutomationFormValues) => {
+  const handleCreate = (values: AutomationFormValues, conditions?: Condition[]) => {
     create.mutate({
       id: crypto.randomUUID(),
       type: 'automation',
@@ -143,7 +176,7 @@ export function AutomatePage() {
       status: 'active',
       priority: 'medium',
       tags: [],
-      metadata: formToMetadata(values),
+      metadata: formToMetadata(values, conditions),
       ownerId: currentUser?.id ?? '',
       visibility: 'private',
       createdAt: new Date().toISOString(),
@@ -152,9 +185,9 @@ export function AutomatePage() {
     notify({ title: 'Automation created', type: 'success' })
   }
 
-  const handleEdit = (values: AutomationFormValues) => {
+  const handleEdit = (values: AutomationFormValues, conditions?: Condition[]) => {
     if (!editingAutomation) return
-    const meta = formToMetadata(values)
+    const meta = formToMetadata(values, conditions)
     // Preserve runtime state
     meta.lastRun = editingAutomation.metadata.lastRun
     meta.runCount = editingAutomation.metadata.runCount
@@ -185,6 +218,12 @@ export function AutomatePage() {
     if (!currentUser) return
     runAutomation(automation, currentUser.id)
     notify({ title: `Ran "${automation.title}"`, type: 'success' })
+  }
+
+  const handlePreview = (automation: Entity) => {
+    if (!currentUser) return
+    const result = runAutomation(automation, currentUser.id, { dryRun: true })
+    setPreviewResult(typeof result === 'string' ? result : 'No preview available')
   }
 
   const handleActivateTemplate = (templateId: string) => {
@@ -280,6 +319,7 @@ export function AutomatePage() {
           <TabsList>
             <TabsTrigger value="automations">Automations</TabsTrigger>
             <TabsTrigger value="templates">Templates</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
           {tab === 'automations' && (
             <Button size="sm" onClick={() => setDialogOpen(true)}>
@@ -335,6 +375,7 @@ export function AutomatePage() {
                   onEdit={setEditingAutomation}
                   onDelete={setDeleteTarget}
                   onRun={handleRun}
+                  onPreview={handlePreview}
                 />
               ))}
             </div>
@@ -382,7 +423,23 @@ export function AutomatePage() {
             })}
           </div>
         </TabsContent>
+        {/* History Tab */}
+        <TabsContent value="history" className="space-y-4">
+          <AutomationHistory
+            automationNames={automations.map((a) => ({ id: a.id, title: a.title }))}
+          />
+        </TabsContent>
       </Tabs>
+
+      {/* Preview dialog */}
+      <Dialog open={!!previewResult} onOpenChange={(open) => !open && setPreviewResult(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Dry Run Preview</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm whitespace-pre-wrap">{previewResult}</p>
+        </DialogContent>
+      </Dialog>
 
       {/* Create dialog */}
       <AutomationDialog
@@ -397,6 +454,7 @@ export function AutomatePage() {
         onOpenChange={(open) => !open && setEditingAutomation(null)}
         title="Edit Automation"
         defaultValues={editingAutomation ? metadataToForm(editingAutomation) : undefined}
+        defaultConditions={editingAutomation ? metadataToConditions(editingAutomation) : undefined}
         onSubmit={handleEdit}
       />
 

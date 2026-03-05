@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useUiStore } from '@/stores/ui-store'
 import { useAIStore } from '@/stores/ai-store'
-import { useEntities } from '@/core/hooks'
+import { useFullTextSearch } from '@/core/hooks'
 import { modules } from '@/core/config/modules'
 import { AIClient, gatherContext, buildSystemPrompt } from '@/core/ai'
 import type { ChatCompletionMessage } from '@/core/types/ai'
@@ -25,13 +25,14 @@ export function CommandBar() {
   const config = useAIStore((s) => s.config)
   const isConfigured = useAIStore((s) => s.isConfigured)
   const navigate = useNavigate()
-  const { items: entities } = useEntities()
 
   const [query, setQuery] = useState('')
   const [aiResponse, setAiResponse] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
 
   const isAIMode = query.startsWith('/ask ')
+  const searchQuery = isAIMode ? '' : query
+  const searchResults = useFullTextSearch(searchQuery)
 
   // Reset state when dialog closes
   useEffect(() => {
@@ -58,10 +59,10 @@ export function CommandBar() {
     [navigate, setOpen],
   )
 
-  // Entity results
+  // Entity results from full-text search
   const entityResults: SearchResult[] = useMemo(
     () =>
-      entities.slice(0, 50).map((e) => ({
+      searchResults.map((e) => ({
         id: `entity-${e.id}`,
         label: e.title,
         description: e.description,
@@ -72,19 +73,19 @@ export function CommandBar() {
           setOpen(false)
         },
       })),
-    [entities, navigate, setOpen],
+    [searchResults, navigate, setOpen],
   )
 
   // Filtered results
   const filteredResults = useMemo(() => {
     if (!query || isAIMode) return []
     const q = query.toLowerCase()
-    const all = [...navResults, ...entityResults]
-    return all.filter(
+    const matchingNav = navResults.filter(
       (r) =>
         r.label.toLowerCase().includes(q) ||
         r.description?.toLowerCase().includes(q),
     )
+    return [...matchingNav, ...entityResults]
   }, [query, isAIMode, navResults, entityResults])
 
   // Group results by category
@@ -185,7 +186,7 @@ export function CommandBar() {
                   <p className="px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                     {category}
                   </p>
-                  {results.slice(0, 5).map((r) => (
+                  {results.slice(0, 8).map((r) => (
                     <button
                       key={r.id}
                       onClick={r.action}

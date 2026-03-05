@@ -2,13 +2,16 @@ import type { Entity } from '@/core/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatusBadge } from './status-badge'
 import { PriorityBadge } from './priority-badge'
+import { EntityComments } from './entity-comments'
 
 interface EntityDetailProps {
   entity: Entity
   children?: React.ReactNode
+  showComments?: boolean
+  currentUserId?: string
 }
 
-export function EntityDetail({ entity, children }: EntityDetailProps) {
+export function EntityDetail({ entity, children, showComments, currentUserId }: EntityDetailProps) {
   return (
     <Card>
       <CardHeader>
@@ -40,6 +43,9 @@ export function EntityDetail({ entity, children }: EntityDetailProps) {
           </p>
         )}
         {children}
+        {showComments && currentUserId && (
+          <EntityComments entityId={entity.id} currentUserId={currentUserId} />
+        )}
       </CardContent>
     </Card>
   )

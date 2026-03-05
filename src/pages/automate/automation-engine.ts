@@ -1,8 +1,11 @@
 import { notify } from '@/lib/notify'
 import type { Entity } from '@/core/types'
-import type { ActionType, ScheduleInterval } from './automate-helpers'
+import type { ActionType, Condition, ScheduleInterval } from './automate-helpers'
+import { addRun } from './automation-runs'
+import type { AutomationEvent } from './automation-event-bus'
 
 const STORAGE_KEY = 'life-os:entities'
+const TRACKER_KEY = 'life-os:trackers'
 const ENGINE_LAST_RUN_KEY = 'life-os:automation-last-run'
 
 function readEntities(): Entity[] {
@@ -28,6 +31,90 @@ function getNextDue(interval: ScheduleInterval, fromDate: string): string {
       break
   }
   return d.toISOString().split('T')[0]
+}
+
+function checkConditions(automation: Entity): boolean {
+  const conditions = automation.metadata.conditions as Condition[] | undefined
+  if (!conditions || conditions.length === 0) return true
+
+  const entities = readEntities()
+  const trackers: { entityId: string }[] = (() => {
+    const raw = localStorage.getItem(TRACKER_KEY)
+    return raw ? JSON.parse(raw) : []
+  })()
+
+  // AND logic: all conditions must pass
+  return conditions.every((condition) => {
+    switch (condition.field) {
+      case 'entityStatus': {
+        const matching = entities.filter((e) => e.status === condition.value)
+        return evalCount(matching.length, condition.operator, condition.value)
+      }
+      case 'entityType': {
+        const matching = entities.filter((e) => e.type === condition.value)
+        return matching.length > 0
+      }
+      case 'tag': {
+        const matching = entities.filter((e) => e.tags.includes(condition.value))
+        return evalExists(matching.length, condition.operator)
+      }
+      case 'trackerCount': {
+        const count = trackers.length
+        return evalNumeric(count, condition.operator, parseInt(condition.value, 10) || 0)
+      }
+      default:
+        return true
+    }
+  })
+}
+
+function evalCount(count: number, op: string, _value: string): boolean {
+  // For status/type checks: just check existence
+  switch (op) {
+    case 'eq': return count > 0
+    case 'neq': return count === 0
+    case 'gte': return count >= 1
+    case 'lte': return count === 0
+    default: return count > 0
+  }
+}
+
+function evalExists(count: number, op: string): boolean {
+  switch (op) {
+    case 'eq':
+    case 'contains':
+    case 'gte': return count > 0
+    case 'neq': return count === 0
+    default: return count > 0
+  }
+}
+
+function evalNumeric(actual: number, op: string, expected: number): boolean {
+  switch (op) {
+    case 'eq': return actual === expected
+    case 'neq': return actual !== expected
+    case 'gte': return actual >= expected
+    case 'lte': return actual <= expected
+    default: return true
+  }
+}
+
+function describeAction(automation: Entity): string {
+  const actionType = automation.metadata.actionType as ActionType
+  const actionConfig = automation.metadata.actionConfig as Record<string, unknown>
+
+  switch (actionType) {
+    case 'create-entity':
+      return `Would create ${actionConfig.entityType || 'task'}: "${actionConfig.title || 'Automated task'}"`
+    case 'notify':
+      return `Would send notification: "${actionConfig.notifyTitle || automation.title}"`
+    case 'update-entities': {
+      const from = actionConfig.targetStatus ? ` from ${actionConfig.targetStatus}` : ''
+      return `Would update ${actionConfig.targetType}s${from} to ${actionConfig.newStatus}`
+    }
+    default:
+      return 'Unknown action'
+  }
 }
 
 function executeAction(automation: Entity, ownerId: string): void {
@@ -95,8 +182,48 @@ function executeAction(automation: Entity, ownerId: string): void {
   }
 }
 
-export function runAutomation(automation: Entity, ownerId: string): void {
-  executeAction(automation, ownerId)
+export function runAutomation(
+  automation: Entity,
+  ownerId: string,
+  options?: { dryRun?: boolean },
+): string | void {
+  // Check conditions
+  if (!checkConditions(automation)) {
+    if (options?.dryRun) {
+      return 'Conditions not met — automation would be skipped.'
+    }
+    return
+  }
+
+  // Dry-run mode
+  if (options?.dryRun) {
+    const conditions = automation.metadata.conditions as Condition[] | undefined
+    const condDesc = conditions && conditions.length > 0
+      ? `\nConditions (${conditions.length}): all passed`
+      : '\nNo conditions configured'
+    return describeAction(automation) + condDesc
+  }
+
+  try {
+    executeAction(automation, ownerId)
+    addRun({
+      id: crypto.randomUUID(),
+      automationId: automation.id,
+      automationTitle: automation.title,
+      timestamp: new Date().toISOString(),
+      result: 'success',
+      details: describeAction(automation),
+    })
+  } catch (err) {
+    addRun({
+      id: crypto.randomUUID(),
+      automationId: automation.id,
+      automationTitle: automation.title,
+      timestamp: new Date().toISOString(),
+      result: 'error',
+      details: err instanceof Error ? err.message : 'Unknown error',
+    })
+  }
 
   // Update lastRun and runCount
   const entities = readEntities()
@@ -149,4 +276,35 @@ export function runDueAutomations(ownerId: string): number {
   }
 
   return count
+}
+
+export function handleAutomationEvent(event: AutomationEvent, ownerId: string): void {
+  const entities = readEntities()
+  const automations = entities.filter(
+    (e) =>
+      e.type === 'automation' &&
+      e.status === 'active' &&
+      e.metadata.triggerType === 'event' &&
+      e.metadata.enabled !== false,
+  )
+
+  for (const automation of automations) {
+    const eventConfig = automation.metadata.eventConfig as Record<string, unknown> | undefined
+    if (!eventConfig) continue
+
+    const watchType = eventConfig.watchType as string | undefined
+    const watchStatus = eventConfig.watchStatus as string | undefined
+
+    // Match event
+    if (event.type === 'entity-status-change') {
+      if (watchType && watchType !== event.entityType) continue
+      if (watchStatus && watchStatus !== event.newStatus) continue
+    } else if (event.type === 'tracker-created') {
+      if (watchType && watchType !== event.entityType) continue
+    } else {
+      continue
+    }
+
+    runAutomation(automation, ownerId)
+  }
 }

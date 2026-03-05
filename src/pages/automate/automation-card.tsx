@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Play, Clock, Zap } from 'lucide-react'
+import { Pencil, Trash2, Play, Clock, Zap, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -18,9 +18,10 @@ interface AutomationCardProps {
   onEdit: (automation: Entity) => void
   onDelete: (automation: Entity) => void
   onRun: (automation: Entity) => void
+  onPreview?: (automation: Entity) => void
 }
 
-export function AutomationCard({ automation, onEdit, onDelete, onRun }: AutomationCardProps) {
+export function AutomationCard({ automation, onEdit, onDelete, onRun, onPreview }: AutomationCardProps) {
   const triggerType = automation.metadata.triggerType as TriggerType
   const scheduleInterval = automation.metadata.scheduleInterval as ScheduleInterval | undefined
   const actionType = automation.metadata.actionType as ActionType
@@ -70,6 +71,11 @@ export function AutomationCard({ automation, onEdit, onDelete, onRun }: Automati
           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => onRun(automation)}>
             <Play className="h-3.5 w-3.5" />
           </Button>
+          {onPreview && (
+            <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => onPreview(automation)}>
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
+          )}
           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => onEdit(automation)}>
             <Pencil className="h-3.5 w-3.5" />
           </Button>

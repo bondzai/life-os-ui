@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react'
 import { Plus, BookOpen, Pencil, Trash2, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -17,6 +19,8 @@ import { StatusBadge } from '@/core/components/status-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
+import { SavedFilterBar } from '@/core/components/saved-filter-bar'
+import { ReadingChallenge } from './reading/reading-challenge'
 import type { Entity, EntityStatus, EntityType } from '@/core/types'
 
 export function ReadingPage() {
@@ -149,6 +153,19 @@ export function ReadingPage() {
         </div>
       </div>
 
+      {/* Reading Challenge */}
+      <ReadingChallenge />
+
+      {/* Saved filters */}
+      <SavedFilterBar
+        moduleKey="reading"
+        currentCriteria={{ type: typeFilter, status: statusFilter }}
+        onApply={(c) => {
+          setTypeFilter((c.type as 'all' | 'book' | 'course') || 'all')
+          setStatusFilter((c.status as EntityStatus | 'all') || 'all')
+        }}
+      />
+
       {/* Grid */}
       {items.length === 0 ? (
         <EmptyState
@@ -194,6 +211,42 @@ export function ReadingPage() {
                       <span className="text-xs font-medium">{rating}/5</span>
                     </div>
                   )}
+                  {/* Page progress */}
+                  {(() => {
+                    const totalPages = typeof item.metadata.totalPages === 'number' ? item.metadata.totalPages : 0
+                    const currentPage = typeof item.metadata.currentPage === 'number' ? item.metadata.currentPage : 0
+                    if (totalPages <= 0) return null
+                    const pct = Math.min(100, Math.round((currentPage / totalPages) * 100))
+                    return (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Progress value={pct} className="flex-1 h-2" />
+                          <span className="text-xs text-muted-foreground shrink-0">{currentPage}/{totalPages}</span>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                          <Input
+                            type="number"
+                            value={currentPage || ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10) || 0
+                              update.mutate({
+                                id: item.id,
+                                updates: {
+                                  metadata: { ...item.metadata, currentPage: val },
+                                  updatedAt: new Date().toISOString(),
+                                },
+                              })
+                            }}
+                            className="h-6 w-16 text-xs"
+                            placeholder="Page"
+                            min={0}
+                            max={totalPages}
+                          />
+                          <span className="text-xs text-muted-foreground">of {totalPages}</span>
+                        </div>
+                      </div>
+                    )
+                  })()}
                   {item.tags.length > 0 && (
                     <div className="flex gap-1 flex-wrap">
                       {item.tags.map((tag) => (

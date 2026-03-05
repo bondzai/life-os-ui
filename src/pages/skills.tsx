@@ -18,6 +18,7 @@ import { StatusBadge } from '@/core/components/status-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
+import { PracticeLog } from './skills/practice-log'
 import type { Entity, EntityStatus } from '@/core/types'
 
 const LEVELS = ['beginner', 'intermediate', 'advanced', 'expert'] as const
@@ -124,7 +125,7 @@ export function SkillsPage() {
           <ChevronLeft className="h-4 w-4 mr-1" /> Back to skills
         </Button>
 
-        <EntityDetail entity={fresh}>
+        <EntityDetail entity={fresh} showComments currentUserId={currentUser?.id}>
           <div className="space-y-4">
             {/* Level selector */}
             <div className="space-y-1">
@@ -142,6 +143,9 @@ export function SkillsPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Practice log */}
+            <PracticeLog skillId={fresh.id} />
 
             {/* Related books/courses */}
             {related.length > 0 && (

@@ -24,6 +24,7 @@ export type EntityType =
   | 'sleep-mood'
   | 'automation'
   | 'memory'
+  | 'comment'
 
 export type EntityStatus = 'active' | 'completed' | 'archived' | 'paused'
 
