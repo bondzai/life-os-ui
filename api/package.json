@@ -19,6 +19,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
     "@types/jsonwebtoken": "^9.0.7",
+    "@vitejs/plugin-basic-ssl": "^2.2.0",
     "drizzle-kit": "^0.30.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
