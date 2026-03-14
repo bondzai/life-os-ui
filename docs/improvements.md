@@ -119,6 +119,12 @@ For the Minimalist Mind cognitive system features, see [TODO.md](../TODO.md) Pha
 - ~~**Comment system**~~: Done (Phase 14)
 - ~~**Inline editing**~~: Done (Phase 14)
 
+### Google Calendar CRUD (Bidirectional Sync)
+Currently read-only via iCal feeds. Full details in [TODO.md](../TODO.md).
+- **Backend**: OAuth2 flow, token management, GCal API proxy endpoints, webhook receiver
+- **Frontend**: Google sign-in, calendar selector, unified event list, create/edit/delete Google events inline, drag to reschedule, conflict detection, sync status indicator
+- **Sync**: Incremental sync with `syncToken`, offline queue, duplicate prevention via `googleEventId`
+
 ### Minimalist Mind Features (see [TODO.md](../TODO.md) Phase 16)
 - **AI Clarify Layer**: AI-powered inbox triage (type, priority, domain suggestions)
 - **Knowledge Engine**: Structured entries with title/summary/insight/source/domain

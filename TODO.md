@@ -170,11 +170,46 @@ AI-generated morning intelligence briefing.
 
 ## Nice-to-Have (Backlog)
 
+### Google Calendar CRUD Integration
+
+Currently: read-only iCal feed sync (public calendars only).
+Goal: full bidirectional sync — create, read, update, delete events from Life-OS.
+
+**Backend (API server)**
+- [ ] **Google OAuth2 flow**: `/auth/google` → consent screen → store refresh token per user
+- [ ] **Token management**: Encrypt and store Google tokens in DB, auto-refresh on expiry
+- [ ] **GCal API proxy endpoints**: `GET/POST/PUT/DELETE /api/gcal/events` — backend calls Google API, frontend stays simple
+- [ ] **Calendar list endpoint**: `GET /api/gcal/calendars` — list user's Google calendars with colors
+- [ ] **Webhook receiver**: `POST /api/gcal/webhook` — receive push notifications from Google when events change (real-time sync)
+
+**Frontend**
+- [ ] **Google sign-in button**: OAuth connect/disconnect in Settings page
+- [ ] **Calendar selector**: Choose which Google calendars to sync (checkboxes with calendar colors)
+- [ ] **Unified event list**: Merge Life-OS events + Google events in calendar views, visually distinguish by source badge
+- [ ] **Create event → Google**: When creating an event in Life-OS, option to push to a selected Google Calendar
+- [ ] **Edit Google events inline**: Edit title, time, description of Google events directly in Life-OS calendar
+- [ ] **Delete Google events**: Delete from Life-OS removes from Google (with confirmation)
+- [ ] **Drag to reschedule**: Drag Google events on calendar grid → update via API
+- [ ] **Conflict detection**: Warn when creating an event that overlaps with an existing Google event
+- [ ] **Sync status indicator**: Show last sync time, manual refresh button, sync error states
+
+**Sync Logic**
+- [ ] **Incremental sync**: Use Google's `syncToken` to fetch only changed events (not full re-fetch)
+- [ ] **Bi-directional merge**: Life-OS event changes push to Google, Google changes pull to Life-OS
+- [ ] **Offline queue**: Queue changes made offline, sync when connection restores
+- [ ] **Duplicate prevention**: Match events by Google event ID to avoid duplicates on re-sync
+
+**Implementation notes**:
+- Google Calendar API v3, scopes: `calendar.readonly` → `calendar.events` for write
+- OAuth flow must go through backend (client secret can't be exposed)
+- Store `googleEventId` in entity metadata to link Life-OS events to Google events
+- Use `etag` from Google for optimistic concurrency (prevent overwriting external changes)
+- Rate limits: 1M queries/day free tier, batch requests for bulk operations
+
 ### Cross-Cutting
 - [ ] Bulk actions: multi-select → bulk delete, archive, status change
 - [ ] Keyboard shortcuts: `N` = new, `J/K` = navigate, `/` = search
 - [ ] Activity timeline per entity: change history
-- [ ] Drag to reschedule on calendar
 
 ### Tasks
 - [ ] Time estimate field with tracking
