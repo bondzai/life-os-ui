@@ -14,6 +14,29 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.21.0',
+    date: '2026-03-14',
+    phase: 'Google Calendar-Inspired Redesign',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          '**Month View**: Colored event pills (rounded rectangles) instead of dots, today blue circle, previous-month leading days, slide-up detail panel with color bars',
+          '**Week View**: Large date circles with Google-style header, colored event blocks, Monday-start week',
+          '**Schedule View**: Clean vertical timeline with date circles, color bar indicators, time ranges',
+          '**Header**: Rounded "Today" pill, chevron nav, pill-shaped view switcher, chip-style type filters with strike-through toggle',
+          '**Event Detail**: Color sidebar bar per type, smooth slide-up animation, inline add button',
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          'Month grid rows now fill available height correctly using dynamic grid-template-rows',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.20.0',
     date: '2026-03-14',
     phase: 'Maps & Mobile UX',

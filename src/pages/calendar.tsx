@@ -284,7 +284,7 @@ export function CalendarPage() {
           </div>
 
           {/* Date grid */}
-          <div className="flex-1 grid grid-cols-7 grid-rows-[repeat(auto-fill,minmax(0,1fr))] border-t">
+          <div className={`flex-1 grid grid-cols-7 border-t`} style={{ gridTemplateRows: `repeat(${cells.length / 7}, minmax(0, 1fr))` }}>
             {cells.map((day, idx) => {
               const isLeading = day === null && idx < firstDay
               const leadingDay = isLeading ? prevMonthDays - (firstDay - idx - 1) : null
