@@ -70,7 +70,7 @@ export function ChoreDialog({
       assigneeId: '',
       dueDate: '',
       note: '',
-      rotationEnabled: defaultValues?.rotationEnabled ?? false,
+      rotationEnabled: false,
     },
   })
 

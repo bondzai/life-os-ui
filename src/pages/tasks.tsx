@@ -81,6 +81,17 @@ export function TasksPage() {
     })
   }
 
+  const snoozeTask = (task: Entity, days: number) => {
+    const today = new Date()
+    today.setDate(today.getDate() + days)
+    const newDueDate = today.toISOString().split('T')[0]
+    update.mutate({
+      id: task.id,
+      updates: { dueDate: newDueDate, updatedAt: new Date().toISOString() },
+    })
+    notify({ title: `Task snoozed ${days === 1 ? '1 day' : '1 week'}`, type: 'success' })
+  }
+
   const moveToStatus = (task: Entity, newStatus: EntityStatus) => {
     update.mutate({
       id: task.id,
@@ -232,6 +243,7 @@ export function TasksPage() {
               onMoveToStatus={moveToStatus}
               onEdit={setEditingTask}
               onDelete={setDeleteTarget}
+              onSnooze={snoozeTask}
             />
           ))}
           {filteredTasks.length === 0 && (
@@ -247,6 +259,7 @@ export function TasksPage() {
           onMoveToStatus={moveToStatus}
           onEdit={setEditingTask}
           onDelete={setDeleteTarget}
+          onSnooze={snoozeTask}
         />
       )}
 

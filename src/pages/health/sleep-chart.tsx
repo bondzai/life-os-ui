@@ -50,7 +50,7 @@ export function SleepChart({ entries }: SleepChartProps) {
               tickFormatter={(v) => `${v}h`}
             />
             <Tooltip
-              formatter={(value: number) => [`${value}h`, 'Sleep']}
+              formatter={(value: number | undefined) => [`${value ?? 0}h`, 'Sleep']}
               labelFormatter={(label) => {
                 const d = new Date(label + 'T00:00:00')
                 return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })

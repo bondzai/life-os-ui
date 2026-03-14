@@ -1,7 +1,14 @@
 import { forwardRef } from 'react'
+import { Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { PriorityBadge } from '@/core/components/priority-badge'
 import type { Entity, EntityStatus } from '@/core/types'
 
@@ -19,6 +26,7 @@ export interface TaskCardProps {
   onMoveToStatus: (task: Entity, status: EntityStatus) => void
   onEdit: (task: Entity) => void
   onDelete: (task: Entity) => void
+  onSnooze?: (task: Entity, days: number) => void
   style?: React.CSSProperties
   className?: string
 }
@@ -35,7 +43,7 @@ const priorityBorder: Record<string, string> = {
 }
 
 export const TaskCard = forwardRef<HTMLDivElement, TaskCardProps & React.HTMLAttributes<HTMLDivElement>>(
-  ({ task, showStatusMove, onToggleComplete, onMoveToStatus, onEdit, onDelete, style, className, ...attrs }, ref) => (
+  ({ task, showStatusMove, onToggleComplete, onMoveToStatus, onEdit, onDelete, onSnooze, style, className, ...attrs }, ref) => (
     <Card ref={ref} style={style} className={`group ${priorityBorder[task.priority] || ''} ${className ?? ''}`} {...attrs}>
       <CardContent className="flex items-start gap-3 py-3">
         <Checkbox
@@ -94,6 +102,24 @@ export const TaskCard = forwardRef<HTMLDivElement, TaskCardProps & React.HTMLAtt
           )}
         </div>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {onSnooze && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => e.stopPropagation()}>
+                  <span className="sr-only">Snooze</span>
+                  <Clock className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSnooze(task, 1) }}>
+                  Snooze 1 day
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSnooze(task, 7) }}>
+                  Snooze 1 week
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onEdit(task)}>
             <span className="sr-only">Edit</span>✎
           </Button>

@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Tracker } from '@/core/types'
 
 interface HabitHeatmapProps {

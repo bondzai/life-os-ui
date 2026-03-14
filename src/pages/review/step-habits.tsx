@@ -1,7 +1,7 @@
 import { Repeat } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import type { Entity, Tracker } from '@/core/types'
+import type { Entity } from '@/core/types'
 
 interface HabitSummary {
   habit: Entity

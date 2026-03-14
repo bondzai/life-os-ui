@@ -32,6 +32,7 @@ import { SleepMoodCard } from './health/sleep-mood-card'
 import { WeightChart } from './health/weight-chart'
 import { SleepChart } from './health/sleep-chart'
 import { WorkoutHeatmap } from './health/workout-heatmap'
+import { WaterIntakeCard } from './health/water-intake-card'
 import type { Entity } from '@/core/types'
 
 export function HealthPage() {
@@ -275,7 +276,7 @@ export function HealthPage() {
   return (
     <div className="space-y-4">
       {/* Summary strip */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Weight</CardTitle>
@@ -312,6 +313,7 @@ export function HealthPage() {
             <p className="text-2xl font-bold capitalize">{todayMood || '—'}</p>
           </CardContent>
         </Card>
+        <WaterIntakeCard />
       </div>
 
       {/* Tabs */}

@@ -224,7 +224,7 @@ export function NotesPage() {
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="text-sm font-medium flex items-center gap-1">
-                        {note.metadata.isPinned && <Pin className="h-3 w-3 text-primary shrink-0" />}
+                        {(note.metadata.isPinned as boolean) && <Pin className="h-3 w-3 text-primary shrink-0" />}
                         {note.title}
                       </CardTitle>
                       <StatusBadge status={note.status} />

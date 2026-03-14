@@ -22,6 +22,7 @@ export type EntityType =
   | 'wallet'
   | 'crypto-tx'
   | 'sleep-mood'
+  | 'water-intake'
   | 'automation'
   | 'memory'
   | 'comment'

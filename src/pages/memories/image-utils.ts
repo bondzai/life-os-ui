@@ -92,7 +92,6 @@ export async function extractExifDate(file: File): Promise<string | null> {
       const marker = view.getUint16(offset)
       if (marker === 0xFFE1) {
         // APP1 (EXIF)
-        const length = view.getUint16(offset + 2)
         const exifStart = offset + 4
 
         // Check "Exif\0\0"

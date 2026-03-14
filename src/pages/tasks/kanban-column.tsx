@@ -11,6 +11,7 @@ interface KanbanColumnProps {
   onMoveToStatus: (task: Entity, status: EntityStatus) => void
   onEdit: (task: Entity) => void
   onDelete: (task: Entity) => void
+  onSnooze?: (task: Entity, days: number) => void
 }
 
 export function KanbanColumn({
@@ -21,6 +22,7 @@ export function KanbanColumn({
   onMoveToStatus,
   onEdit,
   onDelete,
+  onSnooze,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   const taskIds = tasks.map((t) => t.id)
@@ -48,6 +50,7 @@ export function KanbanColumn({
               onMoveToStatus={onMoveToStatus}
               onEdit={onEdit}
               onDelete={onDelete}
+              onSnooze={onSnooze}
             />
           ))}
           {tasks.length === 0 && (

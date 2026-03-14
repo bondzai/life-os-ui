@@ -14,7 +14,6 @@ import {
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
-import type { Entity } from '@/core/types'
 
 export function ReadingChallenge() {
   const { items: goals, create } = useEntities('goal')

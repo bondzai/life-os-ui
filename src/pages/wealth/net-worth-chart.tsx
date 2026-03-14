@@ -88,7 +88,7 @@ export function NetWorthChart({ currentNetWorth }: NetWorthChartProps) {
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis dataKey="month" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} tickFormatter={formatTHB} width={80} />
-            <Tooltip formatter={(v: number) => [formatTHB(v), 'Net Worth']} />
+            <Tooltip formatter={(v: number | undefined) => [formatTHB(v ?? 0), 'Net Worth']} />
             <Line
               type="monotone"
               dataKey="value"

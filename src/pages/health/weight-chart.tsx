@@ -42,7 +42,7 @@ export function WeightChart({ metrics }: WeightChartProps) {
               tickFormatter={(v) => `${v} kg`}
             />
             <Tooltip
-              formatter={(value: number) => [`${value} kg`, 'Weight']}
+              formatter={(value: number | undefined) => [`${value ?? 0} kg`, 'Weight']}
               labelFormatter={(label) => {
                 const d = new Date(label + 'T00:00:00')
                 return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })

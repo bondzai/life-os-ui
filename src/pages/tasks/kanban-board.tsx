@@ -28,6 +28,7 @@ interface KanbanBoardProps {
   onMoveToStatus: (task: Entity, status: EntityStatus) => void
   onEdit: (task: Entity) => void
   onDelete: (task: Entity) => void
+  onSnooze?: (task: Entity, days: number) => void
 }
 
 export function KanbanBoard({
@@ -36,6 +37,7 @@ export function KanbanBoard({
   onMoveToStatus,
   onEdit,
   onDelete,
+  onSnooze,
 }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Entity | null>(null)
 
@@ -95,6 +97,7 @@ export function KanbanBoard({
             onMoveToStatus={onMoveToStatus}
             onEdit={onEdit}
             onDelete={onDelete}
+            onSnooze={onSnooze}
           />
         ))}
       </div>
