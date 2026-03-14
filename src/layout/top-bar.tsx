@@ -45,18 +45,30 @@ export function TopBar({ title }: TopBarProps) {
     <header className="flex h-14 items-center gap-3 border-b px-4">
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-5" />
-      <h2 className="text-sm font-medium flex-1">{title}</h2>
-      <Button
-        variant="outline"
-        size="sm"
-        className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground"
+      <h2 className="text-sm font-medium shrink-0">{title}</h2>
+
+      {/* Desktop: centered search bar trigger */}
+      <button
+        type="button"
         onClick={() => setCommandBarOpen(true)}
+        className="hidden sm:flex items-center gap-2 flex-1 max-w-md mx-auto h-9 rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
       >
-        <Search className="h-3.5 w-3.5" />
-        Search
-        <kbd className="ml-1 pointer-events-none inline-flex h-5 items-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground">
+        <Search className="h-4 w-4 shrink-0" />
+        <span className="flex-1 text-left">Search everything...</span>
+        <kbd className="pointer-events-none inline-flex h-5 items-center rounded border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
           ⌘K
         </kbd>
+      </button>
+
+      {/* Mobile: icon-only search button */}
+      <div className="flex-1 sm:hidden" />
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 sm:hidden"
+        onClick={() => setCommandBarOpen(true)}
+      >
+        <Search className="h-4 w-4" />
       </Button>
 
       <DropdownMenu>

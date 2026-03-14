@@ -31,7 +31,14 @@ const MemoriesPage = lazy(() => import('@/pages/memories').then((m) => ({ defaul
 const TodayPage = lazy(() => import('@/pages/today').then((m) => ({ default: m.TodayPage })))
 const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m.ReviewPage })))
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
 
 export function App() {
   return (

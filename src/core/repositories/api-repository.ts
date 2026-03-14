@@ -17,11 +17,22 @@ export class ApiRepository<T extends { id: string }> implements IRepository<T> {
     }
   }
 
+  private handleUnauthorized(res: Response): void {
+    if (res.status === 401) {
+      localStorage.removeItem('life-os:token')
+      localStorage.removeItem('life-os:auth')
+      window.location.href = '/login'
+    }
+  }
+
   async getAll(): Promise<T[]> {
     const res = await fetch(`${this.baseUrl}/${this.resource}`, {
       headers: this.getHeaders(),
     })
-    if (!res.ok) throw new Error(`Failed to fetch ${this.resource}`)
+    if (!res.ok) {
+      this.handleUnauthorized(res)
+      throw new Error(`Failed to fetch ${this.resource}`)
+    }
     return res.json()
   }
 
@@ -30,7 +41,10 @@ export class ApiRepository<T extends { id: string }> implements IRepository<T> {
       headers: this.getHeaders(),
     })
     if (res.status === 404) return undefined
-    if (!res.ok) throw new Error(`Failed to fetch ${this.resource}/${id}`)
+    if (!res.ok) {
+      this.handleUnauthorized(res)
+      throw new Error(`Failed to fetch ${this.resource}/${id}`)
+    }
     return res.json()
   }
 
@@ -40,7 +54,10 @@ export class ApiRepository<T extends { id: string }> implements IRepository<T> {
       headers: this.getHeaders(),
       body: JSON.stringify(item),
     })
-    if (!res.ok) throw new Error(`Failed to create ${this.resource}`)
+    if (!res.ok) {
+      this.handleUnauthorized(res)
+      throw new Error(`Failed to create ${this.resource}`)
+    }
     return res.json()
   }
 
@@ -50,7 +67,10 @@ export class ApiRepository<T extends { id: string }> implements IRepository<T> {
       headers: this.getHeaders(),
       body: JSON.stringify(updates),
     })
-    if (!res.ok) throw new Error(`Failed to update ${this.resource}/${id}`)
+    if (!res.ok) {
+      this.handleUnauthorized(res)
+      throw new Error(`Failed to update ${this.resource}/${id}`)
+    }
     return res.json()
   }
 
@@ -59,7 +79,10 @@ export class ApiRepository<T extends { id: string }> implements IRepository<T> {
       method: 'DELETE',
       headers: this.getHeaders(),
     })
-    if (!res.ok) throw new Error(`Failed to delete ${this.resource}/${id}`)
+    if (!res.ok) {
+      this.handleUnauthorized(res)
+      throw new Error(`Failed to delete ${this.resource}/${id}`)
+    }
   }
 
   async query(predicate: (item: T) => boolean): Promise<T[]> {

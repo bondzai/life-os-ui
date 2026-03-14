@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { LogOut, Download, Upload } from 'lucide-react'
+import { LogOut, Download, Upload, Star } from 'lucide-react'
 import { ChangelogDialog } from '@/components/changelog-dialog'
 import { APP_VERSION } from '@/lib/changelog-data'
 import {
@@ -25,7 +25,14 @@ import {
 } from '@/components/ui/collapsible'
 import { useAuthStore } from '@/stores/auth-store'
 import { useEntities } from '@/core/hooks'
-import { getModuleGroups } from '@/core/config/modules'
+import {
+  getModuleGroups,
+  getFavorites,
+  toggleFavorite,
+  getFavoriteModules,
+  DEFAULT_COLLAPSED_GROUPS,
+  type ModuleConfig,
+} from '@/core/config/modules'
 import { exportData, importData } from '@/lib/data-backup'
 import { notify } from '@/lib/notify'
 
@@ -33,10 +40,12 @@ const COLLAPSED_KEY = 'life-os:sidebar-collapsed'
 
 function getCollapsed(): Record<string, boolean> {
   try {
-    return JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '{}')
+    const stored = localStorage.getItem(COLLAPSED_KEY)
+    if (stored) return JSON.parse(stored)
   } catch {
-    return {}
+    // ignore
   }
+  return { ...DEFAULT_COLLAPSED_GROUPS }
 }
 
 function setCollapsed(state: Record<string, boolean>) {
@@ -52,6 +61,7 @@ export function AppSidebar() {
 
   const [collapsed, setCollapsedState] = useState<Record<string, boolean>>(() => getCollapsed())
   const [changelogOpen, setChangelogOpen] = useState(false)
+  const [favorites, setFavoritesState] = useState<string[]>(() => getFavorites())
 
   // Badge counts
   const { items: allEntities } = useEntities()
@@ -73,6 +83,12 @@ export function AppSidebar() {
     setCollapsed(next)
   }
 
+  const handleToggleFavorite = (path: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const next = toggleFavorite(path)
+    setFavoritesState(next)
+  }
+
   const handleLogout = () => {
     logout()
     navigate('/login')
@@ -91,6 +107,44 @@ export function AppSidebar() {
     e.target.value = ''
   }
 
+  const favoriteModules = getFavoriteModules(favorites)
+
+  const renderNavItem = (mod: ModuleConfig, isFavorite: boolean) => {
+    const isActive = location.pathname === mod.path
+    const isFav = favorites.includes(mod.path)
+
+    return (
+      <SidebarMenuItem key={mod.id}>
+        <SidebarMenuButton
+          isActive={isActive}
+          onClick={() => navigate(mod.path)}
+          className={`group/nav-item relative ${isFavorite ? 'font-medium' : ''}`}
+        >
+          <mod.icon className={`${isFavorite ? 'h-4.5 w-4.5' : 'h-4 w-4'}`} />
+          <span className="flex-1">{mod.label}</span>
+          {badges[mod.id] && (
+            <span className="ml-auto text-xs bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center">
+              {badges[mod.id]}
+            </span>
+          )}
+          <button
+            onClick={(e) => handleToggleFavorite(mod.path, e)}
+            className={`ml-1 transition-opacity ${
+              isFav
+                ? 'opacity-60 hover:opacity-100'
+                : 'opacity-0 group-hover/nav-item:opacity-40 hover:!opacity-100'
+            }`}
+            title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Star
+              className={`h-3 w-3 ${isFav ? 'fill-current text-yellow-500' : ''}`}
+            />
+          </button>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    )
+  }
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
@@ -105,6 +159,23 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
+        {/* Favorites section — always expanded */}
+        {favoriteModules.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground/70">
+              Favorites
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {favoriteModules.map((mod) => renderNavItem(mod, true))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        <SidebarSeparator className="mx-4" />
+
+        {/* Module groups */}
         {groups.map(({ group, modules }) => (
           <Collapsible
             key={group}
@@ -120,22 +191,7 @@ export function AppSidebar() {
               <CollapsibleContent>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {modules.map((mod) => (
-                      <SidebarMenuItem key={mod.id}>
-                        <SidebarMenuButton
-                          isActive={location.pathname === mod.path}
-                          onClick={() => navigate(mod.path)}
-                        >
-                          <mod.icon className="h-4 w-4" />
-                          <span className="flex-1">{mod.label}</span>
-                          {badges[mod.id] && (
-                            <span className="ml-auto text-xs bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center">
-                              {badges[mod.id]}
-                            </span>
-                          )}
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
+                    {modules.map((mod) => renderNavItem(mod, false))}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </CollapsibleContent>
