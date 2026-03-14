@@ -14,6 +14,29 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.22.0',
+    date: '2026-03-14',
+    phase: 'Focus Page Redesign & Infrastructure',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          '**Focus Page**: Full-viewport 3-column layout — actionable items on the left (priorities, due tasks, habits, inbox), glanceable info cards on the right (schedule, goals, overview stats, quick nav)',
+          '**Focus Page**: Renamed from "Today" to "Focus" with LayoutDashboard icon',
+          '**Focus Page**: Removed Pomodoro timer, On This Day widget, and Health/Wealth detail cards from main flow — accessible via sidebar navigation',
+          '**Focus Page**: Flat checklist-style task toggles, hover-reveal inbox actions, collapsible journal',
+        ],
+      },
+      {
+        title: 'Added',
+        items: [
+          '**Makefile**: `make dev` runs UI + API in parallel, targets for build, lint, typecheck, Docker, db migrations',
+          '**API URL resolver**: Auto-resolves API hostname at runtime for cross-device access (no more hardcoded IPs)',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.21.0',
     date: '2026-03-14',
     phase: 'Google Calendar-Inspired Redesign',

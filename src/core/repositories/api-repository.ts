@@ -1,11 +1,12 @@
 import type { IRepository } from './base-repository'
+import { API_URL } from '@/lib/api-url'
 
 export class ApiRepository<T extends { id: string }> implements IRepository<T> {
   protected readonly baseUrl: string
   protected readonly resource: string
 
   constructor(resource: string) {
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+    this.baseUrl = API_URL
     this.resource = resource
   }
 

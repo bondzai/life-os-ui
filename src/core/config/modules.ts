@@ -16,7 +16,7 @@ import {
   Plane,
   Zap,
   Camera,
-  Sun,
+  LayoutDashboard,
   ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react'
@@ -33,7 +33,7 @@ export interface ModuleConfig {
 
 export const modules: ModuleConfig[] = [
   // Core — daily drivers
-  { id: 'today', label: 'Today', icon: Sun, path: '/', group: 'Core', entityTypes: [] },
+  { id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Core', entityTypes: [] },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Core', entityTypes: ['task'] },
   { id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Core', entityTypes: ['note'] },
   { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Core', entityTypes: ['event'] },
