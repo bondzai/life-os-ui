@@ -1,132 +1,160 @@
 # TODO
 
 See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with 4 priority tiers.
+See [`docs/minimalist-mind-life-os.md`](docs/minimalist-mind-life-os.md) for cognitive system philosophy.
 
 ---
 
-## Phase 12: Quick Wins & Polish
+## Phase 16: Minimalist Mind System
 
-### 12a. Cross-Cutting UX
-- [x] Data export: download all entities as JSON file (backup button in sidebar footer)
-- [x] Data import: upload JSON to restore from backup
-- [x] Undo delete: toast with "Undo" button (soft delete → restore within 5s)
-- [x] Duplicate item: clone any entity with one click (button on cards)
-- [x] Sidebar collapsible groups: collapse/expand with remembered preference
-- [x] Sidebar badges: show due/overdue count next to Tasks and Chores modules
+Based on the [Minimalist Mind](docs/minimalist-mind-life-os.md) cognitive architecture spec.
 
-### 12b. Dashboard v2
-- [x] Health summary card: latest weight, today's mood, 7d workout count
-- [x] Wealth snapshot card: net worth, monthly P&L
-- [x] Habit completion rate card: "85% this week" with mini bar
-- [x] "Weekly Review due" card: show when review hasn't been done this week
-- [x] Motivational message when all tasks are complete
+### Coverage Matrix
 
-### 12c. Goal Improvements
-- [x] Progress slider on card: quick-adjust without opening dialog
-- [x] Color-code cards by progress range (red/yellow/green)
-- [x] Auto-progress from sub-goals: compute parent % as average of children
-
-### 12d. Task Improvements
-- [x] Priority color on Kanban cards (red/orange/yellow/gray)
-- [x] Quick snooze: reschedule by 1 day or 1 week from card menu
-- [x] Subtask support: nested checklist items within a task (metadata array)
-
-### 12e. Habit Improvements
-- [x] Habit heatmap: 90-day grid showing check-in patterns (CSS grid + color scale)
-- [x] Monthly completion rate badge on cards
-- [x] Streak milestone badges: 7d, 30d, 90d visual indicators
-
-### 12f. Notes Improvements
-- [x] Pin/favorite toggle: pinned notes always show at top
-- [x] Markdown rendering: render body with bold, links, code blocks
-- [x] Tag filter dropdown on Notes tab
-
-### 12g. Memories Improvements
-- [x] EXIF date extraction: auto-fill date from photo metadata
-- [x] "On This Day" dashboard widget: memories from same date in past years
-- [x] Photo albums: group memories into named collections
+| Doc Section | Status | What's Built |
+|---|---|---|
+| Layer 1 — Capture | ✅ Done | Capture Bar (`/` to focus, `!` for task), Inbox Capture dialog (`Cmd+Shift+I`) |
+| Layer 2 — Clarify | ❌ Missing | — |
+| Layer 3 — Organize | ⚠️ Partial | Modules exist, but no PARA (Projects/Areas/Knowledge/Archive) view |
+| Focus Engine (3 levels) | ✅ Done | Strategic Direction + Due (Tactical) + Today Focus 3-max (Immediate) |
+| Cognitive Dashboard | ✅ Done | Today Focus, Strategic Direction, Active Projects, Knowledge Growth |
+| Daily Protocol | ✅ Done | Morning & Evening guided flows with step tracking |
+| Weekly Protocol | ⚠️ Partial | Weekly Review exists, not linked to protocol system |
+| Anti-Noise System | ❌ Missing | — |
+| Knowledge Engine | ❌ Missing | Notes exist but no structured knowledge entries |
+| AI Augmentation | ⚠️ Partial | Chat sidebar + Cmd+K, no specialized agent roles |
+| Minimal Interface | ✅ Done | Text-first, dark mode, keyboard capture |
+| Clarity Metrics | ✅ Done | Focus Score, Noise count, Knowledge Growth |
+| Cognitive Loop | ❌ Missing | — |
+| Strategic Map | ❌ Missing | — |
+| Knowledge Graph | ❌ Missing | — |
+| Focus Engine (auto) | ❌ Missing | — |
 
 ---
 
-## Phase 13: Medium Features
+### 16a. AI Clarify Layer (Layer 2)
 
-### 13a. Calendar Enhancements
-- [x] Week view: 7-day grid with hourly time blocks
-- [x] Agenda view: vertical timeline of next 7-14 days
-- [x] Entity type filter: toggle tasks/events/habits visibility on calendar
+AI processes raw inbox items into structured outputs.
 
-### 13b. Wealth Charts & Alerts
-- [x] Net worth trend chart: monthly Recharts line graph
-- [x] Income vs Expense chart: monthly comparison (past 6 months)
-- [x] Budget alerts: warning badge when category spending > 80%
-- [x] Recurring transactions: auto-create scheduled expenses/income
+- [ ] **Inbox triage assistant**: AI analyzes each inbox item and suggests: type (task / knowledge / reference / discard), priority, domain tags
+- [ ] **One-click classify**: Accept AI suggestion to convert inbox item with pre-filled fields
+- [ ] **Batch clarify**: Process all inbox items at once with AI suggestions in a review list
+- [ ] **Smart routing**: Auto-suggest which module an item belongs to (e.g., "research zk identity" → Skills, tag: blockchain)
 
-### 13c. Health Charts
-- [x] Weight trend chart: line graph progression over time
-- [x] Workout heatmap: calendar grid showing workout days
-- [x] Sleep trend chart: line graph of sleep hours over 30 days
-- [x] Water intake: daily counter widget
+### 16b. Knowledge Engine (Section 7)
 
-### 13d. Family Enhancements
-- [x] Chore rotation: auto-swap assignee on completion
-- [x] Chore completion history: track who did what and when
-- [x] Household goals tab: shared family goals
+Structured knowledge system — the brain's external memory.
 
-### 13e. Posts Enhancements
-- [x] Emoji reactions on posts (heart, thumbs up, laugh)
-- [x] Reply/thread: comment on posts
-- [x] Media attachments: images on posts (reuse memory compression)
+- [ ] **Knowledge entry type**: New entity structure with fields: `title`, `summary`, `insight`, `source`, `domain`
+- [ ] **Knowledge domains**: Organize by domain (crypto, system-design, economics, ai, etc.) with domain filter
+- [ ] **Knowledge card UI**: Cards showing title + insight preview, expandable to full summary
+- [ ] **Knowledge capture shortcut**: Capture Bar prefix `?` or `/k` creates knowledge entry directly
+- [ ] **Spaced repetition**: Surface old knowledge entries for review at increasing intervals (1d, 3d, 7d, 14d, 30d)
+- [ ] **Knowledge search**: Full-text search within knowledge entries with domain filtering
+- [ ] **Import from notes**: Convert existing notes into structured knowledge entries
 
-### 13f. Places & Travel
-- [x] Click map to set location (instead of manual lat/lng)
-- [x] "Open in Maps" button (Google Maps deep link)
-- [x] Trip itinerary timeline: day-by-day view with time slots
-- [x] Trip budget: planned vs actual spending
+### 16c. Knowledge Graph (Section 12)
 
-### 13g. Today Page Enhancements
-- [x] Pomodoro timer: 25/5 min focus timer with Web Audio beep
-- [x] Time-of-day sections: Morning, Afternoon, Evening groups
-- [x] Daily affirmation/motivational quote
+Visual linking between ideas, projects, and goals.
 
-### 13h. Review Enhancements
-- [x] Week-over-week comparison: metrics vs previous week
-- [x] Accomplishment highlights: top 3 with larger cards
-- [x] Next-week priorities: auto-suggest from upcoming due dates
+- [ ] **Entity relations UI**: Link any entity to any other (knowledge ↔ goal, note ↔ project)
+- [ ] **Graph visualization**: Interactive node graph showing connections between knowledge, goals, and projects
+- [ ] **Related items sidebar**: When viewing any entity, show related/linked items
+- [ ] **Auto-suggest links**: AI suggests connections based on content similarity and tags
 
----
+### 16d. Strategic Map (Section 12)
 
-## Phase 14: Larger Features
+Visual hierarchy of long-term strategy.
 
-### 14a. Advanced Cross-Cutting
-- [x] Full-text search across all entities (titles, descriptions, metadata)
-- [x] Saved filters/views per module
-- [x] Comment system on any entity
-- [x] Inline editing on cards (edit fields without dialog)
+- [ ] **Goal tree visualization**: Tree/mind-map showing Strategic → Projects → Milestones → Tasks
+- [ ] **Drag to reorganize**: Move goals between strategic pillars
+- [ ] **Progress roll-up**: Visual progress flowing from leaves to root
+- [ ] **Time horizon labels**: Tag goals as 1-year, 3-year, 5-year with visual grouping
 
-### 14b. Skills & Reading
-- [x] Skill practice log: quick "Log practice" button → tracker entry
-- [x] Reading progress: pages read / total pages with progress bar
-- [x] Reading challenge: annual goal with tracker ("Read 24 books in 2026")
+### 16e. Anti-Noise System (Section 6)
 
-### 14c. Automate v2
-- [x] Execution history log: timestamped past runs with results
-- [x] Conditional logic: if/then rules for trigger conditions
-- [x] Event-driven triggers: fire on status change or tracker threshold
-- [x] Dry-run mode: preview automation effect before executing
+Actively reduce cognitive noise.
+
+- [ ] **Stale item detector**: Flag items not updated in 14+ days with "Archive?" prompt
+- [ ] **Auto-archive suggestions**: Weekly batch of items to archive (shown during Weekly Review)
+- [ ] **Noise dashboard**: Chart showing incoming vs archived ratio over time (target: <1.0)
+- [ ] **Focus Mode**: Toggle that hides sidebar + all panels except Today Focus and current task
+- [ ] **Notification budget**: Limit notifications to N per day, prioritize by importance
+- [ ] **Feed quality filter**: Mark information sources as high/low signal, surface only high-signal items
+
+### 16f. AI Agent Roles (Section 8)
+
+AI as a thinking partner with specialized roles.
+
+- [ ] **Research Agent**: Given a topic, gather context and summarize key findings
+- [ ] **Architecture Agent**: Given a problem, propose system design with trade-offs
+- [ ] **Reviewer Agent**: Critique a design or plan, find weaknesses
+- [ ] **Strategy Agent**: Evaluate an idea's long-term value and alignment with strategic goals
+- [ ] **Agent selector in chat**: Choose agent role before starting a conversation
+- [ ] **Agent chain**: Pipe output from one agent to the next (research → architecture → review → strategy)
+
+### 16g. Auto-Focus Engine (Section 12)
+
+AI suggests what to work on.
+
+- [ ] **Priority suggestion**: AI recommends today's 3 priorities based on: deadlines, strategic alignment, effort, energy level
+- [ ] **Context-aware ordering**: Surface tasks that align with current project momentum
+- [ ] **Time-block suggestion**: AI proposes a daily schedule based on task estimates and calendar
+- [ ] **"What should I do next?"**: One-button AI recommendation when priorities are complete
+
+### 16h. Cognitive Loop Tracker (Section 11)
+
+Track the Learn → Build → Reflect → Improve cycle.
+
+- [ ] **Loop entries**: Log which phase you're in for each project/skill
+- [ ] **Loop visualization**: Circular diagram showing cycle progress per project
+- [ ] **Reflection prompts**: Auto-prompt "What did you learn?" after completing a project milestone
+- [ ] **Improvement log**: Track insights from reflections, link back to knowledge entries
+
+### 16i. Enhanced Capture (Section 2 — Layer 1)
+
+Make capture even faster and more versatile.
+
+- [ ] **Voice capture**: Speech-to-text via Web Speech API → inbox item
+- [ ] **Browser bookmarklet**: One-click capture of current page title + URL as reference
+- [ ] **Screenshot capture**: Paste image from clipboard → memory or reference
+- [ ] **Capture templates**: Pre-defined capture formats (/meeting, /idea, /bug, /insight)
+- [ ] **Capture from anywhere**: PWA global shortcut that opens capture overlay even when app is backgrounded
+
+### 16j. Keyboard-First UX (Section 9)
+
+Full keyboard navigation for power users.
+
+- [ ] **`J/K` navigation**: Move up/down through lists
+- [ ] **`N` new item**: Create new item in current module
+- [ ] **`E` edit**: Open selected item for editing
+- [ ] **`X` complete**: Toggle completion on selected item
+- [ ] **`G` then key**: Go-to shortcuts (`G H` = home, `G T` = tasks, `G G` = goals)
+- [ ] **Command palette enhancement**: Show recent items, fuzzy search, context-aware actions
+- [ ] **Vim-style markers**: Bookmark positions in lists for quick return
+
+### 16k. Weekly Protocol Enhancement (Section 5)
+
+Upgrade existing Weekly Review to match protocol system.
+
+- [ ] **Integrated weekly protocol**: Link Weekly Review to protocol system with tracked completion
+- [ ] **Project progress review step**: Review each active project's progress during weekly protocol
+- [ ] **Strategic goal alignment check**: Confirm each project still aligns with strategic direction
+- [ ] **Noise archival step**: Batch archive stale items during weekly review
+- [ ] **Weekly metrics summary**: Focus Score trend, Knowledge Growth trend, Noise Ratio trend
+
+### 16l. Daily Brief v2 (Section 8 — AI)
+
+AI-generated morning intelligence briefing.
+
+- [ ] **Morning brief**: AI summary of: today's priorities, upcoming deadlines, overdue items, knowledge to review
+- [ ] **Brief notification**: Show brief as a dismissible card on Focus page each morning
+- [ ] **Brief history**: Archive of past briefs for pattern review
+- [ ] **Personalized insights**: "You complete 40% more tasks on Tuesdays" — behavioral patterns
 
 ---
 
 ## Phase 3.5 — Backend (Deferred)
-
-### API Server
-- [x] Set up API server project (Hono + SQLite/Drizzle)
-- [x] Define REST endpoints for entities, trackers, relations, schedules
-- [x] Add authentication middleware (PIN → JWT)
-
-### localStorage to API Migration
-- [x] Replace `LocalRepository` with `ApiRepository` implementation
-- [x] Environment toggle (VITE_USE_API) for local/API switching
-- [x] Migrate seed data to server-side database seeding
 
 ### OpenClaw Integration
 - [ ] Create OpenClaw AI provider skill in `src/core/ai/`
@@ -138,11 +166,33 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 - [ ] Habit streak reset at midnight if not checked in
 - [ ] Weekly/monthly report generation
 
-### Docker Compose
-- [x] Create `docker-compose.yml` for Life-OS stack (UI + API)
-- [x] Add Dockerfile for UI (Vite build + nginx serve)
-- [x] Add Dockerfile for API server
-- [x] Configure networking between services (nginx proxy)
+---
+
+## Nice-to-Have (Backlog)
+
+### Cross-Cutting
+- [ ] Bulk actions: multi-select → bulk delete, archive, status change
+- [ ] Keyboard shortcuts: `N` = new, `J/K` = navigate, `/` = search
+- [ ] Activity timeline per entity: change history
+- [ ] Drag to reschedule on calendar
+
+### Tasks
+- [ ] Time estimate field with tracking
+- [ ] Recurring tasks (daily/weekly/monthly auto-create)
+- [ ] "Blocked by" dependency indicator
+
+### Home
+- [ ] Service health monitoring (ping/heartbeat)
+- [ ] Docker container status display
+- [ ] Service dependency tree visualization
+
+### Future Vision (post-API)
+- [ ] Real-time multi-device sync via WebSocket
+- [ ] Push notifications for due tasks/habits
+- [ ] External integrations (GitHub → skills, Fitbit → health)
+- [ ] Smart scheduling: AI optimal time suggestions
+- [ ] Gamification: XP, levels, badges
+- [ ] Mobile app (React Native or enhanced PWA)
 
 ---
 
@@ -167,3 +217,6 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 - [x] Phase 14: Larger Features (v0.15.0)
 - [x] Phase 15: Bug fixes, task snooze, water intake (v0.16.0)
 - [x] Phase 3.5: Backend API (Hono + SQLite + Drizzle), Docker Compose (v0.17.0)
+- [x] Phase 15.5: Maps (Leaflet → MapLibre GL/mapcn), Mobile UX, Google Calendar redesign (v0.20.0–v0.21.0)
+- [x] Phase 15.6: Focus redesign, Makefile, API URL resolver (v0.22.0)
+- [x] Phase 16.0: Minimalist Mind Cognitive Dashboard — Capture Bar, Daily Protocol, Strategic Direction, Clarity Metrics (v0.23.0)
