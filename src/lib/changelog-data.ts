@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.15.0'
+export const APP_VERSION = '0.18.0'
 
 export interface ChangelogSection {
   title: string
@@ -13,6 +13,61 @@ export interface ChangelogRelease {
 }
 
 export const CHANGELOG: ChangelogRelease[] = [
+  {
+    version: '0.18.0',
+    date: '2026-03-14',
+    phase: 'Second Brain UX Redesign',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          '**Sidebar Favorites**: Pin your most-used pages to the top, star icon on hover',
+          '**Sidebar Groups**: Consolidated from 8 to 4 groups (Focus, Life, Track, More)',
+          '**Dashboard Focus Lane**: Single-column layout with greeting, today\'s tasks, quick stats, recent activity',
+          '**Search Bar**: Always-visible search in top bar (triggers Cmd+K)',
+          '**Smart Quick Capture**: Type picker (Task/Note/Idea/Goal/Habit), smart detection, optional due date and tags',
+        ],
+      },
+    ],
+  },
+  {
+    version: '0.17.0',
+    date: '2026-03-14',
+    phase: 'Phase 3.5 — Backend API & Docker',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**API Server**: Hono + SQLite/Drizzle with REST endpoints for entities, trackers, schedules, relations',
+          '**JWT Auth**: PIN-based login returns JWT token for API authentication',
+          '**ApiRepository**: Frontend repository classes that call REST API instead of localStorage',
+          '**Environment Toggle**: VITE_USE_API flag to switch between local and API mode',
+          '**Docker Compose**: UI (nginx) + API containers with SQLite volume persistence',
+          '**Seed Script**: Server-side database seeding with all 87 entities',
+        ],
+      },
+    ],
+  },
+  {
+    version: '0.16.0',
+    date: '2026-03-14',
+    phase: 'Bug Fixes & New Features',
+    sections: [
+      {
+        title: 'Fixed',
+        items: [
+          '12 TypeScript build errors: Recharts formatter types, unused imports, type narrowing',
+        ],
+      },
+      {
+        title: 'Added',
+        items: [
+          '**Task Quick Snooze**: Reschedule tasks by 1 day or 1 week from card menu',
+          '**Water Intake Tracker**: Daily counter widget on Health page with 8-glass goal',
+        ],
+      },
+    ],
+  },
   {
     version: '0.15.0',
     date: '2026-03-04',

@@ -10,7 +10,7 @@ import { LoginPage } from '@/pages/login'
 import { NotFoundPage } from '@/pages/not-found'
 
 // Lazy-loaded pages for code splitting
-const DashboardPage = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.DashboardPage })))
+const TodayPage = lazy(() => import('@/pages/today').then((m) => ({ default: m.TodayPage })))
 const GoalsPage = lazy(() => import('@/pages/goals').then((m) => ({ default: m.GoalsPage })))
 const TasksPage = lazy(() => import('@/pages/tasks').then((m) => ({ default: m.TasksPage })))
 const CalendarPage = lazy(() => import('@/pages/calendar').then((m) => ({ default: m.CalendarPage })))
@@ -28,7 +28,6 @@ const HomePage = lazy(() => import('@/pages/home').then((m) => ({ default: m.Hom
 const FamilyPage = lazy(() => import('@/pages/family').then((m) => ({ default: m.FamilyPage })))
 const AutomatePage = lazy(() => import('@/pages/automate').then((m) => ({ default: m.AutomatePage })))
 const MemoriesPage = lazy(() => import('@/pages/memories').then((m) => ({ default: m.MemoriesPage })))
-const TodayPage = lazy(() => import('@/pages/today').then((m) => ({ default: m.TodayPage })))
 const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m.ReviewPage })))
 
 const queryClient = new QueryClient({
@@ -50,7 +49,7 @@ export function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppLayout />}>
-                  <Route index element={<DashboardPage />} />
+                  <Route index element={<TodayPage />} />
                   <Route path="goals" element={<GoalsPage />} />
                   <Route path="tasks" element={<TasksPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
@@ -68,7 +67,7 @@ export function App() {
                   <Route path="family" element={<FamilyPage />} />
                   <Route path="automate" element={<AutomatePage />} />
                   <Route path="memories" element={<MemoriesPage />} />
-                  <Route path="today" element={<TodayPage />} />
+                  <Route path="today" element={<TodayPage />} /> {/* keep for backward compat */}
                   <Route path="review" element={<ReviewPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
