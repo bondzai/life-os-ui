@@ -11,11 +11,10 @@ import {
   parseICalText,
 } from '@/lib/ical'
 import {
-  hasGCalApiKey,
   extractCalendarId,
-  fetchGCalEvents,
-  fetchCalendarColor,
+  fetchGCalEventsViaProxy,
   fetchICalViaProxy,
+  fetchCalendarColor,
 } from '@/lib/ical/gcal-api'
 
 const QUERY_KEY = ['ical-events']
@@ -23,22 +22,21 @@ const QUERY_KEY = ['ical-events']
 async function fetchFeedEvents(feed: ICalFeed): Promise<ICalEvent[]> {
   const calendarId = extractCalendarId(feed.url)
 
-  // If Google API key is configured, use it for per-event colors
-  if (hasGCalApiKey() && calendarId) {
-    try {
-      return await fetchGCalEvents(calendarId, feed.url, feed.name)
-    } catch {
-      // Fall back to other methods
-    }
-  }
-
-  // For Google Calendars: try API server proxy (no CORS issues, no external proxies)
   if (calendarId) {
+    // Try Google Calendar API via server proxy (gets per-event colors)
+    try {
+      const events = await fetchGCalEventsViaProxy(calendarId, feed.url, feed.name)
+      if (events && events.length > 0) return events
+    } catch {
+      // Fall back
+    }
+
+    // Try iCal via server proxy (no CORS issues)
     try {
       const text = await fetchICalViaProxy(calendarId)
       if (text) return parseICalText(text, feed.url, feed.name)
     } catch {
-      // Fall back to direct/CORS proxy fetch
+      // Fall back
     }
   }
 
@@ -82,7 +80,7 @@ export function useICalEvents() {
 
   const add = useCallback(
     async (feed: ICalFeed) => {
-      // Auto-detect Google Calendar color via server proxy (no API key needed)
+      // Auto-detect Google Calendar color via server proxy
       const calendarId = extractCalendarId(feed.url)
       if (calendarId) {
         const color = await fetchCalendarColor(calendarId)
