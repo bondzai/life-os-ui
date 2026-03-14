@@ -14,6 +14,36 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.23.0',
+    date: '2026-03-14',
+    phase: 'Minimalist Mind — Cognitive Dashboard',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Cognitive Dashboard**: Full-viewport Focus page based on Minimalist Mind philosophy — actionable left column, cognitive context right column',
+          '**Capture Bar**: Ultra-fast inline capture on Focus page — press `/` to focus, `!` prefix for tasks, Enter to save (<5 seconds)',
+          '**Daily Protocol**: Guided morning and evening review routines with step-by-step flow',
+          '**Strategic Direction**: Top-level goals always visible on the dashboard',
+          '**Active Projects**: Goals with milestones shown with progress bars',
+          '**Knowledge Growth**: Recent notes/learnings displayed with age indicators',
+          '**Clarity Metrics**: Focus Score (priority completion %), Noise (inbox count), Knowledge Growth (notes/week)',
+          '**Focus Score pill**: Header badge showing real-time priority completion percentage',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Focus layout**: 7/5 column split — actionable items left, cognitive context right',
+          '**3-priority rule**: Today Focus enforces max 3 priorities with numbered display',
+          '**Habits**: Inline pill buttons with green completion state and streak counters',
+          '**Inbox**: Hover-reveal action buttons (convert to task / archive)',
+          '**Journal**: Collapsed by default, expandable on demand',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.22.0',
     date: '2026-03-14',
     phase: 'Focus Page Redesign & Infrastructure',
