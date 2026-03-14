@@ -15,25 +15,34 @@ import {
   extractCalendarId,
   fetchGCalEvents,
   fetchCalendarColor,
+  fetchICalViaProxy,
 } from '@/lib/ical/gcal-api'
 
 const QUERY_KEY = ['ical-events']
 
 async function fetchFeedEvents(feed: ICalFeed): Promise<ICalEvent[]> {
-  // If Google API key is configured and this is a Google Calendar URL,
-  // use the API for richer data (per-event colors, descriptions)
-  if (hasGCalApiKey()) {
-    const calendarId = extractCalendarId(feed.url)
-    if (calendarId) {
-      try {
-        return await fetchGCalEvents(calendarId, feed.url, feed.name)
-      } catch {
-        // Fall back to iCal if API fails
-      }
+  const calendarId = extractCalendarId(feed.url)
+
+  // If Google API key is configured, use it for per-event colors
+  if (hasGCalApiKey() && calendarId) {
+    try {
+      return await fetchGCalEvents(calendarId, feed.url, feed.name)
+    } catch {
+      // Fall back to other methods
     }
   }
 
-  // Default: fetch via iCal
+  // For Google Calendars: try API server proxy (no CORS issues, no external proxies)
+  if (calendarId) {
+    try {
+      const text = await fetchICalViaProxy(calendarId)
+      if (text) return parseICalText(text, feed.url, feed.name)
+    } catch {
+      // Fall back to direct/CORS proxy fetch
+    }
+  }
+
+  // Default: fetch via iCal (direct + external CORS proxies)
   const text = await fetchICalText(feed.url)
   return parseICalText(text, feed.url, feed.name)
 }
@@ -73,13 +82,11 @@ export function useICalEvents() {
 
   const add = useCallback(
     async (feed: ICalFeed) => {
-      // Auto-detect Google Calendar color if API key is available
-      if (hasGCalApiKey()) {
-        const calendarId = extractCalendarId(feed.url)
-        if (calendarId) {
-          const color = await fetchCalendarColor(calendarId)
-          if (color) feed = { ...feed, color }
-        }
+      // Auto-detect Google Calendar color via server proxy (no API key needed)
+      const calendarId = extractCalendarId(feed.url)
+      if (calendarId) {
+        const color = await fetchCalendarColor(calendarId)
+        if (color) feed = { ...feed, color }
       }
       addFeed(feed)
       invalidate()

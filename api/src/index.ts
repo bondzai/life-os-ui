@@ -6,6 +6,7 @@ import { entityRoutes } from './routes/entities.js'
 import { trackerRoutes } from './routes/trackers.js'
 import { scheduleRoutes } from './routes/schedules.js'
 import { relationRoutes } from './routes/relations.js'
+import { gcalRoutes } from './routes/gcal.js'
 import { sqlite } from './db/index.js'
 
 const app = new Hono()
@@ -29,6 +30,7 @@ app.route('/api/entities', entityRoutes)
 app.route('/api/trackers', trackerRoutes)
 app.route('/api/schedules', scheduleRoutes)
 app.route('/api/relations', relationRoutes)
+app.route('/api/gcal', gcalRoutes)
 
 const port = Number(process.env.PORT) || 3001
 

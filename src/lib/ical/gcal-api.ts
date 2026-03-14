@@ -1,3 +1,4 @@
+import { API_URL } from '@/lib/api-url'
 import type { ICalEvent } from './types'
 
 const GCAL_API_KEY = import.meta.env.VITE_GCAL_API_KEY || ''
@@ -29,7 +30,7 @@ export function hasGCalApiKey(): boolean {
  * - Raw calendar ID (email-like string)
  */
 export function extractCalendarId(url: string): string | null {
-  // Already a calendar ID (email-like)
+  // Already a calendar ID (contains @ but no /)
   if (url.includes('@') && !url.includes('/')) {
     return url
   }
@@ -61,24 +62,42 @@ export function extractCalendarId(url: string): string | null {
   return null
 }
 
-/** Fetch calendar metadata (including background color) */
+/**
+ * Fetch calendar color via the Life-OS API proxy.
+ * No Google API key needed — the server extracts color from Google's embed page.
+ */
 export async function fetchCalendarColor(calendarId: string): Promise<string | null> {
-  if (!GCAL_API_KEY) return null
-
   try {
     const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}?key=${GCAL_API_KEY}&fields=backgroundColor`,
-      { signal: AbortSignal.timeout(8000) },
+      `${API_URL}/gcal/${encodeURIComponent(calendarId)}/color`,
+      { signal: AbortSignal.timeout(10000) },
     )
     if (!res.ok) return null
     const data = await res.json()
-    return data.backgroundColor || null
+    return data.color || null
   } catch {
     return null
   }
 }
 
-/** Fetch events from Google Calendar API with colors */
+/**
+ * Fetch iCal text via the API server proxy (avoids CORS issues).
+ */
+export async function fetchICalViaProxy(calendarId: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `${API_URL}/gcal/${encodeURIComponent(calendarId)}/ical`,
+      { signal: AbortSignal.timeout(15000) },
+    )
+    if (!res.ok) return null
+    const text = await res.text()
+    return text.includes('BEGIN:VCALENDAR') ? text : null
+  } catch {
+    return null
+  }
+}
+
+/** Fetch events from Google Calendar API v3 (requires VITE_GCAL_API_KEY) */
 export async function fetchGCalEvents(
   calendarId: string,
   feedUrl: string,

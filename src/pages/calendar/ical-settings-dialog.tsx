@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import type { ICalFeed } from '@/lib/ical'
 import { normalizeGCalUrl } from '@/lib/ical/fetch'
-import { hasGCalApiKey, extractCalendarId } from '@/lib/ical/gcal-api'
+import { extractCalendarId } from '@/lib/ical/gcal-api'
 
 const PRESET_COLORS = [
   '#3b82f6', // blue
@@ -48,7 +48,6 @@ export function ICalSettingsDialog({
   const [adding, setAdding] = useState(false)
 
   const isGoogleUrl = url.trim() ? !!extractCalendarId(url.trim()) : false
-  const willAutoColor = isGoogleUrl && hasGCalApiKey()
 
   const handleAdd = async () => {
     if (!name.trim() || !url.trim()) return
@@ -133,39 +132,26 @@ export function ICalSettingsDialog({
               />
             </div>
             <div>
-              <Label>Color</Label>
-              {willAutoColor ? (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Auto-detected from Google Calendar
-                </p>
-              ) : (
-                <div className="flex gap-2 mt-1">
-                  {PRESET_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      className={`w-6 h-6 rounded-full border-2 transition-transform ${
-                        color === c ? 'border-foreground scale-110' : 'border-transparent'
-                      }`}
-                      style={{ backgroundColor: c }}
-                      onClick={() => setColor(c)}
-                    />
-                  ))}
-                </div>
-              )}
+              <Label>Color {isGoogleUrl && <span className="text-xs text-muted-foreground font-normal ml-1">(auto-detected for Google)</span>}</Label>
+              <div className="flex gap-2 mt-1">
+                {PRESET_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                      color === c ? 'border-foreground scale-110' : 'border-transparent'
+                    }`}
+                    style={{ backgroundColor: c }}
+                    onClick={() => setColor(c)}
+                  />
+                ))}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={handleAdd} disabled={!name.trim() || !url.trim() || adding}>
-              {adding && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
-              Add Feed
-            </Button>
-            {isGoogleUrl && (
-              <span className="text-[11px] text-muted-foreground">
-                {hasGCalApiKey() ? 'Google Calendar API ✓' : 'Add VITE_GCAL_API_KEY for colors'}
-              </span>
-            )}
-          </div>
+          <Button size="sm" onClick={handleAdd} disabled={!name.trim() || !url.trim() || adding}>
+            {adding && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+            Add Feed
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
