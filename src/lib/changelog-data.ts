@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.18.0'
+export { version as APP_VERSION } from '../../package.json'
 
 export interface ChangelogSection {
   title: string
