@@ -85,7 +85,7 @@ export function CalendarPage() {
 
   /** Get color for an iCal event: per-event color (from Google API) → feed color → fallback */
   const getEventColor = useCallback(
-    (ev: ICalEvent) => ev.color ?? getEventColor(ev),
+    (ev: ICalEvent) => ev.color ?? feedColorMap[ev.sourceUrl] ?? '#6b7280',
     [feedColorMap],
   )
 
