@@ -15,6 +15,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { ModeToggle } from '@/components/mode-toggle'
 import { Button } from '@/components/ui/button'
@@ -49,6 +50,7 @@ export function AppSidebar() {
   const location = useLocation()
   const navigate = useNavigate()
   const { currentUser, logout } = useAuthStore()
+  const { isMobile, setOpenMobile } = useSidebar()
   const groups = getModuleGroups()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -128,7 +130,10 @@ export function AppSidebar() {
                         <SidebarMenuItem key={mod.id}>
                           <SidebarMenuButton
                             isActive={isActive}
-                            onClick={() => navigate(mod.path)}
+                            onClick={() => {
+                              navigate(mod.path)
+                              if (isMobile) setOpenMobile(false)
+                            }}
                           >
                             <mod.icon className="h-4 w-4" />
                             <span className="flex-1">{mod.label}</span>

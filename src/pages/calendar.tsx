@@ -18,6 +18,7 @@ import { WeekView } from './calendar/week-view'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DAYS_OF_WEEK_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 const typeColor: Record<string, string> = {
   task: 'bg-blue-500',
@@ -175,68 +176,77 @@ export function CalendarPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
+      <div className="space-y-2">
+        {/* Row 1: View tabs + nav + actions */}
+        <div className="flex items-center gap-2 flex-wrap">
           <Tabs value={calendarView} onValueChange={(v) => setCalendarView(v as 'month' | 'week' | 'agenda')}>
             <TabsList className="h-8">
-              <TabsTrigger value="month" className="text-xs px-3">Month</TabsTrigger>
-              <TabsTrigger value="week" className="text-xs px-3">Week</TabsTrigger>
-              <TabsTrigger value="agenda" className="text-xs px-3">Agenda</TabsTrigger>
+              <TabsTrigger value="month" className="text-xs px-2 sm:px-3">Month</TabsTrigger>
+              <TabsTrigger value="week" className="text-xs px-2 sm:px-3">Week</TabsTrigger>
+              <TabsTrigger value="agenda" className="text-xs px-2 sm:px-3">Agenda</TabsTrigger>
             </TabsList>
           </Tabs>
           {calendarView === 'month' && (
             <>
-              <Button variant="outline" size="sm" onClick={prevMonth}>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={prevMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h2 className="text-lg font-semibold min-w-[180px] text-center">{monthLabel}</h2>
-              <Button variant="outline" size="sm" onClick={nextMonth}>
+              <h2 className="text-sm sm:text-lg font-semibold text-center">{monthLabel}</h2>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={nextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={goToToday}>
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={goToToday}>
                 Today
               </Button>
             </>
           )}
           {calendarView === 'week' && (
             <>
-              <Button variant="outline" size="sm" onClick={prevWeek}>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={prevWeek}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h2 className="text-sm font-medium min-w-[180px] text-center">
+              <h2 className="text-xs sm:text-sm font-medium text-center">
                 {weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {(() => {
                   const end = new Date(weekStart)
                   end.setDate(end.getDate() + 6)
                   return end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                 })()}
               </h2>
-              <Button variant="outline" size="sm" onClick={nextWeek}>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={nextWeek}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </>
           )}
-          <div className="flex gap-1 ml-2">
-            {Object.entries(typeColor).map(([type, color]) => (
-              <Button
-                key={type}
-                variant={typeFilter.includes(type) ? 'default' : 'outline'}
-                size="sm"
-                className="h-7 text-xs px-2 gap-1"
-                onClick={() => toggleTypeFilter(type)}
-              >
-                <span className={`w-2 h-2 rounded-full ${color}`} />
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </Button>
-            ))}
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" size="icon" className="h-8 w-8 sm:hidden" onClick={() => setSettingsOpen(true)}>
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" className="hidden sm:flex" onClick={() => setSettingsOpen(true)}>
+              <Settings className="h-4 w-4 mr-1" /> Feeds
+            </Button>
+            <Button size="icon" className="h-8 w-8 sm:hidden" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4" />
+            </Button>
+            <Button size="sm" className="hidden sm:flex" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> New Event
+            </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
-            <Settings className="h-4 w-4 mr-1" /> Feeds
-          </Button>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> New Event
-          </Button>
+        {/* Row 2: Type filters */}
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          {Object.entries(typeColor).map(([type, color]) => (
+            <Button
+              key={type}
+              variant={typeFilter.includes(type) ? 'default' : 'outline'}
+              size="sm"
+              className="h-7 text-xs px-2 gap-1 shrink-0"
+              onClick={() => toggleTypeFilter(type)}
+            >
+              <span className={`w-2 h-2 rounded-full ${color}`} />
+              <span className="hidden sm:inline">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
+              <span className="sm:hidden">{type.charAt(0).toUpperCase()}</span>
+            </Button>
+          ))}
         </div>
       </div>
 
@@ -259,9 +269,10 @@ export function CalendarPage() {
       {calendarView === 'month' && <div className="border rounded-lg overflow-hidden">
         {/* Day-of-week header */}
         <div className="grid grid-cols-7 border-b bg-muted/50">
-          {DAYS_OF_WEEK.map((day) => (
+          {DAYS_OF_WEEK.map((day, i) => (
             <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
-              {day}
+              <span className="hidden sm:inline">{day}</span>
+              <span className="sm:hidden">{DAYS_OF_WEEK_SHORT[i]}</span>
             </div>
           ))}
         </div>
@@ -270,7 +281,7 @@ export function CalendarPage() {
         <div className="grid grid-cols-7">
           {cells.map((day, idx) => {
             if (day === null) {
-              return <div key={`empty-${idx}`} className="min-h-[80px] border-b border-r bg-muted/20" />
+              return <div key={`empty-${idx}`} className="min-h-[48px] sm:min-h-[80px] border-b border-r bg-muted/20" />
             }
             const dateKey = formatDateKey(viewYear, viewMonth, day)
             const dayEntities = entitiesByDate[dateKey] ?? []
@@ -282,43 +293,59 @@ export function CalendarPage() {
             return (
               <div
                 key={dateKey}
-                className={`min-h-[80px] border-b border-r p-1 cursor-pointer transition-colors hover:bg-accent/30 ${
+                className={`min-h-[48px] sm:min-h-[80px] border-b border-r p-0.5 sm:p-1 cursor-pointer transition-colors hover:bg-accent/30 ${
                   isSelected ? 'bg-accent/50' : ''
                 }`}
                 onClick={() => setSelectedDate(dateKey === selectedDate ? null : dateKey)}
               >
                 <div className="flex items-center justify-between">
                   <span
-                    className={`text-xs font-medium inline-flex items-center justify-center w-6 h-6 rounded-full ${
+                    className={`text-[10px] sm:text-xs font-medium inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full ${
                       isToday ? 'bg-primary text-primary-foreground' : ''
                     }`}
                   >
                     {day}
                   </span>
                   {totalCount > 0 && (
-                    <span className="text-xs text-muted-foreground">{totalCount}</span>
+                    <span className="text-[10px] sm:text-xs text-muted-foreground">{totalCount}</span>
                   )}
                 </div>
-                {/* Entity dots / pills */}
-                <div className="mt-1 space-y-0.5">
-                  {dayEntities.slice(0, 2).map((entity) => (
-                    <div key={entity.id} className="flex items-center gap-1 truncate">
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${typeColor[entity.type] ?? 'bg-gray-500'}`} />
-                      <span className="text-[10px] truncate">{entity.title}</span>
-                    </div>
-                  ))}
-                  {dayICalEvents.slice(0, 3 - Math.min(dayEntities.length, 2)).map((ev) => (
-                    <div key={ev.id} className="flex items-center gap-1 truncate">
+                {/* Entity dots / pills — hide text on mobile, show dots only */}
+                <div className="mt-0.5 sm:mt-1 space-y-0.5">
+                  {/* Mobile: dots only */}
+                  <div className="flex gap-0.5 flex-wrap sm:hidden">
+                    {dayEntities.slice(0, 3).map((entity) => (
+                      <span key={entity.id} className={`w-1.5 h-1.5 rounded-full ${typeColor[entity.type] ?? 'bg-gray-500'}`} />
+                    ))}
+                    {dayICalEvents.slice(0, 3 - Math.min(dayEntities.length, 3)).map((ev) => (
                       <span
-                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        key={ev.id}
+                        className="w-1.5 h-1.5 rounded-full"
                         style={{ backgroundColor: feedColorMap[ev.sourceUrl] ?? '#6b7280' }}
                       />
-                      <span className="text-[10px] italic truncate">{ev.title}</span>
-                    </div>
-                  ))}
-                  {totalCount > 3 && (
-                    <span className="text-[10px] text-muted-foreground">+{totalCount - 3} more</span>
-                  )}
+                    ))}
+                  </div>
+                  {/* Desktop: full labels */}
+                  <div className="hidden sm:block space-y-0.5">
+                    {dayEntities.slice(0, 2).map((entity) => (
+                      <div key={entity.id} className="flex items-center gap-1 truncate">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${typeColor[entity.type] ?? 'bg-gray-500'}`} />
+                        <span className="text-[10px] truncate">{entity.title}</span>
+                      </div>
+                    ))}
+                    {dayICalEvents.slice(0, 3 - Math.min(dayEntities.length, 2)).map((ev) => (
+                      <div key={ev.id} className="flex items-center gap-1 truncate">
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ backgroundColor: feedColorMap[ev.sourceUrl] ?? '#6b7280' }}
+                        />
+                        <span className="text-[10px] italic truncate">{ev.title}</span>
+                      </div>
+                    ))}
+                    {totalCount > 3 && (
+                      <span className="text-[10px] text-muted-foreground">+{totalCount - 3} more</span>
+                    )}
+                  </div>
                 </div>
               </div>
             )

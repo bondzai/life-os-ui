@@ -14,6 +14,36 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.20.0',
+    date: '2026-03-14',
+    phase: 'Maps & Mobile UX',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Live Location**: Real-time location sharing with custom JB/Sunny markers, geolocation API, auto-fit bounds',
+          '**mapcn Maps**: Migrated from Leaflet to MapLibre GL via mapcn — zero-config dark/light theme tiles, modern vector rendering',
+          '**HTTPS Dev Server**: Self-signed SSL for mobile geolocation testing',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Mobile Sidebar**: Auto-closes after tapping a nav item',
+          '**Calendar Responsive**: Compact month grid with dot indicators, single-letter day headers, icon-only buttons on mobile',
+          '**Week View Mobile**: Vertical card stack instead of 7-column grid on small screens',
+          '**Type Filters**: Single-letter labels on mobile, scrollable overflow',
+        ],
+      },
+      {
+        title: 'Removed',
+        items: [
+          'Leaflet and react-leaflet dependencies (replaced by mapcn/MapLibre GL)',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.18.0',
     date: '2026-03-14',
     phase: 'Second Brain UX Redesign',
