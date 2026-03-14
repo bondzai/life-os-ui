@@ -1,6 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
-import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
   Dialog,
@@ -10,22 +9,23 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
-import markerIcon from 'leaflet/dist/images/marker-icon.png'
-import markerShadow from 'leaflet/dist/images/marker-shadow.png'
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-})
+import { MAP_TILES, DEFAULT_CENTER, DEFAULT_ZOOM, getMapTileUrl } from '@/lib/map-config'
 
 interface MapPickerDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSelect: (lat: number, lng: number) => void
   initialPosition?: [number, number]
+}
+
+function ThemeAwareTileLayer() {
+  const [url, setUrl] = useState(getMapTileUrl)
+  useEffect(() => {
+    const observer = new MutationObserver(() => setUrl(getMapTileUrl()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+  return <TileLayer attribution={MAP_TILES.attribution} url={url} />
 }
 
 function ClickHandler({ onSelect }: { onSelect: (lat: number, lng: number) => void }) {
@@ -44,7 +44,7 @@ export function MapPickerDialog({
   initialPosition,
 }: MapPickerDialogProps) {
   const [position, setPosition] = useState<[number, number] | null>(initialPosition ?? null)
-  const center: [number, number] = initialPosition ?? [13.7563, 100.5018]
+  const center: [number, number] = initialPosition ?? DEFAULT_CENTER
 
   const handleClick = (lat: number, lng: number) => {
     setPosition([lat, lng])
@@ -65,11 +65,8 @@ export function MapPickerDialog({
         </DialogHeader>
         <div className="h-[400px] rounded-lg overflow-hidden border">
           {open && (
-            <MapContainer center={center} zoom={12} className="h-full w-full">
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
+            <MapContainer center={center} zoom={DEFAULT_ZOOM} className="h-full w-full">
+              <ThemeAwareTileLayer />
               <ClickHandler onSelect={handleClick} />
               {position && <Marker position={position} />}
             </MapContainer>

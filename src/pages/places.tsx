@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Plus, MapPin, Pencil, Trash2, Search, ExternalLink } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
-import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -20,21 +19,18 @@ import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import type { Entity, EntityStatus } from '@/core/types'
+import { MAP_TILES, DEFAULT_CENTER, DEFAULT_ZOOM, getMapTileUrl } from '@/lib/map-config'
 import { MapPickerDialog } from './places/map-picker-dialog'
 
-// Fix Leaflet default marker icons (Vite bundler issue)
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
-import markerIcon from 'leaflet/dist/images/marker-icon.png'
-import markerShadow from 'leaflet/dist/images/marker-shadow.png'
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-})
-
-const DEFAULT_CENTER: [number, number] = [13.7563, 100.5018] // Bangkok
-const DEFAULT_ZOOM = 10
+function ThemeAwareTileLayer() {
+  const [url, setUrl] = useState(getMapTileUrl)
+  useEffect(() => {
+    const observer = new MutationObserver(() => setUrl(getMapTileUrl()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+  return <TileLayer attribution={MAP_TILES.attribution} url={url} />
+}
 
 function MapPanner({ center }: { center: [number, number] | null }) {
   const map = useMap()
@@ -289,10 +285,7 @@ export function PlacesPage() {
             zoom={DEFAULT_ZOOM}
             className="h-full w-full"
           >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
+            <ThemeAwareTileLayer />
             <MapPanner center={panTarget} />
             {filteredPlaces.map((place) => {
               const coords = getCoords(place)

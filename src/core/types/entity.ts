@@ -26,6 +26,7 @@ export type EntityType =
   | 'automation'
   | 'memory'
   | 'comment'
+  | 'location'
 
 export type EntityStatus = 'active' | 'completed' | 'archived' | 'paused'
 

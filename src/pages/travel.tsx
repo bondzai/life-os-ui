@@ -24,20 +24,17 @@ import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import { TripItinerary } from './travel/trip-itinerary'
 import type { Entity, EntityStatus } from '@/core/types'
+import { MAP_TILES, DEFAULT_CENTER, DEFAULT_ZOOM, getMapTileUrl } from '@/lib/map-config'
 
-// Fix Leaflet default marker icons
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
-import markerIcon from 'leaflet/dist/images/marker-icon.png'
-import markerShadow from 'leaflet/dist/images/marker-shadow.png'
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-})
-
-const DEFAULT_CENTER: [number, number] = [13.7563, 100.5018]
-const DEFAULT_ZOOM = 6
+function ThemeAwareTileLayer() {
+  const [url, setUrl] = useState(getMapTileUrl)
+  useEffect(() => {
+    const observer = new MutationObserver(() => setUrl(getMapTileUrl()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+  return <TileLayer attribution={MAP_TILES.attribution} url={url} />
+}
 
 function MapFitter({ positions }: { positions: [number, number][] }) {
   const map = useMap()
@@ -266,10 +263,7 @@ export function TravelPage() {
                 zoom={DEFAULT_ZOOM}
                 className="h-full w-full"
               >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
+                <ThemeAwareTileLayer />
                 {tripCoords.length > 0 && <MapFitter positions={tripCoords} />}
                 {tripPlaces.map((place) => {
                   const coords = getCoords(place)

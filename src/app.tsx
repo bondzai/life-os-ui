@@ -29,6 +29,7 @@ const FamilyPage = lazy(() => import('@/pages/family').then((m) => ({ default: m
 const AutomatePage = lazy(() => import('@/pages/automate').then((m) => ({ default: m.AutomatePage })))
 const MemoriesPage = lazy(() => import('@/pages/memories').then((m) => ({ default: m.MemoriesPage })))
 const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m.ReviewPage })))
+const LiveLocationPage = lazy(() => import('@/pages/live-location').then((m) => ({ default: m.LiveLocationPage })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,7 @@ export function App() {
                   <Route path="automate" element={<AutomatePage />} />
                   <Route path="memories" element={<MemoriesPage />} />
                   <Route path="today" element={<TodayPage />} /> {/* keep for backward compat */}
+                  <Route path="location" element={<LiveLocationPage />} />
                   <Route path="review" element={<ReviewPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
