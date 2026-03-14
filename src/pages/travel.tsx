@@ -1,8 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Plus, Plane, Trash2, MapPin } from 'lucide-react'
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -15,6 +12,15 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Input } from '@/components/ui/input'
+import {
+  Map,
+  MapMarker,
+  MarkerContent,
+  MarkerPopup,
+  MapRoute,
+  MapControls,
+  useMap,
+} from '@/components/ui/map'
 import { useEntities, useRelations } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
@@ -24,26 +30,30 @@ import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import { TripItinerary } from './travel/trip-itinerary'
 import type { Entity, EntityStatus } from '@/core/types'
-import { MAP_TILES, DEFAULT_CENTER, DEFAULT_ZOOM, getMapTileUrl } from '@/lib/map-config'
-
-function ThemeAwareTileLayer() {
-  const [url, setUrl] = useState(getMapTileUrl)
-  useEffect(() => {
-    const observer = new MutationObserver(() => setUrl(getMapTileUrl()))
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-    return () => observer.disconnect()
-  }, [])
-  return <TileLayer attribution={MAP_TILES.attribution} url={url} />
-}
+import { DEFAULT_CENTER, DEFAULT_ZOOM } from '@/lib/map-config'
 
 function MapFitter({ positions }: { positions: [number, number][] }) {
-  const map = useMap()
+  const { map, isLoaded } = useMap()
+  const fitted = useRef(false)
+
   useEffect(() => {
-    if (positions.length > 0) {
-      const bounds = L.latLngBounds(positions.map(([lat, lng]) => L.latLng(lat, lng)))
-      map.fitBounds(bounds, { padding: [40, 40] })
-    }
-  }, [map, positions])
+    if (!map || !isLoaded || positions.length === 0 || fitted.current) return
+    fitted.current = true
+    const lngs = positions.map((p) => p[0])
+    const lats = positions.map((p) => p[1])
+    map.fitBounds(
+      [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)],
+      ],
+      { padding: 40 },
+    )
+  }, [map, isLoaded, positions])
+
+  useEffect(() => {
+    fitted.current = false
+  }, [positions])
+
   return null
 }
 
@@ -89,7 +99,7 @@ export function TravelPage() {
   const getCoords = (place: Entity): [number, number] | null => {
     const lat = typeof place.metadata.lat === 'number' ? place.metadata.lat : null
     const lng = typeof place.metadata.lng === 'number' ? place.metadata.lng : null
-    if (lat !== null && lng !== null) return [lat, lng]
+    if (lat !== null && lng !== null) return [lng, lat] // [lng, lat]
     return null
   }
 
@@ -258,29 +268,30 @@ export function TravelPage() {
 
             {/* Map */}
             <div className="flex-1 rounded-lg overflow-hidden border min-h-[300px]">
-              <MapContainer
-                center={DEFAULT_CENTER}
-                zoom={DEFAULT_ZOOM}
-                className="h-full w-full"
-              >
-                <ThemeAwareTileLayer />
+              <Map center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM}>
+                <MapControls position="top-left" showZoom showCompass />
                 {tripCoords.length > 0 && <MapFitter positions={tripCoords} />}
                 {tripPlaces.map((place) => {
                   const coords = getCoords(place)
                   if (!coords) return null
                   return (
-                    <Marker key={place.id} position={coords}>
-                      <Popup>
-                        <strong>{place.title}</strong>
-                        {place.description && <p>{place.description}</p>}
-                      </Popup>
-                    </Marker>
+                    <MapMarker key={place.id} longitude={coords[0]} latitude={coords[1]}>
+                      <MarkerContent>
+                        <div className="size-4 rounded-full bg-primary border-2 border-white shadow-lg" />
+                      </MarkerContent>
+                      <MarkerPopup>
+                        <div className="space-y-1">
+                          <strong>{place.title}</strong>
+                          {place.description && <p className="text-sm">{place.description}</p>}
+                        </div>
+                      </MarkerPopup>
+                    </MapMarker>
                   )
                 })}
                 {tripCoords.length >= 2 && (
-                  <Polyline positions={tripCoords} color="blue" weight={3} opacity={0.6} />
+                  <MapRoute coordinates={tripCoords} color="#3b82f6" width={3} opacity={0.6} />
                 )}
-              </MapContainer>
+              </Map>
             </div>
 
             {/* Place list */}

@@ -1,106 +1,28 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { Navigation, Battery, Clock, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Map,
+  MapMarker,
+  MarkerContent,
+  MarkerPopup,
+  MapControls,
+  useMap,
+} from '@/components/ui/map'
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
-import { MAP_TILES, DEFAULT_CENTER, DEFAULT_ZOOM, getMapTileUrl } from '@/lib/map-config'
+import { DEFAULT_CENTER, DEFAULT_ZOOM } from '@/lib/map-config'
 import type { Entity, EntityStatus } from '@/core/types'
 
-const POLL_INTERVAL = 30_000
-
 const MARKER_STYLES = {
-  jb: {
-    bg: '#3b82f6',
-    border: '#2563eb',
-    pulse: '#3b82f680',
-    label: 'JB',
-  },
-  sunny: {
-    bg: '#ec4899',
-    border: '#db2777',
-    pulse: '#ec489980',
-    label: 'S',
-  },
+  jb: { bg: '#3b82f6', border: '#2563eb', pulse: '#3b82f680', label: 'JB' },
+  sunny: { bg: '#ec4899', border: '#db2777', pulse: '#ec489980', label: 'S' },
 } as const
-
-function createUserIcon(variant: 'jb' | 'sunny') {
-  const style = MARKER_STYLES[variant]
-  return L.divIcon({
-    className: '',
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    popupAnchor: [0, -24],
-    html: `
-      <div style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
-        <div style="
-          position:absolute;inset:0;
-          border-radius:50%;
-          background:${style.pulse};
-          animation:pulse-ring 2s ease-out infinite;
-        "></div>
-        <div style="
-          position:relative;
-          width:32px;height:32px;
-          border-radius:50%;
-          background:${style.bg};
-          border:3px solid ${style.border};
-          display:flex;align-items:center;justify-content:center;
-          color:white;font-weight:700;font-size:12px;
-          box-shadow:0 2px 8px rgba(0,0,0,0.3);
-          z-index:1;
-        ">${style.label}</div>
-      </div>
-      <style>
-        @keyframes pulse-ring {
-          0% { transform: scale(0.8); opacity: 1; }
-          100% { transform: scale(1.8); opacity: 0; }
-        }
-      </style>
-    `,
-  })
-}
-
-const jbIcon = createUserIcon('jb')
-const sunnyIcon = createUserIcon('sunny')
-
-function MapFitter({ positions }: { positions: [number, number][] }) {
-  const map = useMap()
-  useEffect(() => {
-    if (positions.length > 1) {
-      const bounds = L.latLngBounds(positions.map(([lat, lng]) => L.latLng(lat, lng)))
-      map.fitBounds(bounds, { padding: [60, 60] })
-    } else if (positions.length === 1) {
-      map.flyTo(positions[0], 15)
-    }
-  }, [map, positions])
-  return null
-}
-
-function ThemeAwareTileLayer() {
-  const [url, setUrl] = useState(getMapTileUrl)
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setUrl(getMapTileUrl())
-    })
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    })
-    return () => observer.disconnect()
-  }, [])
-
-  return <TileLayer attribution={MAP_TILES.attribution} url={url} />
-}
 
 function formatTime(iso: string): string {
   const d = new Date(iso)
-  const now = new Date()
-  const diff = now.getTime() - d.getTime()
+  const diff = Date.now() - d.getTime()
   if (diff < 60_000) return 'Just now'
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`
   if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`
@@ -113,18 +35,100 @@ function isJbUser(user: { name?: string; id?: string } | null): boolean {
   return name.includes('jb') || name.includes('admin') || name === 'jb'
 }
 
+function MapFitter({ positions }: { positions: [number, number][] }) {
+  const { map, isLoaded } = useMap()
+  const fitted = useRef(false)
+
+  useEffect(() => {
+    if (!map || !isLoaded || positions.length === 0 || fitted.current) return
+    fitted.current = true
+
+    if (positions.length === 1) {
+      map.flyTo({ center: positions[0], zoom: 15 })
+    } else {
+      const lngs = positions.map((p) => p[0])
+      const lats = positions.map((p) => p[1])
+      map.fitBounds(
+        [
+          [Math.min(...lngs), Math.min(...lats)],
+          [Math.max(...lngs), Math.max(...lats)],
+        ],
+        { padding: 60 },
+      )
+    }
+  }, [map, isLoaded, positions])
+
+  // Re-fit when positions change
+  useEffect(() => {
+    fitted.current = false
+  }, [positions])
+
+  return null
+}
+
+function UserMarker({
+  variant,
+  entity,
+}: {
+  variant: 'jb' | 'sunny'
+  entity: Entity
+}) {
+  const lat = entity.metadata.lat as number
+  const lng = entity.metadata.lng as number
+  const style = MARKER_STYLES[variant]
+  const updatedAt = typeof entity.metadata.updatedAt === 'string' ? entity.metadata.updatedAt : ''
+  const battery = typeof entity.metadata.battery === 'number' ? entity.metadata.battery : null
+  const accuracy = typeof entity.metadata.accuracy === 'number' ? entity.metadata.accuracy : null
+
+  return (
+    <MapMarker longitude={lng} latitude={lat}>
+      <MarkerContent>
+        <div className="relative flex items-center justify-center" style={{ width: 40, height: 40 }}>
+          <div
+            className="absolute inset-0 rounded-full animate-ping"
+            style={{ background: style.pulse, animationDuration: '2s' }}
+          />
+          <div
+            className="relative flex items-center justify-center rounded-full text-white text-xs font-bold shadow-lg"
+            style={{
+              width: 32,
+              height: 32,
+              background: style.bg,
+              border: `3px solid ${style.border}`,
+            }}
+          >
+            {style.label}
+          </div>
+        </div>
+      </MarkerContent>
+      <MarkerPopup className="min-w-[120px]">
+        <div className="space-y-1">
+          <p className="font-semibold text-sm">{variant === 'jb' ? 'JB' : 'Sunny'}</p>
+          {updatedAt && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatTime(updatedAt)}
+            </p>
+          )}
+          {battery !== null && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Battery className="h-3 w-3" />
+              {battery}%
+            </p>
+          )}
+          {accuracy !== null && (
+            <p className="text-xs text-muted-foreground">Accuracy: {Math.round(accuracy)}m</p>
+          )}
+        </div>
+      </MarkerPopup>
+    </MapMarker>
+  )
+}
+
 export function LiveLocationPage() {
   const { items: locationEntities, create, update } = useEntities('location')
   const currentUser = useAuthStore((s) => s.currentUser)
   const [sharing, setSharing] = useState(false)
-
-  // Poll for updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // useEntities auto-refetches via TanStack Query; this triggers a re-render check
-    }, POLL_INTERVAL)
-    return () => clearInterval(interval)
-  }, [])
 
   const jbLocation = useMemo(
     () => locationEntities.find((e) => e.title === 'JB Location'),
@@ -140,7 +144,7 @@ export function LiveLocationPage() {
     const positions: [number, number][] = []
     for (const loc of [jbLocation, sunnyLocation]) {
       if (loc && typeof loc.metadata.lat === 'number' && typeof loc.metadata.lng === 'number') {
-        positions.push([loc.metadata.lat, loc.metadata.lng])
+        positions.push([loc.metadata.lng, loc.metadata.lat]) // [lng, lat]
       }
     }
     return positions
@@ -172,10 +176,7 @@ export function LiveLocationPage() {
       if (existing) {
         update.mutate({
           id: existing.id,
-          updates: {
-            metadata,
-            updatedAt: new Date().toISOString(),
-          },
+          updates: { metadata, updatedAt: new Date().toISOString() },
         })
       } else {
         create.mutate({
@@ -195,99 +196,41 @@ export function LiveLocationPage() {
 
       notify({ title: 'Location shared', type: 'success' })
     } catch (err) {
-      const message = err instanceof GeolocationPositionError
-        ? 'Location access denied. Please enable location permissions.'
-        : 'Failed to get location'
+      const message =
+        err instanceof GeolocationPositionError
+          ? 'Location access denied. Please enable location permissions.'
+          : 'Failed to get location'
       notify({ title: message, type: 'error' })
     } finally {
       setSharing(false)
     }
   }, [currentUser, locationEntities, create, update])
 
-  const renderPopup = (entity: Entity, label: string) => {
-    const updatedAt = typeof entity.metadata.updatedAt === 'string' ? entity.metadata.updatedAt : ''
-    const battery = typeof entity.metadata.battery === 'number' ? entity.metadata.battery : null
-    const accuracy = typeof entity.metadata.accuracy === 'number' ? entity.metadata.accuracy : null
-
-    return (
-      <Popup>
-        <div className="space-y-1 min-w-[120px]">
-          <p className="font-semibold text-sm">{label}</p>
-          {updatedAt && (
-            <p className="text-xs text-gray-500 flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {formatTime(updatedAt)}
-            </p>
-          )}
-          {battery !== null && (
-            <p className="text-xs text-gray-500 flex items-center gap-1">
-              <Battery className="h-3 w-3" />
-              {battery}%
-            </p>
-          )}
-          {accuracy !== null && (
-            <p className="text-xs text-gray-500">
-              Accuracy: {Math.round(accuracy)}m
-            </p>
-          )}
-        </div>
-      </Popup>
-    )
-  }
-
   return (
     <div className="relative h-[calc(100vh-7rem)] w-full">
-      {/* Full-screen map */}
       <div className="absolute inset-0 rounded-lg overflow-hidden border">
-        <MapContainer
-          center={DEFAULT_CENTER}
-          zoom={DEFAULT_ZOOM}
-          className="h-full w-full"
-          zoomControl={false}
-        >
-          <ThemeAwareTileLayer />
-
-          {markerPositions.length > 0 && (
-            <MapFitter positions={markerPositions} />
-          )}
+        <Map center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM}>
+          <MapControls position="top-left" showZoom showCompass />
+          {markerPositions.length > 0 && <MapFitter positions={markerPositions} />}
 
           {jbLocation &&
             typeof jbLocation.metadata.lat === 'number' &&
             typeof jbLocation.metadata.lng === 'number' && (
-              <Marker
-                position={[jbLocation.metadata.lat, jbLocation.metadata.lng]}
-                icon={jbIcon}
-              >
-                {renderPopup(jbLocation, 'JB')}
-              </Marker>
+              <UserMarker variant="jb" entity={jbLocation} />
             )}
 
           {sunnyLocation &&
             typeof sunnyLocation.metadata.lat === 'number' &&
             typeof sunnyLocation.metadata.lng === 'number' && (
-              <Marker
-                position={[sunnyLocation.metadata.lat, sunnyLocation.metadata.lng]}
-                icon={sunnyIcon}
-              >
-                {renderPopup(sunnyLocation, 'Sunny')}
-              </Marker>
+              <UserMarker variant="sunny" entity={sunnyLocation} />
             )}
-        </MapContainer>
+        </Map>
       </div>
 
       {/* Share Location button */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000]">
-        <Button
-          size="lg"
-          onClick={shareLocation}
-          disabled={sharing}
-          className="shadow-lg gap-2 px-6"
-        >
-          {sharing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Navigation className="h-4 w-4" />
-          )}
+        <Button size="lg" onClick={shareLocation} disabled={sharing} className="shadow-lg gap-2 px-6">
+          {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
           {sharing ? 'Getting location...' : 'Share My Location'}
         </Button>
       </div>
@@ -298,18 +241,14 @@ export function LiveLocationPage() {
           <div className="w-3 h-3 rounded-full bg-blue-500 border-2 border-blue-600" />
           <span className="text-xs font-medium">JB</span>
           {jbLocation && typeof jbLocation.metadata.updatedAt === 'string' && (
-            <span className="text-xs text-muted-foreground">
-              {formatTime(jbLocation.metadata.updatedAt)}
-            </span>
+            <span className="text-xs text-muted-foreground">{formatTime(jbLocation.metadata.updatedAt)}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-pink-500 border-2 border-pink-600" />
           <span className="text-xs font-medium">Sunny</span>
           {sunnyLocation && typeof sunnyLocation.metadata.updatedAt === 'string' && (
-            <span className="text-xs text-muted-foreground">
-              {formatTime(sunnyLocation.metadata.updatedAt)}
-            </span>
+            <span className="text-xs text-muted-foreground">{formatTime(sunnyLocation.metadata.updatedAt)}</span>
           )}
         </div>
       </div>

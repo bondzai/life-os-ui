@@ -53,7 +53,7 @@ export default defineConfig({
           'vendor-ui': ['radix-ui', 'class-variance-authority', 'clsx', 'tailwind-merge', 'lucide-react'],
           'vendor-data': ['@tanstack/react-query', 'zustand', 'zod', 'react-hook-form', '@hookform/resolvers'],
           'vendor-charts': ['recharts'],
-          'vendor-maps': ['leaflet', 'react-leaflet'],
+          'vendor-maps': ['maplibre-gl'],
           'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
         },
       },

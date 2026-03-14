@@ -1,6 +1,4 @@
-import { useState, useEffect } from 'react'
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
+import { useState, useCallback, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -9,31 +7,34 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { MAP_TILES, DEFAULT_CENTER, DEFAULT_ZOOM, getMapTileUrl } from '@/lib/map-config'
+import {
+  Map,
+  MapMarker,
+  MarkerContent,
+  MapControls,
+  useMap,
+} from '@/components/ui/map'
+import { DEFAULT_CENTER, DEFAULT_ZOOM } from '@/lib/map-config'
 
 interface MapPickerDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSelect: (lat: number, lng: number) => void
-  initialPosition?: [number, number]
+  onSelect: (lng: number, lat: number) => void
+  initialPosition?: [number, number] // [lng, lat]
 }
 
-function ThemeAwareTileLayer() {
-  const [url, setUrl] = useState(getMapTileUrl)
+function ClickHandler({ onSelect }: { onSelect: (lng: number, lat: number) => void }) {
+  const { map, isLoaded } = useMap()
+
   useEffect(() => {
-    const observer = new MutationObserver(() => setUrl(getMapTileUrl()))
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-    return () => observer.disconnect()
-  }, [])
-  return <TileLayer attribution={MAP_TILES.attribution} url={url} />
-}
+    if (!map || !isLoaded) return
+    const handler = (e: { lngLat: { lng: number; lat: number } }) => {
+      onSelect(e.lngLat.lng, e.lngLat.lat)
+    }
+    map.on('click', handler)
+    return () => { map.off('click', handler) }
+  }, [map, isLoaded, onSelect])
 
-function ClickHandler({ onSelect }: { onSelect: (lat: number, lng: number) => void }) {
-  useMapEvents({
-    click(e) {
-      onSelect(e.latlng.lat, e.latlng.lng)
-    },
-  })
   return null
 }
 
@@ -46,13 +47,13 @@ export function MapPickerDialog({
   const [position, setPosition] = useState<[number, number] | null>(initialPosition ?? null)
   const center: [number, number] = initialPosition ?? DEFAULT_CENTER
 
-  const handleClick = (lat: number, lng: number) => {
-    setPosition([lat, lng])
-  }
+  const handleClick = useCallback((lng: number, lat: number) => {
+    setPosition([lng, lat])
+  }, [])
 
   const handleConfirm = () => {
     if (position) {
-      onSelect(position[0], position[1])
+      onSelect(position[0], position[1]) // [lng, lat]
       onOpenChange(false)
     }
   }
@@ -65,16 +66,22 @@ export function MapPickerDialog({
         </DialogHeader>
         <div className="h-[400px] rounded-lg overflow-hidden border">
           {open && (
-            <MapContainer center={center} zoom={DEFAULT_ZOOM} className="h-full w-full">
-              <ThemeAwareTileLayer />
+            <Map center={center} zoom={DEFAULT_ZOOM}>
+              <MapControls position="top-left" showZoom />
               <ClickHandler onSelect={handleClick} />
-              {position && <Marker position={position} />}
-            </MapContainer>
+              {position && (
+                <MapMarker longitude={position[0]} latitude={position[1]}>
+                  <MarkerContent>
+                    <div className="size-4 rounded-full bg-primary border-2 border-white shadow-lg" />
+                  </MarkerContent>
+                </MapMarker>
+              )}
+            </Map>
           )}
         </div>
         <p className="text-xs text-muted-foreground">
           {position
-            ? `Selected: ${position[0].toFixed(6)}, ${position[1].toFixed(6)}`
+            ? `Selected: ${position[1].toFixed(6)}, ${position[0].toFixed(6)}`
             : 'Click on the map to set a location'}
         </p>
         <DialogFooter>

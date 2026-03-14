@@ -1,7 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Plus, MapPin, Pencil, Trash2, Search, ExternalLink } from 'lucide-react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,6 +10,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Map,
+  MapMarker,
+  MarkerContent,
+  MarkerPopup,
+  MapControls,
+  useMap,
+} from '@/components/ui/map'
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
@@ -19,26 +25,16 @@ import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import type { Entity, EntityStatus } from '@/core/types'
-import { MAP_TILES, DEFAULT_CENTER, DEFAULT_ZOOM, getMapTileUrl } from '@/lib/map-config'
+import { DEFAULT_CENTER, DEFAULT_ZOOM } from '@/lib/map-config'
 import { MapPickerDialog } from './places/map-picker-dialog'
 
-function ThemeAwareTileLayer() {
-  const [url, setUrl] = useState(getMapTileUrl)
-  useEffect(() => {
-    const observer = new MutationObserver(() => setUrl(getMapTileUrl()))
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-    return () => observer.disconnect()
-  }, [])
-  return <TileLayer attribution={MAP_TILES.attribution} url={url} />
-}
-
 function MapPanner({ center }: { center: [number, number] | null }) {
-  const map = useMap()
+  const { map, isLoaded } = useMap()
   useEffect(() => {
-    if (center) {
-      map.flyTo(center, 14)
+    if (map && isLoaded && center) {
+      map.flyTo({ center, zoom: 14 })
     }
-  }, [map, center])
+  }, [map, isLoaded, center])
   return null
 }
 
@@ -81,7 +77,7 @@ export function PlacesPage() {
   const getCoords = (place: Entity): [number, number] | null => {
     const lat = typeof place.metadata.lat === 'number' ? place.metadata.lat : null
     const lng = typeof place.metadata.lng === 'number' ? place.metadata.lng : null
-    if (lat !== null && lng !== null) return [lat, lng]
+    if (lat !== null && lng !== null) return [lng, lat] // [lng, lat] for MapLibre
     return null
   }
 
@@ -91,7 +87,7 @@ export function PlacesPage() {
     if (coords) setPanTarget(coords)
   }
 
-  const handleMapPick = (lat: number, lng: number) => {
+  const handleMapPick = (lng: number, lat: number) => {
     if (mapPickerTarget) {
       update.mutate({
         id: mapPickerTarget.id,
@@ -197,9 +193,7 @@ export function PlacesPage() {
                 >
                   <CardContent className="py-2 space-y-1">
                     <p className="text-sm font-medium">{place.title}</p>
-                    {address && (
-                      <p className="text-xs text-muted-foreground">{address}</p>
-                    )}
+                    {address && <p className="text-xs text-muted-foreground">{address}</p>}
                     {place.tags.length > 0 && (
                       <div className="flex gap-1 flex-wrap">
                         {place.tags.map((tag) => (
@@ -214,10 +208,7 @@ export function PlacesPage() {
                         size="sm"
                         variant="ghost"
                         className="h-6 px-1.5"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setEditingPlace(place)
-                        }}
+                        onClick={(e) => { e.stopPropagation(); setEditingPlace(place) }}
                       >
                         <Pencil className="h-3 w-3" />
                       </Button>
@@ -225,10 +216,7 @@ export function PlacesPage() {
                         size="sm"
                         variant="ghost"
                         className="h-6 px-1.5"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setDeleteTarget(place)
-                        }}
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(place) }}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -251,7 +239,7 @@ export function PlacesPage() {
                           className="h-6 px-1.5"
                           onClick={(e) => {
                             e.stopPropagation()
-                            const [lat, lng] = getCoords(place)!
+                            const [lng, lat] = getCoords(place)!
                             window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank')
                           }}
                         >
@@ -280,26 +268,27 @@ export function PlacesPage() {
             />
           </div>
         ) : (
-          <MapContainer
-            center={DEFAULT_CENTER}
-            zoom={DEFAULT_ZOOM}
-            className="h-full w-full"
-          >
-            <ThemeAwareTileLayer />
+          <Map center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM}>
+            <MapControls position="top-left" showZoom showCompass />
             <MapPanner center={panTarget} />
             {filteredPlaces.map((place) => {
               const coords = getCoords(place)
               if (!coords) return null
               return (
-                <Marker key={place.id} position={coords}>
-                  <Popup>
-                    <strong>{place.title}</strong>
-                    {place.description && <p>{place.description}</p>}
-                  </Popup>
-                </Marker>
+                <MapMarker key={place.id} longitude={coords[0]} latitude={coords[1]}>
+                  <MarkerContent>
+                    <div className="size-4 rounded-full bg-primary border-2 border-white shadow-lg" />
+                  </MarkerContent>
+                  <MarkerPopup>
+                    <div className="space-y-1">
+                      <strong>{place.title}</strong>
+                      {place.description && <p className="text-sm">{place.description}</p>}
+                    </div>
+                  </MarkerPopup>
+                </MapMarker>
               )
             })}
-          </MapContainer>
+          </Map>
         )}
       </div>
 
@@ -341,7 +330,11 @@ export function PlacesPage() {
         open={mapPickerOpen}
         onOpenChange={setMapPickerOpen}
         onSelect={handleMapPick}
-        initialPosition={mapPickerTarget ? (getCoords(mapPickerTarget) ?? undefined) : undefined}
+        initialPosition={
+          mapPickerTarget
+            ? (getCoords(mapPickerTarget) ?? undefined)
+            : undefined
+        }
       />
     </div>
   )
