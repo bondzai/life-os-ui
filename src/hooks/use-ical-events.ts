@@ -10,18 +10,40 @@ import {
   fetchICalText,
   parseICalText,
 } from '@/lib/ical'
+import {
+  hasGCalApiKey,
+  extractCalendarId,
+  fetchGCalEvents,
+  fetchCalendarColor,
+} from '@/lib/ical/gcal-api'
 
 const QUERY_KEY = ['ical-events']
+
+async function fetchFeedEvents(feed: ICalFeed): Promise<ICalEvent[]> {
+  // If Google API key is configured and this is a Google Calendar URL,
+  // use the API for richer data (per-event colors, descriptions)
+  if (hasGCalApiKey()) {
+    const calendarId = extractCalendarId(feed.url)
+    if (calendarId) {
+      try {
+        return await fetchGCalEvents(calendarId, feed.url, feed.name)
+      } catch {
+        // Fall back to iCal if API fails
+      }
+    }
+  }
+
+  // Default: fetch via iCal
+  const text = await fetchICalText(feed.url)
+  return parseICalText(text, feed.url, feed.name)
+}
 
 async function fetchAllFeeds(): Promise<{ feeds: ICalFeed[]; events: ICalEvent[] }> {
   const feeds = getFeeds()
   const enabledFeeds = feeds.filter((f) => f.enabled)
 
   const results = await Promise.allSettled(
-    enabledFeeds.map(async (feed) => {
-      const text = await fetchICalText(feed.url)
-      return parseICalText(text, feed.url, feed.name)
-    }),
+    enabledFeeds.map((feed) => fetchFeedEvents(feed)),
   )
 
   const events: ICalEvent[] = []
@@ -50,7 +72,15 @@ export function useICalEvents() {
   )
 
   const add = useCallback(
-    (feed: ICalFeed) => {
+    async (feed: ICalFeed) => {
+      // Auto-detect Google Calendar color if API key is available
+      if (hasGCalApiKey()) {
+        const calendarId = extractCalendarId(feed.url)
+        if (calendarId) {
+          const color = await fetchCalendarColor(calendarId)
+          if (color) feed = { ...feed, color }
+        }
+      }
       addFeed(feed)
       invalidate()
     },

@@ -9,6 +9,8 @@ export interface ICalEvent {
   source: 'ical'
   sourceUrl: string
   sourceName: string
+  /** Per-event color from Google Calendar API (hex). Falls back to feed color if absent. */
+  color?: string
 }
 
 export interface ICalFeed {

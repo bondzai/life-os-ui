@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Plus, ChevronLeft, ChevronRight, Calendar, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -82,6 +82,12 @@ export function CalendarPage() {
     for (const feed of feeds) map[feed.url] = feed.color
     return map
   }, [feeds])
+
+  /** Get color for an iCal event: per-event color (from Google API) → feed color → fallback */
+  const getEventColor = useCallback(
+    (ev: ICalEvent) => ev.color ?? getEventColor(ev),
+    [feedColorMap],
+  )
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth)
   const firstDay = getFirstDayOfWeek(viewYear, viewMonth)
@@ -347,8 +353,8 @@ export function CalendarPage() {
                         key={ev.id}
                         className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate font-medium"
                         style={{
-                          backgroundColor: `${feedColorMap[ev.sourceUrl] ?? '#6b7280'}18`,
-                          color: feedColorMap[ev.sourceUrl] ?? '#6b7280',
+                          backgroundColor: `${getEventColor(ev)}18`,
+                          color: getEventColor(ev),
                         }}
                       >
                         {!ev.isAllDay && (
@@ -376,7 +382,7 @@ export function CalendarPage() {
                         <span
                           key={ev.id}
                           className="w-[5px] h-[5px] rounded-full"
-                          style={{ backgroundColor: feedColorMap[ev.sourceUrl] ?? '#6b7280' }}
+                          style={{ backgroundColor: getEventColor(ev) }}
                         />
                       ))}
                     </div>
@@ -428,7 +434,7 @@ export function CalendarPage() {
                   <div key={ev.id} className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-accent/50 transition-colors">
                     <div
                       className="w-1 h-8 rounded-full shrink-0"
-                      style={{ backgroundColor: feedColorMap[ev.sourceUrl] ?? '#6b7280' }}
+                      style={{ backgroundColor: getEventColor(ev) }}
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{ev.title}</p>

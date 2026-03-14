@@ -115,7 +115,7 @@ export function AgendaView({ entities, icalEvents, feedColorMap }: AgendaViewPro
                 )
               })}
               {dayIcal.map((ev) => {
-                const color = feedColorMap[ev.sourceUrl] ?? '#6b7280'
+                const color = ev.color ?? feedColorMap[ev.sourceUrl] ?? '#6b7280'
                 return (
                   <div
                     key={ev.id}

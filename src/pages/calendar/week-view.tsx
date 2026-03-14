@@ -98,8 +98,8 @@ export function WeekView({ weekStart, entities, icalEvents, feedColorMap }: Week
                     key={ev.id}
                     className="text-[11px] px-1.5 py-1 rounded font-medium truncate cursor-default hover:opacity-80 transition-opacity"
                     style={{
-                      backgroundColor: `${feedColorMap[ev.sourceUrl] ?? '#6b7280'}18`,
-                      color: feedColorMap[ev.sourceUrl] ?? '#6b7280',
+                      backgroundColor: `${ev.color ?? feedColorMap[ev.sourceUrl] ?? '#6b7280'}18`,
+                      color: ev.color ?? feedColorMap[ev.sourceUrl] ?? '#6b7280',
                     }}
                   >
                     {!ev.isAllDay && (
@@ -151,8 +151,8 @@ export function WeekView({ weekStart, entities, icalEvents, feedColorMap }: Week
                       key={ev.id}
                       className="text-sm px-2 py-1 rounded font-medium truncate"
                       style={{
-                        backgroundColor: `${feedColorMap[ev.sourceUrl] ?? '#6b7280'}18`,
-                        color: feedColorMap[ev.sourceUrl] ?? '#6b7280',
+                        backgroundColor: `${ev.color ?? feedColorMap[ev.sourceUrl] ?? '#6b7280'}18`,
+                        color: ev.color ?? feedColorMap[ev.sourceUrl] ?? '#6b7280',
                       }}
                     >
                       {ev.title}
