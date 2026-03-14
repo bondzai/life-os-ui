@@ -1,0 +1,19 @@
+services:
+  ui:
+    build: .
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    environment:
+      - VITE_USE_API=true
+      - VITE_API_URL=/api
+
+  api:
+    build: ./api
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./api/data:/app/data
+    environment:
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}

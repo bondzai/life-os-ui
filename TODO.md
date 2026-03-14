@@ -28,7 +28,7 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 
 ### 12d. Task Improvements
 - [x] Priority color on Kanban cards (red/orange/yellow/gray)
-- [ ] Quick snooze: reschedule by 1 day or 1 week from card menu
+- [x] Quick snooze: reschedule by 1 day or 1 week from card menu
 - [x] Subtask support: nested checklist items within a task (metadata array)
 
 ### 12e. Habit Improvements
@@ -65,7 +65,7 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 - [x] Weight trend chart: line graph progression over time
 - [x] Workout heatmap: calendar grid showing workout days
 - [x] Sleep trend chart: line graph of sleep hours over 30 days
-- [ ] Water intake: daily counter widget
+- [x] Water intake: daily counter widget
 
 ### 13d. Family Enhancements
 - [x] Chore rotation: auto-swap assignee on completion
@@ -119,14 +119,14 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 ## Phase 3.5 — Backend (Deferred)
 
 ### API Server
-- [ ] Set up API server project (Hono or Fastify + SQLite/Drizzle)
-- [ ] Define REST endpoints for entities, trackers, relations, schedules
-- [ ] Add authentication middleware (PIN-based or token)
+- [x] Set up API server project (Hono + SQLite/Drizzle)
+- [x] Define REST endpoints for entities, trackers, relations, schedules
+- [x] Add authentication middleware (PIN → JWT)
 
 ### localStorage to API Migration
-- [ ] Replace `LocalRepository` with `ApiRepository` implementation
-- [ ] Update `useRepository` hook to use API client (TanStack Query already in place)
-- [ ] Migrate seed data to server-side database seeding
+- [x] Replace `LocalRepository` with `ApiRepository` implementation
+- [x] Environment toggle (VITE_USE_API) for local/API switching
+- [x] Migrate seed data to server-side database seeding
 
 ### OpenClaw Integration
 - [ ] Create OpenClaw AI provider skill in `src/core/ai/`
@@ -139,10 +139,10 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 - [ ] Weekly/monthly report generation
 
 ### Docker Compose
-- [ ] Create `docker-compose.yml` for Life-OS stack (UI + API + OpenClaw)
-- [ ] Add Dockerfile for UI (Vite build + static serve)
-- [ ] Add Dockerfile for API server
-- [ ] Configure networking between services
+- [x] Create `docker-compose.yml` for Life-OS stack (UI + API)
+- [x] Add Dockerfile for UI (Vite build + nginx serve)
+- [x] Add Dockerfile for API server
+- [x] Configure networking between services (nginx proxy)
 
 ---
 
@@ -165,3 +165,5 @@ See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with
 - [x] Phase 13: Medium Features (charts, agenda, pomodoro, review)
 - [x] Phase 12+13 Cleanup: All remaining items (v0.14.0)
 - [x] Phase 14: Larger Features (v0.15.0)
+- [x] Phase 15: Bug fixes, task snooze, water intake (v0.16.0)
+- [x] Phase 3.5: Backend API (Hono + SQLite + Drizzle), Docker Compose (v0.17.0)
