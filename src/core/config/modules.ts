@@ -37,7 +37,6 @@ export const modules: ModuleConfig[] = [
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Core', entityTypes: ['task'] },
   { id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Core', entityTypes: ['note'] },
   { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Core', entityTypes: ['event'] },
-  { id: 'location', label: 'Location', icon: MapPin, path: '/location', group: 'Core', entityTypes: ['location'] },
 
   // Track — goals & measurement
   { id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Track', entityTypes: ['goal'] },
@@ -50,7 +49,7 @@ export const modules: ModuleConfig[] = [
   { id: 'reading', label: 'Reading', icon: BookOpen, path: '/reading', group: 'More', entityTypes: ['book', 'course'] },
   { id: 'memories', label: 'Memories', icon: Camera, path: '/memories', group: 'More', entityTypes: ['memory'] },
   { id: 'posts', label: 'Posts', icon: Newspaper, path: '/posts', group: 'More', entityTypes: ['post'] },
-  { id: 'places', label: 'Places', icon: MapPin, path: '/places', group: 'More', entityTypes: ['place'] },
+  { id: 'places', label: 'Places', icon: MapPin, path: '/places', group: 'More', entityTypes: ['place', 'location'] },
   { id: 'travel', label: 'Travel', icon: Plane, path: '/travel', group: 'More', entityTypes: ['trip'] },
   { id: 'home', label: 'Home', icon: Home, path: '/home', group: 'More', entityTypes: ['device', 'service'] },
   { id: 'family', label: 'Family', icon: Users, path: '/family', group: 'More', entityTypes: ['chore'] },

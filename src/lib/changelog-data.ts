@@ -14,6 +14,30 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.26.0',
+    date: '2026-03-15',
+    phase: 'Unified Places & Location',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          '**Merged Places + Live Location**: Combined two separate pages into a single unified Places page — no more duplicate map modules',
+          '**Unified map view**: Place markers (colored dots) and live location markers (pulsing JB/S circles) rendered on the same map simultaneously',
+          '**Visibility toggles**: Eye/EyeOff controls in a legend panel to show/hide Places vs Live Locations independently',
+          '**Share My Location**: Button moved inline onto the Places map (bottom-center overlay)',
+          '**Sidebar navigation**: Removed separate "Location" entry — Places now handles both entity types',
+        ],
+      },
+      {
+        title: 'Removed',
+        items: [
+          '`/location` route removed from app router',
+          'Location module entry removed from sidebar navigation',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.25.0',
     date: '2026-03-15',
     phase: 'Google Calendar Integration & Calendar Redesign',
