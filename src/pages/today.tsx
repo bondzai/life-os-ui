@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { PriorityPicker } from './today/priority-picker'
+import { StandupReport } from './tasks/standup-report'
 import { CaptureBar } from './today/capture-bar'
 // DailyProtocol removed — protocols are on left column
 import { isReviewDoneThisWeek } from './review/review-helpers'
@@ -189,6 +190,7 @@ export function TodayPage() {
 
   const [priorities, setPriorities] = useState<string[]>(() => getTodayPriorities())
   const [addingStory, setAddingStory] = useState(false)
+  const [standupOpen, setStandupOpen] = useState(false)
   const [journalText, setJournalText] = useState('')
   const [showJournal, setShowJournal] = useState(false)
 
@@ -842,8 +844,19 @@ export function TodayPage() {
           </section>
         </div>
 
-        {/* ═══ RIGHT — Context Sidebar (5/12) ═══ */}
+        {/* ═══ RIGHT — Quick Summary (5/12) ═══ */}
         <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-1 scrollbar-thin">
+
+          {/* Header with standup button */}
+          <div className="flex items-center justify-between px-4 pb-1">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">Quick Summary</h2>
+            <button
+              onClick={() => setStandupOpen(true)}
+              className="text-[11px] text-muted-foreground/50 hover:text-foreground transition-colors flex items-center gap-1"
+            >
+              📋 Standup
+            </button>
+          </div>
 
           {/* Calendar — today's events + iCal */}
           <Collapsible defaultOpen={todayEvents.length > 0 || todayICalEvents.length > 0}>
@@ -994,6 +1007,13 @@ export function TodayPage() {
           )}
         </aside>
       </div>
+
+      {/* Standup Report Sheet */}
+      <StandupReport
+        open={standupOpen}
+        onOpenChange={setStandupOpen}
+        tasks={allEntities.filter((e) => e.type === 'task' || e.type === 'chore')}
+      />
     </div>
   )
 }
