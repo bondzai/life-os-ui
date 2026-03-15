@@ -8,6 +8,7 @@ import { ApiScheduleRepository } from './api-schedule-repository'
 import { ApiRelationRepository } from './api-relation-repository'
 
 // Runtime toggle: localStorage overrides env var
+// 'demo' mode uses local storage with mock data
 const storedMode = localStorage.getItem('life-os:data-mode')
 const useApi = storedMode !== null
   ? storedMode === 'api'

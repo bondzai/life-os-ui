@@ -14,6 +14,28 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.37.0',
+    date: '2026-03-15',
+    phase: 'Demo Mode — Portfolio-Ready Mock Data',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Demo mode**: New data mode that fills the app with realistic mock data — tasks, stories, goals, habits, protocols, events, health metrics, workouts, sleep data, finances, books, and more',
+          '**Auto-login for demo**: Demo mode creates a "Demo User" and auto-authenticates — no login needed for portfolio visitors',
+          '**3-way data toggle**: Settings now shows Local / API / Demo with visual cards — switch between modes instantly',
+          '**Clean mode switching**: Switching away from Demo clears mock data, switching to Demo regenerates fresh data',
+        ],
+      },
+      {
+        title: 'New Files',
+        items: [
+          '`mock-data.ts` — Generates 80+ realistic entities across all modules with trackers, health profile, and auth state',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.36.0',
     date: '2026-03-15',
     phase: 'Settings & Data Mode Toggle',
