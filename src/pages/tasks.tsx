@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
-import { Plus, CheckSquare, List, Columns3 } from 'lucide-react'
+import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -9,6 +10,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
@@ -19,10 +25,12 @@ import { emitAutomationEvent } from './automate/automation-event-bus'
 import { SavedFilterBar } from '@/core/components/saved-filter-bar'
 import { TaskCard } from './tasks/task-card'
 import { KanbanBoard } from './tasks/kanban-board'
+import { StandupReport } from './tasks/standup-report'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 
 type SortKey = 'priority' | 'dueDate' | 'createdAt'
-type ViewMode = 'list' | 'kanban'
+type ViewMode = 'list' | 'kanban' | 'log'
+type Workspace = 'all' | 'work' | 'personal'
 
 const priorityOrder: Record<EntityPriority, number> = {
   urgent: 0,
@@ -31,20 +39,74 @@ const priorityOrder: Record<EntityPriority, number> = {
   low: 3,
 }
 
+// ── Log view helpers ──────────────────────────────────────────────────
+
+function getLast14Days(): { date: string; label: string }[] {
+  const days: { date: string; label: string }[] = []
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    days.push({
+      date: d.toISOString().split('T')[0],
+      label: weekdays[d.getDay()],
+    })
+  }
+  return days
+}
+
+function getDateLabel(dateStr: string): { label: string; isToday: boolean; isYesterday: boolean } {
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayStr = yesterday.toISOString().split('T')[0]
+
+  if (dateStr === todayStr) return { label: 'Today', isToday: true, isYesterday: false }
+  if (dateStr === yesterdayStr) return { label: 'Yesterday', isToday: false, isYesterday: true }
+
+  const d = new Date(dateStr + 'T12:00:00')
+  const label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+  return { label, isToday: false, isYesterday: false }
+}
+
+function startOfWeek(date: Date): Date {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = day === 0 ? 6 : day - 1 // Monday as start
+  d.setDate(d.getDate() - diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+// ── Component ─────────────────────────────────────────────────────────
+
 export function TasksPage() {
   const { items: tasks, isLoading, create, update, remove } = useEntities('task')
   const currentUser = useAuthStore((s) => s.currentUser)
 
   const [view, setView] = useState<ViewMode>('list')
+  const [workspace, setWorkspace] = useState<Workspace>('all')
   const [statusFilter, setStatusFilter] = useState<EntityStatus | 'all'>('all')
   const [priorityFilter, setPriorityFilter] = useState<EntityPriority | 'all'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('priority')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
+  const [showDone, setShowDone] = useState(false)
+  const [standupOpen, setStandupOpen] = useState(false)
+
+  // ── Workspace filter ──────────────────────────────────────────────
+
+  const workspaceTasks = useMemo(() => {
+    if (workspace === 'all') return tasks
+    return tasks.filter((t) => t.metadata.workspace === workspace)
+  }, [tasks, workspace])
+
+  // ── Filtered + sorted for list view ───────────────────────────────
 
   const filteredTasks = useMemo(() => {
-    let result = [...tasks]
+    let result = [...workspaceTasks]
     if (statusFilter !== 'all') {
       result = result.filter((t) => t.status === statusFilter)
     }
@@ -61,7 +123,81 @@ export function TasksPage() {
       return b.createdAt.localeCompare(a.createdAt)
     })
     return result
-  }, [tasks, statusFilter, priorityFilter, sortKey])
+  }, [workspaceTasks, statusFilter, priorityFilter, sortKey])
+
+  // ── Active / Done Today split (Feature 2) ─────────────────────────
+
+  const today = new Date().toISOString().split('T')[0]
+
+  const activeTasks = useMemo(
+    () => filteredTasks.filter((t) => t.status !== 'completed' && t.status !== 'archived'),
+    [filteredTasks],
+  )
+
+  const doneToday = useMemo(
+    () => filteredTasks.filter((t) => t.status === 'completed' && t.updatedAt?.startsWith(today)),
+    [filteredTasks, today],
+  )
+
+  // ── Log view data (Feature 3) ─────────────────────────────────────
+
+  const completedTasks = useMemo(
+    () =>
+      workspaceTasks
+        .filter((t) => t.status === 'completed')
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [workspaceTasks],
+  )
+
+  const { thisWeekCount, lastWeekCount, last14DaysData, dateGroups } = useMemo(() => {
+    const now = new Date()
+    const thisWeekStart = startOfWeek(now)
+    const lastWeekStart = new Date(thisWeekStart)
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7)
+
+    let twc = 0
+    let lwc = 0
+    for (const t of completedTasks) {
+      const d = new Date(t.updatedAt)
+      if (d >= thisWeekStart) twc++
+      else if (d >= lastWeekStart && d < thisWeekStart) lwc++
+    }
+
+    // 14-day chart
+    const days = getLast14Days()
+    const countByDate = new Map<string, number>()
+    for (const t of completedTasks) {
+      const dateKey = t.updatedAt.split('T')[0]
+      countByDate.set(dateKey, (countByDate.get(dateKey) ?? 0) + 1)
+    }
+    const chartData = days.map((d) => ({ ...d, count: countByDate.get(d.date) ?? 0 }))
+
+    // Group by date
+    const grouped = new Map<string, Entity[]>()
+    for (const t of completedTasks) {
+      const dateKey = t.updatedAt.split('T')[0]
+      if (!grouped.has(dateKey)) grouped.set(dateKey, [])
+      grouped.get(dateKey)!.push(t)
+    }
+    const groups = Array.from(grouped.entries()).map(([date, tks]) => {
+      const { label, isToday, isYesterday } = getDateLabel(date)
+      return { date, label, isToday, isYesterday, tasks: tks }
+    })
+
+    return {
+      thisWeekCount: twc,
+      lastWeekCount: lwc,
+      last14DaysData: chartData,
+      dateGroups: groups,
+    }
+  }, [completedTasks])
+
+  const maxChartCount = useMemo(
+    () => Math.max(1, ...last14DaysData.map((d) => d.count)),
+    [last14DaysData],
+  )
+
+  // ── Handlers ──────────────────────────────────────────────────────
 
   const toggleComplete = (task: Entity) => {
     const newStatus = task.status === 'completed' ? 'active' : 'completed'
@@ -82,9 +218,9 @@ export function TasksPage() {
   }
 
   const snoozeTask = (task: Entity, days: number) => {
-    const today = new Date()
-    today.setDate(today.getDate() + days)
-    const newDueDate = today.toISOString().split('T')[0]
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    const newDueDate = d.toISOString().split('T')[0]
     update.mutate({
       id: task.id,
       updates: { dueDate: newDueDate, updatedAt: new Date().toISOString() },
@@ -107,9 +243,13 @@ export function TasksPage() {
   }
 
   const handleCreate = (values: Record<string, unknown>) => {
-    const tags = typeof values.tags === 'string'
-      ? values.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
-      : []
+    const tags =
+      typeof values.tags === 'string'
+        ? values.tags
+            .split(',')
+            .map((t: string) => t.trim())
+            .filter(Boolean)
+        : []
     create.mutate({
       id: crypto.randomUUID(),
       type: 'task',
@@ -118,7 +258,9 @@ export function TasksPage() {
       status: (values.status as EntityStatus) || 'active',
       priority: (values.priority as EntityPriority) || 'medium',
       tags,
-      metadata: {},
+      metadata: {
+        workspace: workspace !== 'all' ? workspace : undefined,
+      },
       ownerId: currentUser?.id ?? '',
       visibility: 'private',
       dueDate: (values.dueDate as string) || undefined,
@@ -130,9 +272,13 @@ export function TasksPage() {
 
   const handleEdit = (values: Record<string, unknown>) => {
     if (!editingTask) return
-    const tags = typeof values.tags === 'string'
-      ? values.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
-      : []
+    const tags =
+      typeof values.tags === 'string'
+        ? values.tags
+            .split(',')
+            .map((t: string) => t.trim())
+            .filter(Boolean)
+        : []
     update.mutate({
       id: editingTask.id,
       updates: {
@@ -153,8 +299,27 @@ export function TasksPage() {
     return <div className="p-4 text-muted-foreground">Loading...</div>
   }
 
+  // ── Render ────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-4">
+      {/* Workspace Tabs */}
+      <div className="flex bg-muted rounded-lg p-0.5 gap-0.5 w-fit">
+        {(['all', 'work', 'personal'] as const).map((ws) => (
+          <button
+            key={ws}
+            onClick={() => setWorkspace(ws)}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              workspace === ws
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {ws === 'all' ? 'All' : ws === 'work' ? '🏢 Work' : '🏠 Personal'}
+          </button>
+        ))}
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
@@ -166,12 +331,18 @@ export function TasksPage() {
               <TabsTrigger value="kanban">
                 <Columns3 className="h-4 w-4 mr-1" /> Board
               </TabsTrigger>
+              <TabsTrigger value="log">
+                <BarChart3 className="h-4 w-4 mr-1" /> Log
+              </TabsTrigger>
             </TabsList>
           </Tabs>
 
           {view === 'list' && (
             <>
-              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as EntityStatus | 'all')}>
+              <Select
+                value={statusFilter}
+                onValueChange={(v) => setStatusFilter(v as EntityStatus | 'all')}
+              >
                 <SelectTrigger className="w-[130px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -183,7 +354,10 @@ export function TasksPage() {
                   <SelectItem value="archived">Archived</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as EntityPriority | 'all')}>
+              <Select
+                value={priorityFilter}
+                onValueChange={(v) => setPriorityFilter(v as EntityPriority | 'all')}
+              >
                 <SelectTrigger className="w-[130px]">
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
@@ -208,21 +382,28 @@ export function TasksPage() {
             </>
           )}
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> New Task
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setStandupOpen(true)}>
+            <ClipboardList className="h-4 w-4 mr-1" /> Standup
+          </Button>
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> New Task
+          </Button>
+        </div>
       </div>
 
       {/* Saved filters */}
-      <SavedFilterBar
-        moduleKey="tasks"
-        currentCriteria={{ status: statusFilter, priority: priorityFilter, sort: sortKey }}
-        onApply={(c) => {
-          setStatusFilter((c.status as EntityStatus | 'all') || 'all')
-          setPriorityFilter((c.priority as EntityPriority | 'all') || 'all')
-          setSortKey((c.sort as SortKey) || 'priority')
-        }}
-      />
+      {view === 'list' && (
+        <SavedFilterBar
+          moduleKey="tasks"
+          currentCriteria={{ status: statusFilter, priority: priorityFilter, sort: sortKey }}
+          onApply={(c) => {
+            setStatusFilter((c.status as EntityStatus | 'all') || 'all')
+            setPriorityFilter((c.priority as EntityPriority | 'all') || 'all')
+            setSortKey((c.sort as SortKey) || 'priority')
+          }}
+        />
+      )}
 
       {/* Content */}
       {tasks.length === 0 ? (
@@ -235,7 +416,8 @@ export function TasksPage() {
         />
       ) : view === 'list' ? (
         <div className="space-y-2">
-          {filteredTasks.map((task) => (
+          {/* Active tasks */}
+          {activeTasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
@@ -246,21 +428,121 @@ export function TasksPage() {
               onSnooze={snoozeTask}
             />
           ))}
-          {filteredTasks.length === 0 && (
+          {activeTasks.length === 0 && doneToday.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-8">
               No tasks match the current filters.
             </p>
           )}
+
+          {/* Done Today collapsible */}
+          {doneToday.length > 0 && (
+            <Collapsible open={showDone} onOpenChange={setShowDone}>
+              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <ChevronRight
+                  className={`h-4 w-4 transition-transform ${showDone ? 'rotate-90' : ''}`}
+                />
+                Done Today ({doneToday.length})
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2">
+                {doneToday.map((task) => (
+                  <div key={task.id} className="opacity-60">
+                    <TaskCard
+                      task={task}
+                      onToggleComplete={toggleComplete}
+                      onMoveToStatus={moveToStatus}
+                      onEdit={setEditingTask}
+                      onDelete={setDeleteTarget}
+                      onSnooze={snoozeTask}
+                    />
+                  </div>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
         </div>
-      ) : (
+      ) : view === 'kanban' ? (
         <KanbanBoard
-          tasks={tasks}
+          tasks={workspaceTasks}
           onToggleComplete={toggleComplete}
           onMoveToStatus={moveToStatus}
           onEdit={setEditingTask}
           onDelete={setDeleteTarget}
           onSnooze={snoozeTask}
         />
+      ) : (
+        /* Log view */
+        <div className="space-y-6">
+          {/* Weekly summary */}
+          <Card>
+            <CardContent className="py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">This Week</span>
+                <span className="text-2xl font-bold">{thisWeekCount}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {thisWeekCount - lastWeekCount > 0
+                  ? `+${thisWeekCount - lastWeekCount}`
+                  : thisWeekCount - lastWeekCount}{' '}
+                vs last week
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* 14-day completion chart */}
+          <Card>
+            <CardContent className="py-4">
+              <h3 className="text-sm font-medium mb-3">Completion Activity</h3>
+              <div className="flex items-end gap-1 h-20">
+                {last14DaysData.map((day) => (
+                  <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full bg-primary/80 rounded-t"
+                      style={{
+                        height: `${(day.count / maxChartCount) * 100}%`,
+                        minHeight: day.count > 0 ? 4 : 0,
+                      }}
+                    />
+                    <span className="text-[10px] text-muted-foreground">{day.label}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Completed tasks grouped by date */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium">Completed Tasks</h3>
+            {dateGroups.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No completed tasks yet.</p>
+            ) : (
+              dateGroups.map((group) => (
+                <Collapsible
+                  key={group.date}
+                  defaultOpen={group.isToday || group.isYesterday}
+                >
+                  <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium py-1">
+                    <ChevronRight className="h-4 w-4 transition-transform [[data-state=open]>&]:rotate-90" />
+                    {group.label} ({group.tasks.length})
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 ml-6 mt-1">
+                    {group.tasks.map((task) => (
+                      <div key={task.id} className="opacity-70">
+                        <TaskCard
+                          task={task}
+                          onToggleComplete={toggleComplete}
+                          onMoveToStatus={moveToStatus}
+                          onEdit={setEditingTask}
+                          onDelete={setDeleteTarget}
+                          onSnooze={snoozeTask}
+                        />
+                      </div>
+                    ))}
+                  </CollapsibleContent>
+                </Collapsible>
+              ))
+            )}
+          </div>
+        </div>
       )}
 
       {/* Create dialog */}
@@ -295,6 +577,9 @@ export function TasksPage() {
           }
         }}
       />
+
+      {/* Standup Report Sheet */}
+      <StandupReport open={standupOpen} onOpenChange={setStandupOpen} tasks={workspaceTasks} />
     </div>
   )
 }

@@ -14,6 +14,36 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.30.0',
+    date: '2026-03-15',
+    phase: 'Task Redesign — Workspaces, Clean Done, Log & Standup',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Workspace Tabs**: Switch between All, Work, and Personal tasks — workspace stored in `metadata.workspace`, filters apply to all views',
+          '**Clean Done Section**: Completed tasks collapse into a "Done Today" section with dimmed styling — keeps active tasks focused and clutter-free',
+          '**Log View**: New 3rd view tab alongside List and Board — shows weekly completion count with trend, 14-day daily completion bar chart, and completed tasks grouped by date',
+          '**Standup Report**: One-click standup generator with smart weekend logic (Monday shows Friday\'s work) — sections for Done, Today\'s Plan, and Blocked — copy to clipboard as formatted text',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**View switcher**: Renamed "Kanban" to "Board", added "Log" as third view option',
+          '**Task creation**: Automatically assigns workspace based on current tab selection',
+          '**List view**: Active tasks shown first, completed tasks in collapsible section below',
+        ],
+      },
+      {
+        title: 'New Files',
+        items: [
+          '`standup-report.tsx` — Slide-out standup report sheet with smart last-workday detection and clipboard copy',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.29.0',
     date: '2026-03-15',
     phase: 'Habit Protocols & Dashboard',
