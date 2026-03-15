@@ -14,6 +14,34 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.38.0',
+    date: '2026-03-15',
+    phase: 'Deep Work Mode with Pomodoro Timer',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Deep Work mode**: Full-screen distraction-free focus view — hides sidebar, topbar, everything',
+          '**Pomodoro timer**: Large countdown display with work/break cycles, progress bar, and audio chime on completion',
+          '**3 presets**: Classic (25/5 min), Deep (50/10 min), Sprint (90/20 min) — switch from bottom bar',
+          '**Task picker**: If no task selected, shows a picker to choose what to focus on',
+          '**Subtask checklist**: Active story\'s subtasks shown with current step highlighted — check off steps during focus',
+          '**Auto-session logging**: Completed work sessions automatically logged as trackers (`focus-min` unit)',
+          '**Session counter**: Shows "Session 2/4" with daily focus total in minutes',
+          '**Focus button on stories**: Each story card on Focus page has a "Focus" button to enter deep work',
+          '**Esc to exit**: Press Escape or click X to leave deep work mode',
+        ],
+      },
+      {
+        title: 'New Files',
+        items: [
+          '`focus-store.ts` — Zustand store for deep work state, timer settings, and presets',
+          '`deep-work.tsx` — Full-screen focus page with Pomodoro timer, task display, and session logging',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.37.0',
     date: '2026-03-15',
     phase: 'Demo Mode — Portfolio-Ready Mock Data',

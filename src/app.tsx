@@ -23,6 +23,7 @@ const HealthPage = lazy(() => import('@/pages/health').then((m) => ({ default: m
 const FamilyPage = lazy(() => import('@/pages/family').then((m) => ({ default: m.FamilyPage })))
 const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m.ReviewPage })))
 const DashboardPage = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.DashboardPage })))
+const DeepWorkPage = lazy(() => import('@/pages/deep-work').then((m) => ({ default: m.DeepWorkPage })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,6 +43,7 @@ export function App() {
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route element={<ProtectedRoute />}>
+                <Route path="deep-work" element={<DeepWorkPage />} />
                 <Route element={<AppLayout />}>
                   <Route index element={<TodayPage />} />
                   <Route path="goals" element={<GoalsPage />} />

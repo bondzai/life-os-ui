@@ -21,6 +21,7 @@ import { useICalEvents } from '@/hooks/use-ical-events'
 import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { useFocusStore } from '@/stores/focus-store'
 import { PriorityPicker } from './today/priority-picker'
 import { StandupReport } from './tasks/standup-report'
 import { CaptureBar } from './today/capture-bar'
@@ -114,24 +115,37 @@ function FocusStory({
   onAddSubtask: (entity: Entity, title: string) => void
 }) {
   const [expanded, setExpanded] = useState(true)
+  const nav = useNavigate()
 
   return (
     <div className={`rounded-lg border transition-colors ${
       allDone ? 'border-green-500/40 bg-green-50/20 dark:bg-green-950/10' : 'bg-card/50'
     }`}>
       {/* Story header — click to toggle */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-3 w-full p-3 text-left hover:bg-muted/30 rounded-lg transition-colors"
-      >
-        <ListChecks className="h-4 w-4 text-purple-500 shrink-0" />
-        {expanded
-          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
-          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
-        }
-        <span className={`text-sm flex-1 font-medium truncate ${allDone ? 'line-through text-muted-foreground' : ''}`}>
-          {item.title}
-        </span>
+      <div className="flex items-center gap-3 w-full p-3 hover:bg-muted/30 rounded-lg transition-colors">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+        >
+          <ListChecks className="h-4 w-4 text-purple-500 shrink-0" />
+          {expanded
+            ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+            : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+          }
+          <span className={`text-sm flex-1 font-medium truncate ${allDone ? 'line-through text-muted-foreground' : ''}`}>
+            {item.title}
+          </span>
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            useFocusStore.getState().startSession(item.id)
+            nav('/deep-work')
+          }}
+          className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0"
+        >
+          Focus
+        </button>
         {typeof item.metadata.workspace === 'string' && (
           <span className="text-[10px] text-muted-foreground/40 shrink-0">
             {item.metadata.workspace === 'work' ? '🏢' : '🏠'}
@@ -142,7 +156,7 @@ function FocusStory({
         }`}>
           {doneCount}/{subs.length}
         </span>
-      </button>
+      </div>
 
       {/* Subtasks — collapsible */}
       {expanded && (
