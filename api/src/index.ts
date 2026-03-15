@@ -36,6 +36,13 @@ app.use('/api/trackers/*', jwtMiddleware())
 app.use('/api/schedules/*', jwtMiddleware())
 app.use('/api/relations/*', jwtMiddleware())
 
+// Google Calendar OAuth — protect auth/* (except callback) and events/*
+app.use('/api/gcal/auth/url', jwtMiddleware())
+app.use('/api/gcal/auth/status', jwtMiddleware())
+app.use('/api/gcal/auth/disconnect', jwtMiddleware())
+app.use('/api/gcal/events', jwtMiddleware())
+app.use('/api/gcal/events/*', jwtMiddleware())
+
 app.route('/api/entities', entityRoutes)
 app.route('/api/trackers', trackerRoutes)
 app.route('/api/schedules', scheduleRoutes)

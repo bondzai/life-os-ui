@@ -54,6 +54,14 @@ sqlite.exec(`
     toId TEXT,
     type TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS google_tokens (
+    userId TEXT PRIMARY KEY,
+    accessToken TEXT,
+    refreshToken TEXT,
+    expiresAt TEXT,
+    calendarId TEXT
+  );
 `)
 
 // Date helpers

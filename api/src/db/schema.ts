@@ -50,3 +50,11 @@ export const relations = sqliteTable('relations', {
   toId: text('toId'),
   type: text('type'),
 })
+
+export const googleTokens = sqliteTable('google_tokens', {
+  userId: text('userId').primaryKey(),
+  accessToken: text('accessToken'),
+  refreshToken: text('refreshToken'),
+  expiresAt: text('expiresAt'),
+  calendarId: text('calendarId'),
+})

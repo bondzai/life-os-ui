@@ -14,6 +14,48 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.25.0',
+    date: '2026-03-15',
+    phase: 'Google Calendar Integration & Calendar Redesign',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Google Calendar OAuth**: Connect your Google account to create, edit, and delete events directly from Life-OS',
+          '**Google Calendar CRUD**: Full create/update/delete via OAuth 2.0 with automatic token refresh',
+          '**Per-event colors**: Events fetched from Google Calendar API v3 with actual per-event colors (no API key needed — uses Google\'s public embed key)',
+          '**Calendar color auto-detect**: Calendar background color fetched in parallel, used as fallback for events without individual colorId',
+          '**Google Calendar event sheet**: Slide-up bottom sheet for creating events with inline title, datetime pickers, location, and description',
+          '**Event detail edit/delete**: Edit and delete Google Calendar events from the event detail bottom sheet',
+          '**Smart "New" button**: Dropdown menu when Google connected — choose between Google Calendar or local event creation',
+          '**Toast notifications**: Sonner toasts on event create/update/delete instead of page reload',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Calendar redesign**: Google Calendar-inspired month view with mini-calendar grid, event dots, collapsible expand, and event list below',
+          '**Week view redesign**: Hourly time grid with positioned event blocks, red current-time indicator, all-day events row',
+          '**Schedule view redesign**: 30-day continuous timeline with sticky date headers and colored event cards',
+          '**Calendar toolbar**: Single-row compact header — nav arrows, title, Today pill, view switcher, + New button, settings all inline',
+          '**No more FAB overlap**: Replaced floating action button with inline header button — no positioning conflicts',
+          '**No page reload on CRUD**: Events refresh via `queryClient.invalidateQueries` for seamless UX',
+          '**Base64 calendar ID decoding**: `extractCalendarId()` properly decodes base64 `src` params from Google Calendar embed/share URLs',
+        ],
+      },
+      {
+        title: 'New Files',
+        items: [
+          '`use-gcal-auth.ts` — Google Calendar OAuth hook with connect/disconnect/CRUD methods',
+          '`month-view.tsx` — Compact mini-month grid with event dots and today highlight',
+          '`event-list.tsx` — Scrollable event list for selected date with colored cards',
+          '`event-detail-sheet.tsx` — Bottom sheet with event details, edit/delete for Google events',
+          '`gcal-event-dialog.tsx` — Slide-up creation sheet with borderless inputs',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.24.0',
     date: '2026-03-15',
     phase: 'Security Hardening & Performance',
