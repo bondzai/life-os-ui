@@ -15,19 +15,12 @@ const GoalsPage = lazy(() => import('@/pages/goals').then((m) => ({ default: m.G
 const TasksPage = lazy(() => import('@/pages/tasks').then((m) => ({ default: m.TasksPage })))
 const CalendarPage = lazy(() => import('@/pages/calendar').then((m) => ({ default: m.CalendarPage })))
 const HabitsPage = lazy(() => import('@/pages/habits').then((m) => ({ default: m.HabitsPage })))
-const SkillsPage = lazy(() => import('@/pages/skills').then((m) => ({ default: m.SkillsPage })))
-const ReadingPage = lazy(() => import('@/pages/reading').then((m) => ({ default: m.ReadingPage })))
+const LearningPage = lazy(() => import('@/pages/learning').then((m) => ({ default: m.LearningPage })))
 const NotesPage = lazy(() => import('@/pages/notes').then((m) => ({ default: m.NotesPage })))
-const PostsPage = lazy(() => import('@/pages/posts').then((m) => ({ default: m.PostsPage })))
-const NotificationsPage = lazy(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationsPage })))
-const PlacesPage = lazy(() => import('@/pages/places').then((m) => ({ default: m.PlacesPage })))
-const TravelPage = lazy(() => import('@/pages/travel').then((m) => ({ default: m.TravelPage })))
+const TravelPage = lazy(() => import('@/pages/places').then((m) => ({ default: m.PlacesPage })))
 const WealthPage = lazy(() => import('@/pages/wealth').then((m) => ({ default: m.WealthPage })))
 const HealthPage = lazy(() => import('@/pages/health').then((m) => ({ default: m.HealthPage })))
-const HomePage = lazy(() => import('@/pages/home').then((m) => ({ default: m.HomePage })))
 const FamilyPage = lazy(() => import('@/pages/family').then((m) => ({ default: m.FamilyPage })))
-const AutomatePage = lazy(() => import('@/pages/automate').then((m) => ({ default: m.AutomatePage })))
-const MemoriesPage = lazy(() => import('@/pages/memories').then((m) => ({ default: m.MemoriesPage })))
 const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m.ReviewPage })))
 
 const queryClient = new QueryClient({
@@ -54,21 +47,14 @@ export function App() {
                   <Route path="tasks" element={<TasksPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
                   <Route path="notes" element={<NotesPage />} />
-                  <Route path="skills" element={<SkillsPage />} />
                   <Route path="habits" element={<HabitsPage />} />
-                  <Route path="reading" element={<ReadingPage />} />
-                  <Route path="posts" element={<PostsPage />} />
-                  <Route path="notifications" element={<NotificationsPage />} />
-                  <Route path="places" element={<PlacesPage />} />
-                  <Route path="travel" element={<TravelPage />} />
+                  <Route path="learning" element={<LearningPage />} />
                   <Route path="health" element={<HealthPage />} />
                   <Route path="wealth" element={<WealthPage />} />
-                  <Route path="home" element={<HomePage />} />
+                  <Route path="travel" element={<TravelPage />} />
                   <Route path="family" element={<FamilyPage />} />
-                  <Route path="automate" element={<AutomatePage />} />
-                  <Route path="memories" element={<MemoriesPage />} />
-                  <Route path="today" element={<TodayPage />} /> {/* keep for backward compat */}
                   <Route path="review" element={<ReviewPage />} />
+                  <Route path="today" element={<TodayPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
               </Route>

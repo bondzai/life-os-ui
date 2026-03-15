@@ -2,20 +2,13 @@ import {
   Target,
   CheckSquare,
   Calendar,
-  Brain,
   Repeat,
-  BookOpen,
+  GraduationCap,
   Heart,
   Wallet,
-  Home,
   Users,
   NotebookPen,
-  Newspaper,
-  Bell,
   MapPin,
-  Plane,
-  Zap,
-  Camera,
   LayoutDashboard,
   ClipboardCheck,
   type LucideIcon,
@@ -44,18 +37,11 @@ export const modules: ModuleConfig[] = [
   { id: 'health', label: 'Health', icon: Heart, path: '/health', group: 'Track', entityTypes: ['body-metric', 'workout', 'sleep-mood'] },
   { id: 'wealth', label: 'Wealth', icon: Wallet, path: '/wealth', group: 'Track', entityTypes: ['transaction', 'budget', 'account', 'asset', 'wallet', 'crypto-tx'] },
 
-  // More — everything else
-  { id: 'skills', label: 'Skills', icon: Brain, path: '/skills', group: 'More', entityTypes: ['skill'] },
-  { id: 'reading', label: 'Reading', icon: BookOpen, path: '/reading', group: 'More', entityTypes: ['book', 'course'] },
-  { id: 'memories', label: 'Memories', icon: Camera, path: '/memories', group: 'More', entityTypes: ['memory'] },
-  { id: 'posts', label: 'Posts', icon: Newspaper, path: '/posts', group: 'More', entityTypes: ['post'] },
-  { id: 'places', label: 'Places', icon: MapPin, path: '/places', group: 'More', entityTypes: ['place', 'location'] },
-  { id: 'travel', label: 'Travel', icon: Plane, path: '/travel', group: 'More', entityTypes: ['trip'] },
-  { id: 'home', label: 'Home', icon: Home, path: '/home', group: 'More', entityTypes: ['device', 'service'] },
-  { id: 'family', label: 'Family', icon: Users, path: '/family', group: 'More', entityTypes: ['chore'] },
-  { id: 'automate', label: 'Automate', icon: Zap, path: '/automate', group: 'More', entityTypes: ['automation'] },
-  { id: 'notifications', label: 'Notifications', icon: Bell, path: '/notifications', group: 'More', entityTypes: [] },
-  { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review', group: 'More', entityTypes: [] },
+  // Life — lifestyle
+  { id: 'learning', label: 'Learning', icon: GraduationCap, path: '/learning', group: 'Life', entityTypes: ['book', 'course', 'skill'] },
+  { id: 'travel', label: 'Travel', icon: MapPin, path: '/travel', group: 'Life', entityTypes: ['place', 'location', 'trip'] },
+  { id: 'family', label: 'Family', icon: Users, path: '/family', group: 'Life', entityTypes: ['chore'] },
+  { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review', group: 'Life', entityTypes: [] },
 ]
 
 export function getModuleGroups(): { group: string; modules: ModuleConfig[] }[] {
@@ -69,6 +55,4 @@ export function getModuleGroups(): { group: string; modules: ModuleConfig[] }[] 
 }
 
 /** Groups that should be collapsed by default */
-export const DEFAULT_COLLAPSED_GROUPS: Record<string, boolean> = {
-  More: true,
-}
+export const DEFAULT_COLLAPSED_GROUPS: Record<string, boolean> = {}

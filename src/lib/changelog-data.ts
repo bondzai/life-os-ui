@@ -14,6 +14,41 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.27.0',
+    date: '2026-03-15',
+    phase: 'Streamline — Focused Module Structure',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          '**18 → 12 modules**: Removed 6 low-usage modules and merged 2 overlapping ones for a cleaner, more focused app',
+          '**New sidebar groups**: Core (Focus, Tasks, Notes, Calendar) → Track (Goals, Habits, Health, Wealth) → Life (Learning, Travel, Family, Review)',
+          '**Learning page**: Merged Skills + Reading into a single tabbed page (Books, Courses, Skills) with unified CRUD',
+          '**Travel page**: Renamed from Places — now includes places, live location, and trip entity types',
+          '**No more collapsed "More" group**: All modules visible and meaningful — nothing hidden by default',
+        ],
+      },
+      {
+        title: 'Removed',
+        items: [
+          '**Posts** — removed from sidebar and routes',
+          '**Memories** — removed from sidebar and routes',
+          '**Home** (devices/services) — removed from sidebar and routes',
+          '**Automate** — removed from sidebar and routes',
+          '**Notifications page** — removed (toast system still active)',
+          '**Skills** (separate page) — merged into Learning',
+          '**Reading** (separate page) — merged into Learning',
+        ],
+      },
+      {
+        title: 'New Files',
+        items: [
+          '`learning.tsx` — Unified learning page with Books/Courses/Skills tabs, reading challenge, practice log, skill levels',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.26.0',
     date: '2026-03-15',
     phase: 'Unified Places & Location',
