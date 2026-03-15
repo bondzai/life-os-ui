@@ -14,6 +14,36 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.29.0',
+    date: '2026-03-15',
+    phase: 'Habit Protocols & Dashboard',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Habit Protocols**: Group actions into checklists (e.g. Morning Protocol, Before Bed Protocol) — each step is a checkbox, streak increments only when all steps complete',
+          '**Protocol Templates**: 6 preset templates (Morning, Before Bed, Deep Work, Workout, Nutrition, Weekly Review) shown when creating — pick one to pre-fill or start from scratch',
+          '**Protocol Dialog**: Create/edit protocols with dynamic step list — add, remove, reorder, rename steps inline',
+          '**Focus Page Protocols**: Active protocols render as compact inline checklists on the Focus page, above habit pills — check off steps directly from your daily view',
+          '**Dashboard Page** (`/dashboard`): New analytics page with Life Score, weekly trends, protocol streaks, combined heatmap, and AI context summary',
+          '**Life Score**: Composite 0-100 metric weighted across tasks (25%), habits (30%), goals (20%), sleep (15%), activity (10%) with circular progress indicator',
+          '**Weekly Trends**: 6-card grid comparing this week vs last — Tasks Done, Habit Rate, Protocol Rate, Avg Sleep, Active Minutes, Goal Progress with trend arrows',
+          '**Protocol Streaks**: Horizontal progress bars showing consecutive days per protocol (max 30)',
+          '**Combined Heatmap**: 90-day aggregated activity grid across all habits and protocols with 4-level intensity scale',
+          '**AI Context Summary**: Natural language preview of all metrics — designed as future input for AI-powered insights',
+        ],
+      },
+      {
+        title: 'New Files',
+        items: [
+          '`protocol-dialog.tsx` — Protocol creation/edit dialog with step editor and template picker',
+          '`protocol-card.tsx` — Interactive checklist card with progress bar and streak display',
+          '`dashboard.tsx` — Analytics dashboard with Life Score, trends, streaks, heatmap, AI summary',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.28.0',
     date: '2026-03-15',
     phase: 'Health Metrics — BMI, BMR, TDEE & Bulk/Cut',

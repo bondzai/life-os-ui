@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Plus, Repeat, Pencil, Trash2, Flame, Check } from 'lucide-react'
+import { Plus, Repeat, Pencil, Trash2, Flame, Check, ListChecks } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -9,6 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
@@ -20,6 +26,8 @@ import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import { emitAutomationEvent } from './automate/automation-event-bus'
 import { HabitHeatmap } from './habits/habit-heatmap'
+import { ProtocolDialog, type ProtocolStep } from './habits/protocol-dialog'
+import { ProtocolCard } from './habits/protocol-card'
 import type { Entity, EntityStatus } from '@/core/types'
 
 function getTodayStart(): string {
@@ -28,19 +36,44 @@ function getTodayStart(): string {
   return d.toISOString()
 }
 
+function isProtocol(habit: Entity): boolean {
+  return habit.metadata.isProtocol === true && Array.isArray(habit.metadata.steps)
+}
+
+function getCompletedSteps(trackerNote: string | undefined | null): string[] {
+  if (!trackerNote) return []
+  try {
+    const parsed = JSON.parse(trackerNote)
+    if (Array.isArray(parsed)) return parsed
+  } catch {
+    // Not JSON
+  }
+  return []
+}
+
 export function HabitsPage() {
   const { items: allHabits, isLoading, create, update, remove } = useEntities('habit')
-  const { items: allTrackers, create: createTracker, remove: removeTracker } = useTrackers()
+  const { items: allTrackers, create: createTracker, update: updateTracker, remove: removeTracker } = useTrackers()
   const currentUser = useAuthStore((s) => s.currentUser)
 
   const [statusFilter, setStatusFilter] = useState<EntityStatus | 'all'>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [protocolDialogOpen, setProtocolDialogOpen] = useState(false)
   const [editingHabit, setEditingHabit] = useState<Entity | null>(null)
+  const [editingProtocol, setEditingProtocol] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
 
   const habits = useMemo(() => {
-    if (statusFilter === 'all') return allHabits
-    return allHabits.filter((h) => h.status === statusFilter)
+    let filtered = allHabits
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((h) => h.status === statusFilter)
+    }
+    // Protocols first, then regular habits
+    return [...filtered].sort((a, b) => {
+      const aProto = isProtocol(a) ? 0 : 1
+      const bProto = isProtocol(b) ? 0 : 1
+      return aProto - bProto
+    })
   }, [allHabits, statusFilter])
 
   const todayStart = useMemo(() => getTodayStart(), [])
@@ -53,10 +86,10 @@ export function HabitsPage() {
     [allTrackers, todayStart],
   )
 
+  // --- Regular Habit Check-in ---
   const handleCheckIn = (habit: Entity) => {
     const existing = getTodayTracker(habit.id)
     if (existing) {
-      // Undo check-in
       removeTracker.mutate(existing.id)
       const streak = typeof habit.metadata.streak === 'number' ? habit.metadata.streak : 0
       update.mutate({
@@ -67,7 +100,6 @@ export function HabitsPage() {
         },
       })
     } else {
-      // Check in
       createTracker.mutate({
         id: crypto.randomUUID(),
         entityId: habit.id,
@@ -84,19 +116,74 @@ export function HabitsPage() {
           updatedAt: new Date().toISOString(),
         },
       })
-      emitAutomationEvent({
-        type: 'tracker-created',
+      emitAutomationEvent({ type: 'tracker-created', entityId: habit.id, entityType: 'habit' })
+    }
+  }
+
+  // --- Protocol Step Toggle ---
+  const handleToggleStep = (habit: Entity, stepId: string, completed: boolean) => {
+    const existing = getTodayTracker(habit.id)
+    const currentSteps = getCompletedSteps(existing?.note)
+    const steps = (habit.metadata.steps as ProtocolStep[]) || []
+    const totalSteps = steps.length
+
+    let newSteps: string[]
+    if (completed) {
+      newSteps = [...new Set([...currentSteps, stepId])]
+    } else {
+      newSteps = currentSteps.filter((s) => s !== stepId)
+    }
+
+    const allDone = newSteps.length >= totalSteps
+    const wasDone = currentSteps.length >= totalSteps
+
+    if (existing) {
+      // Update existing tracker's note
+      updateTracker.mutate({
+        id: existing.id,
+        updates: { note: JSON.stringify(newSteps) },
+      })
+    } else {
+      // Create tracker with completed steps
+      createTracker.mutate({
+        id: crypto.randomUUID(),
         entityId: habit.id,
-        entityType: 'habit',
+        value: 1,
+        unit: 'done',
+        note: JSON.stringify(newSteps),
+        timestamp: new Date().toISOString(),
+        ownerId: currentUser?.id ?? '',
+      })
+    }
+
+    // Streak: increment when all steps done, decrement when undone from all-done
+    if (allDone && !wasDone) {
+      const streak = typeof habit.metadata.streak === 'number' ? habit.metadata.streak : 0
+      update.mutate({
+        id: habit.id,
+        updates: {
+          metadata: { ...habit.metadata, streak: streak + 1 },
+          updatedAt: new Date().toISOString(),
+        },
+      })
+      emitAutomationEvent({ type: 'tracker-created', entityId: habit.id, entityType: 'habit' })
+    } else if (!allDone && wasDone) {
+      const streak = typeof habit.metadata.streak === 'number' ? habit.metadata.streak : 0
+      update.mutate({
+        id: habit.id,
+        updates: {
+          metadata: { ...habit.metadata, streak: Math.max(0, streak - 1) },
+          updatedAt: new Date().toISOString(),
+        },
       })
     }
   }
 
-  const handleCreate = (values: Record<string, unknown>) => {
-    const tags =
-      typeof values.tags === 'string'
-        ? values.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
-        : []
+  // --- Create Handlers ---
+  const handleCreateHabit = (values: Record<string, unknown>) => {
+    const tags = typeof values.tags === 'string'
+      ? values.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+      : []
     create.mutate({
       id: crypto.randomUUID(),
       type: 'habit',
@@ -114,12 +201,34 @@ export function HabitsPage() {
     notify({ title: 'Habit created', type: 'success' })
   }
 
-  const handleEdit = (values: Record<string, unknown>) => {
+  const handleCreateProtocol = (values: { title: string; description: string; steps: ProtocolStep[] }) => {
+    create.mutate({
+      id: crypto.randomUUID(),
+      type: 'habit',
+      title: values.title,
+      description: values.description || undefined,
+      status: 'active',
+      priority: 'medium',
+      tags: [],
+      metadata: {
+        streak: 0,
+        frequency: 'daily',
+        isProtocol: true,
+        steps: values.steps,
+      },
+      ownerId: currentUser?.id ?? '',
+      visibility: 'private',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    notify({ title: 'Protocol created', type: 'success' })
+  }
+
+  const handleEditHabit = (values: Record<string, unknown>) => {
     if (!editingHabit) return
-    const tags =
-      typeof values.tags === 'string'
-        ? values.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
-        : []
+    const tags = typeof values.tags === 'string'
+      ? values.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+      : []
     update.mutate({
       id: editingHabit.id,
       updates: {
@@ -133,6 +242,21 @@ export function HabitsPage() {
     })
     notify({ title: 'Habit updated', type: 'success' })
     setEditingHabit(null)
+  }
+
+  const handleEditProtocol = (values: { title: string; description: string; steps: ProtocolStep[] }) => {
+    if (!editingProtocol) return
+    update.mutate({
+      id: editingProtocol.id,
+      updates: {
+        title: values.title,
+        description: values.description || undefined,
+        metadata: { ...editingProtocol.metadata, steps: values.steps },
+        updatedAt: new Date().toISOString(),
+      },
+    })
+    notify({ title: 'Protocol updated', type: 'success' })
+    setEditingProtocol(null)
   }
 
   if (isLoading) {
@@ -160,44 +284,66 @@ export function HabitsPage() {
             </SelectContent>
           </Select>
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> New Habit
-        </Button>
+
+        {/* Add dropdown: Habit or Protocol */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1" /> New
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setDialogOpen(true)}>
+              <Repeat className="h-4 w-4 mr-2" /> Habit
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setProtocolDialogOpen(true)}>
+              <ListChecks className="h-4 w-4 mr-2" /> Protocol
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {/* Habit cards grid */}
+      {/* Cards grid */}
       {habits.length === 0 ? (
         <EmptyState
           icon={Repeat}
           title="No habits yet"
-          description="Create your first habit to start building streaks."
+          description="Create a habit or protocol to start building streaks."
           actionLabel="New Habit"
           onAction={() => setDialogOpen(true)}
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {habits.map((habit) => {
+            if (isProtocol(habit)) {
+              const tracker = getTodayTracker(habit.id)
+              const completedSteps = getCompletedSteps(tracker?.note)
+              return (
+                <ProtocolCard
+                  key={habit.id}
+                  habit={habit}
+                  todayCompletedSteps={completedSteps}
+                  onToggleStep={handleToggleStep}
+                  onEdit={(h) => setEditingProtocol(h)}
+                  onDelete={(h) => setDeleteTarget(h)}
+                />
+              )
+            }
+
+            // Regular habit card
             const checked = !!getTodayTracker(habit.id)
-            const streak =
-              typeof habit.metadata.streak === 'number' ? habit.metadata.streak : 0
-            const frequency =
-              typeof habit.metadata.frequency === 'string'
-                ? habit.metadata.frequency
-                : 'daily'
+            const streak = typeof habit.metadata.streak === 'number' ? habit.metadata.streak : 0
+            const frequency = typeof habit.metadata.frequency === 'string' ? habit.metadata.frequency : 'daily'
 
             return (
               <Card key={habit.id}>
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-sm font-medium">
-                        {habit.title}
-                      </CardTitle>
+                      <CardTitle className="text-sm font-medium">{habit.title}</CardTitle>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {frequency}
-                      </Badge>
+                      <Badge variant="outline" className="text-xs capitalize">{frequency}</Badge>
                       <PriorityBadge priority={habit.priority} />
                       <StatusBadge status={habit.status} />
                     </div>
@@ -205,9 +351,7 @@ export function HabitsPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {habit.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">
-                      {habit.description}
-                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{habit.description}</p>
                   )}
 
                   {/* Streak + milestones */}
@@ -231,9 +375,7 @@ export function HabitsPage() {
                     ).length
                     const rate = daysElapsed > 0 ? Math.round((monthCheckins / daysElapsed) * 100) : 0
                     return (
-                      <Badge variant="outline" className="text-xs">
-                        {rate}% this month
-                      </Badge>
+                      <Badge variant="outline" className="text-xs">{rate}% this month</Badge>
                     )
                   })()}
 
@@ -255,32 +397,17 @@ export function HabitsPage() {
                   {habit.tags.length > 0 && (
                     <div className="flex gap-1 flex-wrap">
                       {habit.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-xs bg-secondary px-1.5 py-0.5 rounded"
-                        >
-                          {tag}
-                        </span>
+                        <span key={tag} className="text-xs bg-secondary px-1.5 py-0.5 rounded">{tag}</span>
                       ))}
                     </div>
                   )}
 
                   {/* Actions */}
                   <div className="flex gap-1 pt-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2"
-                      onClick={() => setEditingHabit(habit)}
-                    >
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingHabit(habit)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2"
-                      onClick={() => setDeleteTarget(habit)}
-                    >
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setDeleteTarget(habit)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -291,35 +418,56 @@ export function HabitsPage() {
         </div>
       )}
 
-      {/* Create dialog */}
+      {/* Create habit dialog */}
       <EntityDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         entityType="habit"
         title="New Habit"
-        onSubmit={handleCreate}
+        onSubmit={handleCreateHabit}
       />
 
-      {/* Edit dialog */}
+      {/* Create protocol dialog */}
+      <ProtocolDialog
+        open={protocolDialogOpen}
+        onOpenChange={setProtocolDialogOpen}
+        onSubmit={handleCreateProtocol}
+      />
+
+      {/* Edit habit dialog */}
       <EntityDialog
         open={!!editingHabit}
         onOpenChange={(open) => !open && setEditingHabit(null)}
         entityType="habit"
         title="Edit Habit"
         defaultValues={editingHabit ?? undefined}
-        onSubmit={handleEdit}
+        onSubmit={handleEditHabit}
+      />
+
+      {/* Edit protocol dialog */}
+      <ProtocolDialog
+        open={!!editingProtocol}
+        onOpenChange={(open) => !open && setEditingProtocol(null)}
+        title="Edit Protocol"
+        defaultValues={editingProtocol ? {
+          title: editingProtocol.title,
+          description: editingProtocol.description || '',
+          steps: (editingProtocol.metadata.steps as ProtocolStep[]) || [],
+        } : undefined}
+        onSubmit={handleEditProtocol}
       />
 
       {/* Delete confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title="Delete Habit"
+        title={`Delete ${deleteTarget && isProtocol(deleteTarget) ? 'Protocol' : 'Habit'}`}
         description={`Are you sure you want to delete "${deleteTarget?.title}"?`}
         onConfirm={() => {
           if (deleteTarget) {
+            const label = isProtocol(deleteTarget) ? 'Protocol' : 'Habit'
             remove.mutate(deleteTarget.id)
-            notify({ title: 'Habit deleted', type: 'success' })
+            notify({ title: `${label} deleted`, type: 'success' })
             setDeleteTarget(null)
           }
         }}

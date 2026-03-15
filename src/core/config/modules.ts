@@ -11,6 +11,7 @@ import {
   MapPin,
   LayoutDashboard,
   ClipboardCheck,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -27,6 +28,7 @@ export interface ModuleConfig {
 export const modules: ModuleConfig[] = [
   // Core — daily drivers
   { id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Core', entityTypes: [] },
+  { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard', group: 'Core', entityTypes: [] },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Core', entityTypes: ['task'] },
   { id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Core', entityTypes: ['note'] },
   { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Core', entityTypes: ['event'] },

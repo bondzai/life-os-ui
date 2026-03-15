@@ -22,6 +22,7 @@ const WealthPage = lazy(() => import('@/pages/wealth').then((m) => ({ default: m
 const HealthPage = lazy(() => import('@/pages/health').then((m) => ({ default: m.HealthPage })))
 const FamilyPage = lazy(() => import('@/pages/family').then((m) => ({ default: m.FamilyPage })))
 const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m.ReviewPage })))
+const DashboardPage = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.DashboardPage })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +55,7 @@ export function App() {
                   <Route path="travel" element={<TravelPage />} />
                   <Route path="family" element={<FamilyPage />} />
                   <Route path="review" element={<ReviewPage />} />
+                  <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="today" element={<TodayPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
