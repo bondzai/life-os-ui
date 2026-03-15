@@ -300,30 +300,6 @@ export function TodayPage() {
     notify({ title: 'Focus updated', type: 'success' })
   }, [priorities])
 
-  const handleCreateStory = useCallback((title: string, steps: string[]) => {
-    const id = crypto.randomUUID()
-    const subtasks = steps.map((s) => ({ id: crypto.randomUUID(), title: s, done: false }))
-    create.mutate({
-      id,
-      type: 'task',
-      title,
-      status: 'active',
-      priority: 'high',
-      tags: [],
-      metadata: { subtasks: subtasks.length > 0 ? subtasks : undefined },
-      ownerId: currentUser?.id ?? '',
-      visibility: 'private',
-      dueDate: today,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    })
-    const merged = [...priorities, id]
-    setTodayPriorities(merged)
-    setPriorities(merged)
-    setAddingStory(false)
-    notify({ title: 'Story created & focused', type: 'success' })
-  }, [create, currentUser, today, priorities])
-
   const toggleSubtask = useCallback(
     (entity: Entity, subtaskId: string) => {
       const subs = Array.isArray(entity.metadata.subtasks)
@@ -704,7 +680,6 @@ export function TodayPage() {
                       candidates={priorityCandidates}
                       existingIds={priorities}
                       onSave={handleSavePriorities}
-                      onCreate={handleCreateStory}
                     />
                     <button
                       className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-2"
@@ -719,7 +694,6 @@ export function TodayPage() {
               <PriorityPicker
                 candidates={priorityCandidates}
                 onSave={handleSavePriorities}
-                onCreate={handleCreateStory}
               />
             )}
           </section>

@@ -14,6 +14,34 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.33.0',
+    date: '2026-03-15',
+    phase: 'Stories — Create in Tasks, Focus in Focus',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Story creation in Tasks**: New "Story" option in Tasks page dropdown — create tasks with ordered subtasks, priority, due date, and workspace (like Jira/ClickUp stories)',
+          '**Story dialog**: Full dialog with title, priority, due date, workspace picker, and dynamic step list with add/remove/reorder',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Focus page is pick-only**: Removed story creation from Focus — create stories in Tasks, pick them in Focus. Clean separation of planning vs execution',
+          '**PriorityPicker simplified**: Shows existing tasks/stories with subtask indicator (📋 icon), no creation form',
+          '**Tasks "New" button**: Dropdown with Task and Story options',
+        ],
+      },
+      {
+        title: 'New Files',
+        items: [
+          '`story-dialog.tsx` — Story creation dialog with subtask step editor, priority, workspace, and due date',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.32.0',
     date: '2026-03-15',
     phase: 'Story-Based Focus',

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList } from 'lucide-react'
+import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList, ListChecks } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -18,6 +18,13 @@ import { emitAutomationEvent } from './automate/automation-event-bus'
 import { TaskCard } from './tasks/task-card'
 import { KanbanBoard } from './tasks/kanban-board'
 import { StandupReport } from './tasks/standup-report'
+import { StoryDialog } from './tasks/story-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 
 type ViewMode = 'list' | 'kanban' | 'log'
@@ -79,6 +86,7 @@ export function TasksPage() {
   const [view, setView] = useState<ViewMode>('list')
   const [workspace, setWorkspace] = useState<Workspace>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [storyDialogOpen, setStoryDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
   const [showDone, setShowDone] = useState(false)
@@ -264,6 +272,30 @@ export function TasksPage() {
     notify({ title: 'Task created', type: 'success' })
   }
 
+  const handleCreateStory = (values: {
+    title: string; description: string; priority: string; dueDate: string; workspace: string; subtasks: Array<{ id: string; title: string; done: boolean }>
+  }) => {
+    create.mutate({
+      id: crypto.randomUUID(),
+      type: 'task',
+      title: values.title,
+      description: values.description || undefined,
+      status: 'active',
+      priority: (values.priority as EntityPriority) || 'high',
+      tags: [],
+      metadata: {
+        workspace: values.workspace || undefined,
+        subtasks: values.subtasks,
+      },
+      ownerId: currentUser?.id ?? '',
+      visibility: 'private',
+      dueDate: values.dueDate || undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    notify({ title: 'Story created', type: 'success' })
+  }
+
   const handleEdit = (values: Record<string, unknown>) => {
     if (!editingTask) return
     const tags =
@@ -336,9 +368,21 @@ export function TasksPage() {
           <Button size="sm" variant="outline" onClick={() => setStandupOpen(true)}>
             <ClipboardList className="h-4 w-4 mr-1" /> Standup
           </Button>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> New Task
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" /> New
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setDialogOpen(true)}>
+                <CheckSquare className="h-4 w-4 mr-2" /> Task
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setStoryDialogOpen(true)}>
+                <ListChecks className="h-4 w-4 mr-2" /> Story
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -607,6 +651,14 @@ export function TasksPage() {
             setDeleteTarget(null)
           }
         }}
+      />
+
+      {/* Story dialog */}
+      <StoryDialog
+        open={storyDialogOpen}
+        onOpenChange={setStoryDialogOpen}
+        workspace={workspace !== 'all' ? workspace : undefined}
+        onSubmit={handleCreateStory}
       />
 
       {/* Standup Report Sheet */}
