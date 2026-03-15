@@ -836,6 +836,44 @@ export function TodayPage() {
             </button>
           </div>
 
+          {/* Calendar — today's events + iCal */}
+          <Collapsible defaultOpen>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
+              <span className="text-sm">📅</span>
+              <span className="text-sm flex-1 font-medium">Calendar</span>
+              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{todayEvents.length + todayICalEvents.length}</span>
+              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-3 space-y-1">
+                {todayEvents.length === 0 && todayICalEvents.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/40 py-1">No events today</p>
+                ) : (
+                  <>
+                    {todayEvents.map((event) => (
+                      <div key={event.id} className="flex items-center gap-2.5 py-1.5">
+                        <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
+                          {(event.metadata.time as string) ?? 'All day'}
+                        </span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" />
+                        <span className="text-sm truncate">{event.title}</span>
+                      </div>
+                    ))}
+                    {todayICalEvents.map((event) => (
+                      <div key={event.id} className="flex items-center gap-2.5 py-1.5">
+                        <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
+                          {event.isAllDay ? 'All day' : event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: event.color || '#7986cb' }} />
+                        <span className="text-sm truncate">{event.title}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
           {/* Deep Work Log */}
           <Collapsible defaultOpen={false}>
             <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
@@ -913,44 +951,6 @@ export function TodayPage() {
                     <span>🔥</span>
                     <span className="font-medium">{focusStatsData.streak} day streak</span>
                   </p>
-                )}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Calendar — today's events + iCal */}
-          <Collapsible defaultOpen={false}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
-              <span className="text-sm">📅</span>
-              <span className="text-sm flex-1 font-medium">Calendar</span>
-              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{todayEvents.length + todayICalEvents.length}</span>
-              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="px-4 pb-3 space-y-1">
-                {todayEvents.length === 0 && todayICalEvents.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/40 py-1">No events today</p>
-                ) : (
-                  <>
-                    {todayEvents.map((event) => (
-                      <div key={event.id} className="flex items-center gap-2.5 py-1.5">
-                        <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
-                          {(event.metadata.time as string) ?? 'All day'}
-                        </span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" />
-                        <span className="text-sm truncate">{event.title}</span>
-                      </div>
-                    ))}
-                    {todayICalEvents.map((event) => (
-                      <div key={event.id} className="flex items-center gap-2.5 py-1.5">
-                        <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
-                          {event.isAllDay ? 'All day' : event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: event.color || '#7986cb' }} />
-                        <span className="text-sm truncate">{event.title}</span>
-                      </div>
-                    ))}
-                  </>
                 )}
               </div>
             </CollapsibleContent>
