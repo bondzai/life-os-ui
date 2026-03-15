@@ -837,7 +837,7 @@ export function TodayPage() {
           </div>
 
           {/* Deep Work Log */}
-          <Collapsible defaultOpen={focusStatsData.todaySessions > 0 || focusStatsData.streak > 0}>
+          <Collapsible defaultOpen={false}>
             <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
               <span className="text-sm">🎯</span>
               <span className="text-sm flex-1 font-medium">Deep Work</span>
@@ -919,7 +919,7 @@ export function TodayPage() {
           </Collapsible>
 
           {/* Calendar — today's events + iCal */}
-          <Collapsible defaultOpen={todayEvents.length > 0 || todayICalEvents.length > 0}>
+          <Collapsible defaultOpen={false}>
             <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
               <span className="text-sm">📅</span>
               <span className="text-sm flex-1 font-medium">Calendar</span>
@@ -957,7 +957,7 @@ export function TodayPage() {
           </Collapsible>
 
           {/* Tasks — due today count */}
-          <Collapsible defaultOpen={todayTasks.length > 0}>
+          <Collapsible defaultOpen={false}>
             <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
               <span className="text-sm">📋</span>
               <span className="text-sm flex-1 font-medium">Tasks</span>
@@ -993,7 +993,7 @@ export function TodayPage() {
           </Collapsible>
 
           {/* Goals — active with progress */}
-          <Collapsible defaultOpen={activeProjects.length > 0}>
+          <Collapsible defaultOpen={false}>
             <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
               <span className="text-sm">🎯</span>
               <span className="text-sm flex-1 font-medium">Goals</span>
