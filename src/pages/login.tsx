@@ -26,8 +26,16 @@ const DEFAULT_USERS: User[] = [
 
 function getUsers(): User[] {
   const raw = localStorage.getItem(`${KEY_PREFIX}users`)
-  if (raw) return JSON.parse(raw) as User[]
-  // Seed default users for local mode
+  if (raw) {
+    const users = JSON.parse(raw) as User[]
+    // Fix: if PINs are bcrypt hashes (from API seed), reset to plain PINs
+    const hasBcrypt = users.some((u) => u.pin && u.pin.startsWith('$2'))
+    if (hasBcrypt) {
+      localStorage.setItem(`${KEY_PREFIX}users`, JSON.stringify(DEFAULT_USERS))
+      return DEFAULT_USERS
+    }
+    return users
+  }
   localStorage.setItem(`${KEY_PREFIX}users`, JSON.stringify(DEFAULT_USERS))
   return DEFAULT_USERS
 }
