@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -7,7 +7,9 @@ import { useAuthStore } from '@/stores/auth-store'
 import type { User } from '@/core/types'
 
 const KEY_PREFIX = 'life-os:'
-const USE_API = import.meta.env.VITE_USE_API === 'true'
+const storedMode = localStorage.getItem('life-os:data-mode')
+const USE_API = storedMode === 'api' || (storedMode === null && import.meta.env.VITE_USE_API === 'true')
+const IS_DEMO = storedMode === 'demo'
 
 function getUsers(): User[] {
   const raw = localStorage.getItem(`${KEY_PREFIX}users`)
@@ -23,6 +25,17 @@ export function LoginPage() {
   const login = useAuthStore((s) => s.login)
   const loginWithApi = useAuthStore((s) => s.loginWithApi)
   const users = getUsers()
+
+  // Demo mode: auto-login without PIN
+  useEffect(() => {
+    if (IS_DEMO) {
+      const demoUser = users.find((u) => u.id === 'user-demo') || users[0]
+      if (demoUser) {
+        login(demoUser)
+        navigate('/')
+      }
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
