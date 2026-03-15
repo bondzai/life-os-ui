@@ -19,9 +19,17 @@ function isApiMode(): boolean {
   return stored === 'api' || (stored === null && import.meta.env.VITE_USE_API === 'true')
 }
 
+const DEFAULT_USERS: User[] = [
+  { id: 'user-jb', name: 'JB', role: 'admin', pin: '1234' },
+  { id: 'user-sunny', name: 'Sunny', role: 'member', pin: '5678' },
+]
+
 function getUsers(): User[] {
   const raw = localStorage.getItem(`${KEY_PREFIX}users`)
-  return raw ? (JSON.parse(raw) as User[]) : []
+  if (raw) return JSON.parse(raw) as User[]
+  // Seed default users for local mode
+  localStorage.setItem(`${KEY_PREFIX}users`, JSON.stringify(DEFAULT_USERS))
+  return DEFAULT_USERS
 }
 
 type LoginStep = 'choose' | 'pin'
