@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import {
-  Circle,
-  CircleCheck,
+  CheckSquare,
+  ChevronDown,
   ChevronRight,
   CalendarDays,
   Target,
@@ -93,6 +93,91 @@ function QuickAddInput({ placeholder, onAdd }: { placeholder: string; onAdd: (ti
           }
         }}
       />
+    </div>
+  )
+}
+
+/* ─── Focus Story — collapsible subtask card ─── */
+function FocusStory({
+  item,
+  subs,
+  doneCount,
+  pct,
+  allDone,
+  onToggleSubtask,
+  onAddSubtask,
+}: {
+  item: Entity
+  subs: Array<{ id: string; title: string; done: boolean }>
+  doneCount: number
+  pct: number
+  allDone: boolean
+  onToggleSubtask: (entity: Entity, subtaskId: string) => void
+  onAddSubtask: (entity: Entity, title: string) => void
+}) {
+  const [expanded, setExpanded] = useState(true)
+
+  return (
+    <div className={`rounded-lg border transition-colors ${
+      allDone ? 'border-green-500/40 bg-green-50/20 dark:bg-green-950/10' : 'bg-card/50'
+    }`}>
+      {/* Story header — click to toggle */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-3 w-full p-3 text-left hover:bg-muted/30 rounded-lg transition-colors"
+      >
+        <ListChecks className="h-4 w-4 text-purple-500 shrink-0" />
+        {expanded
+          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+        }
+        <span className={`text-sm flex-1 font-medium truncate ${allDone ? 'line-through text-muted-foreground' : ''}`}>
+          {item.title}
+        </span>
+        {typeof item.metadata.workspace === 'string' && (
+          <span className="text-[10px] text-muted-foreground/40 shrink-0">
+            {item.metadata.workspace === 'work' ? '🏢' : '🏠'}
+          </span>
+        )}
+        <span className={`text-xs tabular-nums shrink-0 ${
+          allDone ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
+        }`}>
+          {doneCount}/{subs.length}
+        </span>
+      </button>
+
+      {/* Subtasks — collapsible */}
+      {expanded && (
+        <div className="px-3 pb-3 space-y-1.5">
+          <div className="space-y-0.5 pl-1">
+            {subs.map((sub) => (
+              <label
+                key={sub.id}
+                className="flex items-center gap-2.5 py-1 cursor-pointer rounded px-1 hover:bg-muted/40 transition-colors"
+              >
+                <Checkbox
+                  checked={sub.done}
+                  onCheckedChange={() => onToggleSubtask(item, sub.id)}
+                  className="h-3.5 w-3.5 shrink-0"
+                />
+                <span className={`text-sm ${sub.done ? 'line-through text-muted-foreground/60' : ''}`}>
+                  {sub.title}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <QuickAddInput
+            placeholder="+ Add step..."
+            onAdd={(title) => onAddSubtask(item, title)}
+          />
+
+          <Progress value={pct} className="h-1" />
+        </div>
+      )}
+
+      {/* Collapsed progress bar */}
+      {!expanded && <Progress value={pct} className="h-1 mx-3 mb-2" />}
     </div>
   )
 }
@@ -569,7 +654,7 @@ export function TodayPage() {
                   <Target className="h-3 w-3 inline mr-1.5 -mt-px" />
                   Today Focus
                 </SH>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {priorityEntities.map((item) => {
                     const subs = Array.isArray(item.metadata.subtasks)
                       ? (item.metadata.subtasks as Array<{ id: string; title: string; done: boolean }>)
@@ -578,21 +663,39 @@ export function TodayPage() {
                     const doneCount = subs.filter((s) => s.done).length
                     const pct = hasSubs ? Math.round((doneCount / subs.length) * 100) : 0
                     const allDone = item.status === 'completed' || (hasSubs && doneCount === subs.length)
+                    const isGoal = item.type === 'goal'
+                    const goalProgress = typeof item.metadata.progress === 'number' ? (item.metadata.progress as number) : 0
 
-                    // Simple task (no subtasks) — compact line
-                    if (!hasSubs) {
+                    // ── Goal → clickable link to goal detail ──
+                    if (isGoal) {
                       return (
                         <button
                           key={item.id}
-                          onClick={() => toggleItem(item)}
+                          onClick={() => navigate('/goals')}
                           className="flex items-center gap-3 w-full py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors text-left group"
                         >
-                          {item.status === 'completed' ? (
-                            <CircleCheck className="h-5 w-5 text-green-500 shrink-0" />
-                          ) : (
-                            <Circle className="h-5 w-5 text-muted-foreground/25 group-hover:text-muted-foreground/50 shrink-0" />
-                          )}
-                          <span className={`text-sm flex-1 ${item.status === 'completed' ? 'line-through text-muted-foreground' : 'font-medium'}`}>
+                          <Target className="h-4 w-4 text-green-500 shrink-0" />
+                          <span className="text-sm flex-1 font-medium truncate">{item.title}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Progress value={goalProgress} className="h-1.5 w-16" />
+                            <span className="text-[11px] tabular-nums text-muted-foreground">{goalProgress}%</span>
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30" />
+                          </div>
+                        </button>
+                      )
+                    }
+
+                    // ── Task (no subtasks) → checkbox ──
+                    if (!hasSubs) {
+                      return (
+                        <div key={item.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors">
+                          <CheckSquare className="h-4 w-4 text-blue-500 shrink-0" />
+                          <Checkbox
+                            checked={item.status === 'completed'}
+                            onCheckedChange={() => toggleItem(item)}
+                            className="shrink-0"
+                          />
+                          <span className={`text-sm flex-1 truncate ${item.status === 'completed' ? 'line-through text-muted-foreground' : 'font-medium'}`}>
                             {item.title}
                           </span>
                           {typeof item.metadata.workspace === 'string' && (
@@ -600,65 +703,22 @@ export function TodayPage() {
                               {item.metadata.workspace === 'work' ? '🏢' : '🏠'}
                             </span>
                           )}
-                        </button>
+                        </div>
                       )
                     }
 
-                    // Story card (has subtasks)
+                    // ── Story (task with subtasks) → collapsible checklist ──
                     return (
-                      <div
+                      <FocusStory
                         key={item.id}
-                        className={`rounded-lg border p-3 space-y-2.5 transition-colors ${
-                          allDone ? 'border-green-500/40 bg-green-50/20 dark:bg-green-950/10' : 'bg-card/50'
-                        }`}
-                      >
-                        {/* Story header */}
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className={`text-sm font-medium truncate ${allDone ? 'line-through text-muted-foreground' : ''}`}>
-                              {item.title}
-                            </span>
-                            {typeof item.metadata.workspace === 'string' && (
-                              <span className="text-[10px] text-muted-foreground/40 shrink-0">
-                                {item.metadata.workspace === 'work' ? '🏢' : '🏠'}
-                              </span>
-                            )}
-                          </div>
-                          <span className={`text-xs tabular-nums shrink-0 ${
-                            allDone ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
-                          }`}>
-                            {doneCount}/{subs.length}
-                          </span>
-                        </div>
-
-                        {/* Subtask checklist */}
-                        <div className="space-y-0.5 pl-0.5">
-                          {subs.map((sub) => (
-                            <label
-                              key={sub.id}
-                              className="flex items-center gap-2.5 py-1 cursor-pointer rounded px-1 hover:bg-muted/40 transition-colors"
-                            >
-                              <Checkbox
-                                checked={sub.done}
-                                onCheckedChange={() => toggleSubtask(item, sub.id)}
-                                className="h-3.5 w-3.5 shrink-0"
-                              />
-                              <span className={`text-sm ${sub.done ? 'line-through text-muted-foreground/60' : ''}`}>
-                                {sub.title}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-
-                        {/* Add step inline */}
-                        <QuickAddInput
-                          placeholder="+ Add step..."
-                          onAdd={(title) => addSubtask(item, title)}
-                        />
-
-                        {/* Progress bar */}
-                        <Progress value={pct} className="h-1" />
-                      </div>
+                        item={item}
+                        subs={subs}
+                        doneCount={doneCount}
+                        pct={pct}
+                        allDone={allDone}
+                        onToggleSubtask={toggleSubtask}
+                        onAddSubtask={addSubtask}
+                      />
                     )
                   })}
                 </div>

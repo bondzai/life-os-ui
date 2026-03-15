@@ -14,6 +14,23 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.35.0',
+    date: '2026-03-15',
+    phase: 'Smart Focus — Type-Aware Rendering',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          '**Focus items show type icons**: Goals (🎯 green), Tasks (☑ blue), Stories (📋 purple) — each with distinct visual treatment',
+          '**Goals are clickable**: Click a goal in Focus to navigate to Goals page and adjust progress — shows inline progress bar + percentage',
+          '**Tasks have checkboxes**: Simple tasks show a checkbox to toggle complete directly',
+          '**Stories are collapsible**: Click story header to expand/collapse subtask checklist — collapsed view shows progress bar only',
+          '**FocusStory component**: Extracted into dedicated component with expand/collapse toggle, inline subtask add, and progress bar',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.34.0',
     date: '2026-03-15',
     phase: 'Task → Story Merge (Select + Drag & Drop)',
