@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { PriorityPicker } from './today/priority-picker'
 import { CaptureBar } from './today/capture-bar'
 import { DailyProtocol } from './today/daily-protocol'
@@ -75,6 +76,26 @@ function LinkAction({ label, onClick }: { label: string; onClick: () => void }) 
   )
 }
 
+function QuickAddInput({ placeholder, onAdd }: { placeholder: string; onAdd: (title: string) => void }) {
+  const [value, setValue] = useState('')
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      <input
+        className="flex-1 text-sm bg-transparent border-0 border-b border-dashed border-muted-foreground/20 px-0 py-1 focus:outline-none focus:border-primary placeholder:text-muted-foreground/30"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && value.trim()) {
+            onAdd(value.trim())
+            setValue('')
+          }
+        }}
+      />
+    </div>
+  )
+}
+
 export function TodayPage() {
   const { items: allEntities, update, create } = useEntities()
   const { items: allTrackers, create: createTracker, update: updateTracker } = useTrackers()
@@ -105,20 +126,43 @@ export function TodayPage() {
     [allEntities],
   )
 
-  // Due tasks + chores merged, sorted by priority
-  const actionItems = useMemo(() => {
+  // Due tasks + chores: active, due today or overdue
+  const todayTasks = useMemo(() => {
     const items = allEntities.filter(
       (e) =>
         (e.type === 'task' || e.type === 'chore') &&
-        e.status !== 'completed' &&
-        e.status !== 'archived' &&
+        e.status === 'active' &&
         e.dueDate &&
         e.dueDate <= today,
     )
-    const order = { critical: 0, high: 1, medium: 2, low: 3 }
+    const order = { urgent: 0, high: 1, medium: 2, low: 3 }
     items.sort((a, b) => (order[a.priority as keyof typeof order] ?? 2) - (order[b.priority as keyof typeof order] ?? 2))
     return items
   }, [allEntities, today])
+
+  const workTasks = useMemo(
+    () => todayTasks.filter((t) => t.metadata.workspace === 'work'),
+    [todayTasks],
+  )
+
+  const personalTasks = useMemo(
+    () => todayTasks.filter((t) => t.metadata.workspace !== 'work'),
+    [todayTasks],
+  )
+
+  // Tasks/chores completed today
+  const doneToday = useMemo(
+    () => allEntities.filter(
+      (e) =>
+        (e.type === 'task' || e.type === 'chore') &&
+        e.status === 'completed' &&
+        e.updatedAt?.startsWith(today),
+    ),
+    [allEntities, today],
+  )
+
+  // Keep actionItems reference for metrics (total count of active items)
+  const actionItems = todayTasks
 
   const todayEvents = useMemo(
     () => allEntities
@@ -388,6 +432,29 @@ export function TodayPage() {
     [update],
   )
 
+  const handleQuickAdd = useCallback(
+    (title: string, workspace: 'work' | 'personal') => {
+      if (!title.trim()) return
+      create.mutate({
+        id: crypto.randomUUID(),
+        type: 'task',
+        title: title.trim(),
+        status: 'active',
+        priority: 'medium',
+        tags: [],
+        metadata: { workspace },
+        ownerId: currentUser?.id ?? '',
+        visibility: 'private',
+        dueDate: today,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+    },
+    [create, currentUser, today],
+  )
+
+  const [doneTodayOpen, setDoneTodayOpen] = useState(false)
+
   const dateStr = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -478,41 +545,81 @@ export function TodayPage() {
             )}
           </section>
 
-          {/* Due Items */}
-          {actionItems.length > 0 && (
-            <section>
-              <SH action={<LinkAction label="All tasks" onClick={() => navigate('/tasks')} />}>
-                Due ({actionItems.length})
-              </SH>
+          {/* Work Tasks */}
+          <section>
+            <SH action={<LinkAction label="All tasks" onClick={() => navigate('/tasks')} />}>
+              🏢 Work ({workTasks.length})
+            </SH>
+            {workTasks.length > 0 ? (
               <div className="space-y-0.5">
-                {actionItems.slice(0, 10).map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => toggleItem(item)}
-                    className="flex items-center gap-3 w-full py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors text-left group"
-                  >
-                    {item.status === 'completed' ? (
-                      <CircleCheck className="h-[18px] w-[18px] text-green-500 shrink-0" />
-                    ) : (
-                      <Circle className="h-[18px] w-[18px] text-muted-foreground/25 group-hover:text-muted-foreground/50 shrink-0" />
+                {workTasks.map((task) => (
+                  <div key={task.id} className="flex items-center gap-2 py-1.5 group">
+                    <Checkbox
+                      checked={false}
+                      onCheckedChange={() => toggleItem(task)}
+                      className="shrink-0"
+                    />
+                    <span className="text-sm flex-1 truncate">{task.title}</span>
+                    {(task.priority === 'urgent' || task.priority === 'high') && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        task.priority === 'urgent' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
+                      }`}>{task.priority}</span>
                     )}
-                    <span className={`text-sm flex-1 truncate ${item.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>
-                      {item.title}
-                    </span>
-                    {(item.priority === 'high' || item.priority === 'critical') && (
-                      <span className="text-[10px] font-medium text-orange-500/80 uppercase">{item.priority}</span>
-                    )}
-                    {item.type === 'chore' && (
-                      <span className="text-[10px] text-muted-foreground/40 uppercase">chore</span>
-                    )}
-                  </button>
+                  </div>
                 ))}
-                {actionItems.length > 10 && (
-                  <button onClick={() => navigate('/tasks')} className="text-xs text-muted-foreground/50 hover:text-foreground pl-3 py-1 transition-colors">
-                    +{actionItems.length - 10} more
-                  </button>
-                )}
               </div>
+            ) : (
+              <p className="text-sm text-muted-foreground/40">No work tasks due</p>
+            )}
+            <QuickAddInput placeholder="+ Add work task..." onAdd={(t) => handleQuickAdd(t, 'work')} />
+          </section>
+
+          {/* Personal Tasks */}
+          <section>
+            <SH>
+              🏠 Personal ({personalTasks.length})
+            </SH>
+            {personalTasks.length > 0 ? (
+              <div className="space-y-0.5">
+                {personalTasks.map((task) => (
+                  <div key={task.id} className="flex items-center gap-2 py-1.5 group">
+                    <Checkbox
+                      checked={false}
+                      onCheckedChange={() => toggleItem(task)}
+                      className="shrink-0"
+                    />
+                    <span className="text-sm flex-1 truncate">{task.title}</span>
+                    {(task.priority === 'urgent' || task.priority === 'high') && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        task.priority === 'urgent' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
+                      }`}>{task.priority}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground/40">No personal tasks due</p>
+            )}
+            <QuickAddInput placeholder="+ Add personal task..." onAdd={(t) => handleQuickAdd(t, 'personal')} />
+          </section>
+
+          {/* Done Today */}
+          {doneToday.length > 0 && (
+            <section>
+              <Collapsible open={doneTodayOpen} onOpenChange={setDoneTodayOpen}>
+                <CollapsibleTrigger className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/50 hover:text-muted-foreground transition-colors py-2 w-full">
+                  <ChevronRight className={`h-3 w-3 transition-transform ${doneTodayOpen ? 'rotate-90' : ''}`} />
+                  Done Today ({doneToday.length})
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {doneToday.map((task) => (
+                    <div key={task.id} className="flex items-center gap-2 py-1 opacity-50">
+                      <Checkbox checked disabled className="shrink-0" />
+                      <span className="text-sm line-through">{task.title}</span>
+                    </div>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
             </section>
           )}
 

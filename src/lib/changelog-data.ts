@@ -14,6 +14,24 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.31.0',
+    date: '2026-03-15',
+    phase: 'Focus ↔ Tasks Integration',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          '**Focus page**: Tasks now grouped by workspace — Work and Personal sections with separate inline quick-add inputs',
+          '**Focus quick-add**: Type a task name and hit Enter to create it instantly with today\'s due date and the correct workspace',
+          '**Focus done section**: Completed tasks collapse into a dimmed "Done Today" section at the bottom',
+          '**Tasks list view**: Flat list replaced with time-grouped sections — Today, Upcoming (Tomorrow / This Week / Later), Backlog (no due date)',
+          '**Tasks list view**: Removed status/priority/sort filters — task grouping by time replaces manual filtering',
+          '**Tasks done section**: Completed tasks in collapsible dimmed section at bottom of list view',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.30.0',
     date: '2026-03-15',
     phase: 'Task Redesign — Workspaces, Clean Done, Log & Standup',

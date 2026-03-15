@@ -2,13 +2,6 @@ import { useState, useMemo } from 'react'
 import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Collapsible,
@@ -22,13 +15,11 @@ import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import { emitAutomationEvent } from './automate/automation-event-bus'
-import { SavedFilterBar } from '@/core/components/saved-filter-bar'
 import { TaskCard } from './tasks/task-card'
 import { KanbanBoard } from './tasks/kanban-board'
 import { StandupReport } from './tasks/standup-report'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 
-type SortKey = 'priority' | 'dueDate' | 'createdAt'
 type ViewMode = 'list' | 'kanban' | 'log'
 type Workspace = 'all' | 'work' | 'personal'
 
@@ -87,9 +78,6 @@ export function TasksPage() {
 
   const [view, setView] = useState<ViewMode>('list')
   const [workspace, setWorkspace] = useState<Workspace>('all')
-  const [statusFilter, setStatusFilter] = useState<EntityStatus | 'all'>('all')
-  const [priorityFilter, setPriorityFilter] = useState<EntityPriority | 'all'>('all')
-  const [sortKey, setSortKey] = useState<SortKey>('priority')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
@@ -103,41 +91,47 @@ export function TasksPage() {
     return tasks.filter((t) => t.metadata.workspace === workspace)
   }, [tasks, workspace])
 
-  // ── Filtered + sorted for list view ───────────────────────────────
+  // ── Time-grouped list view ───────────────────────────────────────
 
-  const filteredTasks = useMemo(() => {
-    let result = [...workspaceTasks]
-    if (statusFilter !== 'all') {
-      result = result.filter((t) => t.status === statusFilter)
-    }
-    if (priorityFilter !== 'all') {
-      result = result.filter((t) => t.priority === priorityFilter)
-    }
-    result.sort((a, b) => {
-      if (sortKey === 'priority') return priorityOrder[a.priority] - priorityOrder[b.priority]
-      if (sortKey === 'dueDate') {
-        if (!a.dueDate) return 1
-        if (!b.dueDate) return -1
-        return a.dueDate.localeCompare(b.dueDate)
-      }
-      return b.createdAt.localeCompare(a.createdAt)
-    })
-    return result
-  }, [workspaceTasks, statusFilter, priorityFilter, sortKey])
+  const todayStr = new Date().toISOString().split('T')[0]
+  const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0] })()
+  const weekEndStr = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0] })()
 
-  // ── Active / Done Today split (Feature 2) ─────────────────────────
+  const sortByPriority = (items: Entity[]) =>
+    [...items].sort((a, b) => (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2))
 
-  const today = new Date().toISOString().split('T')[0]
+  const activeWsTasks = useMemo(
+    () => workspaceTasks.filter((t) => t.status === 'active' || t.status === 'paused'),
+    [workspaceTasks],
+  )
 
-  const activeTasks = useMemo(
-    () => filteredTasks.filter((t) => t.status !== 'completed' && t.status !== 'archived'),
-    [filteredTasks],
+  const todayGroup = useMemo(
+    () => sortByPriority(activeWsTasks.filter((t) => t.dueDate && t.dueDate <= todayStr)),
+    [activeWsTasks, todayStr],
+  )
+  const tomorrowGroup = useMemo(
+    () => sortByPriority(activeWsTasks.filter((t) => t.dueDate === tomorrowStr)),
+    [activeWsTasks, tomorrowStr],
+  )
+  const thisWeekGroup = useMemo(
+    () => sortByPriority(activeWsTasks.filter((t) => t.dueDate && t.dueDate > tomorrowStr && t.dueDate <= weekEndStr)),
+    [activeWsTasks, tomorrowStr, weekEndStr],
+  )
+  const laterGroup = useMemo(
+    () => sortByPriority(activeWsTasks.filter((t) => t.dueDate && t.dueDate > weekEndStr)),
+    [activeWsTasks, weekEndStr],
+  )
+  const backlogGroup = useMemo(
+    () => sortByPriority(activeWsTasks.filter((t) => !t.dueDate)),
+    [activeWsTasks],
   )
 
   const doneToday = useMemo(
-    () => filteredTasks.filter((t) => t.status === 'completed' && t.updatedAt?.startsWith(today)),
-    [filteredTasks, today],
+    () => workspaceTasks.filter((t) => t.status === 'completed' && t.updatedAt?.startsWith(todayStr)),
+    [workspaceTasks, todayStr],
   )
+
+  const hasAnyListTasks = todayGroup.length > 0 || tomorrowGroup.length > 0 || thisWeekGroup.length > 0 || laterGroup.length > 0 || backlogGroup.length > 0 || doneToday.length > 0
 
   // ── Log view data (Feature 3) ─────────────────────────────────────
 
@@ -337,50 +331,6 @@ export function TasksPage() {
             </TabsList>
           </Tabs>
 
-          {view === 'list' && (
-            <>
-              <Select
-                value={statusFilter}
-                onValueChange={(v) => setStatusFilter(v as EntityStatus | 'all')}
-              >
-                <SelectTrigger className="w-[130px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="paused">Paused</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={priorityFilter}
-                onValueChange={(v) => setPriorityFilter(v as EntityPriority | 'all')}
-              >
-                <SelectTrigger className="w-[130px]">
-                  <SelectValue placeholder="Priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All priorities</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="priority">Priority</SelectItem>
-                  <SelectItem value="dueDate">Due date</SelectItem>
-                  <SelectItem value="createdAt">Created</SelectItem>
-                </SelectContent>
-              </Select>
-            </>
-          )}
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => setStandupOpen(true)}>
@@ -392,19 +342,6 @@ export function TasksPage() {
         </div>
       </div>
 
-      {/* Saved filters */}
-      {view === 'list' && (
-        <SavedFilterBar
-          moduleKey="tasks"
-          currentCriteria={{ status: statusFilter, priority: priorityFilter, sort: sortKey }}
-          onApply={(c) => {
-            setStatusFilter((c.status as EntityStatus | 'all') || 'all')
-            setPriorityFilter((c.priority as EntityPriority | 'all') || 'all')
-            setSortKey((c.sort as SortKey) || 'priority')
-          }}
-        />
-      )}
-
       {/* Content */}
       {tasks.length === 0 ? (
         <EmptyState
@@ -415,38 +352,27 @@ export function TasksPage() {
           onAction={() => setDialogOpen(true)}
         />
       ) : view === 'list' ? (
-        <div className="space-y-2">
-          {/* Active tasks */}
-          {activeTasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onToggleComplete={toggleComplete}
-              onMoveToStatus={moveToStatus}
-              onEdit={setEditingTask}
-              onDelete={setDeleteTarget}
-              onSnooze={snoozeTask}
-            />
-          ))}
-          {activeTasks.length === 0 && doneToday.length === 0 && (
-            <p className="text-center text-sm text-muted-foreground py-8">
-              No tasks match the current filters.
-            </p>
-          )}
-
-          {/* Done Today collapsible */}
-          {doneToday.length > 0 && (
-            <Collapsible open={showDone} onOpenChange={setShowDone}>
-              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                <ChevronRight
-                  className={`h-4 w-4 transition-transform ${showDone ? 'rotate-90' : ''}`}
-                />
-                Done Today ({doneToday.length})
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-2">
-                {doneToday.map((task) => (
-                  <div key={task.id} className="opacity-60">
+        !hasAnyListTasks ? (
+          <EmptyState
+            icon={CheckSquare}
+            title="No tasks"
+            description="Create a task to get started."
+            actionLabel="New Task"
+            onAction={() => setDialogOpen(true)}
+          />
+        ) : (
+          <div className="space-y-6">
+            {/* Today */}
+            {todayGroup.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium flex items-center gap-2">
+                  Today
+                  <span className="text-xs text-muted-foreground">({todayGroup.length})</span>
+                </h3>
+                <div className="space-y-2">
+                  {todayGroup.map((task) => (
                     <TaskCard
+                      key={task.id}
                       task={task}
                       onToggleComplete={toggleComplete}
                       onMoveToStatus={moveToStatus}
@@ -454,12 +380,117 @@ export function TasksPage() {
                       onDelete={setDeleteTarget}
                       onSnooze={snoozeTask}
                     />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upcoming */}
+            {(tomorrowGroup.length > 0 || thisWeekGroup.length > 0 || laterGroup.length > 0) && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium">Upcoming</h3>
+
+                {tomorrowGroup.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground ml-1">Tomorrow</p>
+                    {tomorrowGroup.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        onToggleComplete={toggleComplete}
+                        onMoveToStatus={moveToStatus}
+                        onEdit={setEditingTask}
+                        onDelete={setDeleteTarget}
+                        onSnooze={snoozeTask}
+                      />
+                    ))}
                   </div>
+                )}
+
+                {thisWeekGroup.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground ml-1">This Week</p>
+                    {thisWeekGroup.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        onToggleComplete={toggleComplete}
+                        onMoveToStatus={moveToStatus}
+                        onEdit={setEditingTask}
+                        onDelete={setDeleteTarget}
+                        onSnooze={snoozeTask}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {laterGroup.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground ml-1">Later</p>
+                    {laterGroup.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        onToggleComplete={toggleComplete}
+                        onMoveToStatus={moveToStatus}
+                        onEdit={setEditingTask}
+                        onDelete={setDeleteTarget}
+                        onSnooze={snoozeTask}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Backlog */}
+            {backlogGroup.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium flex items-center gap-2">
+                  Backlog
+                  <span className="text-xs text-muted-foreground">({backlogGroup.length})</span>
+                </h3>
+                {backlogGroup.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onToggleComplete={toggleComplete}
+                    onMoveToStatus={moveToStatus}
+                    onEdit={setEditingTask}
+                    onDelete={setDeleteTarget}
+                    onSnooze={snoozeTask}
+                  />
                 ))}
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-        </div>
+              </div>
+            )}
+
+            {/* Done Today */}
+            {doneToday.length > 0 && (
+              <Collapsible open={showDone} onOpenChange={setShowDone}>
+                <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <ChevronRight
+                    className={`h-3.5 w-3.5 transition-transform ${showDone ? 'rotate-90' : ''}`}
+                  />
+                  Done Today ({doneToday.length})
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-2">
+                  {doneToday.map((task) => (
+                    <div key={task.id} className="opacity-50">
+                      <TaskCard
+                        task={task}
+                        onToggleComplete={toggleComplete}
+                        onMoveToStatus={moveToStatus}
+                        onEdit={setEditingTask}
+                        onDelete={setDeleteTarget}
+                        onSnooze={snoozeTask}
+                      />
+                    </div>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </div>
+        )
       ) : view === 'kanban' ? (
         <KanbanBoard
           tasks={workspaceTasks}
