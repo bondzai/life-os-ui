@@ -24,11 +24,10 @@ function getUsers(): User[] {
   return raw ? (JSON.parse(raw) as User[]) : []
 }
 
-type LoginStep = 'choose' | 'pin' | 'user-select'
+type LoginStep = 'choose' | 'pin'
 
 export function LoginPage() {
   const [step, setStep] = useState<LoginStep>('choose')
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -49,20 +48,10 @@ export function LoginPage() {
     navigate('/')
   }
 
+  const [username, setUsername] = useState('')
+
   const handleSignIn = () => {
-    if (isApiMode()) {
-      setStep('pin')
-    } else {
-      const users = getUsers()
-      if (users.length === 1) {
-        setSelectedUser(users[0])
-        setStep('pin')
-      } else if (users.length > 1) {
-        setStep('user-select')
-      } else {
-        setStep('pin')
-      }
-    }
+    setStep('pin')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -83,13 +72,18 @@ export function LoginPage() {
       return
     }
 
-    if (!selectedUser) return
-    if (pin === selectedUser.pin) {
+    // Local mode: match by name + pin
+    const users = getUsers()
+    const trimmedName = username.trim().toLowerCase()
+    const matched = users.find(
+      (u) => u.name.toLowerCase() === trimmedName && u.pin === pin,
+    )
+    if (matched) {
       localStorage.setItem('life-os:data-mode', 'local')
-      login(selectedUser)
+      login(matched)
       navigate('/')
     } else {
-      setError('Incorrect PIN')
+      setError('Invalid name or PIN')
       setPin('')
     }
   }
@@ -143,81 +137,43 @@ export function LoginPage() {
     )
   }
 
-  // ── Step 2a: User select (local mode, multiple users) ──
-  if (step === 'user-select') {
-    const users = getUsers()
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="w-full max-w-md space-y-6 p-4">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold">Life-OS</h1>
-            <p className="text-sm text-muted-foreground mt-1">Select your account</p>
-          </div>
-          <div className="grid gap-3">
-            {users.map((user) => (
-              <Card
-                key={user.id}
-                className="cursor-pointer hover:bg-accent/50 transition-colors"
-                onClick={() => { setSelectedUser(user); setStep('pin') }}
-              >
-                <CardContent className="flex items-center gap-4 p-4">
-                  <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center text-lg text-primary-foreground font-medium">
-                    {user.name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="font-medium">{user.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          <Button variant="ghost" className="w-full" onClick={() => setStep('choose')}>Back</Button>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Step 2b: PIN entry ──
+  // ── Step 2: Sign In form (name + PIN) ──
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          {isApiMode() ? (
-            <>
-              <div className="mx-auto h-16 w-16 rounded-2xl bg-primary flex items-center justify-center text-2xl text-primary-foreground font-bold mb-2">
-                L
-              </div>
-              <CardTitle>Life-OS</CardTitle>
-            </>
-          ) : selectedUser ? (
-            <>
-              <div className="mx-auto h-16 w-16 rounded-full bg-primary flex items-center justify-center text-2xl text-primary-foreground font-medium mb-2">
-                {selectedUser.name.charAt(0)}
-              </div>
-              <CardTitle>{selectedUser.name}</CardTitle>
-            </>
-          ) : null}
+          <div className="mx-auto h-16 w-16 rounded-2xl bg-primary flex items-center justify-center text-2xl text-primary-foreground font-bold mb-2">
+            L
+          </div>
+          <CardTitle>Sign In</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
+            {!isApiMode() && (
               <Input
-                type="password"
-                inputMode="numeric"
-                placeholder="Enter PIN"
-                value={pin}
-                onChange={(e) => { setPin(e.target.value); setError('') }}
+                type="text"
+                placeholder="Name"
+                value={username}
+                onChange={(e) => { setUsername(e.target.value); setError('') }}
                 autoFocus
-                maxLength={8}
-                className="text-center text-lg tracking-widest"
+                className="text-center"
               />
-              {error && <p className="text-sm text-destructive mt-1 text-center">{error}</p>}
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            )}
+            <Input
+              type="password"
+              inputMode="numeric"
+              placeholder="PIN"
+              value={pin}
+              onChange={(e) => { setPin(e.target.value); setError('') }}
+              autoFocus={isApiMode()}
+              maxLength={8}
+              className="text-center text-lg tracking-widest"
+            />
+            {error && <p className="text-sm text-destructive mt-1 text-center">{error}</p>}
+            <Button type="submit" className="w-full" disabled={loading || (!isApiMode() && !username.trim()) || !pin}>
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
-            <Button type="button" variant="ghost" className="w-full" onClick={() => { setStep('choose'); setPin(''); setError(''); setSelectedUser(null) }}>
+            <Button type="button" variant="ghost" className="w-full" onClick={() => { setStep('choose'); setPin(''); setUsername(''); setError('') }}>
               Back
             </Button>
           </form>
