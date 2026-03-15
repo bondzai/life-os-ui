@@ -17,9 +17,10 @@ import { Progress } from '@/components/ui/progress'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { useEntities, useTrackers } from '@/core/hooks'
+import { useICalEvents } from '@/hooks/use-ical-events'
 import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
-// Collapsible removed — tasks section moved to Tasks page
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { PriorityPicker } from './today/priority-picker'
 import { CaptureBar } from './today/capture-bar'
 // DailyProtocol removed — protocols are on left column
@@ -181,6 +182,7 @@ function FocusStory({
 export function TodayPage() {
   const { items: allEntities, update, create } = useEntities()
   const { items: allTrackers, create: createTracker, update: updateTracker } = useTrackers()
+  const { events: icalEvents } = useICalEvents()
   const currentUser = useAuthStore((s) => s.currentUser)
   const navigate = useNavigate()
   const displayName = currentUser?.name?.split(' ')[0] ?? 'there'
@@ -232,6 +234,13 @@ export function TodayPage() {
       .filter((e) => e.type === 'event' && e.status === 'active' && e.dueDate === today)
       .sort((a, b) => ((a.metadata.time as string) ?? '').localeCompare((b.metadata.time as string) ?? '')),
     [allEntities, today],
+  )
+
+  const todayICalEvents = useMemo(
+    () => icalEvents
+      .filter((e) => e.start.toISOString().split('T')[0] === today)
+      .sort((a, b) => a.start.getTime() - b.start.getTime()),
+    [icalEvents, today],
   )
 
   const activeHabits = useMemo(
@@ -833,41 +842,148 @@ export function TodayPage() {
           </section>
         </div>
 
-        {/* ═══ RIGHT — Quick Links (5/12) ═══ */}
-        <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-4 scrollbar-thin">
+        {/* ═══ RIGHT — Context Sidebar (5/12) ═══ */}
+        <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-1 scrollbar-thin">
 
-          {/* Quick Nav — one card with links to key pages */}
-          <div className="rounded-xl border bg-card/50 p-5 space-y-3">
-            <SH>Quick Nav</SH>
-            {[
-              { label: 'Tasks', path: '/tasks', icon: '📋', count: todayTasks.length, suffix: 'due today' },
-              { label: 'Goals', path: '/goals', icon: '🎯', count: activeProjects.length, suffix: 'active' },
-              { label: 'Dashboard', path: '/dashboard', icon: '📊' },
-              { label: 'Calendar', path: '/calendar', icon: '📅' },
-              { label: 'Habits', path: '/habits', icon: '🔁', count: habits.length, suffix: `${habitsChecked} done` },
-            ].map((item) => (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className="flex items-center gap-3 w-full py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors text-left"
-              >
-                <span className="text-sm">{item.icon}</span>
-                <span className="text-sm flex-1">{item.label}</span>
-                {item.count !== undefined && (
-                  <span className="text-[11px] text-muted-foreground/50 tabular-nums">
-                    {item.count} {item.suffix}
-                  </span>
+          {/* Calendar — today's events + iCal */}
+          <Collapsible defaultOpen={todayEvents.length > 0 || todayICalEvents.length > 0}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
+              <span className="text-sm">📅</span>
+              <span className="text-sm flex-1 font-medium">Calendar</span>
+              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{todayEvents.length + todayICalEvents.length}</span>
+              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-3 space-y-1">
+                {todayEvents.length === 0 && todayICalEvents.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/40 py-1">No events today</p>
+                ) : (
+                  <>
+                    {todayEvents.map((event) => (
+                      <div key={event.id} className="flex items-center gap-2.5 py-1.5">
+                        <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
+                          {(event.metadata.time as string) ?? 'All day'}
+                        </span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" />
+                        <span className="text-sm truncate">{event.title}</span>
+                      </div>
+                    ))}
+                    {todayICalEvents.map((event) => (
+                      <div key={event.id} className="flex items-center gap-2.5 py-1.5">
+                        <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
+                          {event.isAllDay ? 'All day' : event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: event.color || '#7986cb' }} />
+                        <span className="text-sm truncate">{event.title}</span>
+                      </div>
+                    ))}
+                  </>
                 )}
-                <ChevronRight className="h-3 w-3 text-muted-foreground/20" />
-              </button>
-            ))}
-          </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Tasks — due today count */}
+          <Collapsible defaultOpen={todayTasks.length > 0}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
+              <span className="text-sm">📋</span>
+              <span className="text-sm flex-1 font-medium">Tasks</span>
+              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{todayTasks.length} due</span>
+              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-3 space-y-1">
+                {todayTasks.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/40 py-1">No tasks due today</p>
+                ) : (
+                  todayTasks.slice(0, 8).map((task) => (
+                    <div key={task.id} className="flex items-center gap-2.5 py-1.5">
+                      <Checkbox
+                        checked={task.status === 'completed'}
+                        onCheckedChange={() => toggleItem(task)}
+                        className="h-3.5 w-3.5 shrink-0"
+                      />
+                      <span className={`text-sm truncate flex-1 ${task.status === 'completed' ? 'line-through text-muted-foreground/50' : ''}`}>{task.title}</span>
+                      {typeof task.metadata.workspace === 'string' && (
+                        <span className="text-[10px] text-muted-foreground/30">{task.metadata.workspace === 'work' ? '🏢' : '🏠'}</span>
+                      )}
+                    </div>
+                  ))
+                )}
+                {todayTasks.length > 8 && (
+                  <button onClick={() => navigate('/tasks')} className="text-xs text-primary/60 hover:text-primary transition-colors pt-1">
+                    +{todayTasks.length - 8} more →
+                  </button>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Goals — active with progress */}
+          <Collapsible defaultOpen={activeProjects.length > 0}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
+              <span className="text-sm">🎯</span>
+              <span className="text-sm flex-1 font-medium">Goals</span>
+              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{activeProjects.length} active</span>
+              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-3 space-y-2">
+                {activeProjects.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/40 py-1">No active goals</p>
+                ) : (
+                  activeProjects.map((goal) => {
+                    const p = typeof goal.metadata.progress === 'number' ? (goal.metadata.progress as number) : 0
+                    return (
+                      <button key={goal.id} onClick={() => navigate(`/goals?id=${goal.id}`)} className="w-full text-left hover:bg-muted/30 rounded px-1 py-1 transition-colors">
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="truncate pr-2">{goal.title}</span>
+                          <span className="text-[11px] tabular-nums text-muted-foreground/50 shrink-0">{p}%</span>
+                        </div>
+                        <Progress value={p} className="h-1" />
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Habits */}
+          <Collapsible defaultOpen={false}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
+              <span className="text-sm">🔁</span>
+              <span className="text-sm flex-1 font-medium">Habits</span>
+              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{habitsChecked}/{habits.length}</span>
+              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+                {habits.map(({ habit, checkedToday, streak }) => (
+                  <button
+                    key={habit.id}
+                    onClick={() => !checkedToday && handleHabitCheckIn(habit)}
+                    disabled={checkedToday}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-all ${
+                      checkedToday
+                        ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+                        : 'bg-muted/40 hover:bg-muted text-foreground'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${checkedToday ? 'bg-green-500' : 'bg-muted-foreground/20'}`} />
+                    {habit.title}
+                    {streak > 0 && <span className="text-[10px] text-muted-foreground/40 tabular-nums">{streak}d</span>}
+                  </button>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           {/* Weekly Review nudge */}
           {reviewDue && (
             <button
               onClick={() => navigate('/review')}
-              className="w-full rounded-xl border border-dashed border-primary/20 bg-card/50 p-4 text-left hover:bg-muted/50 transition-colors flex items-center gap-3"
+              className="w-full rounded-lg border border-dashed border-primary/20 p-3 mt-2 text-left hover:bg-muted/30 transition-colors flex items-center gap-3"
             >
               <div className="flex-1">
                 <p className="text-sm font-medium">Weekly Review</p>
