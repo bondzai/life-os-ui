@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs'
 import { db, sqlite } from './db/index.js'
 import { users, entities, relations, trackers, schedules } from './db/schema.js'
 
@@ -69,10 +70,11 @@ const fiveHoursAgo = new Date(Date.now() - 5 * 3600000).toISOString()
 // Clear existing data
 sqlite.exec('DELETE FROM trackers; DELETE FROM relations; DELETE FROM schedules; DELETE FROM entities; DELETE FROM users;')
 
-// Seed users
+// Seed users (PINs are hashed with bcrypt)
+const SALT_ROUNDS = 10
 db.insert(users).values([
-  { id: 'user-jb', name: 'JB', role: 'admin', pin: '1234' },
-  { id: 'user-sunny', name: 'Sunny', role: 'member', pin: '5678' },
+  { id: 'user-jb', name: 'JB', role: 'admin', pin: bcrypt.hashSync(process.env.SEED_PIN_ADMIN || '1234', SALT_ROUNDS) },
+  { id: 'user-sunny', name: 'Sunny', role: 'member', pin: bcrypt.hashSync(process.env.SEED_PIN_MEMBER || '5678', SALT_ROUNDS) },
 ]).run()
 
 // Seed entities

@@ -41,18 +41,42 @@ export function GoalsPage() {
     return filtered
   }, [allGoals, statusFilter])
 
-  const getSubGoals = (parentId: string) =>
-    allGoals.filter((g) => g.parentId === parentId)
-
-  const getProgress = (goal: Entity): number => {
-    // Auto-compute from sub-goals if they exist
-    const subs = allGoals.filter((g) => g.parentId === goal.id)
-    if (subs.length > 0) {
-      const avg = subs.reduce((sum, s) => sum + (typeof s.metadata.progress === 'number' ? (s.metadata.progress as number) : 0), 0) / subs.length
-      return Math.round(avg)
+  const goalMeta = useMemo(() => {
+    const subGoalMap = new Map<string, Entity[]>()
+    for (const g of allGoals) {
+      if (g.parentId) {
+        const existing = subGoalMap.get(g.parentId) ?? []
+        existing.push(g)
+        subGoalMap.set(g.parentId, existing)
+      }
     }
-    return typeof goal.metadata.progress === 'number' ? goal.metadata.progress : 0
-  }
+
+    const progressMap = new Map<string, number>()
+    const computeProgress = (goal: Entity): number => {
+      const cached = progressMap.get(goal.id)
+      if (cached !== undefined) return cached
+      const subs = subGoalMap.get(goal.id) ?? []
+      let result: number
+      if (subs.length > 0) {
+        const avg = subs.reduce((sum, s) => sum + (typeof s.metadata.progress === 'number' ? (s.metadata.progress as number) : 0), 0) / subs.length
+        result = Math.round(avg)
+      } else {
+        result = typeof goal.metadata.progress === 'number' ? goal.metadata.progress : 0
+      }
+      progressMap.set(goal.id, result)
+      return result
+    }
+
+    for (const g of allGoals) computeProgress(g)
+
+    return { subGoalMap, progressMap, computeProgress }
+  }, [allGoals])
+
+  const getSubGoals = (parentId: string) =>
+    goalMeta.subGoalMap.get(parentId) ?? []
+
+  const getProgress = (goal: Entity): number =>
+    goalMeta.progressMap.get(goal.id) ?? 0
 
   const progressColor = (p: number) =>
     p >= 75 ? 'text-green-600' : p >= 25 ? 'text-yellow-600' : 'text-red-600'

@@ -16,4 +16,5 @@ services:
     volumes:
       - ./api/data:/app/data
     environment:
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8080}

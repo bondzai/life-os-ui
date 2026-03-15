@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -41,6 +41,16 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Entity | null>(null)
 
+  const tasksByStatus = useMemo(() => {
+    const map = new Map<EntityStatus, Entity[]>()
+    for (const col of kanbanColumns) {
+      map.set(col.status, tasks.filter((t) => t.status === col.status))
+    }
+    return map
+  }, [tasks])
+
+  const taskMap = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
@@ -51,8 +61,7 @@ export function KanbanBoard({
   )
 
   const handleDragStart = (event: DragStartEvent) => {
-    const task = tasks.find((t) => t.id === event.active.id)
-    setActiveTask(task ?? null)
+    setActiveTask(taskMap.get(event.active.id as string) ?? null)
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -60,7 +69,7 @@ export function KanbanBoard({
     const { active, over } = event
     if (!over) return
 
-    const task = tasks.find((t) => t.id === active.id)
+    const task = taskMap.get(active.id as string)
     if (!task) return
 
     // Determine target status: if dropped on a column, over.id is the status string;
@@ -92,7 +101,7 @@ export function KanbanBoard({
             key={col.status}
             status={col.status}
             label={col.label}
-            tasks={tasks.filter((t) => t.status === col.status)}
+            tasks={tasksByStatus.get(col.status) ?? []}
             onToggleComplete={onToggleComplete}
             onMoveToStatus={onMoveToStatus}
             onEdit={onEdit}

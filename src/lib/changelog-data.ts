@@ -14,6 +14,40 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.24.0',
+    date: '2026-03-15',
+    phase: 'Security Hardening & Performance',
+    sections: [
+      {
+        title: 'Security',
+        items: [
+          '**CORS lockdown**: Restricted from wildcard `*` to env-configured allowed origins',
+          '**JWT secret required**: App refuses to start without `JWT_SECRET` env var (no more hardcoded fallback)',
+          '**PIN hashing**: User PINs now hashed with `bcrypt` — no more plaintext storage',
+          '**Ownership validation**: All entity and tracker API routes enforce authenticated user scoping',
+          '**Input validation**: Zod schemas on entity create/update endpoints (title length, type enums, etc.)',
+          '**Rate limiting**: Login endpoint limited to 5 attempts per 15-minute window per IP',
+          '**Security headers**: Added `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Referrer-Policy`, and `Content-Security-Policy` to nginx',
+        ],
+      },
+      {
+        title: 'Performance',
+        items: [
+          '**Kanban memoization**: Task filtering and drag lookups use pre-computed `Map` structures instead of per-render `Array.filter`/`Array.find`',
+          '**Optimistic updates**: `useRepository` mutations now update UI instantly with automatic rollback on error',
+          '**React.memo on TaskCard**: Prevents unnecessary re-renders of task cards in Kanban columns',
+          '**Goal metadata caching**: Sub-goal lookups and progress calculations pre-computed via `useMemo` instead of per-card `Array.filter`',
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          'Patched 4 high-severity npm vulnerabilities (`hono`, `@hono/node-server`, `flatted`, `express-rate-limit`)',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.23.0',
     date: '2026-03-14',
     phase: 'Minimalist Mind — Cognitive Dashboard',

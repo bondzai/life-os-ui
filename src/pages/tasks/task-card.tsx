@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, memo } from 'react'
 import { Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -42,7 +42,7 @@ const priorityBorder: Record<string, string> = {
   low: 'border-l-4 border-l-gray-300 dark:border-l-gray-600',
 }
 
-export const TaskCard = forwardRef<HTMLDivElement, TaskCardProps & React.HTMLAttributes<HTMLDivElement>>(
+export const TaskCard = memo(forwardRef<HTMLDivElement, TaskCardProps & React.HTMLAttributes<HTMLDivElement>>(
   ({ task, showStatusMove, onToggleComplete, onMoveToStatus, onEdit, onDelete, onSnooze, style, className, ...attrs }, ref) => (
     <Card ref={ref} style={style} className={`group ${priorityBorder[task.priority] || ''} ${className ?? ''}`} {...attrs}>
       <CardContent className="flex items-start gap-3 py-3">
@@ -130,6 +130,6 @@ export const TaskCard = forwardRef<HTMLDivElement, TaskCardProps & React.HTMLAtt
       </CardContent>
     </Card>
   ),
-)
+))
 
 TaskCard.displayName = 'TaskCard'

@@ -12,7 +12,17 @@ import { sqlite } from './db/index.js'
 const app = new Hono()
 
 // CORS
-app.use('/*', cors({ origin: '*' }))
+const ALLOWED_ORIGINS = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
+  : ['http://localhost:5173', 'http://localhost:8080']
+
+app.use(
+  '/*',
+  cors({
+    origin: (origin) => (ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]),
+    credentials: true,
+  }),
+)
 
 // Health check
 app.get('/api/health', (c) => c.json({ status: 'ok' }))

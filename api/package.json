@@ -11,12 +11,15 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
+    "bcryptjs": "^3.0.3",
     "better-sqlite3": "^11.7.0",
     "drizzle-orm": "^0.38.3",
     "hono": "^4.6.16",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.12",
     "@types/jsonwebtoken": "^9.0.7",
     "@vitejs/plugin-basic-ssl": "^2.2.0",

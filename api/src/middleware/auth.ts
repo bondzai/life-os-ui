@@ -1,15 +1,41 @@
 import { Hono } from 'hono'
 import jwt from 'jsonwebtoken'
+import bcrypt from 'bcryptjs'
 import { db } from '../db/index.js'
 import { users } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'life-os-secret'
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is required')
+  process.exit(1)
+}
+
+// Simple in-memory rate limiter for login attempts
+const loginAttempts = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT_MAX = 5
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000 // 15 minutes
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const entry = loginAttempts.get(ip)
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
+    return true
+  }
+  entry.count++
+  return entry.count <= RATE_LIMIT_MAX
+}
 
 export const authRoutes = new Hono()
 
 // POST /api/auth/login
 authRoutes.post('/login', async (c) => {
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  if (!checkRateLimit(ip)) {
+    return c.json({ error: 'Too many login attempts. Try again later.' }, 429)
+  }
+
   const body = await c.req.json<{ pin: string }>()
   const { pin } = body
 
@@ -18,7 +44,7 @@ authRoutes.post('/login', async (c) => {
   }
 
   const allUsers = db.select().from(users).all()
-  const user = allUsers.find((u) => u.pin === pin)
+  const user = allUsers.find((u) => u.pin && bcrypt.compareSync(pin, u.pin))
 
   if (!user) {
     return c.json({ error: 'Invalid PIN' }, 401)

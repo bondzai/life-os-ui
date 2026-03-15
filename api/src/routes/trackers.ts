@@ -7,21 +7,17 @@ export const trackerRoutes = new Hono()
 
 // GET /
 trackerRoutes.get('/', async (c) => {
+  const userId = c.get('userId') as string
   const entityId = c.req.query('entityId')
   const start = c.req.query('start')
   const end = c.req.query('end')
 
-  const conditions: SQL[] = []
+  const conditions: SQL[] = [eq(trackers.ownerId, userId)]
   if (entityId) conditions.push(eq(trackers.entityId, entityId))
   if (start) conditions.push(gte(trackers.timestamp, start))
   if (end) conditions.push(lte(trackers.timestamp, end))
 
-  let results
-  if (conditions.length > 0) {
-    results = db.select().from(trackers).where(and(...conditions)).all()
-  } else {
-    results = db.select().from(trackers).all()
-  }
+  const results = db.select().from(trackers).where(and(...conditions)).all()
 
   return c.json(results)
 })
@@ -59,11 +55,12 @@ trackerRoutes.post('/', async (c) => {
 
 // PATCH /:id
 trackerRoutes.patch('/:id', async (c) => {
+  const userId = c.get('userId') as string
   const id = c.req.param('id')
   const body = await c.req.json()
 
   const existing = db.select().from(trackers).where(eq(trackers.id, id)).get()
-  if (!existing) {
+  if (!existing || existing.ownerId !== userId) {
     return c.json({ error: 'Tracker not found' }, 404)
   }
 
@@ -80,9 +77,10 @@ trackerRoutes.patch('/:id', async (c) => {
 
 // DELETE /:id
 trackerRoutes.delete('/:id', async (c) => {
+  const userId = c.get('userId') as string
   const id = c.req.param('id')
   const existing = db.select().from(trackers).where(eq(trackers.id, id)).get()
-  if (!existing) {
+  if (!existing || existing.ownerId !== userId) {
     return c.json({ error: 'Tracker not found' }, 404)
   }
 

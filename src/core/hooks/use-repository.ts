@@ -16,22 +16,51 @@ export function useRepository<T extends { id: string }>(
     retry: false,
   })
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: [key] })
-
   const create = useMutation({
     mutationFn: (item: T) => repository.create(item),
-    onSuccess: invalidate,
+    onMutate: async (newItem) => {
+      await queryClient.cancelQueries({ queryKey: [key] })
+      const previous = queryClient.getQueryData<T[]>([key])
+      queryClient.setQueryData<T[]>([key], (old = []) => [...old, newItem])
+      return { previous }
+    },
+    onError: (_err, _item, context) => {
+      if (context?.previous) queryClient.setQueryData([key], context.previous)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [key] }),
   })
 
   const update = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<T> }) =>
       repository.update(id, updates),
-    onSuccess: invalidate,
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: [key] })
+      const previous = queryClient.getQueryData<T[]>([key])
+      queryClient.setQueryData<T[]>([key], (old = []) =>
+        old.map((item) => (item.id === id ? { ...item, ...updates } : item)),
+      )
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData([key], context.previous)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [key] }),
   })
 
   const remove = useMutation({
     mutationFn: (id: string) => repository.delete(id),
-    onSuccess: invalidate,
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: [key] })
+      const previous = queryClient.getQueryData<T[]>([key])
+      queryClient.setQueryData<T[]>([key], (old = []) =>
+        old.filter((item) => item.id !== id),
+      )
+      return { previous }
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) queryClient.setQueryData([key], context.previous)
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [key] }),
   })
 
   return { items, isLoading, create, update, remove }
