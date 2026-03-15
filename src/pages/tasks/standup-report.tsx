@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { ClipboardCopy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/sheet'
 import { notify } from '@/lib/notify'
 import type { Entity } from '@/core/types'
+
+type StandupWorkspace = 'all' | 'work' | 'personal'
 
 interface StandupReportProps {
   open: boolean
@@ -36,39 +38,47 @@ function formatWorkdayLabel(date: Date): string {
 }
 
 export function StandupReport({ open, onOpenChange, tasks }: StandupReportProps) {
+  const [ws, setWs] = useState<StandupWorkspace>('all')
   const lastWorkday = useMemo(() => getLastWorkday(), [])
   const lastWorkdayLabel = useMemo(() => formatWorkdayLabel(lastWorkday), [lastWorkday])
+
+  const filtered = useMemo(() => {
+    if (ws === 'all') return tasks
+    return tasks.filter((t) => t.metadata.workspace === ws)
+  }, [tasks, ws])
 
   const { done, plan, blocked } = useMemo(() => {
     const today = new Date().toISOString().split('T')[0]
 
-    const doneTasks = tasks.filter(
+    const doneTasks = filtered.filter(
       (t) =>
         t.status === 'completed' &&
         t.updatedAt &&
         new Date(t.updatedAt) >= lastWorkday,
     )
 
-    const planTasks = tasks.filter(
+    const planTasks = filtered.filter(
       (t) =>
         t.status === 'active' &&
         (t.dueDate === today || t.priority === 'urgent' || t.priority === 'high'),
     )
 
-    const blockedTasks = tasks.filter((t) => t.status === 'paused')
+    const blockedTasks = filtered.filter((t) => t.status === 'paused')
 
     return { done: doneTasks, plan: planTasks, blocked: blockedTasks }
-  }, [tasks, lastWorkday])
+  }, [filtered, lastWorkday])
+
+  const wsLabel = ws === 'all' ? '' : ws === 'work' ? ' (Work)' : ' (Personal)'
 
   const copyToClipboard = () => {
     const sections = [
-      `✅ Done (since ${lastWorkdayLabel}):`,
+      `✅ Done${wsLabel} (since ${lastWorkdayLabel}):`,
       done.length > 0 ? done.map((t) => `• ${t.title}`).join('\n') : '• (none)',
       '',
-      '📌 Today\'s Plan:',
+      `📌 Today's Plan${wsLabel}:`,
       plan.length > 0 ? plan.map((t) => `• ${t.title}`).join('\n') : '• (none)',
       '',
-      '🚧 Blocked:',
+      `🚧 Blocked${wsLabel}:`,
       blocked.length > 0 ? blocked.map((t) => `• ${t.title}`).join('\n') : '• (none)',
     ]
     const text = sections.join('\n')
@@ -86,17 +96,34 @@ export function StandupReport({ open, onOpenChange, tasks }: StandupReportProps)
           </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-6 space-y-6">
+        {/* Workspace filter */}
+        <div className="flex bg-muted rounded-lg p-0.5 gap-0.5 mt-4">
+          {(['all', 'work', 'personal'] as const).map((w) => (
+            <button
+              key={w}
+              onClick={() => setWs(w)}
+              className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                ws === w
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {w === 'all' ? 'All' : w === 'work' ? '🏢 Work' : '🏠 Personal'}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-5 space-y-5">
           {/* Done */}
           <section>
             <h3 className="text-sm font-semibold flex items-center gap-2 mb-2">
               ✅ Done
-              <span className="text-muted-foreground font-normal">
+              <span className="text-muted-foreground font-normal text-xs">
                 since {lastWorkdayLabel}
               </span>
             </h3>
             {done.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">No completed tasks</p>
+              <p className="text-sm text-muted-foreground/50 italic">No completed tasks</p>
             ) : (
               <ul className="space-y-1">
                 {done.map((t) => (
@@ -111,11 +138,9 @@ export function StandupReport({ open, onOpenChange, tasks }: StandupReportProps)
 
           {/* Plan */}
           <section>
-            <h3 className="text-sm font-semibold flex items-center gap-2 mb-2">
-              📌 Today&apos;s Plan
-            </h3>
+            <h3 className="text-sm font-semibold mb-2">📌 Today&apos;s Plan</h3>
             {plan.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">No tasks planned</p>
+              <p className="text-sm text-muted-foreground/50 italic">No tasks planned</p>
             ) : (
               <ul className="space-y-1">
                 {plan.map((t) => (
@@ -130,11 +155,9 @@ export function StandupReport({ open, onOpenChange, tasks }: StandupReportProps)
 
           {/* Blocked */}
           <section>
-            <h3 className="text-sm font-semibold flex items-center gap-2 mb-2">
-              🚧 Blocked
-            </h3>
+            <h3 className="text-sm font-semibold mb-2">🚧 Blocked</h3>
             {blocked.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">Nothing blocked</p>
+              <p className="text-sm text-muted-foreground/50 italic">Nothing blocked</p>
             ) : (
               <ul className="space-y-1">
                 {blocked.map((t) => (

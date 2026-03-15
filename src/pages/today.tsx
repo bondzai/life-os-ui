@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   CheckSquare,
   ChevronDown,
@@ -529,6 +529,17 @@ export function TodayPage() {
     day: 'numeric',
   })
 
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const [clock, setClock] = useState(() =>
+    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+  )
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setClock(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
+
   return (
     <div className="h-[calc(100vh-5rem)] flex flex-col">
       {/* ─── Header ─── */}
@@ -537,7 +548,9 @@ export function TodayPage() {
           <h1 className="text-2xl font-semibold tracking-tight truncate">
             {getGreeting()}, {displayName}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{dateStr}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {dateStr} <span className="tabular-nums">{clock}</span> <span className="text-muted-foreground/40">{tz}</span>
+          </p>
         </div>
         <div className="flex items-center gap-4">
           {/* Focus Score pill */}
