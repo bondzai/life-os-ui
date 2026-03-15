@@ -9,10 +9,6 @@ import {
   Inbox,
   ArrowRight,
   BookOpen,
-  Compass,
-  Layers,
-  BarChart3,
-  Brain,
   ListChecks,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
@@ -26,7 +22,7 @@ import { notify } from '@/lib/notify'
 // Collapsible removed — tasks section moved to Tasks page
 import { PriorityPicker } from './today/priority-picker'
 import { CaptureBar } from './today/capture-bar'
-import { DailyProtocol } from './today/daily-protocol'
+// DailyProtocol removed — protocols are on left column
 import { isReviewDoneThisWeek } from './review/review-helpers'
 import { getTodayPriorities, setTodayPriorities } from './today/today-helpers'
 import type { Entity } from '@/core/types'
@@ -284,13 +280,7 @@ export function TodayPage() {
     [allEntities],
   )
 
-  // Strategic Direction — top-level goals (no parent)
-  const strategicGoals = useMemo(
-    () => allEntities.filter((e) => e.type === 'goal' && e.status === 'active' && !e.parentId),
-    [allEntities],
-  )
-
-  // Active Projects — goals that have children (sub-goals/milestones)
+  // Active Projects — for quick nav count
   const activeProjects = useMemo(() => {
     const childParentIds = new Set(
       allEntities.filter((e) => e.type === 'goal' && e.parentId).map((e) => e.parentId!),
@@ -303,24 +293,6 @@ export function TodayPage() {
         (childParentIds.has(e.id) || typeof e.metadata.progress === 'number'),
     )
     return projects.slice(0, 5)
-  }, [allEntities])
-
-  // Knowledge Growth — recent notes tagged with knowledge/learning/research
-  const knowledgeItems = useMemo(() => {
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 14)
-    const weekISO = weekAgo.toISOString()
-    return allEntities
-      .filter(
-        (e) =>
-          e.type === 'note' &&
-          e.status === 'active' &&
-          !e.metadata.isInbox &&
-          !e.metadata.isJournal &&
-          e.createdAt >= weekISO,
-      )
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, 5)
   }, [allEntities])
 
   // ─── Metrics ───
@@ -346,16 +318,6 @@ export function TodayPage() {
     }
     return totalSteps > 0 ? Math.round((doneSteps / totalSteps) * 100) : 0
   }, [priorities, priorityEntities])
-
-  // Knowledge count this week
-  const knowledgeThisWeek = useMemo(() => {
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-    const weekISO = weekAgo.toISOString()
-    return allEntities.filter(
-      (e) => e.type === 'note' && e.status === 'active' && !e.metadata.isInbox && !e.metadata.isJournal && e.createdAt >= weekISO,
-    ).length
-  }, [allEntities])
 
   const reviewDue = useMemo(() => !isReviewDoneThisWeek(), [])
 
@@ -871,119 +833,34 @@ export function TodayPage() {
           </section>
         </div>
 
-        {/* ═══ RIGHT — Cognitive Context (5/12) ═══ */}
+        {/* ═══ RIGHT — Quick Links (5/12) ═══ */}
         <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-4 scrollbar-thin">
 
-          {/* Strategic Direction */}
-          <div className="rounded-xl border bg-card/50 p-5">
-            <SH action={<LinkAction label="Goals" onClick={() => navigate('/goals')} />}>
-              <Compass className="h-3 w-3 inline mr-1.5 -mt-px" />
-              Strategic Direction
-            </SH>
-            {strategicGoals.length === 0 ? (
-              <p className="text-sm text-muted-foreground/50">No strategic goals set</p>
-            ) : (
-              <div className="space-y-2">
-                {strategicGoals.slice(0, 5).map((goal) => (
-                  <div key={goal.id} className="flex items-start gap-2.5">
-                    <span className="text-muted-foreground/30 mt-0.5">→</span>
-                    <span className="text-sm">{goal.title}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Active Projects */}
-          {activeProjects.length > 0 && (
-            <div className="rounded-xl border bg-card/50 p-5">
-              <SH>
-                <Layers className="h-3 w-3 inline mr-1.5 -mt-px" />
-                Active Projects
-              </SH>
-              <div className="space-y-3">
-                {activeProjects.map((project) => {
-                  const p = typeof project.metadata.progress === 'number' ? (project.metadata.progress as number) : 0
-                  return (
-                    <div key={project.id}>
-                      <div className="flex justify-between text-sm mb-1.5">
-                        <span className="truncate pr-3">{project.title}</span>
-                        <span className="tabular-nums text-muted-foreground/60 text-xs shrink-0">{p}%</span>
-                      </div>
-                      <Progress value={p} className="h-1" />
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Knowledge Growth */}
-          <div className="rounded-xl border bg-card/50 p-5">
-            <SH action={<LinkAction label="Notes" onClick={() => navigate('/notes')} />}>
-              <Brain className="h-3 w-3 inline mr-1.5 -mt-px" />
-              Knowledge Growth
-            </SH>
-            {knowledgeItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground/50">No new knowledge this week</p>
-            ) : (
-              <div className="space-y-2">
-                {knowledgeItems.map((item) => {
-                  const daysAgo = Math.floor((Date.now() - new Date(item.createdAt).getTime()) / 86400000)
-                  return (
-                    <div key={item.id} className="flex items-start gap-2.5">
-                      <span className="text-primary/40 mt-0.5 text-xs">+</span>
-                      <span className="text-sm flex-1 truncate">{item.title}</span>
-                      <span className="text-[10px] text-muted-foreground/40 tabular-nums shrink-0">
-                        {daysAgo === 0 ? 'today' : `${daysAgo}d`}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Daily Protocol */}
-          <div className="rounded-xl border bg-card/50 p-5">
-            <SH>Protocol</SH>
-            <DailyProtocol />
-          </div>
-
-          {/* Clarity Metrics */}
-          <div className="rounded-xl border bg-card/50 p-5">
-            <SH>
-              <BarChart3 className="h-3 w-3 inline mr-1.5 -mt-px" />
-              Clarity
-            </SH>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="text-center">
-                <p className={`text-lg font-semibold tabular-nums ${
-                  focusScore === null
-                    ? 'text-muted-foreground/40'
-                    : focusScore >= 100
-                      ? 'text-green-600 dark:text-green-400'
-                      : focusScore >= 50
-                        ? 'text-amber-600 dark:text-amber-400'
-                        : 'text-foreground'
-                }`}>
-                  {focusScore !== null ? `${focusScore}%` : '—'}
-                </p>
-                <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide mt-0.5">Focus</p>
-              </div>
-              <div className="text-center">
-                <p className={`text-lg font-semibold tabular-nums ${inboxItems.length === 0 ? 'text-green-600 dark:text-green-400' : inboxItems.length <= 3 ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}>
-                  {inboxItems.length}
-                </p>
-                <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide mt-0.5">Noise</p>
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-semibold tabular-nums">
-                  +{knowledgeThisWeek}
-                </p>
-                <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wide mt-0.5">Knowledge</p>
-              </div>
-            </div>
+          {/* Quick Nav — one card with links to key pages */}
+          <div className="rounded-xl border bg-card/50 p-5 space-y-3">
+            <SH>Quick Nav</SH>
+            {[
+              { label: 'Tasks', path: '/tasks', icon: '📋', count: todayTasks.length, suffix: 'due today' },
+              { label: 'Goals', path: '/goals', icon: '🎯', count: activeProjects.length, suffix: 'active' },
+              { label: 'Dashboard', path: '/dashboard', icon: '📊' },
+              { label: 'Calendar', path: '/calendar', icon: '📅' },
+              { label: 'Habits', path: '/habits', icon: '🔁', count: habits.length, suffix: `${habitsChecked} done` },
+            ].map((item) => (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                className="flex items-center gap-3 w-full py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors text-left"
+              >
+                <span className="text-sm">{item.icon}</span>
+                <span className="text-sm flex-1">{item.label}</span>
+                {item.count !== undefined && (
+                  <span className="text-[11px] text-muted-foreground/50 tabular-nums">
+                    {item.count} {item.suffix}
+                  </span>
+                )}
+                <ChevronRight className="h-3 w-3 text-muted-foreground/20" />
+              </button>
+            ))}
           </div>
 
           {/* Weekly Review nudge */}
