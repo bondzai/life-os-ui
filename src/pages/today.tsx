@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useFocusStore } from '@/stores/focus-store'
+import { calcFocusStats, formatMinutes } from '@/lib/focus-stats'
 import { PriorityPicker } from './today/priority-picker'
 import { StandupReport } from './tasks/standup-report'
 import { CaptureBar } from './today/capture-bar'
@@ -345,6 +346,12 @@ export function TodayPage() {
   }, [priorities, priorityEntities])
 
   const reviewDue = useMemo(() => !isReviewDoneThisWeek(), [])
+
+  // Deep Work stats
+  const focusStatsData = useMemo(() => {
+    const titleMap = new Map(allEntities.map((e) => [e.id, e.title]))
+    return calcFocusStats(allTrackers, titleMap)
+  }, [allTrackers, allEntities])
 
   // ─── Handlers ───
 
@@ -884,6 +891,88 @@ export function TodayPage() {
               📋 Standup
             </button>
           </div>
+
+          {/* Deep Work Log */}
+          <Collapsible defaultOpen={focusStatsData.todaySessions > 0 || focusStatsData.streak > 0}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
+              <span className="text-sm">🎯</span>
+              <span className="text-sm flex-1 font-medium">Deep Work</span>
+              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{formatMinutes(focusStatsData.todayMinutes)}</span>
+              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-3 space-y-3">
+                {/* Today */}
+                <p className="text-xs text-muted-foreground">
+                  Today: {focusStatsData.todaySessions} session{focusStatsData.todaySessions !== 1 ? 's' : ''} · {formatMinutes(focusStatsData.todayMinutes)}
+                </p>
+
+                {/* Weekly bar chart */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-muted-foreground/50">This Week</span>
+                    <span className="text-[10px] text-muted-foreground/50 tabular-nums">
+                      {formatMinutes(focusStatsData.thisWeekMinutes)}
+                      {focusStatsData.weekDiff !== 0 && (
+                        <span className={focusStatsData.weekDiff > 0 ? ' text-green-500' : ' text-red-500'}>
+                          {' '}{focusStatsData.weekDiff > 0 ? '+' : ''}{formatMinutes(Math.abs(focusStatsData.weekDiff))}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-end gap-1 h-10">
+                    {focusStatsData.weekDays.map((day) => {
+                      const maxMin = Math.max(1, ...focusStatsData.weekDays.map((d) => d.minutes))
+                      const heightPct = day.minutes > 0 ? Math.max(10, (day.minutes / maxMin) * 100) : 0
+                      const isToday = day.date === today
+                      return (
+                        <div key={day.date} className="flex-1 flex flex-col items-center gap-0.5">
+                          <div
+                            className={`w-full rounded-sm transition-all ${
+                              isToday ? 'bg-primary' : day.minutes > 0 ? 'bg-primary/40' : 'bg-muted/30'
+                            }`}
+                            style={{ height: `${heightPct}%`, minHeight: day.minutes > 0 ? 3 : 1 }}
+                          />
+                          <span className={`text-[9px] ${isToday ? 'text-foreground font-medium' : 'text-muted-foreground/40'}`}>
+                            {day.label.charAt(0)}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Top tasks */}
+                {focusStatsData.topTasks.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground/50">Top Focus</p>
+                    {focusStatsData.topTasks.slice(0, 3).map((task) => {
+                      const maxMin = Math.max(1, ...focusStatsData.topTasks.map((t) => t.minutes))
+                      return (
+                        <div key={task.entityId} className="space-y-0.5">
+                          <div className="flex justify-between text-xs">
+                            <span className="truncate pr-2">{task.title}</span>
+                            <span className="text-muted-foreground/50 tabular-nums shrink-0">{formatMinutes(task.minutes)}</span>
+                          </div>
+                          <div className="h-1 bg-muted/30 rounded-full overflow-hidden">
+                            <div className="h-full bg-primary/50 rounded-full" style={{ width: `${(task.minutes / maxMin) * 100}%` }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Streak */}
+                {focusStatsData.streak > 0 && (
+                  <p className="text-xs flex items-center gap-1">
+                    <span>🔥</span>
+                    <span className="font-medium">{focusStatsData.streak} day streak</span>
+                  </p>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           {/* Calendar — today's events + iCal */}
           <Collapsible defaultOpen={todayEvents.length > 0 || todayICalEvents.length > 0}>

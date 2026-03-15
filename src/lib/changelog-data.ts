@@ -14,6 +14,29 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.39.0',
+    date: '2026-03-15',
+    phase: 'Deep Work Log & Analytics',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Deep Work log**: Accordion in Quick Summary showing today\'s sessions, weekly bar chart, top focused tasks, and focus streak',
+          '**Weekly comparison**: This week\'s focus time vs last week with +/- diff',
+          '**Top Focus tasks**: Ranked list of which stories got the most focus time with progress bars',
+          '**Focus streak**: Consecutive days with at least one deep work session',
+          '**Focus stats library**: Pure calculation functions reusable by Dashboard and AI context',
+        ],
+      },
+      {
+        title: 'New Files',
+        items: [
+          '`focus-stats.ts` — Pure functions: `calcFocusStats()` and `formatMinutes()` for deep work analytics',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.38.0',
     date: '2026-03-15',
     phase: 'Deep Work Mode with Pomodoro Timer',
