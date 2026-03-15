@@ -3,7 +3,6 @@ import {
   CheckSquare,
   ChevronDown,
   ChevronRight,
-  CalendarDays,
   Target,
   Plus,
   Inbox,
@@ -69,13 +68,6 @@ function SH({ children, action }: { children: React.ReactNode; action?: React.Re
   )
 }
 
-function LinkAction({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="text-[11px] text-muted-foreground/50 hover:text-foreground transition-colors flex items-center gap-0.5">
-      {label} <ChevronRight className="h-3 w-3" />
-    </button>
-  )
-}
 
 function QuickAddInput({ placeholder, onAdd }: { placeholder: string; onAdd: (title: string) => void }) {
   const [value, setValue] = useState('')
@@ -725,31 +717,10 @@ export function TodayPage() {
             )}
           </section>
 
-          {/* Schedule */}
-          {todayEvents.length > 0 && (
-            <section>
-              <SH action={<LinkAction label="Calendar" onClick={() => navigate('/calendar')} />}>
-                <CalendarDays className="h-3 w-3 inline mr-1.5 -mt-px" />
-                Schedule
-              </SH>
-              <div className="space-y-0.5">
-                {todayEvents.map((event) => (
-                  <div key={event.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/30 transition-colors">
-                    <span className="text-xs tabular-nums text-muted-foreground/60 w-12 shrink-0">
-                      {(event.metadata.time as string) ?? 'All day'}
-                    </span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
-                    <span className="text-sm truncate">{event.title}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
           {/* Today's Protocols */}
           {protocolsData.length > 0 && (
             <section>
-              <SH action={<LinkAction label="Habits" onClick={() => navigate('/habits')} />}>
+              <SH>
                 <ListChecks className="h-3 w-3 inline mr-1.5 -mt-px" />
                 Today&apos;s Protocols
               </SH>
@@ -796,33 +767,6 @@ export function TodayPage() {
                     </div>
                   )
                 })}
-              </div>
-            </section>
-          )}
-
-          {/* Habits — inline pills */}
-          {habits.length > 0 && (
-            <section>
-              <SH action={<LinkAction label="Habits" onClick={() => navigate('/habits')} />}>
-                Habits ({habitsChecked}/{habits.length})
-              </SH>
-              <div className="flex flex-wrap gap-2">
-                {habits.map(({ habit, checkedToday, streak }) => (
-                  <button
-                    key={habit.id}
-                    onClick={() => !checkedToday && handleHabitCheckIn(habit)}
-                    disabled={checkedToday}
-                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
-                      checkedToday
-                        ? 'bg-green-500/8 text-green-700 dark:text-green-400'
-                        : 'bg-muted/40 hover:bg-muted text-foreground'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full shrink-0 transition-colors ${checkedToday ? 'bg-green-500' : 'bg-muted-foreground/20'}`} />
-                    {habit.title}
-                    {streak > 0 && <span className="text-[11px] text-muted-foreground/50 tabular-nums">{streak}d</span>}
-                  </button>
-                ))}
               </div>
             </section>
           )}
