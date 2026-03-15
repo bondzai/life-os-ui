@@ -23,7 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+// Collapsible removed — tasks section moved to Tasks page
 import { PriorityPicker } from './today/priority-picker'
 import { CaptureBar } from './today/capture-bar'
 import { DailyProtocol } from './today/daily-protocol'
@@ -227,22 +227,6 @@ export function TodayPage() {
     return items
   }, [allEntities, today])
 
-  // Tasks not already in Today Focus — avoid showing duplicates
-  const remainingTasks = useMemo(
-    () => todayTasks.filter((t) => !priorities.includes(t.id)),
-    [todayTasks, priorities],
-  )
-
-  // Tasks/chores completed today
-  const doneToday = useMemo(
-    () => allEntities.filter(
-      (e) =>
-        (e.type === 'task' || e.type === 'chore') &&
-        e.status === 'completed' &&
-        e.updatedAt?.startsWith(today),
-    ),
-    [allEntities, today],
-  )
 
   // Keep actionItems reference for metrics (total count of active items)
   const actionItems = todayTasks
@@ -566,29 +550,6 @@ export function TodayPage() {
     [update],
   )
 
-  const handleQuickAdd = useCallback(
-    (title: string, workspace: 'work' | 'personal') => {
-      if (!title.trim()) return
-      create.mutate({
-        id: crypto.randomUUID(),
-        type: 'task',
-        title: title.trim(),
-        status: 'active',
-        priority: 'medium',
-        tags: [],
-        metadata: { workspace },
-        ownerId: currentUser?.id ?? '',
-        visibility: 'private',
-        dueDate: today,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-    },
-    [create, currentUser, today],
-  )
-
-  const [doneTodayOpen, setDoneTodayOpen] = useState(false)
-
   const dateStr = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -723,17 +684,16 @@ export function TodayPage() {
                   })}
                 </div>
 
-                {/* Add another story */}
+                {/* Add to focus */}
                 {priorities.length < 3 && !addingStory && (
                   <button
                     className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-3 flex items-center gap-1"
                     onClick={() => setAddingStory(true)}
                   >
-                    <Plus className="h-3 w-3" /> Add story
+                    <Plus className="h-3 w-3" /> Add to focus
                   </button>
                 )}
 
-                {/* Inline picker for adding more */}
                 {addingStory && (
                   <div className="mt-3">
                     <PriorityPicker
@@ -757,60 +717,6 @@ export function TodayPage() {
               />
             )}
           </section>
-
-          {/* Today's Tasks — unified, with workspace badges */}
-          {(remainingTasks.length > 0 || doneToday.length > 0) && (
-            <section>
-              <SH action={<LinkAction label="All tasks" onClick={() => navigate('/tasks')} />}>
-                Tasks ({remainingTasks.length})
-              </SH>
-              {remainingTasks.length > 0 ? (
-                <div className="space-y-0.5">
-                  {remainingTasks.map((task) => (
-                    <div key={task.id} className="flex items-center gap-2 py-1.5">
-                      <Checkbox
-                        checked={false}
-                        onCheckedChange={() => toggleItem(task)}
-                        className="shrink-0"
-                      />
-                      <span className="text-sm flex-1 truncate">{task.title}</span>
-                      {typeof task.metadata.workspace === 'string' && (
-                        <span className="text-[10px] text-muted-foreground/40">
-                          {task.metadata.workspace === 'work' ? '🏢' : '🏠'}
-                        </span>
-                      )}
-                      {(task.priority === 'urgent' || task.priority === 'high') && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                          task.priority === 'urgent' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
-                        }`}>{task.priority}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground/40 py-1">All tasks in Focus above</p>
-              )}
-              <QuickAddInput placeholder="+ Add task..." onAdd={(t) => handleQuickAdd(t, 'personal')} />
-
-              {/* Done Today — collapsed */}
-              {doneToday.length > 0 && (
-                <Collapsible open={doneTodayOpen} onOpenChange={setDoneTodayOpen}>
-                  <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] text-muted-foreground/40 hover:text-muted-foreground transition-colors pt-3 pb-1 w-full">
-                    <ChevronRight className={`h-3 w-3 transition-transform ${doneTodayOpen ? 'rotate-90' : ''}`} />
-                    Done ({doneToday.length})
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    {doneToday.map((task) => (
-                      <div key={task.id} className="flex items-center gap-2 py-1 opacity-40">
-                        <Checkbox checked disabled className="shrink-0" />
-                        <span className="text-xs line-through">{task.title}</span>
-                      </div>
-                    ))}
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-            </section>
-          )}
 
           {/* Schedule */}
           {todayEvents.length > 0 && (
