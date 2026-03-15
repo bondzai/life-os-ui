@@ -33,6 +33,7 @@ import { WeightChart } from './health/weight-chart'
 import { SleepChart } from './health/sleep-chart'
 import { WorkoutHeatmap } from './health/workout-heatmap'
 import { WaterIntakeCard } from './health/water-intake-card'
+import { HealthMetricsCard } from './health/health-metrics-card'
 import type { Entity } from '@/core/types'
 
 export function HealthPage() {
@@ -275,6 +276,9 @@ export function HealthPage() {
 
   return (
     <div className="space-y-4">
+      {/* Health Metrics — BMI, BMR, TDEE, Weight Trend, Active Minutes */}
+      <HealthMetricsCard bodyMetrics={bodyMetrics} workouts={workouts} />
+
       {/* Summary strip */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Card>

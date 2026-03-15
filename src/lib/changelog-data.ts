@@ -14,6 +14,35 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.28.0',
+    date: '2026-03-15',
+    phase: 'Health Metrics — BMI, BMR, TDEE & Bulk/Cut',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Health Profile**: Configure height, date of birth, gender, and activity level — stored locally for metric calculations',
+          '**BMI Calculator**: Auto-calculated from latest weight + height, with category badge (underweight/normal/overweight/obese)',
+          '**BMR Calculator**: Basal Metabolic Rate via Mifflin-St Jeor equation',
+          '**TDEE Calculator**: Total Daily Energy Expenditure with 5 activity levels (sedentary to very active)',
+          '**Bulk/Cut Targets**: TDEE card shows calorie targets for cut (-500), lean bulk (+250), maintain, and bulk (+500)',
+          '**Goal Mode Suggestion**: Smart recommendation (Cut/Maintain/Lean Bulk/Bulk) based on body fat % or BMI — with reasoning text',
+          '**Daily Protein Target**: Calculated per goal mode (2.0g/kg for cut, 1.8g/kg maintain, 1.6g/kg bulk)',
+          '**Ideal Weight Range**: Based on BMI 18.5–24.9 reversed to kg',
+          '**Weight Trend**: 7-day moving average with direction indicator (up/down/stable)',
+          '**Weekly Active Minutes**: Progress bar toward WHO 150min/week target with calories burned',
+        ],
+      },
+      {
+        title: 'New Files',
+        items: [
+          '`health-calc.ts` — Pure calculation functions for BMI, BMR, TDEE, bulk/cut targets, protein, weight trend, weekly activity',
+          '`health-metrics-card.tsx` — Dashboard component with 4-card grid, suggestion card, activity bar, and profile settings dialog',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.27.0',
     date: '2026-03-15',
     phase: 'Streamline — Focused Module Structure',
