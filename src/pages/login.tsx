@@ -67,6 +67,8 @@ export function LoginPage() {
   const [username, setUsername] = useState('')
 
   const handleSignIn = () => {
+    // Reset users to defaults (clear demo user or bcrypt hashes)
+    localStorage.setItem(`${KEY_PREFIX}users`, JSON.stringify(DEFAULT_USERS))
     setStep('pin')
   }
 
