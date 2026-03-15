@@ -14,6 +14,23 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.34.0',
+    date: '2026-03-15',
+    phase: 'Task → Story Merge (Select + Drag & Drop)',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Multi-select tasks**: Checkbox on each task card in list view — select multiple tasks for batch actions',
+          '**Floating action bar**: Appears when tasks are selected — "Create Story" (merges into new story) or "Add to Story" (dropdown of existing stories)',
+          '**Drag & drop merge**: Drag a task card onto a story card in list view to add it as a subtask — story card highlights on hover',
+          '**Auto-archive on merge**: Original tasks are archived when merged into a story as subtasks',
+          '**StoryDialog defaultSubtasks**: Pre-fills steps from selected tasks when creating story from merge',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.33.0',
     date: '2026-03-15',
     phase: 'Stories — Create in Tasks, Focus in Focus',

@@ -29,6 +29,7 @@ interface StoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workspace?: 'work' | 'personal'
+  defaultSubtasks?: Subtask[]
   onSubmit: (values: {
     title: string
     description: string
@@ -39,7 +40,7 @@ interface StoryDialogProps {
   }) => void
 }
 
-export function StoryDialog({ open, onOpenChange, workspace, onSubmit }: StoryDialogProps) {
+export function StoryDialog({ open, onOpenChange, workspace, defaultSubtasks, onSubmit }: StoryDialogProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('high')
@@ -55,7 +56,7 @@ export function StoryDialog({ open, onOpenChange, workspace, onSubmit }: StoryDi
       setPriority('high')
       setDueDate(new Date().toISOString().split('T')[0])
       setWs(workspace || '')
-      setSubtasks([])
+      setSubtasks(defaultSubtasks || [])
       setStepInput('')
     }
   }, [open, workspace])
