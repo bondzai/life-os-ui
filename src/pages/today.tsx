@@ -5,6 +5,7 @@ import {
   ChevronRight,
   CalendarDays,
   Target,
+  Plus,
   Inbox,
   ArrowRight,
   BookOpen,
@@ -104,6 +105,7 @@ export function TodayPage() {
   const displayName = currentUser?.name?.split(' ')[0] ?? 'there'
 
   const [priorities, setPriorities] = useState<string[]>(() => getTodayPriorities())
+  const [addingStory, setAddingStory] = useState(false)
   const [journalText, setJournalText] = useState('')
   const [showJournal, setShowJournal] = useState(false)
 
@@ -291,10 +293,36 @@ export function TodayPage() {
   // ─── Handlers ───
 
   const handleSavePriorities = useCallback((ids: string[]) => {
-    setTodayPriorities(ids)
-    setPriorities(ids)
-    notify({ title: 'Priorities set', type: 'success' })
-  }, [])
+    const merged = [...new Set([...priorities, ...ids])]
+    setTodayPriorities(merged)
+    setPriorities(merged)
+    setAddingStory(false)
+    notify({ title: 'Focus updated', type: 'success' })
+  }, [priorities])
+
+  const handleCreateStory = useCallback((title: string, steps: string[]) => {
+    const id = crypto.randomUUID()
+    const subtasks = steps.map((s) => ({ id: crypto.randomUUID(), title: s, done: false }))
+    create.mutate({
+      id,
+      type: 'task',
+      title,
+      status: 'active',
+      priority: 'high',
+      tags: [],
+      metadata: { subtasks: subtasks.length > 0 ? subtasks : undefined },
+      ownerId: currentUser?.id ?? '',
+      visibility: 'private',
+      dueDate: today,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    const merged = [...priorities, id]
+    setTodayPriorities(merged)
+    setPriorities(merged)
+    setAddingStory(false)
+    notify({ title: 'Story created & focused', type: 'success' })
+  }, [create, currentUser, today, priorities])
 
   const toggleSubtask = useCallback(
     (entity: Entity, subtaskId: string) => {
@@ -660,22 +688,39 @@ export function TodayPage() {
                 </div>
 
                 {/* Add another story */}
-                {priorities.length < 3 && (
+                {priorities.length < 3 && !addingStory && (
                   <button
-                    className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-2 flex items-center gap-1"
-                    onClick={() => {
-                      // Reset to re-open picker with existing selections preserved
-                      // For simplicity: just reset — user can re-pick
-                      setTodayPriorities([])
-                      setPriorities([])
-                    }}
+                    className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-3 flex items-center gap-1"
+                    onClick={() => setAddingStory(true)}
                   >
-                    + Add story
+                    <Plus className="h-3 w-3" /> Add story
                   </button>
+                )}
+
+                {/* Inline picker for adding more */}
+                {addingStory && (
+                  <div className="mt-3">
+                    <PriorityPicker
+                      candidates={priorityCandidates}
+                      existingIds={priorities}
+                      onSave={handleSavePriorities}
+                      onCreate={handleCreateStory}
+                    />
+                    <button
+                      className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-2"
+                      onClick={() => setAddingStory(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 )}
               </>
             ) : (
-              <PriorityPicker candidates={priorityCandidates} onSave={handleSavePriorities} />
+              <PriorityPicker
+                candidates={priorityCandidates}
+                onSave={handleSavePriorities}
+                onCreate={handleCreateStory}
+              />
             )}
           </section>
 
