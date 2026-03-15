@@ -14,6 +14,26 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.32.0',
+    date: '2026-03-15',
+    phase: 'Story-Based Focus',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          '**Story-based Today Focus**: Pick 1-3 stories (tasks with subtasks) instead of flat priority items — each story shows an interactive subtask checklist with progress bar',
+          '**Inline subtask add**: Add steps to stories directly from the Focus page without opening the task editor',
+          '**Auto-complete stories**: When all subtasks are checked, the story automatically marks as completed',
+          '**Focus Score**: Now calculated from subtask completion across all stories (more granular than task-level completion)',
+          '**Simple tasks still work**: Tasks without subtasks render as compact checkable lines (backwards compatible)',
+          '**Workspace badges on stories**: Small 🏢/🏠 emoji shows which workspace each story belongs to',
+          '**Unified task section**: Merged Work/Personal into one "Tasks" section with workspace badges — no more duplicate sections',
+          '**Tasks list view**: Time-grouped layout (Today/Upcoming/Backlog) replaces flat filtered list',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.31.0',
     date: '2026-03-15',
     phase: 'Focus ↔ Tasks Integration',
