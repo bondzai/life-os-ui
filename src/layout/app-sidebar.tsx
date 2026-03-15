@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { LogOut, Download, Upload } from 'lucide-react'
+import { LogOut, Download, Upload, Settings } from 'lucide-react'
 import { ChangelogDialog } from '@/components/changelog-dialog'
 import { APP_VERSION } from '@/lib/changelog-data'
 import {
@@ -29,6 +29,7 @@ import { useEntities } from '@/core/hooks'
 import { getModuleGroups, DEFAULT_COLLAPSED_GROUPS } from '@/core/config/modules'
 import { exportData, importData } from '@/lib/data-backup'
 import { notify } from '@/lib/notify'
+import { SettingsDialog } from '@/components/settings-dialog'
 
 const COLLAPSED_KEY = 'life-os:sidebar-collapsed'
 
@@ -56,6 +57,7 @@ export function AppSidebar() {
 
   const [collapsed, setCollapsedState] = useState<Record<string, boolean>>(() => getCollapsed())
   const [changelogOpen, setChangelogOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Badge counts
   const { items: allEntities } = useEntities()
@@ -192,6 +194,9 @@ export function AppSidebar() {
           </div>
           <div className="flex items-center gap-1">
             <ModeToggle />
+            <SidebarMenuButton onClick={() => setSettingsOpen(true)} className="w-auto px-2">
+              <Settings className="h-4 w-4" />
+            </SidebarMenuButton>
             <SidebarMenuButton onClick={handleLogout} className="w-auto px-2">
               <LogOut className="h-4 w-4" />
             </SidebarMenuButton>
@@ -199,6 +204,7 @@ export function AppSidebar() {
         </div>
       </SidebarFooter>
       <ChangelogDialog open={changelogOpen} onOpenChange={setChangelogOpen} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </Sidebar>
   )
 }

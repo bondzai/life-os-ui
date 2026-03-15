@@ -14,6 +14,29 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.36.0',
+    date: '2026-03-15',
+    phase: 'Settings & Data Mode Toggle',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Settings dialog**: Gear icon in sidebar footer opens settings panel',
+          '**Data mode toggle**: Switch between Local (browser localStorage) and API (server + database) mode at runtime — no rebuild needed',
+          '**App info**: Settings shows version, current data mode, and platform info',
+          '**Realtime clock**: Focus page header shows live clock with timezone',
+          '**Standup workspace filter**: Filter standup report by All/Work/Personal',
+        ],
+      },
+      {
+        title: 'New Files',
+        items: [
+          '`settings-dialog.tsx` — Settings dialog with data mode toggle and app info',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.35.0',
     date: '2026-03-15',
     phase: 'Smart Focus — Type-Aware Rendering',

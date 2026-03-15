@@ -7,7 +7,11 @@ import { ApiTrackerRepository } from './api-tracker-repository'
 import { ApiScheduleRepository } from './api-schedule-repository'
 import { ApiRelationRepository } from './api-relation-repository'
 
-const useApi = import.meta.env.VITE_USE_API === 'true'
+// Runtime toggle: localStorage overrides env var
+const storedMode = localStorage.getItem('life-os:data-mode')
+const useApi = storedMode !== null
+  ? storedMode === 'api'
+  : import.meta.env.VITE_USE_API === 'true'
 
 export const entityRepository = useApi ? new ApiEntityRepository() : new EntityRepository()
 export const trackerRepository = useApi ? new ApiTrackerRepository() : new TrackerRepository()
