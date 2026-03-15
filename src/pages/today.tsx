@@ -671,7 +671,7 @@ export function TodayPage() {
                       return (
                         <button
                           key={item.id}
-                          onClick={() => navigate('/goals')}
+                          onClick={() => navigate(`/goals?id=${item.id}`)}
                           className="flex items-center gap-3 w-full py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors text-left group"
                         >
                           <Target className="h-4 w-4 text-green-500 shrink-0" />

@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router'
 import { Plus, Target, Pencil, Trash2, ChevronLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,12 +27,26 @@ import type { Entity, EntityStatus } from '@/core/types'
 export function GoalsPage() {
   const { items: allGoals, isLoading, create, update, remove } = useEntities('goal')
   const currentUser = useAuthStore((s) => s.currentUser)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [statusFilter, setStatusFilter] = useState<EntityStatus | 'all'>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingGoal, setEditingGoal] = useState<Entity | null>(null)
   const [selectedGoal, setSelectedGoal] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
+
+  // Auto-select goal from URL param ?id=goal-1
+  useEffect(() => {
+    const goalId = searchParams.get('id')
+    if (goalId && allGoals.length > 0 && !selectedGoal) {
+      const goal = allGoals.find((g) => g.id === goalId)
+      if (goal) {
+        setSelectedGoal(goal)
+        searchParams.delete('id')
+        setSearchParams(searchParams, { replace: true })
+      }
+    }
+  }, [searchParams, allGoals, selectedGoal, setSearchParams])
 
   const goals = useMemo(() => {
     let filtered = allGoals.filter((g) => !g.parentId)
