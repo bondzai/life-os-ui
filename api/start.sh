@@ -1,0 +1,40 @@
+#!/bin/bash
+# Life-OS API — production startup script
+# Run with: ./api/start.sh
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Load env file if exists
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+fi
+
+# Validate required env vars
+if [ -z "$JWT_SECRET" ]; then
+  echo "ERROR: JWT_SECRET is required. Generate one with:"
+  echo "  openssl rand -hex 32"
+  exit 1
+fi
+
+# Defaults
+export PORT="${PORT:-3001}"
+export CORS_ORIGINS="${CORS_ORIGINS:-https://life-os.onrender.com,http://localhost:5173}"
+export FRONTEND_URL="${FRONTEND_URL:-https://life-os.onrender.com}"
+
+echo "Life-OS API starting..."
+echo "  Port: $PORT"
+echo "  CORS: $CORS_ORIGINS"
+echo "  Frontend: $FRONTEND_URL"
+
+# Seed database if empty
+if [ ! -f data/life-os.db ]; then
+  echo "  Seeding database..."
+  mkdir -p data
+  npx tsx src/seed.ts
+fi
+
+# Start server
+exec npx tsx src/index.ts

@@ -1,0 +1,25 @@
+# Render Blueprint — deploy frontend as static site
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: life-os
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_USE_API
+        value: "true"
+      - key: VITE_API_URL
+        sync: false  # Set manually to your Tailscale URL
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
