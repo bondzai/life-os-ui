@@ -262,7 +262,12 @@ export function TodayPage() {
 
   const todayICalEvents = useMemo(
     () => icalEvents
-      .filter((e) => e.start.toISOString().split('T')[0] === today)
+      .filter((e) => {
+        // Use local date (not UTC) to match timezone-aware "today"
+        const d = e.start
+        const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        return localDate === today
+      })
       .sort((a, b) => a.start.getTime() - b.start.getTime()),
     [icalEvents, today],
   )
