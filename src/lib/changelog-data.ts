@@ -14,6 +14,30 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.40.0',
+    date: '2026-03-16',
+    phase: 'Security & Performance Fixes',
+    sections: [
+      {
+        title: 'Security',
+        items: [
+          '**OAuth CSRF fix**: Replaced plaintext userId in OAuth state with crypto-random token + server-side validation with 10-min TTL',
+          '**Relations ownership**: GET/DELETE routes now filter by user\'s entity ownership — no cross-user data access',
+          '**Schedules ownership**: All routes now verify the linked entity belongs to the authenticated user',
+          '**Tracker ownership**: GET /:id now checks ownerId before returning data',
+        ],
+      },
+      {
+        title: 'Performance',
+        items: [
+          '**Deep Work timer fix**: Stabilized interval with useRef callback pattern — no more drift from dependency cascades',
+          '**AudioContext reuse**: Single AudioContext instance for chime instead of creating new one each time',
+          '**Focus stats single-pass**: Replaced 7+ passes through trackers with single pass + indexed maps (O(n) → O(n))',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.39.0',
     date: '2026-03-15',
     phase: 'Deep Work Log & Analytics',

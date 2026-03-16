@@ -75,11 +75,14 @@ export function DeepWorkPage() {
     setIsRunning(phase === 'work' || phase === 'break' || phase === 'long-break')
   }, [phase, settings])
 
-  // Sound notification
+  // Sound notification — reuse AudioContext to avoid repeated allocations
+  const audioCtxRef = useRef<AudioContext | null>(null)
+
   const playChime = useCallback(() => {
     if (!settings.soundEnabled) return
     try {
-      const ctx = new AudioContext()
+      if (!audioCtxRef.current) audioCtxRef.current = new AudioContext()
+      const ctx = audioCtxRef.current
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.connect(gain)
@@ -107,32 +110,36 @@ export function DeepWorkPage() {
     })
   }, [activeEntityId, settings.workMinutes, createTracker, currentUser])
 
-  // Handle timer end
-  const handleTimerEnd = useCallback(() => {
-    playChime()
-    if (phaseRef.current === 'work') {
-      logSession()
-      completeWorkSession()
-    } else {
-      completeBreak()
-    }
-  }, [playChime, logSession, completeWorkSession, completeBreak])
+  // Keep timer-end callback in a ref so the interval never restarts due to dependency changes
+  const handleTimerEndRef = useRef<() => void>(() => {})
 
-  // Countdown
+  useEffect(() => {
+    handleTimerEndRef.current = () => {
+      playChime()
+      if (phaseRef.current === 'work') {
+        logSession()
+        completeWorkSession()
+      } else {
+        completeBreak()
+      }
+    }
+  })
+
+  // Stable interval that reads from ref — only depends on isRunning
   useEffect(() => {
     if (!isRunning || secondsLeft <= 0) return
     const interval = setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval)
-          handleTimerEnd()
+          handleTimerEndRef.current()
           return 0
         }
         return prev - 1
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [isRunning, handleTimerEnd]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isRunning]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Esc key to exit
   const handleExit = useCallback(() => {
@@ -177,7 +184,7 @@ export function DeepWorkPage() {
   // Timer controls
   const handlePause = () => setIsRunning(false)
   const handleResume = () => setIsRunning(true)
-  const handleSkip = () => handleTimerEnd()
+  const handleSkip = () => handleTimerEndRef.current()
   const handleStartWork = () => setPhase('work')
 
   // Find first incomplete subtask index

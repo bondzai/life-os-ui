@@ -1,12 +1,21 @@
 import { Hono } from 'hono'
 import { db } from '../db/index.js'
-import { relations } from '../db/schema.js'
-import { eq, and, type SQL } from 'drizzle-orm'
+import { relations, entities } from '../db/schema.js'
+import { eq, and, or, type SQL } from 'drizzle-orm'
 
 export const relationRoutes = new Hono()
 
+/** Get entity IDs the user owns or has shared access to */
+function getUserEntityIds(userId: string): Set<string> {
+  const rows = db.select({ id: entities.id }).from(entities)
+    .where(or(eq(entities.ownerId, userId), eq(entities.visibility, 'shared'))!)
+    .all()
+  return new Set(rows.map((r) => r.id))
+}
+
 // GET /
 relationRoutes.get('/', async (c) => {
+  const userId = c.get('userId') as string
   const fromId = c.req.query('fromId')
   const toId = c.req.query('toId')
 
@@ -21,15 +30,20 @@ relationRoutes.get('/', async (c) => {
     results = db.select().from(relations).all()
   }
 
-  return c.json(results)
+  const ownedIds = getUserEntityIds(userId)
+  return c.json(results.filter((r) => ownedIds.has(r.fromId!) || ownedIds.has(r.toId!)))
 })
 
 // GET /:id
 relationRoutes.get('/:id', async (c) => {
+  const userId = c.get('userId') as string
   const id = c.req.param('id')
   const result = db.select().from(relations).where(eq(relations.id, id)).get()
 
-  if (!result) {
+  if (!result) return c.json({ error: 'Relation not found' }, 404)
+
+  const ownedIds = getUserEntityIds(userId)
+  if (!ownedIds.has(result.fromId!) && !ownedIds.has(result.toId!)) {
     return c.json({ error: 'Relation not found' }, 404)
   }
 
@@ -54,9 +68,13 @@ relationRoutes.post('/', async (c) => {
 
 // DELETE /:id
 relationRoutes.delete('/:id', async (c) => {
+  const userId = c.get('userId') as string
   const id = c.req.param('id')
   const existing = db.select().from(relations).where(eq(relations.id, id)).get()
-  if (!existing) {
+  if (!existing) return c.json({ error: 'Relation not found' }, 404)
+
+  const ownedIds = getUserEntityIds(userId)
+  if (!ownedIds.has(existing.fromId!) && !ownedIds.has(existing.toId!)) {
     return c.json({ error: 'Relation not found' }, 404)
   }
 

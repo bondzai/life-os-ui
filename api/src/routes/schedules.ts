@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../db/index.js'
-import { schedules } from '../db/schema.js'
-import { eq, and, type SQL } from 'drizzle-orm'
+import { schedules, entities } from '../db/schema.js'
+import { eq, and, or, type SQL } from 'drizzle-orm'
 
 export const scheduleRoutes = new Hono()
 
@@ -12,8 +12,17 @@ function parseSchedule(row: any) {
   }
 }
 
+/** Get entity IDs the user owns or has shared access to */
+function getUserEntityIds(userId: string): Set<string> {
+  const rows = db.select({ id: entities.id }).from(entities)
+    .where(or(eq(entities.ownerId, userId), eq(entities.visibility, 'shared'))!)
+    .all()
+  return new Set(rows.map((r) => r.id))
+}
+
 // GET /
 scheduleRoutes.get('/', async (c) => {
+  const userId = c.get('userId') as string
   const entityId = c.req.query('entityId')
   const isActive = c.req.query('isActive')
 
@@ -28,15 +37,20 @@ scheduleRoutes.get('/', async (c) => {
     results = db.select().from(schedules).all()
   }
 
-  return c.json(results.map(parseSchedule))
+  const ownedIds = getUserEntityIds(userId)
+  return c.json(results.filter((s) => s.entityId && ownedIds.has(s.entityId)).map(parseSchedule))
 })
 
 // GET /:id
 scheduleRoutes.get('/:id', async (c) => {
+  const userId = c.get('userId') as string
   const id = c.req.param('id')
   const result = db.select().from(schedules).where(eq(schedules.id, id)).get()
 
-  if (!result) {
+  if (!result) return c.json({ error: 'Schedule not found' }, 404)
+
+  const ownedIds = getUserEntityIds(userId)
+  if (!result.entityId || !ownedIds.has(result.entityId)) {
     return c.json({ error: 'Schedule not found' }, 404)
   }
 
@@ -63,11 +77,15 @@ scheduleRoutes.post('/', async (c) => {
 
 // PATCH /:id
 scheduleRoutes.patch('/:id', async (c) => {
+  const userId = c.get('userId') as string
   const id = c.req.param('id')
   const body = await c.req.json()
 
   const existing = db.select().from(schedules).where(eq(schedules.id, id)).get()
-  if (!existing) {
+  if (!existing) return c.json({ error: 'Schedule not found' }, 404)
+
+  const ownedIds = getUserEntityIds(userId)
+  if (!existing.entityId || !ownedIds.has(existing.entityId)) {
     return c.json({ error: 'Schedule not found' }, 404)
   }
 
@@ -85,9 +103,13 @@ scheduleRoutes.patch('/:id', async (c) => {
 
 // DELETE /:id
 scheduleRoutes.delete('/:id', async (c) => {
+  const userId = c.get('userId') as string
   const id = c.req.param('id')
   const existing = db.select().from(schedules).where(eq(schedules.id, id)).get()
-  if (!existing) {
+  if (!existing) return c.json({ error: 'Schedule not found' }, 404)
+
+  const ownedIds = getUserEntityIds(userId)
+  if (!existing.entityId || !ownedIds.has(existing.entityId)) {
     return c.json({ error: 'Schedule not found' }, 404)
   }
 

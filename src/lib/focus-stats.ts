@@ -48,48 +48,59 @@ export function calcFocusStats(
   const lastWeekStart = new Date(thisWeekStart)
   lastWeekStart.setDate(lastWeekStart.getDate() - 7)
 
-  // Today
-  let todayMinutes = 0
-  let todaySessions = 0
-  for (const t of focusTrackers) {
-    if (t.timestamp.startsWith(todayStr)) {
-      todayMinutes += t.value
-      todaySessions++
-    }
-  }
-
-  // Weekly chart (7 days Mon-Sun)
+  // Pre-compute week day date strings
   const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-  const weekDays: DailyFocus[] = []
+  const weekDayDates: string[] = []
   for (let i = 0; i < 7; i++) {
     const d = new Date(thisWeekStart)
     d.setDate(d.getDate() + i)
-    const dateStr = d.toISOString().split('T')[0]
-    let minutes = 0
-    let sessions = 0
-    for (const t of focusTrackers) {
-      if (t.timestamp.startsWith(dateStr)) {
-        minutes += t.value
-        sessions++
-      }
-    }
-    weekDays.push({ date: dateStr, label: weekdays[i], minutes, sessions })
+    weekDayDates.push(d.toISOString().split('T')[0])
   }
 
-  // This week vs last week
+  // Single pass through all focus trackers
+  let todayMinutes = 0
+  let todaySessions = 0
   let thisWeekMinutes = 0
   let lastWeekMinutes = 0
+  const dayMinutes = new Map<string, number>()
+  const daySessions = new Map<string, number>()
+  const taskMinutes = new Map<string, number>()
+  const dateSet = new Set<string>()
+
   for (const t of focusTrackers) {
-    const d = new Date(t.timestamp)
-    if (d >= thisWeekStart) thisWeekMinutes += t.value
-    else if (d >= lastWeekStart && d < thisWeekStart) lastWeekMinutes += t.value
+    const dateStr = t.timestamp.split('T')[0]
+    const ts = new Date(t.timestamp)
+
+    // Today
+    if (dateStr === todayStr) {
+      todayMinutes += t.value
+      todaySessions++
+    }
+
+    // This week / last week
+    if (ts >= thisWeekStart) thisWeekMinutes += t.value
+    else if (ts >= lastWeekStart) lastWeekMinutes += t.value
+
+    // Daily aggregates (for week chart)
+    dayMinutes.set(dateStr, (dayMinutes.get(dateStr) ?? 0) + t.value)
+    daySessions.set(dateStr, (daySessions.get(dateStr) ?? 0) + 1)
+
+    // Task aggregates
+    taskMinutes.set(t.entityId, (taskMinutes.get(t.entityId) ?? 0) + t.value)
+
+    // Date set for streak
+    dateSet.add(dateStr)
   }
 
+  // Build week days from pre-indexed data
+  const weekDays: DailyFocus[] = weekDayDates.map((date, i) => ({
+    date,
+    label: weekdays[i],
+    minutes: dayMinutes.get(date) ?? 0,
+    sessions: daySessions.get(date) ?? 0,
+  }))
+
   // Top tasks by focus time
-  const taskMinutes = new Map<string, number>()
-  for (const t of focusTrackers) {
-    taskMinutes.set(t.entityId, (taskMinutes.get(t.entityId) ?? 0) + t.value)
-  }
   const topTasks = Array.from(taskMinutes.entries())
     .map(([entityId, minutes]) => ({
       entityId,
@@ -101,19 +112,13 @@ export function calcFocusStats(
 
   // Streak: consecutive days with at least 1 session (counting back from today)
   let streak = 0
-  const dateSet = new Set<string>()
-  for (const t of focusTrackers) {
-    dateSet.add(t.timestamp.split('T')[0])
-  }
   for (let i = 0; i < 365; i++) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    const dateStr = d.toISOString().split('T')[0]
-    if (dateSet.has(dateStr)) {
+    const ds = d.toISOString().split('T')[0]
+    if (dateSet.has(ds)) {
       streak++
-    } else {
-      // Skip today if no sessions yet (don't break streak)
-      if (i === 0) continue
+    } else if (i > 0) {
       break
     }
   }

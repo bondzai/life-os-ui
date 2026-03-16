@@ -1,9 +1,34 @@
+import crypto from 'crypto'
 import { Hono } from 'hono'
 import { db } from '../db/index.js'
 import { googleTokens } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 
 const gcalRoutes = new Hono()
+
+// Secure OAuth state management — prevents CSRF
+const oauthStates = new Map<string, { userId: string; expiresAt: number }>()
+const STATE_TTL_MS = 10 * 60 * 1000 // 10 minutes
+
+function createOAuthState(userId: string): string {
+  const state = crypto.randomBytes(32).toString('hex')
+  oauthStates.set(state, { userId, expiresAt: Date.now() + STATE_TTL_MS })
+  // Cleanup expired
+  for (const [key, val] of oauthStates) {
+    if (val.expiresAt < Date.now()) oauthStates.delete(key)
+  }
+  return state
+}
+
+function validateOAuthState(state: string): string | null {
+  const entry = oauthStates.get(state)
+  if (!entry || entry.expiresAt < Date.now()) {
+    oauthStates.delete(state)
+    return null
+  }
+  oauthStates.delete(state) // One-time use
+  return entry.userId
+}
 
 /**
  * Google Calendar's own embed widget uses this public API key.
@@ -111,6 +136,7 @@ gcalRoutes.get('/auth/url', (c) => {
   }
 
   const userId = c.get('userId') as string
+  const state = createOAuthState(userId)
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -118,7 +144,7 @@ gcalRoutes.get('/auth/url', (c) => {
     scope: OAUTH_SCOPE,
     access_type: 'offline',
     prompt: 'consent',
-    state: userId,
+    state,
   })
 
   return c.json({ url: `${GOOGLE_OAUTH_BASE}?${params}` })
@@ -131,12 +157,17 @@ gcalRoutes.get('/auth/url', (c) => {
  */
 gcalRoutes.get('/auth/callback', async (c) => {
   const code = c.req.query('code')
-  const userId = c.req.query('state')
+  const state = c.req.query('state')
   const errorParam = c.req.query('error')
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
 
-  if (errorParam || !code || !userId) {
+  if (errorParam || !code || !state) {
+    return c.redirect(`${frontendUrl}/calendar?google=error`)
+  }
+
+  const userId = validateOAuthState(state)
+  if (!userId) {
     return c.redirect(`${frontendUrl}/calendar?google=error`)
   }
 

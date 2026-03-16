@@ -24,10 +24,11 @@ trackerRoutes.get('/', async (c) => {
 
 // GET /:id
 trackerRoutes.get('/:id', async (c) => {
+  const userId = c.get('userId') as string
   const id = c.req.param('id')
   const result = db.select().from(trackers).where(eq(trackers.id, id)).get()
 
-  if (!result) {
+  if (!result || result.ownerId !== userId) {
     return c.json({ error: 'Tracker not found' }, 404)
   }
 
