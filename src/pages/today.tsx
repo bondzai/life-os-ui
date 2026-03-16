@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, memo } from 'react'
 import {
   CheckSquare,
   ChevronDown,
@@ -68,8 +68,23 @@ function SH({ children, action }: { children: React.ReactNode; action?: React.Re
   )
 }
 
+/* ─── Live Clock — isolated to avoid full-page re-renders every second ─── */
+const LiveClock = memo(function LiveClock() {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const [time, setTime] = useState(() =>
+    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+  )
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
+  return <span className="tabular-nums">{time} <span className="text-muted-foreground/40">{tz}</span></span>
+})
 
-function QuickAddInput({ placeholder, onAdd }: { placeholder: string; onAdd: (title: string) => void }) {
+
+const QuickAddInput = memo(function QuickAddInput({ placeholder, onAdd }: { placeholder: string; onAdd: (title: string) => void }) {
   const [value, setValue] = useState('')
   return (
     <div className="flex items-center gap-2 mt-1">
@@ -87,10 +102,10 @@ function QuickAddInput({ placeholder, onAdd }: { placeholder: string; onAdd: (ti
       />
     </div>
   )
-}
+})
 
 /* ─── Focus Story — collapsible subtask card ─── */
-function FocusStory({
+const FocusStory = memo(function FocusStory({
   item,
   subs,
   doneCount,
@@ -185,7 +200,7 @@ function FocusStory({
       {!expanded && <Progress value={pct} className="h-1 mx-3 mb-2" />}
     </div>
   )
-}
+})
 
 export function TodayPage() {
   const { items: allEntities, update, create } = useEntities()
@@ -542,17 +557,6 @@ export function TodayPage() {
     day: 'numeric',
   })
 
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-  const [clock, setClock] = useState(() =>
-    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-  )
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setClock(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [])
-
   return (
     <div className="h-[calc(100vh-5rem)] flex flex-col">
       {/* ─── Header ─── */}
@@ -562,7 +566,7 @@ export function TodayPage() {
             {getGreeting()}, {displayName}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {dateStr} <span className="tabular-nums">{clock}</span> <span className="text-muted-foreground/40">{tz}</span>
+            {dateStr} <LiveClock />
           </p>
         </div>
         <div className="flex items-center gap-4">
