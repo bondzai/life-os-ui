@@ -845,20 +845,32 @@ export function TodayPage() {
             </button>
           </div>
 
-          {/* Calendar — today's events + iCal */}
+          {/* Calendar — today's tasks, events + iCal */}
           <Collapsible defaultOpen>
             <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
               <span className="text-sm">📅</span>
               <span className="text-sm flex-1 font-medium">Calendar</span>
-              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{todayEvents.length + todayICalEvents.length}</span>
+              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{todayTasks.length + todayEvents.length + todayICalEvents.length}</span>
               <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="px-4 pb-3 space-y-1">
-                {todayEvents.length === 0 && todayICalEvents.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/40 py-1">No events today</p>
+                {todayTasks.length === 0 && todayEvents.length === 0 && todayICalEvents.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/40 py-1">Nothing scheduled today</p>
                 ) : (
                   <>
+                    {/* Tasks due today */}
+                    {todayTasks.map((task) => (
+                      <div key={task.id} className="flex items-center gap-2.5 py-1.5">
+                        <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">Task</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-500/60 shrink-0" />
+                        <span className={`text-sm truncate flex-1 ${task.status === 'completed' ? 'line-through text-muted-foreground/40' : ''}`}>{task.title}</span>
+                        {typeof task.metadata.workspace === 'string' && (
+                          <span className="text-[10px] text-muted-foreground/30">{task.metadata.workspace === 'work' ? '🏢' : '🏠'}</span>
+                        )}
+                      </div>
+                    ))}
+                    {/* Local events */}
                     {todayEvents.map((event) => (
                       <div key={event.id} className="flex items-center gap-2.5 py-1.5">
                         <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
@@ -868,6 +880,7 @@ export function TodayPage() {
                         <span className="text-sm truncate">{event.title}</span>
                       </div>
                     ))}
+                    {/* iCal / Google Calendar events */}
                     {todayICalEvents.map((event) => (
                       <div key={event.id} className="flex items-center gap-2.5 py-1.5">
                         <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
