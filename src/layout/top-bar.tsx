@@ -37,6 +37,7 @@ export function TopBar({ title }: TopBarProps) {
   const setCommandBarOpen = useUiStore((s) => s.setCommandBarOpen)
   const notifications = useNotificationStore((s) => s.notifications)
   const markRead = useNotificationStore((s) => s.markRead)
+  const markAllRead = useNotificationStore((s) => s.markAllRead)
 
   const unreadCount = notifications.filter((n) => !n.read).length
   const latest = notifications.slice(0, 5)
@@ -89,23 +90,41 @@ export function TopBar({ title }: TopBarProps) {
             </div>
           ) : (
             <>
+              {/* Header with mark all read */}
+              {unreadCount > 0 && (
+                <>
+                  <div className="flex items-center justify-between px-3 py-1.5">
+                    <span className="text-xs text-muted-foreground">{unreadCount} unread</span>
+                    <button
+                      className="text-xs text-primary hover:underline"
+                      onClick={(e) => { e.preventDefault(); markAllRead() }}
+                    >
+                      Mark all read
+                    </button>
+                  </div>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               {latest.map((n) => (
                 <DropdownMenuItem
                   key={n.id}
                   className="flex flex-col items-start gap-0.5 px-3 py-2 cursor-pointer"
-                  onClick={() => markRead(n.id)}
+                  onClick={() => { if (!n.read) markRead(n.id) }}
                 >
-                  <span className={`text-sm ${!n.read ? 'font-semibold' : ''}`}>
-                    {n.title}
-                  </span>
+                  <div className="flex items-center gap-2 w-full">
+                    {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
+                    <span className={`text-sm flex-1 ${!n.read ? 'font-semibold' : ''}`}>
+                      {n.title}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/50 shrink-0">
+                      {formatRelativeTime(n.createdAt)}
+                    </span>
+                  </div>
                   {n.message && (
-                    <span className="text-xs text-muted-foreground line-clamp-1">
+                    <span className={`text-xs text-muted-foreground line-clamp-1 ${!n.read ? 'ml-3.5' : ''}`}>
                       {n.message}
                     </span>
                   )}
-                  <span className="text-xs text-muted-foreground">
-                    {formatRelativeTime(n.createdAt)}
-                  </span>
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />

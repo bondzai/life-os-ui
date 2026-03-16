@@ -23,6 +23,7 @@ const HealthPage = lazy(() => import('@/pages/health').then((m) => ({ default: m
 const FamilyPage = lazy(() => import('@/pages/family').then((m) => ({ default: m.FamilyPage })))
 const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m.ReviewPage })))
 const DashboardPage = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.DashboardPage })))
+const NotificationsPage = lazy(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationsPage })))
 const DeepWorkPage = lazy(() => import('@/pages/deep-work').then((m) => ({ default: m.DeepWorkPage })))
 
 const queryClient = new QueryClient({
@@ -58,6 +59,7 @@ export function App() {
                   <Route path="family" element={<FamilyPage />} />
                   <Route path="review" element={<ReviewPage />} />
                   <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="today" element={<TodayPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
