@@ -6,8 +6,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx src/db/migrate.ts",
     "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
     "seed": "tsx src/seed.ts"
   },
   "dependencies": {

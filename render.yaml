@@ -31,8 +31,8 @@ services:
     runtime: node
     region: singapore
     rootDir: api
-    buildCommand: npm install
-    startCommand: npx tsx src/index.ts
+    buildCommand: npm install && npm run db:generate
+    startCommand: npm run db:migrate && npx tsx src/index.ts
     envVars:
       - key: JWT_SECRET
         generateValue: true

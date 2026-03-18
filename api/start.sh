@@ -30,6 +30,10 @@ echo "  CORS: $CORS_ORIGINS"
 echo "  Frontend: $FRONTEND_URL"
 echo "  DB: ${TURSO_DATABASE_URL:-file:./data/lyra.db}"
 
+# Run migrations (safe to run repeatedly — only applies new ones)
+echo "  Running migrations..."
+npx tsx src/db/migrate.ts
+
 # Seed database if needed (for local file DB only)
 if [[ "${TURSO_DATABASE_URL:-}" != http* ]] && [ ! -f data/lyra.db ]; then
   echo "  Seeding database..."
