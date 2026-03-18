@@ -105,13 +105,9 @@ function DroppableStory({ storyId, children }: { storyId: string; children: Reac
 
 function ListTaskWrapper({
   task,
-  selectedTasks,
-  setSelectedTasks,
   children,
 }: {
   task: Entity
-  selectedTasks: Set<string>
-  setSelectedTasks: (updater: Set<string> | ((prev: Set<string>) => Set<string>)) => void
   children: React.ReactNode
 }) {
   if (isStory(task)) {
@@ -681,7 +677,7 @@ export function TasksPage() {
                 </h3>
                 <div className="rounded-lg border">
                   {todayGroup.map((task) => (
-                    <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
+                    <ListTaskWrapper key={task.id} task={task}>
                       {renderTaskCard(task)}
                     </ListTaskWrapper>
                   ))}
@@ -700,7 +696,7 @@ export function TasksPage() {
                     </h3>
                     <div className="rounded-lg border">
                       {tomorrowGroup.map((task) => (
-                        <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
+                        <ListTaskWrapper key={task.id} task={task}>
                           {renderTaskCard(task)}
                         </ListTaskWrapper>
                       ))}
@@ -716,7 +712,7 @@ export function TasksPage() {
                     </h3>
                     <div className="rounded-lg border">
                       {thisWeekGroup.map((task) => (
-                        <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
+                        <ListTaskWrapper key={task.id} task={task}>
                           {renderTaskCard(task)}
                         </ListTaskWrapper>
                       ))}
@@ -732,7 +728,7 @@ export function TasksPage() {
                     </h3>
                     <div className="rounded-lg border">
                       {laterGroup.map((task) => (
-                        <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
+                        <ListTaskWrapper key={task.id} task={task}>
                           {renderTaskCard(task)}
                         </ListTaskWrapper>
                       ))}
@@ -751,7 +747,7 @@ export function TasksPage() {
                 </h3>
                 <div className="rounded-lg border">
                   {backlogGroup.map((task) => (
-                    <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
+                    <ListTaskWrapper key={task.id} task={task}>
                       {renderTaskCard(task)}
                     </ListTaskWrapper>
                   ))}
