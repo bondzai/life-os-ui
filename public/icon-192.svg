@@ -1,5 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" fill="none">
-  <rect width="192" height="192" rx="40" fill="#18181b"/>
-  <path d="M96 32l14.5 43.4L154 83.6l-34.7 29.6L130.7 158 96 137.3 61.3 158l11.4-44.8L38 83.6l43.5-8.2L96 32z" fill="#fafafa" opacity="0.95"/>
-  <circle cx="96" cy="92" r="8" fill="#3b82f6"/>
+  <rect width="192" height="192" rx="40" fill="#0f172a"/>
+  <!-- Background stars -->
+  <circle cx="30" cy="35" r="0.8" fill="#fafafa" opacity="0.25"/>
+  <circle cx="160" cy="28" r="0.6" fill="#fafafa" opacity="0.2"/>
+  <circle cx="165" cy="155" r="0.8" fill="#fafafa" opacity="0.2"/>
+  <circle cx="28" cy="160" r="0.6" fill="#fafafa" opacity="0.15"/>
+  <circle cx="145" cy="80" r="0.6" fill="#fafafa" opacity="0.15"/>
+  <!-- Lyra constellation: lines -->
+  <g stroke="#94a3b8" stroke-width="1.2" opacity="0.35">
+    <line x1="96" y1="38" x2="72" y2="68"/>
+    <line x1="96" y1="38" x2="120" y2="68"/>
+    <line x1="72" y1="68" x2="68" y2="112"/>
+    <line x1="120" y1="68" x2="124" y2="112"/>
+    <line x1="68" y1="112" x2="80" y2="148"/>
+    <line x1="124" y1="112" x2="112" y2="148"/>
+    <line x1="80" y1="148" x2="112" y2="148"/>
+  </g>
+  <!-- Stars -->
+  <circle cx="96" cy="38" r="5.5" fill="#60a5fa"/>
+  <circle cx="96" cy="38" r="8" fill="#60a5fa" opacity="0.15"/>
+  <circle cx="72" cy="68" r="3.5" fill="#e2e8f0"/>
+  <circle cx="120" cy="68" r="3.5" fill="#e2e8f0"/>
+  <circle cx="68" cy="112" r="3" fill="#e2e8f0" opacity="0.8"/>
+  <circle cx="124" cy="112" r="3" fill="#e2e8f0" opacity="0.8"/>
+  <circle cx="80" cy="148" r="2.5" fill="#e2e8f0" opacity="0.6"/>
+  <circle cx="112" cy="148" r="2.5" fill="#e2e8f0" opacity="0.6"/>
 </svg>

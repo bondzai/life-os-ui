@@ -101,9 +101,24 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-primary-foreground">
-              <path d="M12 2l2.09 6.26L20.18 9l-5 4.27L16.82 20 12 16.77 7.18 20l1.64-6.73L3.82 9l6.09-.74L12 2z" fill="currentColor" />
+          <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#0f172a' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <g stroke="#94a3b8" strokeWidth="0.6" opacity="0.4">
+                <line x1="12" y1="3" x2="8.5" y2="7.5"/>
+                <line x1="12" y1="3" x2="15.5" y2="7.5"/>
+                <line x1="8.5" y1="7.5" x2="8" y2="14"/>
+                <line x1="15.5" y1="7.5" x2="16" y2="14"/>
+                <line x1="8" y1="14" x2="9.5" y2="19.5"/>
+                <line x1="16" y1="14" x2="14.5" y2="19.5"/>
+                <line x1="9.5" y1="19.5" x2="14.5" y2="19.5"/>
+              </g>
+              <circle cx="12" cy="3" r="1.8" fill="#60a5fa"/>
+              <circle cx="8.5" cy="7.5" r="1.2" fill="#e2e8f0"/>
+              <circle cx="15.5" cy="7.5" r="1.2" fill="#e2e8f0"/>
+              <circle cx="8" cy="14" r="1" fill="#e2e8f0" opacity="0.8"/>
+              <circle cx="16" cy="14" r="1" fill="#e2e8f0" opacity="0.8"/>
+              <circle cx="9.5" cy="19.5" r="0.8" fill="#e2e8f0" opacity="0.6"/>
+              <circle cx="14.5" cy="19.5" r="0.8" fill="#e2e8f0" opacity="0.6"/>
             </svg>
           </div>
           <div className="flex items-baseline gap-1.5">
