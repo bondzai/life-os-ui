@@ -58,7 +58,7 @@ export function StoryDialog({ open, onOpenChange, workspace, defaultSubtasks, on
 
   const addStep = () => {
     if (!stepInput.trim()) return
-    setSubtasks((prev) => [...prev, { id: crypto.randomUUID(), title: stepInput.trim(), done: false }])
+    setSubtasks((prev) => [...prev, { id: crypto.randomUUID(), title: stepInput.trim(), done: false, status: 'todo' as const }])
     setStepInput('')
   }
 

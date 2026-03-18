@@ -25,6 +25,7 @@ const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m
 const DashboardPage = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.DashboardPage })))
 const NotificationsPage = lazy(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationsPage })))
 const DeepWorkPage = lazy(() => import('@/pages/deep-work').then((m) => ({ default: m.DeepWorkPage })))
+const SessionsPage = lazy(() => import('@/pages/sessions').then((m) => ({ default: m.SessionsPage })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +59,7 @@ export function App() {
                   <Route path="travel" element={<TravelPage />} />
                   <Route path="family" element={<FamilyPage />} />
                   <Route path="review" element={<ReviewPage />} />
+                  <Route path="sessions" element={<SessionsPage />} />
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="today" element={<TodayPage />} />

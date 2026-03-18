@@ -80,7 +80,7 @@ export const TaskCard = memo(
     ) => {
       const subtasks = getSubtaskProgress(task.metadata)
       const isStory = checkIsStory(task)
-      const completed = task.status === 'completed'
+      const completed = task.status === 'done'
       const overdue = checkIsOverdue(task.dueDate, task.status)
       const visibleTags = task.tags.slice(0, 2)
       const extraTags = task.tags.length - 2

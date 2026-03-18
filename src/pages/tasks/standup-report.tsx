@@ -52,18 +52,18 @@ export function StandupReport({ open, onOpenChange, tasks }: StandupReportProps)
 
     const doneTasks = filtered.filter(
       (t) =>
-        t.status === 'completed' &&
+        t.status === 'done' &&
         t.updatedAt &&
         new Date(t.updatedAt) >= lastWorkday,
     )
 
     const planTasks = filtered.filter(
       (t) =>
-        t.status === 'active' &&
+        t.status === 'todo' &&
         (t.dueDate === today || t.priority === 'urgent' || t.priority === 'high'),
     )
 
-    const blockedTasks = filtered.filter((t) => t.status === 'paused')
+    const blockedTasks = filtered.filter((t) => t.status === 'in-progress')
 
     return { done: doneTasks, plan: planTasks, blocked: blockedTasks }
   }, [filtered, lastWorkday])

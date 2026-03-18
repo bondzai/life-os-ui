@@ -9,6 +9,7 @@ import {
   ArrowRight,
   BookOpen,
   ListChecks,
+  Crown,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -115,7 +116,7 @@ const FocusStory = memo(function FocusStory({
   onAddSubtask,
 }: {
   item: Entity
-  subs: Array<{ id: string; title: string; done: boolean }>
+  subs: Array<{ id: string; title: string; done: boolean; status?: 'todo' | 'in-progress' | 'done' }>
   doneCount: number
   pct: number
   allDone: boolean
@@ -144,16 +145,6 @@ const FocusStory = memo(function FocusStory({
             {item.title}
           </span>
         </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            useFocusStore.getState().startSession(item.id)
-            nav('/deep-work')
-          }}
-          className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0"
-        >
-          Focus
-        </button>
         {typeof item.metadata.workspace === 'string' && (
           <span className="text-[10px] text-muted-foreground/40 shrink-0">
             {item.metadata.workspace === 'work' ? '🏢' : '🏠'}
@@ -170,21 +161,47 @@ const FocusStory = memo(function FocusStory({
       {expanded && (
         <div className="px-3 pb-3 space-y-1.5">
           <div className="space-y-0.5 pl-1">
-            {subs.map((sub) => (
-              <label
-                key={sub.id}
-                className="flex items-center gap-2.5 py-1 cursor-pointer rounded px-1 hover:bg-muted/40 transition-colors"
-              >
-                <Checkbox
-                  checked={sub.done}
-                  onCheckedChange={() => onToggleSubtask(item, sub.id)}
-                  className="h-3.5 w-3.5 shrink-0"
-                />
-                <span className={`text-sm ${sub.done ? 'line-through text-muted-foreground/60' : ''}`}>
-                  {sub.title}
-                </span>
-              </label>
-            ))}
+            {subs.map((sub) => {
+              const st = sub.status ?? (sub.done ? 'done' : 'todo')
+              return (
+                <div
+                  key={sub.id}
+                  className={`flex items-center gap-2.5 py-1 rounded px-1 transition-colors ${
+                    st === 'in-progress' ? 'bg-amber-500/[0.06]' : 'hover:bg-muted/40'
+                  }`}
+                >
+                  <button
+                    onClick={() => onToggleSubtask(item, sub.id)}
+                    className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      st === 'done'
+                        ? 'bg-primary border-primary text-primary-foreground'
+                        : st === 'in-progress'
+                          ? 'border-amber-500 bg-amber-500/20'
+                          : 'border-muted-foreground/30'
+                    }`}
+                    title={`${st} — click to cycle`}
+                  >
+                    {st === 'done' && (
+                      <svg className="h-2 w-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                    {st === 'in-progress' && (
+                      <div className="h-1 w-1 rounded-full bg-amber-500" />
+                    )}
+                  </button>
+                  {st === 'in-progress' && (
+                    <span className="text-[9px] font-medium px-1 py-px rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">WIP</span>
+                  )}
+                  <span className={`text-sm ${
+                    st === 'done' ? 'line-through text-muted-foreground/60' :
+                    st === 'in-progress' ? 'font-medium text-amber-700 dark:text-amber-300' : ''
+                  }`}>
+                    {sub.title}
+                  </span>
+                </div>
+              )
+            })}
           </div>
 
           <QuickAddInput
@@ -231,7 +248,7 @@ export function TodayPage() {
   )
 
   const priorityCandidates = useMemo(
-    () => allEntities.filter((e) => (e.type === 'task' || e.type === 'goal') && (e.status === 'active' || e.status === 'paused')),
+    () => allEntities.filter((e) => (e.type === 'task' || e.type === 'goal') && (e.status === 'todo' || e.status === 'in-progress')),
     [allEntities],
   )
 
@@ -240,7 +257,7 @@ export function TodayPage() {
     const items = allEntities.filter(
       (e) =>
         (e.type === 'task' || e.type === 'chore') &&
-        e.status === 'active' &&
+        e.status === 'todo' &&
         e.dueDate &&
         e.dueDate <= today,
     )
@@ -255,7 +272,7 @@ export function TodayPage() {
 
   const todayEvents = useMemo(
     () => allEntities
-      .filter((e) => e.type === 'event' && e.status === 'active' && e.dueDate === today)
+      .filter((e) => e.type === 'event' && e.status === 'todo' && e.dueDate === today)
       .sort((a, b) => ((a.metadata.time as string) ?? '').localeCompare((b.metadata.time as string) ?? '')),
     [allEntities, today],
   )
@@ -273,7 +290,7 @@ export function TodayPage() {
   )
 
   const activeHabits = useMemo(
-    () => allEntities.filter((e) => e.type === 'habit' && e.status === 'active'),
+    () => allEntities.filter((e) => e.type === 'habit' && e.status === 'todo'),
     [allEntities],
   )
 
@@ -314,7 +331,7 @@ export function TodayPage() {
   )
 
   const inboxItems = useMemo(
-    () => allEntities.filter((e) => e.metadata.isInbox === true && e.status === 'active'),
+    () => allEntities.filter((e) => e.metadata.isInbox === true && e.status === 'todo'),
     [allEntities],
   )
 
@@ -327,7 +344,7 @@ export function TodayPage() {
     const projects = allEntities.filter(
       (e) =>
         e.type === 'goal' &&
-        e.status === 'active' &&
+        e.status === 'todo' &&
         (childParentIds.has(e.id) || typeof e.metadata.progress === 'number'),
     )
     return projects.slice(0, 5)
@@ -337,7 +354,7 @@ export function TodayPage() {
 
   const habitsChecked = habits.filter((h) => h.checkedToday).length
   const totalItems = actionItems.length + habits.length
-  const doneItems = actionItems.filter((i) => i.status === 'completed').length + habitsChecked
+  const doneItems = actionItems.filter((i) => i.status === 'done').length + habitsChecked
 
   // Focus Score: based on subtask completion across stories + simple task completion
   const focusScore = useMemo(() => {
@@ -345,13 +362,13 @@ export function TodayPage() {
     let totalSteps = 0
     let doneSteps = 0
     for (const entity of priorityEntities) {
-      const subs = Array.isArray(entity.metadata.subtasks) ? (entity.metadata.subtasks as Array<{ done: boolean }>) : []
+      const subs = Array.isArray(entity.metadata.subtasks) ? (entity.metadata.subtasks as Array<{ done: boolean; status?: string }>) : []
       if (subs.length > 0) {
         totalSteps += subs.length
-        doneSteps += subs.filter((s) => s.done).length
+        doneSteps += subs.filter((s) => (s.status ? s.status === 'done' : s.done)).length
       } else {
         totalSteps += 1
-        if (entity.status === 'completed') doneSteps += 1
+        if (entity.status === 'done') doneSteps += 1
       }
     }
     return totalSteps > 0 ? Math.round((doneSteps / totalSteps) * 100) : 0
@@ -378,15 +395,23 @@ export function TodayPage() {
   const toggleSubtask = useCallback(
     (entity: Entity, subtaskId: string) => {
       const subs = Array.isArray(entity.metadata.subtasks)
-        ? (entity.metadata.subtasks as Array<{ id: string; title: string; done: boolean }>)
+        ? (entity.metadata.subtasks as Array<{ id: string; title: string; done: boolean; status?: 'todo' | 'in-progress' | 'done' }>)
         : []
-      const updated = subs.map((s) => (s.id === subtaskId ? { ...s, done: !s.done } : s))
-      const allDone = updated.length > 0 && updated.every((s) => s.done)
+      const updated = subs.map((s) => {
+        if (s.id !== subtaskId) return s
+        const current = s.status ?? (s.done ? 'done' : 'todo')
+        const next = current === 'todo' ? 'in-progress' : current === 'in-progress' ? 'done' : 'todo'
+        return { ...s, done: next === 'done', status: next as 'todo' | 'in-progress' | 'done' }
+      })
+      const allDone = updated.length > 0 && updated.every((s) => s.status === 'done' || (!s.status && s.done))
+      const hasWip = updated.some((s) => s.status === 'in-progress')
+      const hasDone = updated.some((s) => s.status === 'done' || (!s.status && s.done))
+      const derivedStatus = allDone ? 'done' : (hasWip || hasDone) ? 'in-progress' : entity.status
       update.mutate({
         id: entity.id,
         updates: {
           metadata: { ...entity.metadata, subtasks: updated },
-          status: allDone ? 'completed' : 'active',
+          status: derivedStatus,
           updatedAt: new Date().toISOString(),
         },
       })
@@ -404,7 +429,7 @@ export function TodayPage() {
         updates: {
           metadata: {
             ...entity.metadata,
-            subtasks: [...subs, { id: crypto.randomUUID(), title, done: false }],
+            subtasks: [...subs, { id: crypto.randomUUID(), title, done: false, status: 'todo' as const }],
           },
           updatedAt: new Date().toISOString(),
         },
@@ -418,7 +443,7 @@ export function TodayPage() {
       update.mutate({
         id: item.id,
         updates: {
-          status: item.status === 'completed' ? 'active' : 'completed',
+          status: item.status === 'done' ? 'todo' : 'done',
           updatedAt: new Date().toISOString(),
         },
       })
@@ -512,7 +537,7 @@ export function TodayPage() {
       id: crypto.randomUUID(),
       type: 'note',
       title: `Journal — ${new Date().toLocaleDateString()}`,
-      status: 'active',
+      status: 'todo',
       priority: 'low',
       tags: ['journal'],
       metadata: { body: journalText.trim(), isJournal: true, date: today, mood: '' },
@@ -533,7 +558,7 @@ export function TodayPage() {
         type: 'task',
         title: item.title,
         description: typeof item.metadata.body === 'string' ? (item.metadata.body as string) : undefined,
-        status: 'active',
+        status: 'todo',
         priority: 'medium',
         tags: [],
         metadata: {},
@@ -613,12 +638,31 @@ export function TodayPage() {
             {priorities.length > 0 ? (
               <>
                 <SH action={
-                  <button
-                    className="text-[11px] text-muted-foreground/50 hover:text-foreground transition-colors"
-                    onClick={() => { setTodayPriorities([]); setPriorities([]) }}
-                  >
-                    Reset
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+                      onClick={() => {
+                        const store = useFocusStore.getState()
+                        // Resume existing session if same tasks, otherwise start new
+                        const same = store.emperorEntityIds.length === priorities.length &&
+                          priorities.every((id) => store.emperorEntityIds.includes(id))
+                        if (!same || !store.sessionId) {
+                          store.startEmperorTime(priorities)
+                        }
+                        navigate('/deep-work')
+                      }}
+                    >
+                      <Crown className="h-3 w-3" />
+                      Emperor Time
+                    </button>
+                    <span className="text-muted-foreground/20">|</span>
+                    <button
+                      className="text-[11px] text-muted-foreground/50 hover:text-foreground transition-colors"
+                      onClick={() => { setTodayPriorities([]); setPriorities([]) }}
+                    >
+                      Reset
+                    </button>
+                  </div>
                 }>
                   <Target className="h-3 w-3 inline mr-1.5 -mt-px" />
                   Today Focus
@@ -626,12 +670,12 @@ export function TodayPage() {
                 <div className="space-y-2">
                   {priorityEntities.map((item) => {
                     const subs = Array.isArray(item.metadata.subtasks)
-                      ? (item.metadata.subtasks as Array<{ id: string; title: string; done: boolean }>)
+                      ? (item.metadata.subtasks as Array<{ id: string; title: string; done: boolean; status?: 'todo' | 'in-progress' | 'done' }>)
                       : []
                     const hasSubs = subs.length > 0
-                    const doneCount = subs.filter((s) => s.done).length
+                    const doneCount = subs.filter((s) => (s.status ? s.status === 'done' : s.done)).length
                     const pct = hasSubs ? Math.round((doneCount / subs.length) * 100) : 0
-                    const allDone = item.status === 'completed' || (hasSubs && doneCount === subs.length)
+                    const allDone = item.status === 'done' || (hasSubs && doneCount === subs.length)
                     const isGoal = item.type === 'goal'
                     const goalProgress = typeof item.metadata.progress === 'number' ? (item.metadata.progress as number) : 0
 
@@ -660,11 +704,11 @@ export function TodayPage() {
                         <div key={item.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors">
                           <CheckSquare className="h-4 w-4 text-blue-500 shrink-0" />
                           <Checkbox
-                            checked={item.status === 'completed'}
+                            checked={item.status === 'done'}
                             onCheckedChange={() => toggleItem(item)}
                             className="shrink-0"
                           />
-                          <span className={`text-sm flex-1 truncate ${item.status === 'completed' ? 'line-through text-muted-foreground' : 'font-medium'}`}>
+                          <span className={`text-sm flex-1 truncate ${item.status === 'done' ? 'line-through text-muted-foreground' : 'font-medium'}`}>
                             {item.title}
                           </span>
                           {typeof item.metadata.workspace === 'string' && (
@@ -864,7 +908,7 @@ export function TodayPage() {
                       <div key={task.id} className="flex items-center gap-2.5 py-1.5">
                         <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">Task</span>
                         <span className="w-1.5 h-1.5 rounded-full bg-cyan-500/60 shrink-0" />
-                        <span className={`text-sm truncate flex-1 ${task.status === 'completed' ? 'line-through text-muted-foreground/40' : ''}`}>{task.title}</span>
+                        <span className={`text-sm truncate flex-1 ${task.status === 'done' ? 'line-through text-muted-foreground/40' : ''}`}>{task.title}</span>
                         {typeof task.metadata.workspace === 'string' && (
                           <span className="text-[10px] text-muted-foreground/30">{task.metadata.workspace === 'work' ? '🏢' : '🏠'}</span>
                         )}
@@ -994,11 +1038,11 @@ export function TodayPage() {
                   todayTasks.slice(0, 8).map((task) => (
                     <div key={task.id} className="flex items-center gap-2.5 py-1.5">
                       <Checkbox
-                        checked={task.status === 'completed'}
+                        checked={task.status === 'done'}
                         onCheckedChange={() => toggleItem(task)}
                         className="h-3.5 w-3.5 shrink-0"
                       />
-                      <span className={`text-sm truncate flex-1 ${task.status === 'completed' ? 'line-through text-muted-foreground/50' : ''}`}>{task.title}</span>
+                      <span className={`text-sm truncate flex-1 ${task.status === 'done' ? 'line-through text-muted-foreground/50' : ''}`}>{task.title}</span>
                       {typeof task.metadata.workspace === 'string' && (
                         <span className="text-[10px] text-muted-foreground/30">{task.metadata.workspace === 'work' ? '🏢' : '🏠'}</span>
                       )}

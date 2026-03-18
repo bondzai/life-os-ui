@@ -26,7 +26,7 @@ export function StepReflection({ onSave, saved, allEntities }: StepReflectionPro
       .filter(
         (e) =>
           (e.type === 'task' || e.type === 'goal') &&
-          e.status === 'active' &&
+          e.status === 'todo' &&
           e.dueDate &&
           e.dueDate >= today &&
           e.dueDate <= nextWeekStr,

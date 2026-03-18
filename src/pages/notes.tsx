@@ -107,7 +107,7 @@ export function NotesPage() {
       type: 'note',
       title: values.title as string,
       description: (values.description as string) || undefined,
-      status: (values.status as EntityStatus) || 'active',
+      status: (values.status as EntityStatus) || 'todo',
       priority: (values.priority as Entity['priority']) || 'medium',
       tags,
       metadata: isJournalCreate
@@ -166,8 +166,8 @@ export function NotesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="todo">To Do</SelectItem>
+                  <SelectItem value="done">Done</SelectItem>
                   <SelectItem value="archived">Archived</SelectItem>
                 </SelectContent>
               </Select>

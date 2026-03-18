@@ -20,11 +20,17 @@ const PRESETS: Record<string, FocusSettings> = {
 }
 
 interface FocusState {
-  // Active session
+  // Active session — single entity or emperor mode (all focus tasks)
   activeEntityId: string | null
+  emperorEntityIds: string[]
+  sessionId: string | null
   phase: TimerPhase
   currentSession: number
   completedSessions: number
+
+  // Timer state (persisted so it survives navigation)
+  secondsLeft: number
+  isRunning: boolean
 
   // Settings
   preset: TimerPreset
@@ -32,7 +38,12 @@ interface FocusState {
 
   // Actions
   startSession: (entityId: string) => void
+  startEmperorTime: (entityIds: string[]) => void
   setPhase: (phase: TimerPhase) => void
+  tick: () => boolean // returns true when timer reaches 0
+  pauseTimer: () => void
+  resumeTimer: () => void
+  setSecondsLeft: (seconds: number) => void
   completeWorkSession: () => void
   completeBreak: () => void
   endDeepWork: () => void
@@ -44,30 +55,99 @@ export const useFocusStore = create<FocusState>()(
   persist(
     (set, get) => ({
       activeEntityId: null,
+      emperorEntityIds: [],
+      sessionId: null,
       phase: 'idle',
       currentSession: 1,
       completedSessions: 0,
+      secondsLeft: 0,
+      isRunning: false,
       preset: 'classic',
       settings: PRESETS.classic,
 
-      startSession: (entityId) => set({ activeEntityId: entityId, phase: 'work', currentSession: 1, completedSessions: 0 }),
+      startSession: (entityId) => {
+        const { settings } = get()
+        set({
+          activeEntityId: entityId,
+          emperorEntityIds: [],
+          sessionId: crypto.randomUUID(),
+          phase: 'work',
+          currentSession: 1,
+          completedSessions: 0,
+          secondsLeft: settings.workMinutes * 60,
+          isRunning: true,
+        })
+      },
 
-      setPhase: (phase) => set({ phase }),
+      startEmperorTime: (entityIds) => {
+        const { settings } = get()
+        set({
+          activeEntityId: entityIds[0] ?? null,
+          emperorEntityIds: entityIds,
+          sessionId: crypto.randomUUID(),
+          phase: 'idle',
+          currentSession: 1,
+          completedSessions: 0,
+          secondsLeft: settings.workMinutes * 60,
+          isRunning: false,
+        })
+      },
+
+      setPhase: (phase) => {
+        const { settings } = get()
+        let seconds = settings.workMinutes * 60
+        if (phase === 'break') seconds = settings.breakMinutes * 60
+        else if (phase === 'long-break') seconds = settings.longBreakMinutes * 60
+        const running = phase === 'work' || phase === 'break' || phase === 'long-break'
+        set({ phase, secondsLeft: seconds, isRunning: running })
+      },
+
+      tick: () => {
+        const { secondsLeft } = get()
+        if (secondsLeft <= 1) {
+          set({ secondsLeft: 0, isRunning: false })
+          return true
+        }
+        set({ secondsLeft: secondsLeft - 1 })
+        return false
+      },
+
+      pauseTimer: () => set({ isRunning: false }),
+      resumeTimer: () => set({ isRunning: true }),
+      setSecondsLeft: (seconds) => set({ secondsLeft: seconds }),
 
       completeWorkSession: () => {
         const { currentSession, completedSessions, settings } = get()
         const newCompleted = completedSessions + 1
         const isLongBreak = newCompleted % settings.sessionsBeforeLongBreak === 0
+        const nextPhase = settings.autoStartBreak ? (isLongBreak ? 'long-break' : 'break') : 'idle'
+        let seconds = settings.workMinutes * 60
+        if (nextPhase === 'break') seconds = settings.breakMinutes * 60
+        else if (nextPhase === 'long-break') seconds = settings.longBreakMinutes * 60
         set({
           completedSessions: newCompleted,
-          phase: settings.autoStartBreak ? (isLongBreak ? 'long-break' : 'break') : 'idle',
+          phase: nextPhase,
           currentSession: currentSession + 1,
+          secondsLeft: seconds,
+          isRunning: nextPhase !== 'idle',
         })
       },
 
-      completeBreak: () => set({ phase: 'idle' }),
+      completeBreak: () => {
+        const { settings } = get()
+        set({ phase: 'idle', secondsLeft: settings.workMinutes * 60, isRunning: false })
+      },
 
-      endDeepWork: () => set({ activeEntityId: null, phase: 'idle', currentSession: 1, completedSessions: 0 }),
+      endDeepWork: () => set({
+        activeEntityId: null,
+        emperorEntityIds: [],
+        sessionId: null,
+        phase: 'idle',
+        currentSession: 1,
+        completedSessions: 0,
+        secondsLeft: 0,
+        isRunning: false,
+      }),
 
       setPreset: (preset) => {
         if (preset !== 'custom' && PRESETS[preset]) {

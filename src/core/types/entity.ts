@@ -28,7 +28,7 @@ export type EntityType =
   | 'comment'
   | 'location'
 
-export type EntityStatus = 'backlog' | 'active' | 'completed' | 'archived' | 'paused'
+export type EntityStatus = 'backlog' | 'todo' | 'in-progress' | 'done' | 'archived'
 
 export type EntityPriority = 'low' | 'medium' | 'high' | 'urgent'
 

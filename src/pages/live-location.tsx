@@ -183,7 +183,7 @@ export function LiveLocationPage() {
           id: crypto.randomUUID(),
           type: 'location',
           title,
-          status: 'active' as EntityStatus,
+          status: 'todo' as EntityStatus,
           priority: 'medium',
           tags: [],
           metadata,

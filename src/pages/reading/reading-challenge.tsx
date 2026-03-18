@@ -26,14 +26,14 @@ export function ReadingChallenge() {
 
   // Find active reading challenges
   const challenges = goals.filter(
-    (g) => g.metadata.challengeType === 'reading' && g.status === 'active',
+    (g) => g.metadata.challengeType === 'reading' && g.status === 'todo',
   )
 
   const getCompletedBooks = (year: string) =>
     allEntities.filter(
       (e) =>
         e.type === 'book' &&
-        e.status === 'completed' &&
+        e.status === 'done' &&
         e.updatedAt.startsWith(year),
     ).length
 
@@ -46,7 +46,7 @@ export function ReadingChallenge() {
       type: 'goal',
       title: `Read ${target} books in ${targetYear}`,
       description: `Annual reading challenge for ${targetYear}`,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: ['reading', 'challenge'],
       metadata: {

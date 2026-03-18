@@ -40,20 +40,20 @@ export function DailyBriefWidget() {
   const stats = useMemo(() => {
     const tasks = allEntities.filter((e) => e.type === 'task')
     const dueToday = tasks.filter(
-      (e) => e.status !== 'completed' && e.status !== 'archived' && e.dueDate === today,
+      (e) => e.status !== 'done' && e.status !== 'archived' && e.dueDate === today,
     ).length
     const overdue = tasks.filter(
       (e) =>
-        e.status !== 'completed' &&
+        e.status !== 'done' &&
         e.status !== 'archived' &&
         e.dueDate &&
         e.dueDate < today,
     ).length
     const activeGoals = allEntities.filter(
-      (e) => e.type === 'goal' && e.status === 'active',
+      (e) => e.type === 'goal' && e.status === 'todo',
     ).length
     const activeHabits = allEntities.filter(
-      (e) => e.type === 'habit' && e.status === 'active',
+      (e) => e.type === 'habit' && e.status === 'todo',
     ).length
 
     return { dueToday, overdue, activeGoals, activeHabits }

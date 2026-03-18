@@ -3,7 +3,6 @@ import {
   Archive,
   Calendar,
   CheckSquare,
-  GripVertical,
   Link,
   ListChecks,
   Pencil,
@@ -32,7 +31,7 @@ import {
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import type { Entity, EntityPriority, EntityStatus } from '@/core/types'
-import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, type Subtask } from './task-helpers'
+import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, subtaskStatus, subtaskDone, type Subtask, type SubtaskStatus } from './task-helpers'
 
 export interface TaskDetailPanelProps {
   task: Entity | null
@@ -53,16 +52,16 @@ export interface TaskDetailPanelProps {
 
 const STATUS_WORKFLOW: { value: EntityStatus; label: string }[] = [
   { value: 'backlog', label: 'BACKLOG' },
-  { value: 'active', label: 'TO DO' },
-  { value: 'paused', label: 'IN PROGRESS' },
-  { value: 'completed', label: 'DONE' },
+  { value: 'todo', label: 'TO DO' },
+  { value: 'in-progress', label: 'IN PROGRESS' },
+  { value: 'done', label: 'DONE' },
 ]
 
 const STATUS_COLORS: Record<EntityStatus, string> = {
   backlog: 'bg-gray-500 text-white',
-  active: 'bg-blue-600 text-white',
-  paused: 'bg-amber-500 text-white',
-  completed: 'bg-green-600 text-white',
+  todo: 'bg-blue-600 text-white',
+  'in-progress': 'bg-amber-500 text-white',
+  done: 'bg-green-600 text-white',
   archived: 'bg-gray-500 text-white',
 }
 
@@ -100,17 +99,18 @@ function resolveWorkspace(metadata: Record<string, unknown>): 'work' | 'personal
 
 /**
  * Derive parent task status from subtasks (Jira-like):
- * - All done → completed
- * - Some done → paused (in progress)
- * - None done → active (to do)
+ * - All done → done
+ * - Some done → in-progress
+ * - None done → no change
  * - Empty subtasks → no change (return null)
  */
 function deriveStatusFromSubtasks(subtasks: Subtask[]): EntityStatus | null {
   if (subtasks.length === 0) return null
-  const doneCount = subtasks.filter((s) => s.done).length
-  if (doneCount === subtasks.length) return 'completed'
-  if (doneCount > 0) return 'paused'
-  return 'active'
+  const doneCount = subtasks.filter((s) => subtaskDone(s)).length
+  if (doneCount === subtasks.length) return 'done'
+  const hasInProgress = subtasks.some((s) => subtaskStatus(s) === 'in-progress')
+  if (hasInProgress || doneCount > 0) return 'in-progress'
+  return null // no change when all todo
 }
 
 // ---------------------------------------------------------------------------
@@ -246,9 +246,13 @@ export function TaskDetailPanel({
   const handleSubtaskToggle = useCallback(
     (subtaskId: string) => {
       if (!task) return
-      const subtasks = getSubtasks(task.metadata).map((s) =>
-        s.id === subtaskId ? { ...s, done: !s.done } : s,
-      )
+      const subtasks = getSubtasks(task.metadata).map((s) => {
+        if (s.id !== subtaskId) return s
+        // Cycle: todo → in-progress → done → todo
+        const current = subtaskStatus(s)
+        const next: SubtaskStatus = current === 'todo' ? 'in-progress' : current === 'in-progress' ? 'done' : 'todo'
+        return { ...s, done: next === 'done', status: next }
+      })
       const derivedStatus = deriveStatusFromSubtasks(subtasks)
       onUpdate(task.id, {
         metadata: { ...task.metadata, subtasks },
@@ -277,7 +281,7 @@ export function TaskDetailPanel({
     if (!title) return
     const subtasks = [
       ...getSubtasks(task.metadata),
-      { id: crypto.randomUUID(), title, done: false },
+      { id: crypto.randomUUID(), title, done: false, status: 'todo' as SubtaskStatus },
     ]
     const derivedStatus = deriveStatusFromSubtasks(subtasks)
     onUpdate(task.id, {
@@ -371,7 +375,7 @@ export function TaskDetailPanel({
   if (!task) return null
 
   const subtasks = getSubtasks(task.metadata)
-  const doneCount = subtasks.filter((s) => s.done).length
+  const doneCount = subtasks.filter((s) => subtaskDone(s)).length
   const isStory = checkIsStory(task)
   const workspace = resolveWorkspace(task.metadata)
   const overdue = checkIsOverdue(task.dueDate, task.status)
@@ -809,12 +813,27 @@ export function TaskDetailPanel({
                       </button>
                     </div>
 
-                    {/* Checkbox */}
-                    <Checkbox
-                      checked={st.done}
-                      onCheckedChange={() => handleSubtaskToggle(st.id)}
-                      className="shrink-0"
-                    />
+                    {/* Status toggle — cycles todo → in-progress → done */}
+                    <button
+                      onClick={() => handleSubtaskToggle(st.id)}
+                      className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
+                        subtaskStatus(st) === 'done'
+                          ? 'bg-primary border-primary text-primary-foreground'
+                          : subtaskStatus(st) === 'in-progress'
+                            ? 'border-amber-500 bg-amber-500/20'
+                            : 'border-muted-foreground/30'
+                      }`}
+                      title={`Status: ${subtaskStatus(st)} — click to cycle`}
+                    >
+                      {subtaskStatus(st) === 'done' && (
+                        <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                      {subtaskStatus(st) === 'in-progress' && (
+                        <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      )}
+                    </button>
 
                     {/* Title — inline editable */}
                     {editingSubtaskId === st.id ? (
@@ -833,17 +852,22 @@ export function TaskDetailPanel({
                         className="h-6 text-sm flex-1 py-0"
                       />
                     ) : (
-                      <span
-                        className={`text-sm flex-1 truncate cursor-pointer rounded px-1 -mx-1 hover:bg-muted transition-colors ${
-                          st.done ? 'line-through text-muted-foreground' : ''
-                        }`}
-                        onClick={() => {
-                          setSubtaskDraft(st.title)
-                          setEditingSubtaskId(st.id)
-                        }}
-                      >
-                        {st.title}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        {subtaskStatus(st) === 'in-progress' && (
+                          <span className="text-[9px] font-medium px-1 py-px rounded bg-amber-500/15 text-amber-500 shrink-0">WIP</span>
+                        )}
+                        <span
+                          className={`text-sm truncate cursor-pointer rounded px-1 -mx-1 hover:bg-muted transition-colors ${
+                            subtaskDone(st) ? 'line-through text-muted-foreground' : ''
+                          }`}
+                          onClick={() => {
+                            setSubtaskDraft(st.title)
+                            setEditingSubtaskId(st.id)
+                          }}
+                        >
+                          {st.title}
+                        </span>
+                      </div>
                     )}
 
                     {/* Status badge */}

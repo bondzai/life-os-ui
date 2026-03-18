@@ -62,7 +62,7 @@ export function FamilyPage() {
     [chores, currentUser],
   )
   const sharedTasks = useMemo(
-    () => allEntities.filter((e) => e.type === 'task' && e.visibility === 'shared' && e.status === 'active').length,
+    () => allEntities.filter((e) => e.type === 'task' && e.visibility === 'shared' && e.status === 'todo').length,
     [allEntities],
   )
 
@@ -80,7 +80,7 @@ export function FamilyPage() {
       id: crypto.randomUUID(),
       type: 'chore',
       title: values.title,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {
@@ -157,7 +157,7 @@ export function FamilyPage() {
       updateChore.mutate({
         id: chore.id,
         updates: {
-          status: 'active',
+          status: 'todo',
           metadata: {
             ...chore.metadata,
             assigneeId: nextAssignee,
@@ -172,7 +172,7 @@ export function FamilyPage() {
       updateChore.mutate({
         id: chore.id,
         updates: {
-          status: 'completed',
+          status: 'done',
           metadata: { ...chore.metadata, completions },
           updatedAt: new Date().toISOString(),
         },
@@ -295,7 +295,7 @@ export function FamilyPage() {
         <TabsContent value="goals" className="space-y-4">
           {(() => {
             const sharedGoals = allEntities.filter(
-              (e) => e.type === 'goal' && e.visibility === 'shared' && e.status === 'active',
+              (e) => e.type === 'goal' && e.visibility === 'shared' && e.status === 'todo',
             )
             if (sharedGoals.length === 0) {
               return (

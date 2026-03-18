@@ -36,7 +36,7 @@ export function ReviewPage() {
       allEntities.filter(
         (e) =>
           (e.type === 'task' || e.type === 'goal') &&
-          e.status === 'completed' &&
+          e.status === 'done' &&
           e.updatedAt.split('T')[0] >= weekStart,
       ),
     [allEntities, weekStart],
@@ -48,7 +48,7 @@ export function ReviewPage() {
       allEntities.filter(
         (e) =>
           (e.type === 'task' || e.type === 'goal') &&
-          e.status === 'active' &&
+          e.status === 'todo' &&
           daysAgo(e.updatedAt) >= 14,
       ),
     [allEntities],
@@ -56,7 +56,7 @@ export function ReviewPage() {
 
   // Step 3: Habits with weekly check-in counts
   const habitSummaries = useMemo(() => {
-    const habits = allEntities.filter((e) => e.type === 'habit' && e.status === 'active')
+    const habits = allEntities.filter((e) => e.type === 'habit' && e.status === 'todo')
     return habits.map((habit) => {
       const checkIns = allTrackers.filter(
         (t) => t.entityId === habit.id && t.timestamp.split('T')[0] >= weekStart,
@@ -80,7 +80,7 @@ export function ReviewPage() {
   const monthlyBudget = useMemo(
     () =>
       allEntities
-        .filter((e) => e.type === 'budget' && e.status === 'active')
+        .filter((e) => e.type === 'budget' && e.status === 'todo')
         .reduce((sum, b) => sum + (Number(b.metadata.amount) || 0), 0),
     [allEntities],
   )
@@ -102,7 +102,7 @@ export function ReviewPage() {
         id: crypto.randomUUID(),
         type: 'note',
         title: `Weekly Review — ${new Date().toLocaleDateString()}`,
-        status: 'active',
+        status: 'todo',
         priority: 'low',
         tags: ['journal', 'review'],
         metadata: { body: text, isJournal: true, isReview: true, date: today },

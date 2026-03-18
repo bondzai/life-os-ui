@@ -21,7 +21,7 @@ export function TodayChecklist({ title, icon, items, onToggle }: TodayChecklistP
           {title}
           {items.length > 0 && (
             <span className="text-xs text-muted-foreground ml-auto">
-              {items.filter((i) => i.status === 'completed').length}/{items.length}
+              {items.filter((i) => i.status === 'done').length}/{items.length}
             </span>
           )}
         </CardTitle>
@@ -34,12 +34,12 @@ export function TodayChecklist({ title, icon, items, onToggle }: TodayChecklistP
             {items.map((item) => (
               <div key={item.id} className="flex items-center gap-2">
                 <Checkbox
-                  checked={item.status === 'completed'}
+                  checked={item.status === 'done'}
                   onCheckedChange={() => onToggle(item)}
                 />
                 <span
                   className={`text-sm truncate flex-1 ${
-                    item.status === 'completed' ? 'line-through text-muted-foreground' : ''
+                    item.status === 'done' ? 'line-through text-muted-foreground' : ''
                   }`}
                 >
                   {item.title}

@@ -139,7 +139,7 @@ export function CalendarPage() {
       type: 'event',
       title: values.title as string,
       description: (values.description as string) || undefined,
-      status: (values.status as EntityStatus) || 'active',
+      status: (values.status as EntityStatus) || 'todo',
       priority: (values.priority as EntityPriority) || 'medium',
       tags,
       metadata: {},

@@ -42,7 +42,7 @@ export function CaptureBar() {
       id: crypto.randomUUID(),
       type: isTask ? 'task' : 'note',
       title: cleanText.slice(0, 120) || 'Inbox item',
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: ['inbox'],
       metadata: { body: cleanText, isInbox: true },

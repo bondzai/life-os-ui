@@ -75,7 +75,7 @@ export function HomePage() {
       id: crypto.randomUUID(),
       type: 'device',
       title: values.title,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {
@@ -121,7 +121,7 @@ export function HomePage() {
       id: crypto.randomUUID(),
       type: 'service',
       title: values.title,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {

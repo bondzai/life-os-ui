@@ -114,7 +114,7 @@ export function HealthPage() {
       id: crypto.randomUUID(),
       type: 'body-metric',
       title: `${typeLabel} — ${values.value}`,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {
@@ -157,7 +157,7 @@ export function HealthPage() {
       id: crypto.randomUUID(),
       type: 'workout',
       title: values.title,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {
@@ -206,7 +206,7 @@ export function HealthPage() {
       id: crypto.randomUUID(),
       type: 'sleep-mood',
       title: parts.join(' / ') || values.date,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {

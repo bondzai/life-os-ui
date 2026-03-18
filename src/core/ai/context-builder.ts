@@ -16,7 +16,7 @@ export async function gatherContext(): Promise<EntityContext> {
 
   const tasks = all.filter((e) => e.type === 'task' && e.status !== 'archived').slice(0, 20)
   const goals = all.filter((e) => e.type === 'goal' && e.status !== 'archived').slice(0, 10)
-  const habits = all.filter((e) => e.type === 'habit' && e.status === 'active').slice(0, 10)
+  const habits = all.filter((e) => e.type === 'habit' && e.status === 'todo').slice(0, 10)
   const events = all.filter((e) => e.type === 'event' && e.status !== 'archived').slice(0, 10)
   const other = all
     .filter(

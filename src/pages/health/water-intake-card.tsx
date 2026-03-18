@@ -41,7 +41,7 @@ export function WaterIntakeCard() {
         id: crypto.randomUUID(),
         type: 'water-intake',
         title: `Water — ${newCount} glasses`,
-        status: 'active',
+        status: 'todo',
         priority: 'medium',
         tags: [],
         metadata: { date: today, count: newCount },

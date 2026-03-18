@@ -16,9 +16,9 @@ import { TaskCard } from './task-card'
 import type { Entity, EntityStatus } from '@/core/types'
 
 const BOARD_COLUMNS = [
-  { status: 'active' as EntityStatus, label: 'TO DO', color: '#2563eb', bgColor: '#2563eb10' },
-  { status: 'paused' as EntityStatus, label: 'IN PROGRESS', color: '#d97706', bgColor: '#d9770610' },
-  { status: 'completed' as EntityStatus, label: 'DONE', color: '#16a34a', bgColor: '#16a34a10' },
+  { status: 'todo' as EntityStatus, label: 'TO DO', color: '#2563eb', bgColor: '#2563eb10' },
+  { status: 'in-progress' as EntityStatus, label: 'IN PROGRESS', color: '#d97706', bgColor: '#d9770610' },
+  { status: 'done' as EntityStatus, label: 'DONE', color: '#16a34a', bgColor: '#16a34a10' },
 ] as const
 
 interface KanbanBoardProps {

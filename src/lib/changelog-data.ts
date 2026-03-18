@@ -14,6 +14,35 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.44.0',
+    date: '2026-03-18',
+    phase: 'Focus Sessions, Jira-style Status & 3-State Subtasks',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Session ID tracking**: Each Emperor Time session gets a unique ID, grouping pomodoros visually',
+          '**Session history in Emperor Time**: View, edit, and delete logged pomodoros inline during focus',
+          '**Sessions CRUD page**: Dedicated `/sessions` route with full session management and analytics',
+          '**Enriched session logs**: Logs now include preset, workMinutes, pomodoroIndex, and workspace',
+          '**3-state subtasks**: Subtasks cycle `todo → in-progress → done` instead of simple checkbox',
+          '**Auto-derive parent status**: Parent task updates to `in-progress` or `done` based on subtask states',
+          '**Persistent focus timer**: Timer state survives page navigation — leave and resume without losing progress',
+          '**Resume Focus badge**: Pulsing amber sidebar badge reminds you of a paused focus session',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**EntityStatus migration**: Replaced `active/completed/paused` with Jira-style `todo/in-progress/done` across entire codebase',
+          '**Kanban columns**: Now labeled TO DO / IN PROGRESS / DONE matching new status values',
+          '**Focus page exit**: Leaving Emperor Time pauses the timer instead of ending the session',
+          '**Focus log grouping**: Dashboard focus log groups pomodoros by session ID with expandable emperor time blocks',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.43.0',
     date: '2026-03-18',
     phase: 'Rebrand to Lyra',

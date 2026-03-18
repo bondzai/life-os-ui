@@ -192,7 +192,7 @@ export function TasksPage() {
     [...items].sort((a, b) => (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2))
 
   const activeWsTasks = useMemo(
-    () => filteredTasks.filter((t) => t.status === 'active' || t.status === 'paused'),
+    () => filteredTasks.filter((t) => t.status === 'todo' || t.status === 'in-progress'),
     [filteredTasks],
   )
 
@@ -223,7 +223,7 @@ export function TasksPage() {
   )
 
   const doneToday = useMemo(
-    () => filteredTasks.filter((t) => t.status === 'completed' && t.updatedAt?.startsWith(todayStr)),
+    () => filteredTasks.filter((t) => t.status === 'done' && t.updatedAt?.startsWith(todayStr)),
     [filteredTasks, todayStr],
   )
 
@@ -231,7 +231,7 @@ export function TasksPage() {
 
   // Existing stories for "Add to Story" dropdown
   const existingStories = useMemo(
-    () => filteredTasks.filter(t => t.status === 'active' && isStory(t)),
+    () => filteredTasks.filter(t => t.status === 'todo' && isStory(t)),
     [filteredTasks],
   )
 
@@ -240,7 +240,7 @@ export function TasksPage() {
   const completedTasks = useMemo(
     () =>
       filteredTasks
-        .filter((t) => t.status === 'completed')
+        .filter((t) => t.status === 'done')
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     [filteredTasks],
   )
@@ -321,7 +321,7 @@ export function TasksPage() {
       updates: {
         metadata: {
           ...parent.metadata,
-          subtasks: [...existingSubs, { id: crypto.randomUUID(), title: childTask.title, done: childTask.status === 'completed' }],
+          subtasks: [...existingSubs, { id: crypto.randomUUID(), title: childTask.title, done: childTask.status === 'done', status: (childTask.status === 'done' ? 'done' : 'todo') as 'todo' | 'done' }],
         },
         updatedAt: new Date().toISOString(),
       },
@@ -343,7 +343,7 @@ export function TasksPage() {
         ...prev,
         metadata: {
           ...prev.metadata,
-          subtasks: [...prevSubs, { id: crypto.randomUUID(), title: childTask.title, done: childTask.status === 'completed' }],
+          subtasks: [...prevSubs, { id: crypto.randomUUID(), title: childTask.title, done: childTask.status === 'done', status: (childTask.status === 'done' ? 'done' : 'todo') as 'todo' | 'done' }],
         },
       }
     })
@@ -359,7 +359,7 @@ export function TasksPage() {
   }, [remove])
 
   const toggleComplete = (task: Entity) => {
-    const newStatus = task.status === 'completed' ? 'active' : 'completed'
+    const newStatus = task.status === 'done' ? 'todo' : 'done'
     update.mutate({
       id: task.id,
       updates: {
@@ -389,7 +389,7 @@ export function TasksPage() {
 
   const handleMergeIntoNewStory = () => {
     const selected = tasks.filter(t => selectedTasks.has(t.id))
-    setMergeSubtasks(selected.map(t => ({ id: crypto.randomUUID(), title: t.title, done: t.status === 'completed' })))
+    setMergeSubtasks(selected.map(t => ({ id: crypto.randomUUID(), title: t.title, done: t.status === 'done' })))
     setStoryDialogOpen(true)
     setSelectedTasks(new Set())
   }
@@ -406,7 +406,8 @@ export function TasksPage() {
     const newSubs = selected.map(t => ({
       id: crypto.randomUUID(),
       title: t.title,
-      done: t.status === 'completed',
+      done: t.status === 'done',
+      status: (t.status === 'done' ? 'done' : 'todo') as 'todo' | 'done',
     }))
 
     update.mutate({
@@ -449,7 +450,7 @@ export function TasksPage() {
     update.mutate({
       id: storyId,
       updates: {
-        metadata: { ...story.metadata, subtasks: [...existingSubs, { id: crypto.randomUUID(), title: task.title, done: task.status === 'completed' }] },
+        metadata: { ...story.metadata, subtasks: [...existingSubs, { id: crypto.randomUUID(), title: task.title, done: task.status === 'done', status: (task.status === 'done' ? 'done' : 'todo') as 'todo' | 'done' }] },
         updatedAt: new Date().toISOString(),
       },
     })
@@ -489,7 +490,7 @@ export function TasksPage() {
       type: 'task',
       title: values.title as string,
       description: (values.description as string) || undefined,
-      status: (values.status as EntityStatus) || 'active',
+      status: (values.status as EntityStatus) || 'todo',
       priority: (values.priority as EntityPriority) || 'medium',
       tags,
       metadata: {
@@ -531,7 +532,7 @@ export function TasksPage() {
       type: 'task',
       title: values.title,
       description: values.description || undefined,
-      status: 'active',
+      status: 'todo',
       priority: (values.priority as EntityPriority) || 'high',
       tags: [],
       metadata: {
@@ -863,7 +864,7 @@ export function TasksPage() {
                 for (const id of selectedTasks) {
                   update.mutate({
                     id,
-                    updates: { status: 'active' as EntityStatus, updatedAt: new Date().toISOString() },
+                    updates: { status: 'todo' as EntityStatus, updatedAt: new Date().toISOString() },
                   })
                 }
                 notify({ title: `${selectedTasks.size} item${selectedTasks.size > 1 ? 's' : ''} moved to To Do`, type: 'success' })
@@ -964,7 +965,7 @@ export function TasksPage() {
                         e.stopPropagation()
                         update.mutate({
                           id: task.id,
-                          updates: { status: 'active' as EntityStatus, updatedAt: new Date().toISOString() },
+                          updates: { status: 'todo' as EntityStatus, updatedAt: new Date().toISOString() },
                         })
                         notify({ title: 'Moved to To Do', type: 'success' })
                       }}

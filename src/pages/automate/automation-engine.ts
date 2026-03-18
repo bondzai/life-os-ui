@@ -128,7 +128,7 @@ function executeAction(automation: Entity, ownerId: string): void {
         id: crypto.randomUUID(),
         type: (actionConfig.entityType as Entity['type']) || 'task',
         title: (actionConfig.title as string) || 'Automated task',
-        status: 'active',
+        status: 'todo',
         priority: (actionConfig.priority as Entity['priority']) || 'medium',
         tags: (actionConfig.tags as string[]) || [],
         metadata: { automationId: automation.id },
@@ -256,7 +256,7 @@ export function runDueAutomations(ownerId: string): number {
   const automations = entities.filter(
     (e) =>
       e.type === 'automation' &&
-      e.status === 'active' &&
+      e.status === 'todo' &&
       e.metadata.triggerType === 'schedule' &&
       e.metadata.enabled !== false,
   )
@@ -283,7 +283,7 @@ export function handleAutomationEvent(event: AutomationEvent, ownerId: string): 
   const automations = entities.filter(
     (e) =>
       e.type === 'automation' &&
-      e.status === 'active' &&
+      e.status === 'todo' &&
       e.metadata.triggerType === 'event' &&
       e.metadata.enabled !== false,
   )

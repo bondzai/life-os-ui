@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { LogOut, Download, Upload, Settings } from 'lucide-react'
+import { LogOut, Download, Upload, Settings, Crown } from 'lucide-react'
 import { ChangelogDialog } from '@/components/changelog-dialog'
 import { APP_VERSION } from '@/lib/changelog-data'
 import {
@@ -25,6 +25,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { useAuthStore } from '@/stores/auth-store'
+import { useFocusStore } from '@/stores/focus-store'
 import { useEntities } from '@/core/hooks'
 import { getModuleGroups, DEFAULT_COLLAPSED_GROUPS } from '@/core/config/modules'
 import { exportData, importData } from '@/lib/data-backup'
@@ -63,15 +64,18 @@ export function AppSidebar() {
   const { items: allEntities } = useEntities()
   const today = new Date().toISOString().split('T')[0]
   const dueTaskCount = allEntities.filter(
-    (e) => e.type === 'task' && e.status !== 'completed' && e.status !== 'archived' && e.dueDate && e.dueDate <= today,
+    (e) => e.type === 'task' && e.status !== 'done' && e.status !== 'archived' && e.dueDate && e.dueDate <= today,
   ).length
   const dueChoreCount = allEntities.filter(
-    (e) => e.type === 'chore' && e.status !== 'completed' && e.status !== 'archived' && e.dueDate && e.dueDate <= today,
+    (e) => e.type === 'chore' && e.status !== 'done' && e.status !== 'archived' && e.dueDate && e.dueDate <= today,
   ).length
 
   const badges: Record<string, number> = {}
   if (dueTaskCount > 0) badges['tasks'] = dueTaskCount
   if (dueChoreCount > 0) badges['family'] = dueChoreCount
+
+  // Active focus session detection
+  const hasActiveSession = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)
 
   const toggleGroup = (group: string) => {
     const next = { ...collapsed, [group]: !collapsed[group] }
@@ -148,6 +152,25 @@ export function AppSidebar() {
               <CollapsibleContent>
                 <SidebarGroupContent>
                   <SidebarMenu>
+                    {/* Paused focus session reminder — always first */}
+                    {group === 'Core' && hasActiveSession && location.pathname !== '/deep-work' && (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          onClick={() => {
+                            navigate('/deep-work')
+                            if (isMobile) setOpenMobile(false)
+                          }}
+                          className="group/focus relative bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/15 rounded-md"
+                        >
+                          <span className="relative flex h-4 w-4 items-center justify-center">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-40" />
+                            <Crown className="relative h-3.5 w-3.5 text-amber-500" />
+                          </span>
+                          <span className="flex-1 text-amber-600 dark:text-amber-400 font-medium">Resume Focus</span>
+                          <span className="text-[10px] text-amber-500/60">Paused</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
                     {mods.map((mod) => {
                       const isActive = location.pathname === mod.path
                       return (

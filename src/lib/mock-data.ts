@@ -28,7 +28,7 @@ function entity(overrides: Record<string, unknown>) {
     id: uid(),
     type: 'task',
     title: '',
-    status: 'active',
+    status: 'todo',
     priority: 'medium',
     tags: [],
     metadata: {},
@@ -171,7 +171,7 @@ export function generateMockData() {
     const d = new Date()
     d.setDate(d.getDate() - Math.floor(i / 3))
     entities.push(entity({
-      type: 'task', title: doneTitles[i], status: 'completed',
+      type: 'task', title: doneTitles[i], status: 'done',
       metadata: { workspace: i < 6 ? 'work' : 'personal' },
       updatedAt: d.toISOString(),
     }))
@@ -328,7 +328,7 @@ export function generateMockData() {
   // ── Books / Courses ──
   entities.push(
     entity({ type: 'book', title: 'Atomic Habits', tags: ['growth'], metadata: { author: 'James Clear', totalPages: 320, currentPage: 180, rating: 5 } }),
-    entity({ type: 'book', title: 'Deep Work', tags: ['productivity'], status: 'completed', metadata: { author: 'Cal Newport', totalPages: 296, currentPage: 296, rating: 4 } }),
+    entity({ type: 'book', title: 'Deep Work', tags: ['productivity'], status: 'done', metadata: { author: 'Cal Newport', totalPages: 296, currentPage: 296, rating: 4 } }),
     entity({ type: 'course', title: 'Advanced TypeScript', tags: ['dev'], metadata: { totalPages: 50, currentPage: 35 } }),
   )
 

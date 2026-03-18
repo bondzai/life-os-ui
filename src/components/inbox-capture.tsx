@@ -83,7 +83,7 @@ function buildEntity(
       return {
         ...base,
         type: 'task' as EntityType,
-        status: 'active' as EntityStatus,
+        status: 'todo' as EntityStatus,
         priority: 'medium' as EntityPriority,
         metadata: { body: text.trim(), isInbox: true },
       }
@@ -91,7 +91,7 @@ function buildEntity(
       return {
         ...base,
         type: 'note' as EntityType,
-        status: 'active' as EntityStatus,
+        status: 'todo' as EntityStatus,
         priority: 'medium' as EntityPriority,
         metadata: { body: text.trim(), isInbox: true, isJournal: false },
       }
@@ -99,7 +99,7 @@ function buildEntity(
       return {
         ...base,
         type: 'note' as EntityType,
-        status: 'active' as EntityStatus,
+        status: 'todo' as EntityStatus,
         priority: 'medium' as EntityPriority,
         tags: [...tags.filter((t) => t !== 'idea'), 'idea'],
         metadata: { body: text.trim(), isInbox: true, isJournal: false },
@@ -108,7 +108,7 @@ function buildEntity(
       return {
         ...base,
         type: 'goal' as EntityType,
-        status: 'active' as EntityStatus,
+        status: 'todo' as EntityStatus,
         priority: 'medium' as EntityPriority,
         metadata: { body: text.trim() },
       }
@@ -116,7 +116,7 @@ function buildEntity(
       return {
         ...base,
         type: 'habit' as EntityType,
-        status: 'active' as EntityStatus,
+        status: 'todo' as EntityStatus,
         priority: 'medium' as EntityPriority,
         metadata: { body: text.trim(), frequency: 'daily' },
       }
@@ -137,7 +137,7 @@ export function InboxCapture() {
   const currentUser = useAuthStore((s) => s.currentUser)
 
   const inboxCount = items.filter(
-    (e) => e.metadata.isInbox === true && e.status === 'active',
+    (e) => e.metadata.isInbox === true && e.status === 'todo',
   ).length
 
   // Keyboard shortcut: Cmd+Shift+I

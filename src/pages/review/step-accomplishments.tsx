@@ -24,7 +24,7 @@ export function StepAccomplishments({ items, allEntities }: StepAccomplishmentsP
     return allEntities.filter(
       (e) =>
         (e.type === 'task' || e.type === 'goal') &&
-        e.status === 'completed' &&
+        e.status === 'done' &&
         e.updatedAt.split('T')[0] >= lwStart &&
         e.updatedAt.split('T')[0] < lwEnd,
     ).length

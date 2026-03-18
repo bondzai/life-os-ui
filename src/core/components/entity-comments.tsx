@@ -25,7 +25,7 @@ export function EntityComments({ entityId, currentUserId }: EntityCommentsProps)
       id: crypto.randomUUID(),
       type: 'comment' as Entity['type'],
       title: text,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {},

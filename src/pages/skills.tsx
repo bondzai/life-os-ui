@@ -66,7 +66,7 @@ export function SkillsPage() {
       type: 'skill',
       title: values.title as string,
       description: (values.description as string) || undefined,
-      status: (values.status as EntityStatus) || 'active',
+      status: (values.status as EntityStatus) || 'todo',
       priority: (values.priority as Entity['priority']) || 'medium',
       tags,
       metadata: { level: 'beginner' },
@@ -221,9 +221,9 @@ export function SkillsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="paused">Paused</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="todo">To Do</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+              <SelectItem value="done">Done</SelectItem>
               <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>

@@ -24,7 +24,7 @@ import type { Entity } from '@/core/types'
 const entitySchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  status: z.enum(['active', 'completed', 'archived', 'paused']),
+  status: z.enum(['backlog', 'todo', 'in-progress', 'done', 'archived']),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
   tags: z.string(),
   dueDate: z.string().optional(),
@@ -50,7 +50,7 @@ export function EntityForm({
     defaultValues: {
       title: defaultValues?.title ?? '',
       description: defaultValues?.description ?? '',
-      status: defaultValues?.status ?? 'active',
+      status: defaultValues?.status ?? 'todo',
       priority: defaultValues?.priority ?? 'medium',
       tags: defaultValues?.tags?.join(', ') ?? '',
       dueDate: defaultValues?.dueDate ?? '',
@@ -100,9 +100,9 @@ export function EntityForm({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="paused">Paused</SelectItem>
+                    <SelectItem value="todo">To Do</SelectItem>
+                    <SelectItem value="done">Done</SelectItem>
+                    <SelectItem value="in-progress">In Progress</SelectItem>
                     <SelectItem value="archived">Archived</SelectItem>
                   </SelectContent>
                 </Select>

@@ -255,9 +255,9 @@ export function AutomationDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                          <SelectItem value="paused">Paused</SelectItem>
+                          <SelectItem value="todo">To Do</SelectItem>
+                          <SelectItem value="done">Done</SelectItem>
+                          <SelectItem value="in-progress">In Progress</SelectItem>
                           <SelectItem value="archived">Archived</SelectItem>
                         </SelectContent>
                       </Select>
@@ -420,9 +420,9 @@ export function AutomationDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                          <SelectItem value="paused">Paused</SelectItem>
+                          <SelectItem value="todo">To Do</SelectItem>
+                          <SelectItem value="done">Done</SelectItem>
+                          <SelectItem value="in-progress">In Progress</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -442,8 +442,8 @@ export function AutomationDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="todo">To Do</SelectItem>
+                          <SelectItem value="done">Done</SelectItem>
                           <SelectItem value="archived">Archived</SelectItem>
                         </SelectContent>
                       </Select>

@@ -146,7 +146,7 @@ export function AutomatePage() {
 
   // Summary stats
   const activeCount = useMemo(
-    () => automations.filter((a) => a.status === 'active' && a.metadata.enabled !== false).length,
+    () => automations.filter((a) => a.status === 'todo' && a.metadata.enabled !== false).length,
     [automations],
   )
   const scheduledCount = useMemo(
@@ -173,7 +173,7 @@ export function AutomatePage() {
       type: 'automation',
       title: values.title,
       description: values.description || undefined,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: formToMetadata(values, conditions),
@@ -245,7 +245,7 @@ export function AutomatePage() {
       type: 'automation',
       title: template.name,
       description: template.description,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: ['template'],
       metadata: {

@@ -228,7 +228,7 @@ export function WealthPage() {
             id: crypto.randomUUID(),
             type: 'transaction',
             title: tx.title,
-            status: 'active',
+            status: 'todo',
             priority: 'medium',
             tags: [],
             metadata: {
@@ -275,7 +275,7 @@ export function WealthPage() {
       id: crypto.randomUUID(),
       type: 'transaction',
       title: values.title,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {
@@ -322,7 +322,7 @@ export function WealthPage() {
       id: crypto.randomUUID(),
       type: 'budget',
       title: values.title,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {
@@ -362,7 +362,7 @@ export function WealthPage() {
       id: crypto.randomUUID(),
       type: 'account',
       title: values.title,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {
@@ -403,7 +403,7 @@ export function WealthPage() {
       id: crypto.randomUUID(),
       type: 'asset',
       title: values.title,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {
@@ -460,7 +460,7 @@ export function WealthPage() {
       id: crypto.randomUUID(),
       type: 'wallet',
       title: values.title,
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {
@@ -504,7 +504,7 @@ export function WealthPage() {
       id: crypto.randomUUID(),
       type: 'crypto-tx',
       title: `${values.txAction.toUpperCase()} ${values.symbol || ''}`.trim(),
-      status: 'active',
+      status: 'todo',
       priority: 'medium',
       tags: [],
       metadata: {

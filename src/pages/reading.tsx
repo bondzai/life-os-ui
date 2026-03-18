@@ -62,7 +62,7 @@ export function ReadingPage() {
       type: dialogType as EntityType,
       title: values.title as string,
       description: (values.description as string) || undefined,
-      status: (values.status as EntityStatus) || 'active',
+      status: (values.status as EntityStatus) || 'todo',
       priority: (values.priority as Entity['priority']) || 'medium',
       tags,
       metadata: {},
@@ -136,9 +136,9 @@ export function ReadingPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="paused">Paused</SelectItem>
+              <SelectItem value="todo">To Do</SelectItem>
+              <SelectItem value="done">Done</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
               <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
@@ -205,7 +205,7 @@ export function ReadingPage() {
                       {item.description}
                     </p>
                   )}
-                  {rating !== null && item.status === 'completed' && (
+                  {rating !== null && item.status === 'done' && (
                     <div className="flex items-center gap-1">
                       <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
                       <span className="text-xs font-medium">{rating}/5</span>

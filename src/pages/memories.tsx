@@ -107,7 +107,7 @@ export function MemoriesPage() {
       id: crypto.randomUUID(),
       type: 'memory',
       title: values.title,
-      status: 'active' as EntityStatus,
+      status: 'todo' as EntityStatus,
       priority: 'medium',
       tags,
       metadata: {

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   BarChart3,
   TrendingUp,
@@ -11,13 +11,26 @@ import {
   Dumbbell,
   Flame,
   Brain,
+  Timer,
+  Zap,
+  Crown,
+  ChevronDown,
 } from 'lucide-react'
+import {
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  ResponsiveContainer,
+  Tooltip,
+} from 'recharts'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { useEntities, useTrackers } from '@/core/hooks'
-
+import { calcFocusStats, formatMinutes as fmtMin } from '@/lib/focus-stats'
 import { loadHealthProfile, calcBMI, getBMICategory } from '@/lib/health-calc'
+import { FocusLog } from './dashboard/focus-log'
 import type { Entity, Tracker } from '@/core/types'
 
 /* ─── Date helpers ─── */
@@ -25,7 +38,7 @@ import type { Entity, Tracker } from '@/core/types'
 function startOfWeek(date: Date): Date {
   const d = new Date(date)
   const day = d.getDay()
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)) // Monday start
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
   d.setHours(0, 0, 0, 0)
   return d
 }
@@ -49,11 +62,7 @@ function TrendIndicator({ current, previous, suffix = '' }: {
   suffix?: string
 }) {
   const diff = current - previous
-  const improving = diff > 0
-  const declining = diff < 0
-  const stable = diff === 0
-
-  if (stable) {
+  if (diff === 0) {
     return (
       <span className="flex items-center gap-1 text-xs text-muted-foreground">
         <Minus className="h-3 w-3" />
@@ -61,20 +70,13 @@ function TrendIndicator({ current, previous, suffix = '' }: {
       </span>
     )
   }
-
   const sign = diff > 0 ? '+' : ''
-  const displayDiff = `${sign}${diff}${suffix}`
-
   return (
     <span className={`flex items-center gap-1 text-xs font-medium ${
-      improving
-        ? 'text-green-600 dark:text-green-400'
-        : declining
-          ? 'text-red-500 dark:text-red-400'
-          : 'text-muted-foreground'
+      diff > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'
     }`}>
-      {improving ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-      {displayDiff} vs last week
+      {diff > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+      {sign}{diff}{suffix} vs last week
     </span>
   )
 }
@@ -91,60 +93,44 @@ function getScoreLabel(score: number): { label: string; color: string } {
 
 /* ─── Metric computation helpers ─── */
 
-function computeCheckInRate(
-  items: Entity[],
-  trackers: Tracker[],
-  from: Date,
-  to: Date,
-): number {
+function computeCheckInRate(items: Entity[], trackers: Tracker[], from: Date, to: Date): number {
   if (items.length === 0) return 0
   const fromISO = from.toISOString()
   const toISO = to.toISOString()
   const days = Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 86400000))
   const totalSlots = items.length * days
-
-  let checkIns = 0
   const itemIds = new Set(items.map((i) => i.id))
+  let checkIns = 0
   for (const t of trackers) {
-    if (itemIds.has(t.entityId) && t.timestamp >= fromISO && t.timestamp < toISO) {
-      checkIns++
-    }
+    if (itemIds.has(t.entityId) && t.timestamp >= fromISO && t.timestamp < toISO) checkIns++
   }
-
   return Math.round((checkIns / totalSlots) * 100)
 }
 
-function computeAvgSleep(
-  sleepEntities: Entity[],
-  fromISO: string,
-  toISO?: string,
-): number {
+function computeAvgSleep(sleepEntities: Entity[], fromISO: string, toISO?: string): number {
   const filtered = sleepEntities.filter((e) => {
     const date = e.dueDate ?? e.createdAt
     return date >= fromISO && (toISO ? date < toISO : true)
   })
   if (filtered.length === 0) return 0
-  const total = filtered.reduce((sum, e) => {
-    const hours = typeof e.metadata.sleepHours === 'number' ? (e.metadata.sleepHours as number) : 0
-    return sum + hours
-  }, 0)
+  const total = filtered.reduce((sum, e) => sum + (typeof e.metadata.sleepHours === 'number' ? (e.metadata.sleepHours as number) : 0), 0)
   return Math.round((total / filtered.length) * 10) / 10
 }
 
-function computeActiveMinutes(
-  workouts: Entity[],
-  fromISO: string,
-  toISO?: string,
-): number {
+function computeActiveMinutes(workouts: Entity[], fromISO: string, toISO?: string): number {
   return workouts
-    .filter((w) => {
-      const date = w.dueDate ?? w.createdAt
-      return date >= fromISO && (toISO ? date < toISO : true)
-    })
-    .reduce((sum, w) => {
-      const dur = typeof w.metadata.duration === 'number' ? (w.metadata.duration as number) : 0
-      return sum + dur
-    }, 0)
+    .filter((w) => { const d = w.dueDate ?? w.createdAt; return d >= fromISO && (toISO ? d < toISO : true) })
+    .reduce((sum, w) => sum + (typeof w.metadata.duration === 'number' ? (w.metadata.duration as number) : 0), 0)
+}
+
+/* ─── Section header ─── */
+
+function SH({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3">
+      {children}
+    </h2>
+  )
 }
 
 /* ─── Main page ─── */
@@ -152,308 +138,248 @@ function computeActiveMinutes(
 export function DashboardPage() {
   const { items: allEntities } = useEntities()
   const { items: allTrackers } = useTrackers()
-
+  const [focusLogOpen, setFocusLogOpen] = useState(true)
 
   const now = useMemo(() => new Date(), [])
   const thisWeekStart = useMemo(() => startOfWeek(now), [now])
-  const lastWeekStart = useMemo(() => {
-    const d = new Date(thisWeekStart)
-    d.setDate(d.getDate() - 7)
-    return d
-  }, [thisWeekStart])
+  const lastWeekStart = useMemo(() => { const d = new Date(thisWeekStart); d.setDate(d.getDate() - 7); return d }, [thisWeekStart])
   const thisWeekISO = useMemo(() => thisWeekStart.toISOString(), [thisWeekStart])
   const lastWeekISO = useMemo(() => lastWeekStart.toISOString(), [lastWeekStart])
 
   // ─── Filtered entities ───
+  const tasks = useMemo(() => allEntities.filter((e) => e.type === 'task'), [allEntities])
+  const habits = useMemo(() => allEntities.filter((e) => e.type === 'habit' && e.status === 'todo' && !e.metadata.isProtocol), [allEntities])
+  const protocols = useMemo(() => allEntities.filter((e) => e.type === 'habit' && e.status === 'todo' && e.metadata.isProtocol === true), [allEntities])
+  const goals = useMemo(() => allEntities.filter((e) => e.type === 'goal' && e.status === 'todo'), [allEntities])
+  const sleepEntities = useMemo(() => allEntities.filter((e) => e.type === 'sleep-mood'), [allEntities])
+  const workouts = useMemo(() => allEntities.filter((e) => e.type === 'workout'), [allEntities])
 
-  const tasks = useMemo(
-    () => allEntities.filter((e) => e.type === 'task'),
-    [allEntities],
-  )
-
-  const habits = useMemo(
-    () => allEntities.filter((e) => e.type === 'habit' && e.status === 'active' && !e.metadata.isProtocol),
-    [allEntities],
-  )
-
-  const protocols = useMemo(
-    () => allEntities.filter((e) => e.type === 'habit' && e.status === 'active' && e.metadata.isProtocol === true),
-    [allEntities],
-  )
-
-  const goals = useMemo(
-    () => allEntities.filter((e) => e.type === 'goal' && e.status === 'active'),
-    [allEntities],
-  )
-
-  const sleepEntities = useMemo(
-    () => allEntities.filter((e) => e.type === 'sleep-mood'),
-    [allEntities],
-  )
-
-  const workouts = useMemo(
-    () => allEntities.filter((e) => e.type === 'workout'),
-    [allEntities],
-  )
-
-  // ─── Tasks done this week vs last ───
-
-  const tasksThisWeek = useMemo(
-    () => tasks.filter((t) => t.status === 'completed' && t.updatedAt >= thisWeekISO).length,
-    [tasks, thisWeekISO],
-  )
-
-  const tasksLastWeek = useMemo(
-    () => tasks.filter((t) => t.status === 'completed' && t.updatedAt >= lastWeekISO && t.updatedAt < thisWeekISO).length,
-    [tasks, lastWeekISO, thisWeekISO],
-  )
-
-  // ─── Habit / protocol check-in rates ───
-
-  const habitRate = useMemo(
-    () => computeCheckInRate(habits, allTrackers, thisWeekStart, now),
-    [habits, allTrackers, thisWeekStart, now],
-  )
-
-  const habitRateLast = useMemo(
-    () => computeCheckInRate(habits, allTrackers, lastWeekStart, thisWeekStart),
-    [habits, allTrackers, lastWeekStart, thisWeekStart],
-  )
-
-  const protocolRate = useMemo(
-    () => computeCheckInRate(protocols, allTrackers, thisWeekStart, now),
-    [protocols, allTrackers, thisWeekStart, now],
-  )
-
-  const protocolRateLast = useMemo(
-    () => computeCheckInRate(protocols, allTrackers, lastWeekStart, thisWeekStart),
-    [protocols, allTrackers, lastWeekStart, thisWeekStart],
-  )
-
-  // ─── Average sleep ───
-
-  const avgSleepThisWeek = useMemo(
-    () => computeAvgSleep(sleepEntities, thisWeekISO),
-    [sleepEntities, thisWeekISO],
-  )
-
-  const avgSleepLastWeek = useMemo(
-    () => computeAvgSleep(sleepEntities, lastWeekISO, thisWeekISO),
-    [sleepEntities, lastWeekISO, thisWeekISO],
-  )
-
-  // ─── Active minutes ───
-
-  const activeMinThisWeek = useMemo(
-    () => computeActiveMinutes(workouts, thisWeekISO),
-    [workouts, thisWeekISO],
-  )
-
-  const activeMinLastWeek = useMemo(
-    () => computeActiveMinutes(workouts, lastWeekISO, thisWeekISO),
-    [workouts, lastWeekISO, thisWeekISO],
-  )
-
-  // ─── Goal progress average ───
-
+  // ─── Metrics ───
+  const tasksThisWeek = useMemo(() => tasks.filter((t) => t.status === 'done' && t.updatedAt >= thisWeekISO).length, [tasks, thisWeekISO])
+  const tasksLastWeek = useMemo(() => tasks.filter((t) => t.status === 'done' && t.updatedAt >= lastWeekISO && t.updatedAt < thisWeekISO).length, [tasks, lastWeekISO, thisWeekISO])
+  const habitRate = useMemo(() => computeCheckInRate(habits, allTrackers, thisWeekStart, now), [habits, allTrackers, thisWeekStart, now])
+  const habitRateLast = useMemo(() => computeCheckInRate(habits, allTrackers, lastWeekStart, thisWeekStart), [habits, allTrackers, lastWeekStart, thisWeekStart])
+  const protocolRate = useMemo(() => computeCheckInRate(protocols, allTrackers, thisWeekStart, now), [protocols, allTrackers, thisWeekStart, now])
+  const protocolRateLast = useMemo(() => computeCheckInRate(protocols, allTrackers, lastWeekStart, thisWeekStart), [protocols, allTrackers, lastWeekStart, thisWeekStart])
+  const avgSleepThisWeek = useMemo(() => computeAvgSleep(sleepEntities, thisWeekISO), [sleepEntities, thisWeekISO])
+  const avgSleepLastWeek = useMemo(() => computeAvgSleep(sleepEntities, lastWeekISO, thisWeekISO), [sleepEntities, lastWeekISO, thisWeekISO])
+  const activeMinThisWeek = useMemo(() => computeActiveMinutes(workouts, thisWeekISO), [workouts, thisWeekISO])
+  const activeMinLastWeek = useMemo(() => computeActiveMinutes(workouts, lastWeekISO, thisWeekISO), [workouts, lastWeekISO, thisWeekISO])
   const goalProgressAvg = useMemo(() => {
     if (goals.length === 0) return 0
-    const total = goals.reduce((sum, g) => {
-      const p = typeof g.metadata.progress === 'number' ? (g.metadata.progress as number) : 0
-      return sum + p
-    }, 0)
-    return Math.round(total / goals.length)
+    return Math.round(goals.reduce((sum, g) => sum + (typeof g.metadata.progress === 'number' ? (g.metadata.progress as number) : 0), 0) / goals.length)
   }, [goals])
 
-  // ─── Life Score (0-100) ───
+  // ─── Focus stats ───
+  const entityTitles = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const e of allEntities) m.set(e.id, e.title)
+    return m
+  }, [allEntities])
+  const focusStats = useMemo(() => calcFocusStats(allTrackers, entityTitles), [allTrackers, entityTitles])
+
+  // Focus sessions for today's log
+  const todaySessions = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0]
+    return allTrackers
+      .filter((t) => t.unit === 'focus-min' && t.timestamp.startsWith(todayStr))
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+      .map((t) => ({
+        id: t.id,
+        title: entityTitles.get(t.entityId) || 'Unknown',
+        minutes: t.value,
+        time: new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }))
+  }, [allTrackers, entityTitles])
+
+  // Focus heatmap (90 days)
+  const focusHeatmapDays = useMemo(() => getLast90Days(), [])
+  const focusHeatmap = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const t of allTrackers) {
+      if (t.unit !== 'focus-min') continue
+      const day = t.timestamp.split('T')[0]
+      m.set(day, (m.get(day) ?? 0) + t.value)
+    }
+    return m
+  }, [allTrackers])
+  const maxFocusHeatmap = useMemo(() => {
+    let max = 1
+    for (const v of focusHeatmap.values()) { if (v > max) max = v }
+    return max
+  }, [focusHeatmap])
+
+  // ─── Life Score ───
+  const focusScoreRaw = useMemo(() => {
+    // Focus score: based on 2h/day target for days elapsed
+    const daysSoFar = Math.max(1, Math.ceil((now.getTime() - thisWeekStart.getTime()) / 86400000))
+    const target = daysSoFar * 120 // 2h per day
+    return Math.min(Math.round((focusStats.thisWeekMinutes / target) * 100), 100)
+  }, [focusStats.thisWeekMinutes, now, thisWeekStart])
 
   const lifeScore = useMemo(() => {
     const daysSoFar = Math.max(1, Math.ceil((now.getTime() - thisWeekStart.getTime()) / 86400000))
-
-    // Task completion rate (25%) — compare against last week or a baseline of 5
     const taskBaseline = Math.max(tasksLastWeek, 5)
     const taskScore = Math.min(tasksThisWeek / taskBaseline, 1) * 100
-
-    // Habit rate (30%)
     const habitScore = habitRate
-
-    // Goal progress (20%)
     const goalScore = goalProgressAvg
-
-    // Sleep (15%) — score based on proximity to 7h target
-    const sleepScore = avgSleepThisWeek > 0
-      ? Math.min(avgSleepThisWeek / 7, 1) * 100
-      : 50
-
-    // Active minutes (10%) — 150 min/week target, pro-rated by days elapsed
+    const sleepScore = avgSleepThisWeek > 0 ? Math.min(avgSleepThisWeek / 7, 1) * 100 : 50
     const targetMinutes = (150 / 7) * daysSoFar
-    const activeScore = targetMinutes > 0
-      ? Math.min(activeMinThisWeek / targetMinutes, 1) * 100
-      : 50
-
-    return Math.round(
-      taskScore * 0.25 +
-      habitScore * 0.30 +
-      goalScore * 0.20 +
-      sleepScore * 0.15 +
-      activeScore * 0.10,
-    )
-  }, [tasksThisWeek, tasksLastWeek, habitRate, goalProgressAvg, avgSleepThisWeek, activeMinThisWeek, now, thisWeekStart])
+    const activeScore = targetMinutes > 0 ? Math.min(activeMinThisWeek / targetMinutes, 1) * 100 : 50
+    return Math.round(taskScore * 0.20 + habitScore * 0.25 + goalScore * 0.15 + sleepScore * 0.15 + activeScore * 0.10 + focusScoreRaw * 0.15)
+  }, [tasksThisWeek, tasksLastWeek, habitRate, goalProgressAvg, avgSleepThisWeek, activeMinThisWeek, focusScoreRaw, now, thisWeekStart])
 
   const scoreInfo = getScoreLabel(lifeScore)
 
-  // ─── Protocol streaks ───
+  // ─── Radar chart data (6 dimensions, 0-100) ───
+  const radarData = useMemo(() => {
+    const daysSoFar = Math.max(1, Math.ceil((now.getTime() - thisWeekStart.getTime()) / 86400000))
+    const taskBaseline = Math.max(tasksLastWeek, 5)
+    const taskScore = Math.min(Math.round((tasksThisWeek / taskBaseline) * 100), 100)
+    const sleepScore = avgSleepThisWeek > 0 ? Math.min(Math.round((avgSleepThisWeek / 8) * 100), 100) : 0
+    const targetMin = (150 / 7) * daysSoFar
+    const activeScore = targetMin > 0 ? Math.min(Math.round((activeMinThisWeek / targetMin) * 100), 100) : 0
+    return [
+      { dimension: 'Tasks', value: taskScore, fullMark: 100 },
+      { dimension: 'Habits', value: habitRate, fullMark: 100 },
+      { dimension: 'Focus', value: focusScoreRaw, fullMark: 100 },
+      { dimension: 'Goals', value: goalProgressAvg, fullMark: 100 },
+      { dimension: 'Sleep', value: sleepScore, fullMark: 100 },
+      { dimension: 'Activity', value: activeScore, fullMark: 100 },
+    ]
+  }, [tasksThisWeek, tasksLastWeek, habitRate, focusScoreRaw, goalProgressAvg, avgSleepThisWeek, activeMinThisWeek, now, thisWeekStart])
 
+  // ─── Protocol streaks ───
   const protocolStreaks = useMemo(
-    () => protocols
-      .map((p) => ({
-        id: p.id,
-        name: p.title,
-        streak: typeof p.metadata.streak === 'number' ? (p.metadata.streak as number) : 0,
-      }))
-      .sort((a, b) => b.streak - a.streak),
+    () => protocols.map((p) => ({ id: p.id, name: p.title, streak: typeof p.metadata.streak === 'number' ? (p.metadata.streak as number) : 0 })).sort((a, b) => b.streak - a.streak),
     [protocols],
   )
 
-  // ─── Combined heatmap ───
-
+  // ─── Activity heatmap ───
   const heatmapDays = useMemo(() => getLast90Days(), [])
-
   const heatmapData = useMemo(() => {
-    const allHabitIds = new Set([
-      ...habits.map((h) => h.id),
-      ...protocols.map((p) => p.id),
-    ])
-    const countByDay = new Map<string, number>()
-    for (const t of allTrackers) {
-      if (!allHabitIds.has(t.entityId)) continue
-      const day = t.timestamp.split('T')[0]
-      countByDay.set(day, (countByDay.get(day) ?? 0) + 1)
-    }
-    return countByDay
+    const allHabitIds = new Set([...habits.map((h) => h.id), ...protocols.map((p) => p.id)])
+    const m = new Map<string, number>()
+    for (const t of allTrackers) { if (allHabitIds.has(t.entityId)) { const d = t.timestamp.split('T')[0]; m.set(d, (m.get(d) ?? 0) + 1) } }
+    return m
   }, [habits, protocols, allTrackers])
+  const maxHeatmapValue = useMemo(() => { let max = 1; for (const v of heatmapData.values()) { if (v > max) max = v }; return max }, [heatmapData])
+  const totalCheckIns = useMemo(() => Array.from(heatmapData.values()).reduce((a, b) => a + b, 0), [heatmapData])
 
-  const maxHeatmapValue = useMemo(() => {
-    let max = 1
-    for (const v of heatmapData.values()) {
-      if (v > max) max = v
-    }
-    return max
-  }, [heatmapData])
-
-  const totalCheckIns = useMemo(
-    () => Array.from(heatmapData.values()).reduce((a, b) => a + b, 0),
-    [heatmapData],
-  )
-
-  // ─── Health data for AI summary ───
-
+  // ─── Health ───
   const healthProfile = useMemo(() => loadHealthProfile(), [])
-
   const latestWeight = useMemo(() => {
-    const metrics = allEntities
-      .filter((e) => e.type === 'body-metric' && typeof e.metadata.weight === 'number')
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const metrics = allEntities.filter((e) => e.type === 'body-metric' && typeof e.metadata.weight === 'number').sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     return metrics.length > 0 ? (metrics[0].metadata.weight as number) : null
   }, [allEntities])
-
   const bmiInfo = useMemo(() => {
     if (!healthProfile || !latestWeight) return null
     const bmi = calcBMI(latestWeight, healthProfile.heightCm)
     return { bmi: Math.round(bmi * 10) / 10, category: getBMICategory(bmi) }
   }, [healthProfile, latestWeight])
 
-  // ─── AI Context Summary text ───
-
+  // ─── AI Summary ───
   const aiSummary = useMemo(() => {
     const parts: string[] = []
     const taskDiff = tasksThisWeek - tasksLastWeek
-    const taskDiffStr = tasksLastWeek > 0 ? ` (${taskDiff >= 0 ? '+' : ''}${taskDiff} vs last week)` : ''
-    parts.push(`You completed ${tasksThisWeek} task${tasksThisWeek !== 1 ? 's' : ''} this week${taskDiffStr}.`)
-    parts.push(`Habit rate: ${habitRate}%.`)
-    if (protocolRate > 0) parts.push(`Protocol rate: ${protocolRate}%.`)
-    if (avgSleepThisWeek > 0) parts.push(`Sleeping ${avgSleepThisWeek}h avg.`)
-    if (activeMinThisWeek > 0) parts.push(`${activeMinThisWeek} active minutes this week.`)
-    if (bmiInfo) parts.push(`BMI ${bmiInfo.bmi} (${bmiInfo.category}).`)
-    if (goalProgressAvg > 0) parts.push(`Goal progress avg: ${goalProgressAvg}%.`)
-    const topStreak = protocolStreaks[0]
-    if (topStreak && topStreak.streak > 0) {
-      parts.push(`Top protocol streak: ${topStreak.name} (${topStreak.streak} days).`)
-    }
-    parts.push(`Life score: ${lifeScore}/100.`)
+    parts.push(`${tasksThisWeek} tasks done${tasksLastWeek > 0 ? ` (${taskDiff >= 0 ? '+' : ''}${taskDiff})` : ''}.`)
+    parts.push(`Habits: ${habitRate}%. Focus: ${fmtMin(focusStats.thisWeekMinutes)} (${focusStats.streak}d streak).`)
+    if (protocolRate > 0) parts.push(`Protocols: ${protocolRate}%.`)
+    if (avgSleepThisWeek > 0) parts.push(`Sleep: ${avgSleepThisWeek}h avg.`)
+    if (activeMinThisWeek > 0) parts.push(`Active: ${activeMinThisWeek}min.`)
+    if (bmiInfo) parts.push(`BMI: ${bmiInfo.bmi} (${bmiInfo.category}).`)
+    if (goalProgressAvg > 0) parts.push(`Goals: ${goalProgressAvg}%.`)
+    parts.push(`Score: ${lifeScore}/100.`)
     return parts.join(' ')
-  }, [tasksThisWeek, tasksLastWeek, habitRate, protocolRate, avgSleepThisWeek, activeMinThisWeek, bmiInfo, goalProgressAvg, protocolStreaks, lifeScore])
+  }, [tasksThisWeek, tasksLastWeek, habitRate, protocolRate, avgSleepThisWeek, activeMinThisWeek, bmiInfo, goalProgressAvg, lifeScore, focusStats])
 
   // ─── Trend cards ───
-
   const trendCards = [
     { label: 'Tasks Done', icon: CheckSquare, value: tasksThisWeek, previous: tasksLastWeek, suffix: '' },
     { label: 'Habit Rate', icon: Repeat, value: habitRate, previous: habitRateLast, suffix: '%' },
-    { label: 'Protocol Rate', icon: Flame, value: protocolRate, previous: protocolRateLast, suffix: '%' },
+    { label: 'Focus Time', icon: Timer, value: focusStats.thisWeekMinutes, previous: focusStats.lastWeekMinutes, suffix: 'm', display: fmtMin(focusStats.thisWeekMinutes) },
     { label: 'Avg Sleep', icon: Moon, value: avgSleepThisWeek, previous: avgSleepLastWeek, suffix: 'h' },
     { label: 'Active Min', icon: Dumbbell, value: activeMinThisWeek, previous: activeMinLastWeek, suffix: '' },
     { label: 'Goal Progress', icon: Target, value: goalProgressAvg, previous: 0, suffix: '%' },
   ]
 
   // ─── Render ───
-
   return (
     <div className="h-[calc(100vh-5rem)] flex flex-col overflow-y-auto scrollbar-thin">
-      {/* Header */}
       <header className="shrink-0 pb-4">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
           <BarChart3 className="h-6 w-6 text-primary/70" />
           Dashboard
         </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Weekly trends and life metrics
-        </p>
+        <p className="text-sm text-muted-foreground mt-0.5">Life metrics, focus analytics, and weekly trends</p>
       </header>
 
       <div className="space-y-6 pb-8">
-        {/* ── Section 1: Life Score ── */}
-        <Card className="p-6">
-          <div className="flex items-center gap-6">
-            <div className="relative shrink-0">
-              <svg className="h-24 w-24 -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50" cy="50" r="42"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="8"
-                  className="text-muted/40"
-                />
-                <circle
-                  cx="50" cy="50" r="42"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={`${lifeScore * 2.64} 264`}
-                  className={scoreInfo.color}
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold tabular-nums">{lifeScore}</span>
+
+        {/* ── Row 1: Life Score + Radar Chart ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Life Score */}
+          <Card className="p-6 flex items-center">
+            <div className="flex items-center gap-6 w-full">
+              <div className="relative shrink-0">
+                <svg className="h-28 w-28 -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="7" className="text-muted/30" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="7" strokeLinecap="round" strokeDasharray={`${lifeScore * 2.64} 264`} className={scoreInfo.color} />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-3xl font-bold tabular-nums">{lifeScore}</span>
+                </div>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">Life Score</h2>
+                <Badge variant="secondary" className={`mt-1 ${scoreInfo.color}`}>{scoreInfo.label}</Badge>
+                <p className="text-xs text-muted-foreground mt-3 max-w-xs leading-relaxed">
+                  Tasks 20% · Habits 25% · Focus 15% · Goals 15% · Sleep 15% · Activity 10%
+                </p>
               </div>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold">Life Score</h2>
-              <Badge variant="secondary" className={`mt-1 ${scoreInfo.color}`}>
-                {scoreInfo.label}
-              </Badge>
-              <p className="text-xs text-muted-foreground mt-2 max-w-sm">
-                Composite of tasks (25%), habits (30%), goals (20%), sleep (15%), and activity (10%) this week.
-              </p>
-            </div>
-          </div>
-        </Card>
+          </Card>
 
-        {/* ── Section 2: Weekly Trends ── */}
+          {/* Radar Chart */}
+          <Card className="p-5 flex flex-col">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-2">Life Balance</p>
+            <div className="flex-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="68%">
+                  <PolarGrid stroke="#a1a1aa" strokeOpacity={0.2} gridType="polygon" />
+                  <PolarAngleAxis
+                    dataKey="dimension"
+                    tick={{ fontSize: 12, fill: '#d4d4d8', fontWeight: 500 }}
+                    tickLine={false}
+                    dy={2}
+                  />
+                  <Radar
+                    dataKey="value"
+                    stroke="#22c55e"
+                    fill="#22c55e"
+                    fillOpacity={0.12}
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: '#22c55e', strokeWidth: 0 }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      padding: '6px 10px',
+                    }}
+                    formatter={(value: number) => [`${value}%`, 'Score']}
+                  />
+              </RadarChart>
+            </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
+
+        {/* ── Row 2: Weekly Trends ── */}
         <div>
-          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3">
-            Weekly Trends
-          </h2>
+          <SH>Weekly Trends</SH>
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
             {trendCards.map((card) => {
               const Icon = card.icon
@@ -464,14 +390,10 @@ export function DashboardPage() {
                     <span className="text-xs text-muted-foreground font-medium">{card.label}</span>
                   </div>
                   <p className="text-2xl font-bold tabular-nums">
-                    {card.value}{card.suffix}
+                    {'display' in card ? card.display : `${card.value}${card.suffix}`}
                   </p>
                   <div className="mt-1.5">
-                    <TrendIndicator
-                      current={card.value}
-                      previous={card.previous}
-                      suffix={card.suffix}
-                    />
+                    <TrendIndicator current={card.value} previous={card.previous} suffix={card.suffix} />
                   </div>
                 </Card>
               )
@@ -479,12 +401,168 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* ── Section 3: Protocol Streaks ── */}
+        {/* ── Row 3: Focus Analytics ── */}
+        <div>
+          <SH>
+            <Crown className="h-3 w-3 inline mr-1.5 -mt-px text-amber-500" />
+            Focus Analytics
+          </SH>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Focus stats cards */}
+            <Card className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Today', value: fmtMin(focusStats.todayMinutes), sub: `${focusStats.todaySessions} sessions`, icon: Timer },
+                  { label: 'Streak', value: `${focusStats.streak}d`, sub: 'consecutive', icon: Zap },
+                  { label: 'This Week', value: fmtMin(focusStats.thisWeekMinutes), sub: focusStats.weekDiff >= 0 ? `+${fmtMin(focusStats.weekDiff)}` : `${fmtMin(Math.abs(focusStats.weekDiff))}`, icon: TrendingUp },
+                  { label: 'Sessions', value: `${focusStats.todaySessions}`, sub: 'today', icon: Flame },
+                ].map((stat) => (
+                  <div key={stat.label} className="bg-muted/30 rounded-lg p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <stat.icon className="h-3 w-3 text-muted-foreground/50" />
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">{stat.label}</span>
+                    </div>
+                    <p className="text-lg font-semibold tabular-nums">{stat.value}</p>
+                    <p className="text-[10px] text-muted-foreground/50 tabular-nums">{stat.sub}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* Weekly focus chart */}
+            <Card className="p-4">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 mb-3">Weekly Focus</p>
+              <div className="flex items-end gap-2 h-28">
+                {focusStats.weekDays.map((day) => {
+                  const maxMin = Math.max(...focusStats.weekDays.map((d) => d.minutes), 1)
+                  const h = day.minutes > 0 ? Math.max((day.minutes / maxMin) * 100, 6) : 0
+                  const isToday = day.date === new Date().toISOString().split('T')[0]
+                  return (
+                    <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
+                      <div className="w-full flex items-end justify-center" style={{ height: '80px' }}>
+                        {day.minutes > 0 ? (
+                          <div
+                            className={`w-full max-w-[24px] rounded-t transition-all ${isToday ? 'bg-amber-500' : 'bg-primary/30'}`}
+                            style={{ height: `${h}%` }}
+                            title={`${fmtMin(day.minutes)} · ${day.sessions} sessions`}
+                          />
+                        ) : (
+                          <div className="w-full max-w-[24px] h-[2px] rounded-full bg-muted" />
+                        )}
+                      </div>
+                      <span className={`text-[9px] font-medium tabular-nums ${isToday ? 'text-amber-500' : 'text-muted-foreground/50'}`}>
+                        {day.label}
+                      </span>
+                      {day.minutes > 0 && (
+                        <span className="text-[8px] text-muted-foreground/40 tabular-nums -mt-1">{fmtMin(day.minutes)}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </Card>
+
+            {/* Top tasks */}
+            <Card className="p-4">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 mb-3">Top Focus Tasks</p>
+              <div className="space-y-2.5">
+                {focusStats.topTasks.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/40 py-4 text-center">No focus sessions yet</p>
+                ) : focusStats.topTasks.map((task, i) => {
+                  const maxMin = focusStats.topTasks[0]?.minutes ?? 1
+                  const pct = (task.minutes / maxMin) * 100
+                  return (
+                    <div key={task.entityId} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground/40 w-3 tabular-nums">{i + 1}</span>
+                        <span className="text-xs truncate flex-1">{task.title}</span>
+                        <span className="text-[10px] text-muted-foreground tabular-nums font-medium">{fmtMin(task.minutes)}</span>
+                      </div>
+                      <div className="ml-5 h-1 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full bg-amber-500/50" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* ── Row 4: Focus Log & Review (expandable) ── */}
+        <div>
+          <button
+            onClick={() => setFocusLogOpen(!focusLogOpen)}
+            className="flex items-center gap-2 mb-3 group"
+          >
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <Crown className="h-3 w-3 inline mr-1.5 -mt-px text-amber-500" />
+              Focus Log &amp; Review
+            </h2>
+            <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground/40 transition-transform ${focusLogOpen ? '' : '-rotate-90'}`} />
+          </button>
+          {focusLogOpen && <FocusLog />}
+        </div>
+
+        {/* ── Row 5: Focus Heatmap + Today's Sessions ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Focus Heatmap */}
+          <Card className="p-4 lg:col-span-2">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60">Focus Heatmap — 90 Days</p>
+              <span className="text-[10px] text-muted-foreground tabular-nums">{fmtMin(Array.from(focusHeatmap.values()).reduce((a, b) => a + b, 0))} total</span>
+            </div>
+            <div className="flex flex-wrap gap-[2px]">
+              {focusHeatmapDays.map((day) => {
+                const minutes = focusHeatmap.get(day) ?? 0
+                const intensity = minutes === 0 ? 0 : Math.ceil((minutes / maxFocusHeatmap) * 4)
+                return (
+                  <div
+                    key={day}
+                    title={`${day}: ${fmtMin(minutes)}`}
+                    className={`w-2.5 h-2.5 rounded-sm ${
+                      intensity === 0 ? 'bg-muted' :
+                      intensity === 1 ? 'bg-amber-200 dark:bg-amber-900/60' :
+                      intensity === 2 ? 'bg-amber-400 dark:bg-amber-700/70' :
+                      intensity === 3 ? 'bg-amber-500 dark:bg-amber-500/80' :
+                      'bg-amber-600 dark:bg-amber-400'
+                    }`}
+                  />
+                )
+              })}
+            </div>
+            <div className="flex items-center gap-1 mt-2 justify-end">
+              <span className="text-[10px] text-muted-foreground mr-1">Less</span>
+              <div className="w-2.5 h-2.5 rounded-sm bg-muted" />
+              <div className="w-2.5 h-2.5 rounded-sm bg-amber-200 dark:bg-amber-900/60" />
+              <div className="w-2.5 h-2.5 rounded-sm bg-amber-400 dark:bg-amber-700/70" />
+              <div className="w-2.5 h-2.5 rounded-sm bg-amber-500 dark:bg-amber-500/80" />
+              <div className="w-2.5 h-2.5 rounded-sm bg-amber-600 dark:bg-amber-400" />
+              <span className="text-[10px] text-muted-foreground ml-1">More</span>
+            </div>
+          </Card>
+
+          {/* Today's Sessions */}
+          <Card className="p-4">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 mb-3">Today&apos;s Sessions</p>
+            <div className="space-y-1.5 max-h-40 overflow-y-auto">
+              {todaySessions.length === 0 ? (
+                <p className="text-xs text-muted-foreground/40 py-4 text-center">No sessions yet</p>
+              ) : todaySessions.map((s) => (
+                <div key={s.id} className="flex items-center gap-2 py-1 px-2 rounded-md bg-muted/20">
+                  <span className="text-[10px] text-muted-foreground/50 tabular-nums shrink-0">{s.time}</span>
+                  <span className="text-xs truncate flex-1">{s.title}</span>
+                  <span className="text-[10px] text-muted-foreground font-medium tabular-nums shrink-0">{s.minutes}m</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        {/* ── Row 6: Protocol Streaks ── */}
         {protocolStreaks.length > 0 && (
           <div>
-            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3">
-              Protocol Streaks
-            </h2>
+            <SH>Protocol Streaks</SH>
             <Card className="p-4 space-y-3">
               {protocolStreaks.map((p) => (
                 <div key={p.id} className="flex items-center gap-3">
@@ -492,28 +570,20 @@ export function DashboardPage() {
                   <div className="flex-1">
                     <Progress value={Math.min((p.streak / 30) * 100, 100)} className="h-2" />
                   </div>
-                  <span className="text-sm font-medium tabular-nums w-12 text-right">
-                    {p.streak}d
-                  </span>
+                  <span className="text-sm font-medium tabular-nums w-12 text-right">{p.streak}d</span>
                 </div>
               ))}
             </Card>
           </div>
         )}
 
-        {/* ── Section 4: Combined Heatmap (90 days) ── */}
+        {/* ── Row 6: Activity Heatmap ── */}
         <div>
-          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3">
-            Activity Heatmap — Last 90 Days
-          </h2>
+          <SH>Activity Heatmap — 90 Days</SH>
           <Card className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-muted-foreground">
-                Habits + Protocols completed per day
-              </span>
-              <span className="text-xs font-medium tabular-nums">
-                {totalCheckIns} total check-ins
-              </span>
+              <span className="text-xs text-muted-foreground">Habits + Protocols per day</span>
+              <span className="text-xs font-medium tabular-nums">{totalCheckIns} check-ins</span>
             </div>
             <div className="flex flex-wrap gap-[2px]">
               {heatmapDays.map((day) => {
@@ -546,19 +616,12 @@ export function DashboardPage() {
           </Card>
         </div>
 
-        {/* ── Section 5: AI Context Summary ── */}
+        {/* ── Row 7: AI Context Summary ── */}
         <div>
-          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3">
-            <Brain className="h-3 w-3 inline mr-1.5 -mt-px" />
-            AI Context Summary
-          </h2>
+          <SH><Brain className="h-3 w-3 inline mr-1.5 -mt-px" />AI Context Summary</SH>
           <Card className="p-4 bg-muted/30 border-dashed">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {aiSummary}
-            </p>
-            <p className="text-[10px] text-muted-foreground/50 mt-2">
-              This is a preview of the data context sent to the AI assistant.
-            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">{aiSummary}</p>
+            <p className="text-[10px] text-muted-foreground/50 mt-2">Data context preview for AI assistant.</p>
           </Card>
         </div>
       </div>
