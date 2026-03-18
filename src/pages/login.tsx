@@ -111,12 +111,16 @@ export function LoginPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="w-full max-w-sm space-y-6 p-4">
-          <div className="text-center space-y-2">
-            <div className="mx-auto h-16 w-16 rounded-2xl bg-primary flex items-center justify-center text-2xl text-primary-foreground font-bold">
-              Ly
+          <div className="text-center space-y-3">
+            <div className="mx-auto h-16 w-16 rounded-2xl bg-primary flex items-center justify-center">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="text-primary-foreground">
+                <path d="M12 2l2.09 6.26L20.18 9l-5 4.27L16.82 20 12 16.77 7.18 20l1.64-6.73L3.82 9l6.09-.74L12 2z" fill="currentColor" />
+              </svg>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">Lyra</h1>
-            <p className="text-sm text-muted-foreground">Navigate your life by the stars</p>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Lyra</h1>
+              <p className="text-sm text-muted-foreground">Navigate your life by the stars</p>
+            </div>
           </div>
 
           <div className="grid gap-3">
@@ -160,8 +164,10 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="mx-auto h-16 w-16 rounded-2xl bg-primary flex items-center justify-center text-2xl text-primary-foreground font-bold mb-2">
-            L
+          <div className="mx-auto h-16 w-16 rounded-2xl bg-primary flex items-center justify-center mb-2">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="text-primary-foreground">
+              <path d="M12 2l2.09 6.26L20.18 9l-5 4.27L16.82 20 12 16.77 7.18 20l1.64-6.73L3.82 9l6.09-.74L12 2z" fill="currentColor" />
+            </svg>
           </div>
           <CardTitle>Sign In</CardTitle>
         </CardHeader>

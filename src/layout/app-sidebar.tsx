@@ -99,15 +99,22 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-bold tracking-tight">Lyra</h1>
-          <button
-            onClick={() => setChangelogOpen(true)}
-            className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
-          >
-            v{APP_VERSION}
-          </button>
+      <SidebarHeader className="px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-primary-foreground">
+              <path d="M12 2l2.09 6.26L20.18 9l-5 4.27L16.82 20 12 16.77 7.18 20l1.64-6.73L3.82 9l6.09-.74L12 2z" fill="currentColor" />
+            </svg>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <h1 className="text-lg font-bold tracking-tight">Lyra</h1>
+            <button
+              onClick={() => setChangelogOpen(true)}
+              className="text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              v{APP_VERSION}
+            </button>
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent>

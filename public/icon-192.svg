@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" fill="none">
   <rect width="192" height="192" rx="40" fill="#18181b"/>
-  <text x="96" y="126" text-anchor="middle" font-family="system-ui, sans-serif" font-size="72" font-weight="700" fill="#fafafa" letter-spacing="-2">Ly</text>
-  <polygon points="152,40 155,50 165,50 157,56 160,66 152,60 144,66 147,56 139,50 149,50" fill="#60a5fa"/>
+  <path d="M96 32l14.5 43.4L154 83.6l-34.7 29.6L130.7 158 96 137.3 61.3 158l11.4-44.8L38 83.6l43.5-8.2L96 32z" fill="#fafafa" opacity="0.95"/>
+  <circle cx="96" cy="92" r="8" fill="#3b82f6"/>
 </svg>
