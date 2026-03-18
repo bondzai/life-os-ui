@@ -14,6 +14,26 @@ export interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.41.0',
+    date: '2026-03-18',
+    phase: 'Jira-Style Tasks Redesign',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Compact task cards**: Type icons, task keys (LO-001), priority arrows, and progress bars on every card',
+          '**Detail panel**: Right slide-in panel with inline editing and status workflow',
+          '**Inline filter bar**: Search, workspace, priority, and type filters in a single bar',
+          '**Kanban board redesign**: TO DO / IN PROGRESS / DONE columns with quick-add',
+          '**Parent task assignment**: Set any task as a subtask of another',
+          '**Empty story creation**: Add subtasks later like Jira',
+          '**Subtask-driven status**: Parent auto-syncs with subtask completion',
+          '**Workspace isolation**: Task relationships scoped to workspace',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.40.0',
     date: '2026-03-16',
     phase: 'Security & Performance Fixes',

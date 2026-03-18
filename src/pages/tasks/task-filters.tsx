@@ -2,6 +2,7 @@ import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import type { Entity, EntityPriority } from '@/core/types'
+import { isStory } from './task-helpers'
 
 export interface TaskFilterState {
   search: string
@@ -186,15 +187,8 @@ export function applyTaskFilters(tasks: Entity[], filters: TaskFilterState): Ent
     }
 
     // Type
-    if (filters.type === 'story') {
-      const subs = task.metadata.subtasks
-      const isStory = !!task.metadata.isStory || (Array.isArray(subs) && subs.length > 0)
-      if (!isStory) return false
-    } else if (filters.type === 'task') {
-      const subs = task.metadata.subtasks
-      const isStory = !!task.metadata.isStory || (Array.isArray(subs) && subs.length > 0)
-      if (isStory) return false
-    }
+    if (filters.type === 'story' && !isStory(task)) return false
+    if (filters.type === 'task' && isStory(task)) return false
 
     return true
   })

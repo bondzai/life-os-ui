@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { Entity, EntityStatus } from '@/core/types'
+import { isStory as checkIsStory, getSubtaskProgress, isOverdue as checkIsOverdue, formatShortDate } from './task-helpers'
 
 export interface TaskCardProps {
   task: Entity
@@ -32,23 +33,6 @@ export interface TaskCardProps {
   onSnooze?: (task: Entity, days: number) => void
   style?: React.CSSProperties
   className?: string
-}
-
-function isOverdue(task: Entity) {
-  return task.dueDate && task.status !== 'completed' && task.dueDate < new Date().toISOString().split('T')[0]
-}
-
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-function getSubtasks(task: Entity) {
-  if (!Array.isArray(task.metadata.subtasks)) return null
-  const subs = task.metadata.subtasks as Array<{ done: boolean }>
-  if (subs.length === 0) return null
-  const done = subs.filter((s) => s.done).length
-  return { done, total: subs.length, pct: Math.round((done / subs.length) * 100) }
 }
 
 function PriorityIcon({ priority }: { priority: string }) {
@@ -94,10 +78,10 @@ export const TaskCard = memo(
       },
       ref,
     ) => {
-      const subtasks = getSubtasks(task)
-      const isStory = !!task.metadata.isStory || !!subtasks
+      const subtasks = getSubtaskProgress(task.metadata)
+      const isStory = checkIsStory(task)
       const completed = task.status === 'completed'
-      const overdue = isOverdue(task)
+      const overdue = checkIsOverdue(task.dueDate, task.status)
       const visibleTags = task.tags.slice(0, 2)
       const extraTags = task.tags.length - 2
 
@@ -173,7 +157,7 @@ export const TaskCard = memo(
             <span
               className={`text-xs whitespace-nowrap shrink-0 ${overdue ? 'text-destructive font-medium' : 'text-muted-foreground'}`}
             >
-              {formatDate(task.dueDate)}
+              {formatShortDate(task.dueDate)}
             </span>
           )}
 

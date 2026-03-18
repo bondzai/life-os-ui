@@ -18,12 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-
-interface Subtask {
-  id: string
-  title: string
-  done: boolean
-}
+import type { Subtask } from './task-helpers'
 
 interface StoryDialogProps {
   open: boolean
@@ -59,7 +54,7 @@ export function StoryDialog({ open, onOpenChange, workspace, defaultSubtasks, on
       setSubtasks(defaultSubtasks || [])
       setStepInput('')
     }
-  }, [open, workspace])
+  }, [open, workspace, defaultSubtasks])
 
   const addStep = () => {
     if (!stepInput.trim()) return

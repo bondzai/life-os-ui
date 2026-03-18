@@ -23,6 +23,7 @@ import { StandupReport } from './tasks/standup-report'
 import { StoryDialog } from './tasks/story-dialog'
 import { TaskDetailPanel } from './tasks/task-detail-panel'
 import { TaskFilters, applyTaskFilters, defaultFilters, type TaskFilterState } from './tasks/task-filters'
+import { isStory } from './tasks/task-helpers'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,14 +39,6 @@ const priorityOrder: Record<EntityPriority, number> = {
   high: 1,
   medium: 2,
   low: 3,
-}
-
-// ── Task key generation ───────────────────────────────────────────────
-
-function generateTaskKey(task: Entity, allTasks: Entity[]): string {
-  const sorted = [...allTasks].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-  const idx = sorted.findIndex((t) => t.id === task.id)
-  return `LO-${String(idx + 1).padStart(3, '0')}`
 }
 
 // ── Log view helpers ──────────────────────────────────────────────────
@@ -86,12 +79,6 @@ function startOfWeek(date: Date): Date {
   d.setDate(d.getDate() - diff)
   d.setHours(0, 0, 0, 0)
   return d
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────
-
-function isStory(task: Entity): boolean {
-  return !!task.metadata.isStory || (Array.isArray(task.metadata.subtasks) && (task.metadata.subtasks as unknown[]).length > 0)
 }
 
 // ── Drag-and-drop wrappers ────────────────────────────────────────────
@@ -239,9 +226,7 @@ export function TasksPage() {
 
   // Existing stories for "Add to Story" dropdown
   const existingStories = useMemo(
-    () => filteredTasks.filter(t =>
-      t.status === 'active' && Array.isArray(t.metadata.subtasks) && (t.metadata.subtasks as unknown[]).length > 0
-    ),
+    () => filteredTasks.filter(t => t.status === 'active' && isStory(t)),
     [filteredTasks],
   )
 

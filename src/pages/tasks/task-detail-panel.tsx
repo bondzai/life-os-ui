@@ -30,16 +30,7 @@ import {
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import type { Entity, EntityPriority, EntityStatus } from '@/core/types'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface Subtask {
-  id: string
-  title: string
-  done: boolean
-}
+import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, type Subtask } from './task-helpers'
 
 export interface TaskDetailPanelProps {
   task: Entity | null
@@ -89,22 +80,12 @@ const PRIORITY_DOT: Record<EntityPriority, string> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatDate(iso: string) {
+function formatDetailDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   })
-}
-
-function isOverdue(dueDate: string | undefined, status: EntityStatus) {
-  if (!dueDate || status === 'completed') return false
-  return dueDate < new Date().toISOString().split('T')[0]
-}
-
-function getSubtasks(metadata: Record<string, unknown>): Subtask[] {
-  if (Array.isArray(metadata.subtasks)) return metadata.subtasks as Subtask[]
-  return []
 }
 
 function resolveWorkspace(tags: string[]): 'work' | 'personal' | null {
@@ -345,9 +326,9 @@ export function TaskDetailPanel({
 
   const subtasks = getSubtasks(task.metadata)
   const doneCount = subtasks.filter((s) => s.done).length
-  const isStory = !!task.metadata.isStory || subtasks.length > 0
+  const isStory = checkIsStory(task)
   const workspace = resolveWorkspace(task.tags)
-  const overdue = isOverdue(task.dueDate, task.status)
+  const overdue = checkIsOverdue(task.dueDate, task.status)
 
   // -- Render ---------------------------------------------------------------
 
@@ -519,7 +500,7 @@ export function TaskDetailPanel({
                       {parentCandidates.length > 0 ? (
                         <div className="max-h-36 overflow-y-auto rounded-md border">
                           {parentCandidates.slice(0, 8).map((t) => {
-                            const tIsStory = !!t.metadata.isStory || (Array.isArray(t.metadata.subtasks) && (t.metadata.subtasks as unknown[]).length > 0)
+                            const tIsStory = checkIsStory(t)
                             return (
                               <button
                                 key={t.id}
@@ -610,13 +591,13 @@ export function TaskDetailPanel({
             <div className="grid grid-cols-[120px_1fr] items-center gap-2">
               <span className="text-xs text-muted-foreground font-medium">Created</span>
               <span className="text-xs text-muted-foreground">
-                {formatDate(task.createdAt)}
+                {formatDetailDate(task.createdAt)}
               </span>
             </div>
             <div className="grid grid-cols-[120px_1fr] items-center gap-2">
               <span className="text-xs text-muted-foreground font-medium">Updated</span>
               <span className="text-xs text-muted-foreground">
-                {formatDate(task.updatedAt)}
+                {formatDetailDate(task.updatedAt)}
               </span>
             </div>
           </div>
