@@ -14,7 +14,9 @@ const createScheduleSchema = z.object({
   isActive: z.boolean().default(true),
 })
 
-export const scheduleRoutes = new Hono()
+type Env = { Variables: { userId: string; userRole: string } }
+
+export const scheduleRoutes = new Hono<Env>()
 
 function parseSchedule(row: any) {
   return {
@@ -35,12 +37,12 @@ scheduleRoutes.get('/', async (c) => {
 
   let results
   if (conditions.length > 0) {
-    results = db.select().from(schedules).where(and(...conditions)).all()
+    results = await db.select().from(schedules).where(and(...conditions))
   } else {
-    results = db.select().from(schedules).all()
+    results = await db.select().from(schedules)
   }
 
-  const ownedIds = getUserEntityIds(userId)
+  const ownedIds = await getUserEntityIds(userId)
   return c.json(results.filter((s) => s.entityId && ownedIds.has(s.entityId)).map(parseSchedule))
 })
 
@@ -48,11 +50,11 @@ scheduleRoutes.get('/', async (c) => {
 scheduleRoutes.get('/:id', async (c) => {
   const userId = c.get('userId') as string
   const id = c.req.param('id')
-  const result = db.select().from(schedules).where(eq(schedules.id, id)).get()
+  const result = (await db.select().from(schedules).where(eq(schedules.id, id)))[0]
 
   if (!result) return c.json({ error: 'Schedule not found' }, 404)
 
-  const ownedIds = getUserEntityIds(userId)
+  const ownedIds = await getUserEntityIds(userId)
   if (!result.entityId || !ownedIds.has(result.entityId)) {
     return c.json({ error: 'Schedule not found' }, 404)
   }
@@ -70,7 +72,7 @@ scheduleRoutes.post('/', async (c) => {
   }
 
   const data = parsed.data
-  const ownedIds = getUserEntityIds(userId)
+  const ownedIds = await getUserEntityIds(userId)
   if (!ownedIds.has(data.entityId)) {
     return c.json({ error: 'Entity not found' }, 404)
   }
@@ -84,7 +86,7 @@ scheduleRoutes.post('/', async (c) => {
     isActive: data.isActive === false ? 0 : 1,
   }
 
-  db.insert(schedules).values(row).run()
+  await db.insert(schedules).values(row)
 
   return c.json(parseSchedule(row), 201)
 })
@@ -95,10 +97,10 @@ scheduleRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
 
-  const existing = db.select().from(schedules).where(eq(schedules.id, id)).get()
+  const existing = (await db.select().from(schedules).where(eq(schedules.id, id)))[0]
   if (!existing) return c.json({ error: 'Schedule not found' }, 404)
 
-  const ownedIds = getUserEntityIds(userId)
+  const ownedIds = await getUserEntityIds(userId)
   if (!existing.entityId || !ownedIds.has(existing.entityId)) {
     return c.json({ error: 'Schedule not found' }, 404)
   }
@@ -109,9 +111,9 @@ scheduleRoutes.patch('/:id', async (c) => {
   }
   if (body.isActive !== undefined) updates.isActive = body.isActive ? 1 : 0
 
-  db.update(schedules).set(updates).where(eq(schedules.id, id)).run()
+  await db.update(schedules).set(updates).where(eq(schedules.id, id))
 
-  const updated = db.select().from(schedules).where(eq(schedules.id, id)).get()
+  const updated = (await db.select().from(schedules).where(eq(schedules.id, id)))[0]
   return c.json(parseSchedule(updated))
 })
 
@@ -119,14 +121,14 @@ scheduleRoutes.patch('/:id', async (c) => {
 scheduleRoutes.delete('/:id', async (c) => {
   const userId = c.get('userId') as string
   const id = c.req.param('id')
-  const existing = db.select().from(schedules).where(eq(schedules.id, id)).get()
+  const existing = (await db.select().from(schedules).where(eq(schedules.id, id)))[0]
   if (!existing) return c.json({ error: 'Schedule not found' }, 404)
 
-  const ownedIds = getUserEntityIds(userId)
+  const ownedIds = await getUserEntityIds(userId)
   if (!existing.entityId || !ownedIds.has(existing.entityId)) {
     return c.json({ error: 'Schedule not found' }, 404)
   }
 
-  db.delete(schedules).where(eq(schedules.id, id)).run()
+  await db.delete(schedules).where(eq(schedules.id, id))
   return c.json({ ok: true })
 })

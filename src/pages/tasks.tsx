@@ -124,23 +124,7 @@ function ListTaskWrapper({
 
   return (
     <DraggableTask task={task}>
-      <div className="flex items-start gap-2">
-        <Checkbox
-          checked={selectedTasks.has(task.id)}
-          onCheckedChange={(checked) => {
-            setSelectedTasks(prev => {
-              const next = new Set(prev)
-              if (checked) next.add(task.id)
-              else next.delete(task.id)
-              return next
-            })
-          }}
-          className="mt-3 shrink-0"
-        />
-        <div className="flex-1">
-          {children}
-        </div>
-      </div>
+      {children}
     </DraggableTask>
   )
 }

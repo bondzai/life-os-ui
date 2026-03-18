@@ -75,7 +75,7 @@ export function AppSidebar() {
   if (dueChoreCount > 0) badges['family'] = dueChoreCount
 
   // Active focus session detection
-  const hasActiveSession = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)
+  const hasActiveSession = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0 && s.phase !== 'idle')
 
   const toggleGroup = (group: string) => {
     const next = { ...collapsed, [group]: !collapsed[group] }

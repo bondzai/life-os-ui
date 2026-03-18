@@ -28,9 +28,10 @@ echo "Lyra API starting..."
 echo "  Port: $PORT"
 echo "  CORS: $CORS_ORIGINS"
 echo "  Frontend: $FRONTEND_URL"
+echo "  DB: ${TURSO_DATABASE_URL:-file:./data/lyra.db}"
 
-# Seed database if empty
-if [ ! -f data/lyra.db ]; then
+# Seed database if needed (for local file DB only)
+if [[ "${TURSO_DATABASE_URL:-}" != http* ]] && [ ! -f data/lyra.db ]; then
   echo "  Seeding database..."
   mkdir -p data
   npx tsx src/seed.ts

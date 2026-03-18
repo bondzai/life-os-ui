@@ -9,12 +9,12 @@ const createEntitySchema = z.object({
   type: z.string().min(1).max(50),
   title: z.string().min(1).max(500),
   description: z.string().max(5000).optional().nullable(),
-  status: z.enum(['backlog', 'active', 'paused', 'completed', 'archived']).default('active'),
-  priority: z.enum(['urgent', 'high', 'medium', 'low']).default('medium'),
-  tags: z.array(z.string().max(100)).max(50).default([]),
-  metadata: z.record(z.unknown()).default({}),
+  status: z.enum(['backlog', 'todo', 'in-progress', 'done', 'archived']).optional().default('todo'),
+  priority: z.enum(['urgent', 'high', 'medium', 'low']).optional().default('medium'),
+  tags: z.array(z.string().max(100)).max(50).optional().default([]),
+  metadata: z.record(z.string(), z.unknown()).optional().default({}),
   parentId: z.string().max(100).optional().nullable(),
-  visibility: z.enum(['private', 'shared']).default('private'),
+  visibility: z.enum(['private', 'shared']).optional().default('private'),
   dueDate: z.string().max(50).optional().nullable(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
@@ -22,7 +22,9 @@ const createEntitySchema = z.object({
 
 const updateEntitySchema = createEntitySchema.partial().omit({ id: true })
 
-export const entityRoutes = new Hono()
+type Env = { Variables: { userId: string; userRole: string } }
+
+export const entityRoutes = new Hono<Env>()
 
 function parseJsonFields(row: any) {
   return {
@@ -39,7 +41,6 @@ entityRoutes.get('/', async (c) => {
   const status = c.req.query('status')
   const parentId = c.req.query('parentId')
 
-  // Always scope to authenticated user's own entities + shared visibility
   const conditions: SQL[] = [
     or(eq(entities.ownerId, userId), eq(entities.visibility, 'shared'))!,
   ]
@@ -47,7 +48,7 @@ entityRoutes.get('/', async (c) => {
   if (status) conditions.push(eq(entities.status, status))
   if (parentId) conditions.push(eq(entities.parentId, parentId))
 
-  const results = db.select().from(entities).where(and(...conditions)).all()
+  const results = await db.select().from(entities).where(and(...conditions))
 
   return c.json(results.map(parseJsonFields))
 })
@@ -56,7 +57,8 @@ entityRoutes.get('/', async (c) => {
 entityRoutes.get('/:id', async (c) => {
   const userId = c.get('userId') as string
   const id = c.req.param('id')
-  const result = db.select().from(entities).where(eq(entities.id, id)).get()
+  const results = await db.select().from(entities).where(eq(entities.id, id))
+  const result = results[0]
 
   if (!result) {
     return c.json({ error: 'Entity not found' }, 404)
@@ -97,7 +99,7 @@ entityRoutes.post('/', async (c) => {
     updatedAt: data.updatedAt || now,
   }
 
-  db.insert(entities).values(row).run()
+  await db.insert(entities).values(row)
 
   return c.json(parseJsonFields(row), 201)
 })
@@ -108,7 +110,7 @@ entityRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
 
-  const existing = db.select().from(entities).where(eq(entities.id, id)).get()
+  const existing = (await db.select().from(entities).where(eq(entities.id, id)))[0]
   if (!existing || existing.ownerId !== userId) {
     return c.json({ error: 'Entity not found' }, 404)
   }
@@ -127,9 +129,9 @@ entityRoutes.patch('/:id', async (c) => {
   if (data.tags !== undefined) updates.tags = JSON.stringify(data.tags)
   if (data.metadata !== undefined) updates.metadata = JSON.stringify(data.metadata)
 
-  db.update(entities).set(updates).where(eq(entities.id, id)).run()
+  await db.update(entities).set(updates).where(eq(entities.id, id))
 
-  const updated = db.select().from(entities).where(eq(entities.id, id)).get()
+  const updated = (await db.select().from(entities).where(eq(entities.id, id)))[0]
   return c.json(parseJsonFields(updated))
 })
 
@@ -137,11 +139,11 @@ entityRoutes.patch('/:id', async (c) => {
 entityRoutes.delete('/:id', async (c) => {
   const userId = c.get('userId') as string
   const id = c.req.param('id')
-  const existing = db.select().from(entities).where(eq(entities.id, id)).get()
+  const existing = (await db.select().from(entities).where(eq(entities.id, id)))[0]
   if (!existing || existing.ownerId !== userId) {
     return c.json({ error: 'Entity not found' }, 404)
   }
 
-  db.delete(entities).where(eq(entities.id, id)).run()
+  await db.delete(entities).where(eq(entities.id, id))
   return c.json({ ok: true })
 })

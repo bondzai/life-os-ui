@@ -3,7 +3,6 @@ import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { db } from '../db/index.js'
 import { users } from '../db/schema.js'
-import { eq } from 'drizzle-orm'
 
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) {
@@ -43,7 +42,7 @@ authRoutes.post('/login', async (c) => {
     return c.json({ error: 'PIN is required' }, 400)
   }
 
-  const allUsers = db.select().from(users).all()
+  const allUsers = await db.select().from(users)
   const user = allUsers.find((u) => u.pin && bcrypt.compareSync(pin, u.pin))
 
   if (!user) {
@@ -74,7 +73,7 @@ export function jwtMiddleware() {
     const token = authHeader.slice(7)
 
     try {
-      const payload = jwt.verify(token, JWT_SECRET) as { userId: string; role: string }
+      const payload = jwt.verify(token, JWT_SECRET!) as unknown as { userId: string; role: string }
       c.set('userId', payload.userId)
       c.set('userRole', payload.role)
       await next()

@@ -12,7 +12,9 @@ const createRelationSchema = z.object({
   type: z.string().min(1).max(50),
 })
 
-export const relationRoutes = new Hono()
+type Env = { Variables: { userId: string; userRole: string } }
+
+export const relationRoutes = new Hono<Env>()
 
 // GET /
 relationRoutes.get('/', async (c) => {
@@ -26,12 +28,12 @@ relationRoutes.get('/', async (c) => {
 
   let results
   if (conditions.length > 0) {
-    results = db.select().from(relations).where(and(...conditions)).all()
+    results = await db.select().from(relations).where(and(...conditions))
   } else {
-    results = db.select().from(relations).all()
+    results = await db.select().from(relations)
   }
 
-  const ownedIds = getUserEntityIds(userId)
+  const ownedIds = await getUserEntityIds(userId)
   return c.json(results.filter((r) => ownedIds.has(r.fromId!) || ownedIds.has(r.toId!)))
 })
 
@@ -39,11 +41,11 @@ relationRoutes.get('/', async (c) => {
 relationRoutes.get('/:id', async (c) => {
   const userId = c.get('userId') as string
   const id = c.req.param('id')
-  const result = db.select().from(relations).where(eq(relations.id, id)).get()
+  const result = (await db.select().from(relations).where(eq(relations.id, id)))[0]
 
   if (!result) return c.json({ error: 'Relation not found' }, 404)
 
-  const ownedIds = getUserEntityIds(userId)
+  const ownedIds = await getUserEntityIds(userId)
   if (!ownedIds.has(result.fromId!) && !ownedIds.has(result.toId!)) {
     return c.json({ error: 'Relation not found' }, 404)
   }
@@ -61,7 +63,7 @@ relationRoutes.post('/', async (c) => {
   }
 
   const data = parsed.data
-  const ownedIds = getUserEntityIds(userId)
+  const ownedIds = await getUserEntityIds(userId)
   if (!ownedIds.has(data.fromId) && !ownedIds.has(data.toId)) {
     return c.json({ error: 'Relation not found' }, 404)
   }
@@ -73,7 +75,7 @@ relationRoutes.post('/', async (c) => {
     type: data.type,
   }
 
-  db.insert(relations).values(row).run()
+  await db.insert(relations).values(row)
 
   return c.json(row, 201)
 })
@@ -82,14 +84,14 @@ relationRoutes.post('/', async (c) => {
 relationRoutes.delete('/:id', async (c) => {
   const userId = c.get('userId') as string
   const id = c.req.param('id')
-  const existing = db.select().from(relations).where(eq(relations.id, id)).get()
+  const existing = (await db.select().from(relations).where(eq(relations.id, id)))[0]
   if (!existing) return c.json({ error: 'Relation not found' }, 404)
 
-  const ownedIds = getUserEntityIds(userId)
+  const ownedIds = await getUserEntityIds(userId)
   if (!ownedIds.has(existing.fromId!) && !ownedIds.has(existing.toId!)) {
     return c.json({ error: 'Relation not found' }, 404)
   }
 
-  db.delete(relations).where(eq(relations.id, id)).run()
+  await db.delete(relations).where(eq(relations.id, id))
   return c.json({ ok: true })
 })

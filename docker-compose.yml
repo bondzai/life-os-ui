@@ -13,8 +13,10 @@ services:
     build: ./api
     ports:
       - "3001:3001"
-    volumes:
-      - ./api/data:/app/data
     environment:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8080}
+      - TURSO_DATABASE_URL=${TURSO_DATABASE_URL:-file:./data/lyra.db}
+      - TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN:-}
+    volumes:
+      - ./api/data:/app/data  # Only used with local file DB

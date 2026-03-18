@@ -7,7 +7,7 @@ import { trackerRoutes } from './routes/trackers.js'
 import { scheduleRoutes } from './routes/schedules.js'
 import { relationRoutes } from './routes/relations.js'
 import { gcalRoutes } from './routes/gcal.js'
-import { sqlite } from './db/index.js'
+import { client } from './db/index.js'
 
 const app = new Hono()
 
@@ -57,6 +57,6 @@ serve({ fetch: app.fetch, port }, () => {
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-  sqlite.close()
+  client.close()
   process.exit(0)
 })

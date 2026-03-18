@@ -1,19 +1,12 @@
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { createClient } from '@libsql/client'
+import { drizzle } from 'drizzle-orm/libsql'
 import * as schema from './schema.js'
-import { resolve, dirname } from 'path'
-import { fileURLToPath } from 'url'
-import { mkdirSync } from 'fs'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const dbPath = resolve(__dirname, '../../data/lyra.db')
+const url = process.env.TURSO_DATABASE_URL || 'file:./data/lyra.db'
+const authToken = process.env.TURSO_AUTH_TOKEN
 
-// Ensure data directory exists
-mkdirSync(dirname(dbPath), { recursive: true })
+export const client = createClient(
+  authToken ? { url, authToken } : { url },
+)
 
-const sqlite = new Database(dbPath)
-sqlite.pragma('journal_mode = WAL')
-sqlite.pragma('foreign_keys = ON')
-
-export const db = drizzle(sqlite, { schema })
-export { sqlite }
+export const db = drizzle(client, { schema })

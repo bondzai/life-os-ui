@@ -4,7 +4,9 @@ import { db } from '../db/index.js'
 import { googleTokens } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 
-const gcalRoutes = new Hono()
+type Env = { Variables: { userId: string; userRole: string } }
+
+const gcalRoutes = new Hono<Env>()
 
 // Secure OAuth state management — prevents CSRF
 const oauthStates = new Map<string, { userId: string; expiresAt: number }>()
@@ -65,7 +67,7 @@ interface StoredToken {
 }
 
 async function getValidAccessToken(userId: string): Promise<{ accessToken: string; calendarId: string | null } | null> {
-  const rows = db.select().from(googleTokens).where(eq(googleTokens.userId, userId)).all()
+  const rows = await db.select().from(googleTokens).where(eq(googleTokens.userId, userId))
   const row = rows[0] as StoredToken | undefined
   if (!row?.accessToken || !row?.refreshToken) return null
 
@@ -99,10 +101,9 @@ async function getValidAccessToken(userId: string): Promise<{ accessToken: strin
     const data = await res.json() as { access_token: string; expires_in: number }
     const newExpiresAt = new Date(Date.now() + data.expires_in * 1000).toISOString()
 
-    db.update(googleTokens)
+    await db.update(googleTokens)
       .set({ accessToken: data.access_token, expiresAt: newExpiresAt })
       .where(eq(googleTokens.userId, userId))
-      .run()
 
     return { accessToken: data.access_token, calendarId: row.calendarId }
   } catch {
@@ -210,9 +211,9 @@ gcalRoutes.get('/auth/callback', async (c) => {
     }
 
     // Upsert tokens
-    const existing = db.select().from(googleTokens).where(eq(googleTokens.userId, userId)).all()
+    const existing = await db.select().from(googleTokens).where(eq(googleTokens.userId, userId))
     if (existing.length > 0) {
-      db.update(googleTokens)
+      await db.update(googleTokens)
         .set({
           accessToken: tokenData.access_token,
           refreshToken: tokenData.refresh_token || existing[0].refreshToken,
@@ -220,9 +221,8 @@ gcalRoutes.get('/auth/callback', async (c) => {
           calendarId,
         })
         .where(eq(googleTokens.userId, userId))
-        .run()
     } else {
-      db.insert(googleTokens)
+      await db.insert(googleTokens)
         .values({
           userId,
           accessToken: tokenData.access_token,
@@ -230,7 +230,6 @@ gcalRoutes.get('/auth/callback', async (c) => {
           expiresAt,
           calendarId,
         })
-        .run()
     }
 
     return c.redirect(`${frontendUrl}/calendar?google=connected`)
@@ -243,9 +242,9 @@ gcalRoutes.get('/auth/callback', async (c) => {
  * GET /api/gcal/auth/status
  * Returns whether current user has Google tokens stored.
  */
-gcalRoutes.get('/auth/status', (c) => {
+gcalRoutes.get('/auth/status', async (c) => {
   const userId = c.get('userId') as string
-  const rows = db.select().from(googleTokens).where(eq(googleTokens.userId, userId)).all()
+  const rows = await db.select().from(googleTokens).where(eq(googleTokens.userId, userId))
   const connected = rows.length > 0 && !!rows[0].refreshToken
   return c.json({ connected, calendarId: rows[0]?.calendarId || null })
 })
@@ -254,9 +253,9 @@ gcalRoutes.get('/auth/status', (c) => {
  * DELETE /api/gcal/auth/disconnect
  * Removes stored tokens for current user.
  */
-gcalRoutes.delete('/auth/disconnect', (c) => {
+gcalRoutes.delete('/auth/disconnect', async (c) => {
   const userId = c.get('userId') as string
-  db.delete(googleTokens).where(eq(googleTokens.userId, userId)).run()
+  await db.delete(googleTokens).where(eq(googleTokens.userId, userId))
   return c.json({ ok: true })
 })
 
@@ -490,7 +489,7 @@ gcalRoutes.get('/:calendarId/color', async (c) => {
     }
 
     const data = await res.json() as { backgroundColor?: string; colorId?: string }
-    const color = data.backgroundColor || (data.colorId ? CALENDAR_COLORS[data.colorId] : null)
+    const color = data.backgroundColor || (data.colorId ? EVENT_COLORS[data.colorId] : null)
     return c.json({ color })
   } catch {
     return c.json({ color: null, error: 'Request failed' }, 502)

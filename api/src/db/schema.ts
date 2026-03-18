@@ -13,7 +13,7 @@ export const entities = sqliteTable('entities', {
   type: text('type'),
   title: text('title'),
   description: text('description'),
-  status: text('status').default('active'),
+  status: text('status').default('todo'),
   priority: text('priority').default('medium'),
   tags: text('tags'), // JSON array
   metadata: text('metadata'), // JSON object
