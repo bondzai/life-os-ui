@@ -128,7 +128,49 @@ Without Turso vars, the API uses a local SQLite file at `api/data/lyra.db`.
 
 ---
 
-## Database Migrations
+## Data Backup Migrations (localStorage)
+
+Export/import handles schema changes automatically. Backups are versioned — when you import an older backup, it runs migrations to transform the data to the current schema.
+
+**Location:** `src/lib/data-backup.ts`
+
+### How It Works
+
+1. Every export stamps `CURRENT_VERSION` (e.g. `2`)
+2. On import, if the backup version is older, migrations run sequentially (v1→v2→v3→...)
+3. Legacy backups without a version are treated as v1
+
+### When You Change Schema
+
+1. Bump `CURRENT_VERSION`
+2. Add a migration function to `MIGRATIONS`
+
+```typescript
+// src/lib/data-backup.ts
+
+const CURRENT_VERSION = 3  // ← bump
+
+const MIGRATIONS: Record<number, MigrationFn> = {
+  1: migrateV1toV2,
+  2: (data) => {  // ← add migration from v2 → v3
+    const entities = (data['lyra:entities'] ?? []) as Record<string, unknown>[]
+    for (const e of entities) {
+      if (!e.color) e.color = 'default'  // new required field
+    }
+    return data
+  },
+}
+```
+
+### Rules
+
+- Each migration transforms data from version N to N+1
+- Migrations must be backwards-compatible (never remove a migration)
+- Importing a backup from a newer version is rejected with a clear error
+
+---
+
+## Database Migrations (API/Turso)
 
 Lyra uses [Drizzle ORM](https://orm.drizzle.team) with migration files tracked in `api/drizzle/`.
 

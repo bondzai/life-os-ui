@@ -14,6 +14,31 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.45.0',
+    date: '2026-03-18',
+    phase: 'Backend, Migrations & Setup',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Turso/libsql backend**: Migrated API from better-sqlite3 to @libsql/client for cloud DB support',
+          '**Drizzle migrations**: Auto-apply schema migrations on deploy via `db:migrate`',
+          '**Versioned data backups**: Export/import now handles schema diffs — old backups auto-migrate on import',
+          '**Render deployment**: Blueprint for one-click deploy (static frontend + Node API)',
+          '**Setup docs**: Comprehensive SETUP.md with local, Render, and Docker instructions',
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          '**Resume Focus badge**: Only shows after clicking Start Focus, not on Emperor Time entry',
+          '**Duplicate checkbox**: Removed extra selection checkbox from task list view',
+          '**Unused props cleanup**: Removed dead selectedTasks props from ListTaskWrapper',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.44.0',
     date: '2026-03-18',
     phase: 'Focus Sessions, Jira-style Status & 3-State Subtasks',

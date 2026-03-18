@@ -92,8 +92,11 @@ export function AppSidebar() {
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      const { count } = await importData(file)
-      notify({ title: `Imported ${count} data sets`, message: 'Reload the page to see changes.', type: 'success' })
+      const { count, migrated } = await importData(file)
+      const msg = migrated
+        ? `Imported ${count} data sets (migrated from older version).`
+        : `Imported ${count} data sets.`
+      notify({ title: 'Import complete', message: msg, type: 'success' })
       window.location.reload()
     } catch {
       notify({ title: 'Import failed', message: 'Invalid backup file.', type: 'error' })
