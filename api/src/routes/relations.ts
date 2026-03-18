@@ -1,17 +1,18 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { db } from '../db/index.js'
-import { relations, entities } from '../db/schema.js'
-import { eq, and, or, type SQL } from 'drizzle-orm'
+import { relations } from '../db/schema.js'
+import { eq, and, type SQL } from 'drizzle-orm'
+import { getUserEntityIds } from '../db/helpers.js'
+
+const createRelationSchema = z.object({
+  id: z.string().min(1).max(100),
+  fromId: z.string().min(1).max(100),
+  toId: z.string().min(1).max(100),
+  type: z.string().min(1).max(50),
+})
 
 export const relationRoutes = new Hono()
-
-/** Get entity IDs the user owns or has shared access to */
-function getUserEntityIds(userId: string): Set<string> {
-  const rows = db.select({ id: entities.id }).from(entities)
-    .where(or(eq(entities.ownerId, userId), eq(entities.visibility, 'shared'))!)
-    .all()
-  return new Set(rows.map((r) => r.id))
-}
 
 // GET /
 relationRoutes.get('/', async (c) => {
@@ -52,13 +53,24 @@ relationRoutes.get('/:id', async (c) => {
 
 // POST /
 relationRoutes.post('/', async (c) => {
+  const userId = c.get('userId') as string
   const body = await c.req.json()
+  const parsed = createRelationSchema.safeParse(body)
+  if (!parsed.success) {
+    return c.json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors }, 400)
+  }
+
+  const data = parsed.data
+  const ownedIds = getUserEntityIds(userId)
+  if (!ownedIds.has(data.fromId) && !ownedIds.has(data.toId)) {
+    return c.json({ error: 'Relation not found' }, 404)
+  }
 
   const row = {
-    id: body.id,
-    fromId: body.fromId,
-    toId: body.toId,
-    type: body.type,
+    id: data.id,
+    fromId: data.fromId,
+    toId: data.toId,
+    type: data.type,
   }
 
   db.insert(relations).values(row).run()

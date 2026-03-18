@@ -161,7 +161,7 @@ export async function fetchGCalEventsDirect(
 /**
  * Fetch calendar color directly from Google Calendar API v3.
  */
-export async function fetchCalendarColorDirect(calendarId: string): Promise<string | null> {
+async function fetchCalendarColorDirect(calendarId: string): Promise<string | null> {
   try {
     const res = await fetch(
       `${GCAL_API_BASE}/calendars/${encodeURIComponent(calendarId)}?key=${GCAL_PUBLIC_KEY}&fields=backgroundColor`,

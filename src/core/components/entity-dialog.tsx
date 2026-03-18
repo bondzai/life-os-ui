@@ -31,7 +31,6 @@ export function EntityDialog({
           <DialogTitle>{title ?? `New ${entityType}`}</DialogTitle>
         </DialogHeader>
         <EntityForm
-          entityType={entityType}
           defaultValues={defaultValues}
           onSubmit={(values) => {
             onSubmit(values)

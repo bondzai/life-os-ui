@@ -1,7 +1,17 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { db } from '../db/index.js'
 import { trackers } from '../db/schema.js'
 import { eq, and, gte, lte, type SQL } from 'drizzle-orm'
+
+const createTrackerSchema = z.object({
+  id: z.string().min(1).max(100),
+  entityId: z.string().min(1).max(100),
+  value: z.number(),
+  unit: z.string().max(50).optional().nullable(),
+  note: z.string().max(2000).optional().nullable(),
+  timestamp: z.string().max(50).optional(),
+})
 
 export const trackerRoutes = new Hono()
 
@@ -37,16 +47,22 @@ trackerRoutes.get('/:id', async (c) => {
 
 // POST /
 trackerRoutes.post('/', async (c) => {
+  const userId = c.get('userId') as string
   const body = await c.req.json()
+  const parsed = createTrackerSchema.safeParse(body)
+  if (!parsed.success) {
+    return c.json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors }, 400)
+  }
 
+  const data = parsed.data
   const row = {
-    id: body.id,
-    entityId: body.entityId,
-    value: body.value,
-    unit: body.unit || null,
-    note: body.note || null,
-    timestamp: body.timestamp || new Date().toISOString(),
-    ownerId: body.ownerId || c.get('userId'),
+    id: data.id,
+    entityId: data.entityId,
+    value: data.value,
+    unit: data.unit || null,
+    note: data.note || null,
+    timestamp: data.timestamp || new Date().toISOString(),
+    ownerId: userId,
   }
 
   db.insert(trackers).values(row).run()
@@ -66,7 +82,7 @@ trackerRoutes.patch('/:id', async (c) => {
   }
 
   const updates: Record<string, any> = {}
-  for (const key of ['entityId', 'value', 'unit', 'note', 'timestamp', 'ownerId']) {
+  for (const key of ['entityId', 'value', 'unit', 'note', 'timestamp']) {
     if (body[key] !== undefined) updates[key] = body[key]
   }
 

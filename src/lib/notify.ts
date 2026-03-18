@@ -12,10 +12,3 @@ export function notify({ title, message, type = 'info' }: NotifyOptions) {
   useNotificationStore.getState().addNotification({ title, message, type })
 }
 
-export function notifyWithUndo(title: string, onUndo: () => void) {
-  toast.success(title, {
-    action: { label: 'Undo', onClick: onUndo },
-    duration: 5000,
-  })
-  useNotificationStore.getState().addNotification({ title, type: 'success' })
-}

@@ -14,7 +14,6 @@ const createEntitySchema = z.object({
   tags: z.array(z.string().max(100)).max(50).default([]),
   metadata: z.record(z.unknown()).default({}),
   parentId: z.string().max(100).optional().nullable(),
-  ownerId: z.string().max(100).optional(),
   visibility: z.enum(['private', 'shared']).default('private'),
   dueDate: z.string().max(50).optional().nullable(),
   createdAt: z.string().optional(),
@@ -91,7 +90,7 @@ entityRoutes.post('/', async (c) => {
     tags: JSON.stringify(data.tags),
     metadata: JSON.stringify(data.metadata),
     parentId: data.parentId || null,
-    ownerId: data.ownerId || (c.get('userId') as string),
+    ownerId: c.get('userId') as string,
     visibility: data.visibility,
     dueDate: data.dueDate || null,
     createdAt: data.createdAt || now,
@@ -122,7 +121,7 @@ entityRoutes.patch('/:id', async (c) => {
   const data = parsed.data
   const updates: Record<string, any> = { updatedAt: new Date().toISOString() }
 
-  for (const key of ['type', 'title', 'description', 'status', 'priority', 'parentId', 'ownerId', 'visibility', 'dueDate']) {
+  for (const key of ['type', 'title', 'description', 'status', 'priority', 'parentId', 'visibility', 'dueDate']) {
     if ((data as any)[key] !== undefined) updates[key] = (data as any)[key]
   }
   if (data.tags !== undefined) updates.tags = JSON.stringify(data.tags)

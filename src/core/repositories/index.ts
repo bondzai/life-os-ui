@@ -20,5 +20,3 @@ export const scheduleRepository = useApi ? new ApiScheduleRepository() : new Sch
 export const relationRepository = useApi ? new ApiRelationRepository() : new RelationRepository()
 
 export type { IRepository } from './base-repository'
-export { LocalRepository } from './local-repository'
-export { ApiRepository } from './api-repository'

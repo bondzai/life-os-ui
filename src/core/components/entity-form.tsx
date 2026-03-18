@@ -19,7 +19,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import type { Entity, EntityType } from '@/core/types'
+import type { Entity } from '@/core/types'
 
 const entitySchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -33,7 +33,6 @@ const entitySchema = z.object({
 type EntityFormValues = z.infer<typeof entitySchema>
 
 interface EntityFormProps {
-  entityType: EntityType
   defaultValues?: Partial<Entity>
   onSubmit: (values: EntityFormValues & { tags: string }) => void
   onCancel?: () => void

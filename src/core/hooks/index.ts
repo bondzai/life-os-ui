@@ -1,7 +1,6 @@
 export { useRepository } from './use-repository'
 export { useEntities } from './use-entities'
 export { useTrackers } from './use-trackers'
-export { useSchedules } from './use-schedules'
 export { useRelations } from './use-relations'
 export { useAIChat } from './use-ai-chat'
 export { useFullTextSearch } from './use-full-text-search'

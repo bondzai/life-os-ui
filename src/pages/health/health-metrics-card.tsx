@@ -97,7 +97,7 @@ export function HealthMetricsCard({ bodyMetrics, workouts }: HealthMetricsCardPr
     const idealRange = calcIdealWeightRange(profile.heightCm)
     const weightTrend = calcWeightTrend(weightEntries)
     const weekly = calcWeeklyActivity(workoutData)
-    const suggestion = suggestGoalMode(bmi, bmiCategory, weightTrend, latestBodyFat)
+    const suggestion = suggestGoalMode(bmi, bmiCategory, latestBodyFat)
     const protein = calcProtein(latestWeight, suggestion.mode)
 
     return { age, bmi, bmiCategory, bmr, tdee, targets, idealRange, weightTrend, weekly, suggestion, protein }

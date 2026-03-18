@@ -1,11 +1,11 @@
 export { version as APP_VERSION } from '../../package.json'
 
-export interface ChangelogSection {
+interface ChangelogSection {
   title: string
   items: string[]
 }
 
-export interface ChangelogRelease {
+interface ChangelogRelease {
   version: string
   date: string
   phase: string

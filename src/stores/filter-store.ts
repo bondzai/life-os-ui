@@ -13,13 +13,11 @@ interface FilterState {
   saveFilter: (module: string, filter: SavedFilter) => void
   removeFilter: (module: string, filterId: string) => void
   setActive: (module: string, filterId: string | null) => void
-  getFilters: (module: string) => SavedFilter[]
-  getActive: (module: string) => SavedFilter | null
 }
 
 export const useFilterStore = create<FilterState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       saved: {},
       active: {},
 
@@ -45,14 +43,6 @@ export const useFilterStore = create<FilterState>()(
         set((state) => ({
           active: { ...state.active, [module]: filterId },
         })),
-
-      getFilters: (module) => get().saved[module] ?? [],
-
-      getActive: (module) => {
-        const activeId = get().active[module]
-        if (!activeId) return null
-        return (get().saved[module] ?? []).find((f) => f.id === activeId) ?? null
-      },
     }),
     { name: 'life-os:saved-filters' },
   ),

@@ -1,7 +1,18 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { db } from '../db/index.js'
-import { schedules, entities } from '../db/schema.js'
-import { eq, and, or, type SQL } from 'drizzle-orm'
+import { schedules } from '../db/schema.js'
+import { eq, and, type SQL } from 'drizzle-orm'
+import { getUserEntityIds } from '../db/helpers.js'
+
+const createScheduleSchema = z.object({
+  id: z.string().min(1).max(100),
+  entityId: z.string().min(1).max(100),
+  recurrence: z.string().max(200).optional().nullable(),
+  nextDue: z.string().max(50).optional().nullable(),
+  lastCompleted: z.string().max(50).optional().nullable(),
+  isActive: z.boolean().default(true),
+})
 
 export const scheduleRoutes = new Hono()
 
@@ -10,14 +21,6 @@ function parseSchedule(row: any) {
     ...row,
     isActive: row.isActive === 1,
   }
-}
-
-/** Get entity IDs the user owns or has shared access to */
-function getUserEntityIds(userId: string): Set<string> {
-  const rows = db.select({ id: entities.id }).from(entities)
-    .where(or(eq(entities.ownerId, userId), eq(entities.visibility, 'shared'))!)
-    .all()
-  return new Set(rows.map((r) => r.id))
 }
 
 // GET /
@@ -59,15 +62,26 @@ scheduleRoutes.get('/:id', async (c) => {
 
 // POST /
 scheduleRoutes.post('/', async (c) => {
+  const userId = c.get('userId') as string
   const body = await c.req.json()
+  const parsed = createScheduleSchema.safeParse(body)
+  if (!parsed.success) {
+    return c.json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors }, 400)
+  }
+
+  const data = parsed.data
+  const ownedIds = getUserEntityIds(userId)
+  if (!ownedIds.has(data.entityId)) {
+    return c.json({ error: 'Entity not found' }, 404)
+  }
 
   const row = {
-    id: body.id,
-    entityId: body.entityId,
-    recurrence: body.recurrence || null,
-    nextDue: body.nextDue || null,
-    lastCompleted: body.lastCompleted || null,
-    isActive: body.isActive === false ? 0 : 1,
+    id: data.id,
+    entityId: data.entityId,
+    recurrence: data.recurrence || null,
+    nextDue: data.nextDue || null,
+    lastCompleted: data.lastCompleted || null,
+    isActive: data.isActive === false ? 0 : 1,
   }
 
   db.insert(schedules).values(row).run()

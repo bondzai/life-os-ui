@@ -124,7 +124,6 @@ export function calcTDEETargets(tdee: number): TDEETargets {
 export function suggestGoalMode(
   bmi: number,
   bmiCategory: BMICategory,
-  _weightTrend: { direction: 'up' | 'down' | 'stable'; change: number } | null,
   bodyFatPct?: number,
 ): { mode: GoalMode; reason: string } {
   let mode: GoalMode
