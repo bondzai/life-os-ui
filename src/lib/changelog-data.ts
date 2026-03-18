@@ -14,6 +14,35 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.42.0',
+    date: '2026-03-18',
+    phase: 'Backlog, Workspace & Subtask Polish',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Backlog status**: New `backlog` status for parking tasks before sprint planning',
+          '**Backlog view**: Dedicated tab with table layout, story points summary, and bulk "Move to To Do"',
+          '**Workspace switcher**: Jira-style top-level project navigation with task counts',
+          '**Story points**: Fibonacci estimation (1–13) on tasks, shown on cards and backlog table',
+          '**Due date shortcuts**: Quick-set buttons (Today, Tomorrow, Next week, None) in detail panel',
+          '**Workspace editor**: Change workspace from detail panel via dropdown (was read-only)',
+          '**Workspace badges**: Colored badges (blue/green) on task cards',
+        ],
+      },
+      {
+        title: 'Improved',
+        items: [
+          '**Subtask UX**: Jira-style bordered rows with inline title editing, reorder arrows, status badges, edit/delete icons',
+          '**Focus page fix**: Deep work and Today priority pickers now include in-progress tasks and filter by workspace',
+          '**Workspace source fix**: Detail panel reads workspace from `metadata.workspace` instead of tags',
+          '**Kanban board**: 3 columns (TO DO / IN PROGRESS / DONE) — backlog is a separate view like Jira sprint board',
+          '**Filter bar**: Workspace removed from filters (now top-level nav); clear preserves workspace selection',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.41.0',
     date: '2026-03-18',
     phase: 'Jira-Style Tasks Redesign',

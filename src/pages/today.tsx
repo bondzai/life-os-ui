@@ -231,7 +231,7 @@ export function TodayPage() {
   )
 
   const priorityCandidates = useMemo(
-    () => allEntities.filter((e) => (e.type === 'task' || e.type === 'goal') && e.status === 'active'),
+    () => allEntities.filter((e) => (e.type === 'task' || e.type === 'goal') && (e.status === 'active' || e.status === 'paused')),
     [allEntities],
   )
 

@@ -9,7 +9,7 @@ const createEntitySchema = z.object({
   type: z.string().min(1).max(50),
   title: z.string().min(1).max(500),
   description: z.string().max(5000).optional().nullable(),
-  status: z.enum(['active', 'paused', 'completed', 'archived']).default('active'),
+  status: z.enum(['backlog', 'active', 'paused', 'completed', 'archived']).default('active'),
   priority: z.enum(['urgent', 'high', 'medium', 'low']).default('medium'),
   tags: z.array(z.string().max(100)).max(50).default([]),
   metadata: z.record(z.unknown()).default({}),

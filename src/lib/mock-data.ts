@@ -143,6 +143,24 @@ export function generateMockData() {
     }))
   }
 
+  // Backlog tasks
+  const backlogTitles = {
+    work: ['Explore GraphQL migration', 'Document API endpoints', 'Refactor notification service'],
+    personal: ['Learn Rust basics', 'Set up home NAS'],
+  }
+  for (const title of backlogTitles.work) {
+    entities.push(entity({
+      type: 'task', title, status: 'backlog', priority: pick(['medium', 'low']),
+      metadata: { workspace: 'work', points: pick([2, 3, 5, 8]) },
+    }))
+  }
+  for (const title of backlogTitles.personal) {
+    entities.push(entity({
+      type: 'task', title, status: 'backlog', priority: 'low',
+      metadata: { workspace: 'personal', points: pick([3, 5]) },
+    }))
+  }
+
   // Completed tasks (for log view + standup)
   const doneTitles = [
     'Set up CI pipeline', 'Write unit tests for auth', 'Design landing page',

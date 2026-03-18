@@ -205,10 +205,16 @@ export function DeepWorkPage() {
           : 'text-muted-foreground'
 
   // ─── Task Picker (no entity selected) ───
+  const [pickerWs, setPickerWs] = useState<'all' | 'work' | 'personal'>('all')
+
   if (!entity) {
-    const candidates = allEntities.filter(
-      (e: Entity) => (e.type === 'task' || e.type === 'goal') && e.status === 'active',
+    const allCandidates = allEntities.filter(
+      (e: Entity) => (e.type === 'task' || e.type === 'goal') && (e.status === 'active' || e.status === 'paused'),
     )
+    const candidates = pickerWs === 'all'
+      ? allCandidates
+      : allCandidates.filter((e) => e.metadata.workspace === pickerWs)
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-full max-w-md space-y-4 p-4">
@@ -217,6 +223,24 @@ export function DeepWorkPage() {
             <h2 className="text-xl font-semibold">What will you focus on?</h2>
             <p className="text-sm text-muted-foreground">Pick a task to start your deep work session</p>
           </div>
+
+          {/* Workspace filter */}
+          <div className="flex justify-center gap-1">
+            {(['all', 'work', 'personal'] as const).map((ws) => (
+              <button
+                key={ws}
+                onClick={() => setPickerWs(ws)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  pickerWs === ws
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                }`}
+              >
+                {ws === 'all' ? 'All' : ws === 'work' ? 'Work' : 'Personal'}
+              </button>
+            ))}
+          </div>
+
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {candidates.map((item) => (
               <button
@@ -224,9 +248,16 @@ export function DeepWorkPage() {
                 onClick={() => startSession(item.id)}
                 className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors"
               >
-                <p className="text-sm font-medium">{item.title}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium flex-1">{item.title}</p>
+                  {typeof item.metadata.workspace === 'string' && (
+                    <span className="text-[10px] text-muted-foreground bg-muted rounded-full px-1.5 py-0.5">
+                      {item.metadata.workspace === 'work' ? 'Work' : 'Personal'}
+                    </span>
+                  )}
+                </div>
                 {Array.isArray(item.metadata.subtasks) && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {(item.metadata.subtasks as Array<{ done: boolean }>).filter((s) => !s.done).length} steps remaining
                   </p>
                 )}

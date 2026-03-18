@@ -132,6 +132,19 @@ export const TaskCard = memo(
             </div>
           )}
 
+          {/* Workspace badge */}
+          {typeof task.metadata.workspace === 'string' && (
+            <span
+              className={`text-[10px] leading-tight px-1.5 py-0.5 rounded-full shrink-0 font-medium ${
+                task.metadata.workspace === 'work'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+              }`}
+            >
+              {task.metadata.workspace === 'work' ? 'Work' : 'Personal'}
+            </span>
+          )}
+
           {/* Tags */}
           {visibleTags.length > 0 && (
             <div className="flex items-center gap-1 shrink-0">
@@ -147,6 +160,13 @@ export const TaskCard = memo(
                 <span className="text-[10px] text-muted-foreground">+{extraTags}</span>
               )}
             </div>
+          )}
+
+          {/* Story points */}
+          {typeof task.metadata.points === 'number' && (
+            <span className="text-[10px] leading-tight bg-muted px-1.5 py-0.5 rounded font-mono text-muted-foreground shrink-0">
+              {task.metadata.points}pt
+            </span>
           )}
 
           {/* Priority icon */}

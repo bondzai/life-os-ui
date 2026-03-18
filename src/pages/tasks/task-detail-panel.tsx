@@ -3,8 +3,10 @@ import {
   Archive,
   Calendar,
   CheckSquare,
+  GripVertical,
   Link,
   ListChecks,
+  Pencil,
   Plus,
   Search,
   Tag,
@@ -50,12 +52,14 @@ export interface TaskDetailPanelProps {
 // ---------------------------------------------------------------------------
 
 const STATUS_WORKFLOW: { value: EntityStatus; label: string }[] = [
+  { value: 'backlog', label: 'BACKLOG' },
   { value: 'active', label: 'TO DO' },
   { value: 'paused', label: 'IN PROGRESS' },
   { value: 'completed', label: 'DONE' },
 ]
 
 const STATUS_COLORS: Record<EntityStatus, string> = {
+  backlog: 'bg-gray-500 text-white',
   active: 'bg-blue-600 text-white',
   paused: 'bg-amber-500 text-white',
   completed: 'bg-green-600 text-white',
@@ -88,9 +92,9 @@ function formatDetailDate(iso: string) {
   })
 }
 
-function resolveWorkspace(tags: string[]): 'work' | 'personal' | null {
-  if (tags.includes('work')) return 'work'
-  if (tags.includes('personal')) return 'personal'
+function resolveWorkspace(metadata: Record<string, unknown>): 'work' | 'personal' | null {
+  const ws = metadata.workspace
+  if (ws === 'work' || ws === 'personal') return ws
   return null
 }
 
@@ -137,6 +141,9 @@ export function TaskDetailPanel({
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const [newSubtask, setNewSubtask] = useState('')
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null)
+  const [subtaskDraft, setSubtaskDraft] = useState('')
+  const subtaskEditRef = useRef<HTMLInputElement>(null)
 
   // Set parent (make this task a subtask of another)
   const [showParentSearch, setShowParentSearch] = useState(false)
@@ -150,6 +157,8 @@ export function TaskDetailPanel({
     setConfirmDelete(false)
     setTagInput('')
     setNewSubtask('')
+    setEditingSubtaskId(null)
+    setSubtaskDraft('')
     setShowParentSearch(false)
     setParentSearch('')
   }, [task?.id])
@@ -163,6 +172,11 @@ export function TaskDetailPanel({
   useEffect(() => {
     if (editingDesc) descRef.current?.focus()
   }, [editingDesc])
+
+  // Auto-focus subtask edit input
+  useEffect(() => {
+    if (editingSubtaskId) subtaskEditRef.current?.focus()
+  }, [editingSubtaskId])
 
   // Auto-focus parent search input
   useEffect(() => {
@@ -273,6 +287,38 @@ export function TaskDetailPanel({
     setNewSubtask('')
   }, [task, newSubtask, onUpdate])
 
+  const handleSubtaskRename = useCallback(
+    (subtaskId: string) => {
+      if (!task) return
+      const trimmed = subtaskDraft.trim()
+      if (!trimmed) {
+        setEditingSubtaskId(null)
+        return
+      }
+      const subtasks = getSubtasks(task.metadata).map((s) =>
+        s.id === subtaskId ? { ...s, title: trimmed } : s,
+      )
+      onUpdate(task.id, { metadata: { ...task.metadata, subtasks } })
+      setEditingSubtaskId(null)
+      setSubtaskDraft('')
+    },
+    [task, subtaskDraft, onUpdate],
+  )
+
+  const handleSubtaskReorder = useCallback(
+    (index: number, dir: -1 | 1) => {
+      if (!task) return
+      const subtasks = getSubtasks(task.metadata)
+      const newIndex = index + dir
+      if (newIndex < 0 || newIndex >= subtasks.length) return
+      const updated = [...subtasks]
+      const [moved] = updated.splice(index, 1)
+      updated.splice(newIndex, 0, moved)
+      onUpdate(task.id, { metadata: { ...task.metadata, subtasks: updated } })
+    },
+    [task, onUpdate],
+  )
+
   const handleSetParent = useCallback(
     (parentTask: Entity) => {
       if (!task || !onLinkTask) return
@@ -327,7 +373,7 @@ export function TaskDetailPanel({
   const subtasks = getSubtasks(task.metadata)
   const doneCount = subtasks.filter((s) => s.done).length
   const isStory = checkIsStory(task)
-  const workspace = resolveWorkspace(task.tags)
+  const workspace = resolveWorkspace(task.metadata)
   const overdue = checkIsOverdue(task.dueDate, task.status)
 
   // -- Render ---------------------------------------------------------------
@@ -448,28 +494,100 @@ export function TaskDetailPanel({
             </div>
 
             {/* Due date */}
-            <div className="grid grid-cols-[120px_1fr] items-center gap-2">
-              <span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+            <div className="grid grid-cols-[120px_1fr] items-start gap-2">
+              <span className="text-xs text-muted-foreground font-medium flex items-center gap-1 pt-1.5">
                 <Calendar className="h-3 w-3" />
                 Due Date
               </span>
-              <Input
-                type="date"
-                value={task.dueDate ?? ''}
-                onChange={(e) => handleDueDateChange(e.target.value)}
-                className={`h-8 text-xs ${overdue ? 'text-destructive border-destructive' : ''}`}
-              />
+              <div className="space-y-1.5">
+                <Input
+                  type="date"
+                  value={task.dueDate ?? ''}
+                  onChange={(e) => handleDueDateChange(e.target.value)}
+                  className={`h-8 text-xs ${overdue ? 'text-destructive border-destructive' : ''}`}
+                />
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { label: 'Today', days: 0 },
+                    { label: 'Tomorrow', days: 1 },
+                    { label: 'Next week', days: 7 },
+                    { label: 'None', days: -1 },
+                  ].map((opt) => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                      onClick={() => {
+                        if (opt.days === -1) {
+                          handleDueDateChange('')
+                        } else {
+                          const d = new Date()
+                          d.setDate(d.getDate() + opt.days)
+                          handleDueDateChange(d.toISOString().split('T')[0])
+                        }
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Story points */}
+            <div className="grid grid-cols-[120px_1fr] items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Estimate</span>
+              <Select
+                value={String(task.metadata.points ?? 'none')}
+                onValueChange={(v) => {
+                  if (!task) return
+                  onUpdate(task.id, {
+                    metadata: {
+                      ...task.metadata,
+                      points: v === 'none' ? undefined : Number(v),
+                    },
+                  })
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs w-40">
+                  <SelectValue placeholder="No estimate" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No estimate</SelectItem>
+                  {[1, 2, 3, 5, 8, 13].map((pt) => (
+                    <SelectItem key={pt} value={String(pt)}>
+                      {pt} {pt === 1 ? 'point' : 'points'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Workspace */}
-            {workspace && (
-              <div className="grid grid-cols-[120px_1fr] items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium">Workspace</span>
-                <Badge variant="outline" className="w-fit text-xs">
-                  {workspace}
-                </Badge>
-              </div>
-            )}
+            <div className="grid grid-cols-[120px_1fr] items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Workspace</span>
+              <Select
+                value={workspace ?? 'none'}
+                onValueChange={(v) => {
+                  if (!task) return
+                  onUpdate(task.id, {
+                    metadata: {
+                      ...task.metadata,
+                      workspace: v === 'none' ? undefined : v,
+                    },
+                  })
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No workspace</SelectItem>
+                  <SelectItem value="work">Work</SelectItem>
+                  <SelectItem value="personal">Personal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* Parent — set this task as subtask of another (hidden for stories) */}
             {onLinkTask && canSetParent && (
@@ -663,31 +781,105 @@ export function TaskDetailPanel({
               </div>
             )}
 
-            {/* Subtask list */}
+            {/* Subtask list — Jira-style rows */}
             {subtasks.length > 0 && (
-              <div className="space-y-1">
-                {subtasks.map((st) => (
-                  <div key={st.id} className="flex items-center gap-2 group/st">
+              <div className="rounded-md border divide-y">
+                {subtasks.map((st, i) => (
+                  <div
+                    key={st.id}
+                    className="flex items-center gap-2 px-2 py-1.5 group/st hover:bg-muted/50 transition-colors"
+                  >
+                    {/* Reorder buttons */}
+                    <div className="flex flex-col shrink-0 opacity-0 group-hover/st:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground text-[10px] leading-none h-3 disabled:opacity-20"
+                        onClick={() => handleSubtaskReorder(i, -1)}
+                        disabled={i === 0}
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground text-[10px] leading-none h-3 disabled:opacity-20"
+                        onClick={() => handleSubtaskReorder(i, 1)}
+                        disabled={i === subtasks.length - 1}
+                      >
+                        ▼
+                      </button>
+                    </div>
+
+                    {/* Checkbox */}
                     <Checkbox
                       checked={st.done}
                       onCheckedChange={() => handleSubtaskToggle(st.id)}
+                      className="shrink-0"
                     />
-                    <span
-                      className={`text-sm flex-1 ${
-                        st.done ? 'line-through text-muted-foreground' : ''
+
+                    {/* Title — inline editable */}
+                    {editingSubtaskId === st.id ? (
+                      <Input
+                        ref={subtaskEditRef}
+                        value={subtaskDraft}
+                        onChange={(e) => setSubtaskDraft(e.target.value)}
+                        onBlur={() => handleSubtaskRename(st.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSubtaskRename(st.id)
+                          if (e.key === 'Escape') {
+                            setEditingSubtaskId(null)
+                            setSubtaskDraft('')
+                          }
+                        }}
+                        className="h-6 text-sm flex-1 py-0"
+                      />
+                    ) : (
+                      <span
+                        className={`text-sm flex-1 truncate cursor-pointer rounded px-1 -mx-1 hover:bg-muted transition-colors ${
+                          st.done ? 'line-through text-muted-foreground' : ''
+                        }`}
+                        onClick={() => {
+                          setSubtaskDraft(st.title)
+                          setEditingSubtaskId(st.id)
+                        }}
+                      >
+                        {st.title}
+                      </span>
+                    )}
+
+                    {/* Status badge */}
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] shrink-0 px-1.5 py-0 ${
+                        st.done ? 'border-green-500 text-green-600' : 'border-blue-400 text-blue-500'
                       }`}
                     >
-                      {st.title}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 opacity-0 group-hover/st:opacity-100 transition-opacity"
-                      onClick={() => handleSubtaskRemove(st.id)}
-                    >
-                      <X className="h-3 w-3" />
-                      <span className="sr-only">Remove</span>
-                    </Button>
+                      {st.done ? 'DONE' : 'TO DO'}
+                    </Badge>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/st:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => {
+                          setSubtaskDraft(st.title)
+                          setEditingSubtaskId(st.id)
+                        }}
+                      >
+                        <Pencil className="h-3 w-3" />
+                        <span className="sr-only">Edit</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:text-destructive"
+                        onClick={() => handleSubtaskRemove(st.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span className="sr-only">Remove</span>
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

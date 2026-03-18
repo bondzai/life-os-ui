@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList, ListChecks } from 'lucide-react'
+import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList, ListChecks, Archive, ArrowRight } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 
-type ViewMode = 'list' | 'kanban' | 'log'
+type ViewMode = 'list' | 'kanban' | 'backlog' | 'log'
 
 const priorityOrder: Record<EntityPriority, number> = {
   urgent: 0,
@@ -196,6 +196,11 @@ export function TasksPage() {
     [filteredTasks],
   )
 
+  const backlogTasks = useMemo(
+    () => sortByPriority(filteredTasks.filter((t) => t.status === 'backlog')),
+    [filteredTasks],
+  )
+
   const todayGroup = useMemo(
     () => sortByPriority(activeWsTasks.filter((t) => t.dueDate && t.dueDate <= todayStr)),
     [activeWsTasks, todayStr],
@@ -222,7 +227,7 @@ export function TasksPage() {
     [filteredTasks, todayStr],
   )
 
-  const hasAnyListTasks = todayGroup.length > 0 || tomorrowGroup.length > 0 || thisWeekGroup.length > 0 || laterGroup.length > 0 || backlogGroup.length > 0 || doneToday.length > 0
+  const hasAnyListTasks = todayGroup.length > 0 || tomorrowGroup.length > 0 || thisWeekGroup.length > 0 || laterGroup.length > 0 || backlogGroup.length > 0 || backlogTasks.length > 0 || doneToday.length > 0
 
   // Existing stories for "Add to Story" dropdown
   const existingStories = useMemo(
@@ -591,22 +596,27 @@ export function TasksPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
-          <Tabs value={view} onValueChange={(v) => { setView(v as ViewMode); setSelectedTasks(new Set()) }}>
-            <TabsList>
-              <TabsTrigger value="list">
-                <List className="h-4 w-4 mr-1" /> List
-              </TabsTrigger>
-              <TabsTrigger value="kanban">
-                <Columns3 className="h-4 w-4 mr-1" /> Board
-              </TabsTrigger>
-              <TabsTrigger value="log">
-                <BarChart3 className="h-4 w-4 mr-1" /> Log
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+      {/* Workspace switcher — Jira-style top-level navigation */}
+      <div className="flex items-center justify-between border-b pb-3">
+        <div className="flex items-center gap-1">
+          {(['all', 'work', 'personal'] as const).map((ws) => (
+            <button
+              key={ws}
+              onClick={() => setFilters((f) => ({ ...f, workspace: ws }))}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                filters.workspace === ws
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              {ws === 'all' ? 'All Projects' : ws === 'work' ? '🏢 Work' : '🏠 Personal'}
+              <span className={`ml-2 text-xs ${filters.workspace === ws ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                {ws === 'all'
+                  ? tasks.filter((t) => t.status !== 'archived').length
+                  : tasks.filter((t) => t.metadata.workspace === ws && t.status !== 'archived').length}
+              </span>
+            </button>
+          ))}
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => setStandupOpen(true)}>
@@ -630,7 +640,30 @@ export function TasksPage() {
         </div>
       </div>
 
-      {/* Filters bar */}
+      {/* View tabs + filters */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <Tabs value={view} onValueChange={(v) => { setView(v as ViewMode); setSelectedTasks(new Set()) }}>
+          <TabsList>
+            <TabsTrigger value="list">
+              <List className="h-4 w-4 mr-1" /> List
+            </TabsTrigger>
+            <TabsTrigger value="kanban">
+              <Columns3 className="h-4 w-4 mr-1" /> Board
+            </TabsTrigger>
+            <TabsTrigger value="backlog">
+              <Archive className="h-4 w-4 mr-1" /> Backlog
+              {backlogTasks.length > 0 && (
+                <span className="ml-1 text-[10px] bg-muted rounded-full px-1.5 py-0.5">{backlogTasks.length}</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="log">
+              <BarChart3 className="h-4 w-4 mr-1" /> Log
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {/* Filters bar (no workspace — it's in the top switcher now) */}
       <TaskFilters filters={filters} onChange={setFilters} />
 
       {/* Content */}
@@ -724,11 +757,11 @@ export function TasksPage() {
               </div>
             )}
 
-            {/* Backlog */}
+            {/* No due date */}
             {backlogGroup.length > 0 && (
               <div className="space-y-0">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 flex items-center gap-2">
-                  Backlog
+                  No Due Date
                   <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{backlogGroup.length}</span>
                 </h3>
                 <div className="rounded-lg border">
@@ -803,6 +836,147 @@ export function TasksPage() {
           onTaskClick={openDetail}
           onQuickAdd={handleQuickAdd}
         />
+      ) : view === 'backlog' ? (
+        /* Backlog view — Jira-style full backlog list */
+        <div className="space-y-4">
+          {/* Summary bar */}
+          <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
+            <div className="flex items-center gap-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold">{backlogTasks.length}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Items</p>
+              </div>
+              <div className="h-8 border-r" />
+              <div className="text-center">
+                <p className="text-2xl font-bold">
+                  {backlogTasks.reduce((sum, t) => sum + (typeof t.metadata.points === 'number' ? t.metadata.points : 0), 0)}
+                </p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Points</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={selectedTasks.size === 0}
+              onClick={() => {
+                for (const id of selectedTasks) {
+                  update.mutate({
+                    id,
+                    updates: { status: 'active' as EntityStatus, updatedAt: new Date().toISOString() },
+                  })
+                }
+                notify({ title: `${selectedTasks.size} item${selectedTasks.size > 1 ? 's' : ''} moved to To Do`, type: 'success' })
+                setSelectedTasks(new Set())
+              }}
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+              Move to To Do {selectedTasks.size > 0 && `(${selectedTasks.size})`}
+            </Button>
+          </div>
+
+          {backlogTasks.length === 0 ? (
+            <EmptyState
+              icon={Archive}
+              title="Backlog is empty"
+              description="Items moved to backlog will appear here. Create a task and set its status to Backlog."
+            />
+          ) : (
+            <div className="rounded-lg border">
+              {/* Header row */}
+              <div className="flex items-center gap-2 px-2 py-2 border-b bg-muted/30 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="w-6 shrink-0" />
+                <div className="w-6 shrink-0" />
+                <span className="w-16 shrink-0">Key</span>
+                <span className="flex-1">Title</span>
+                <span className="w-14 shrink-0 text-center">Points</span>
+                <span className="w-16 shrink-0">Priority</span>
+                <span className="w-20 shrink-0">Workspace</span>
+                <div className="w-20 shrink-0" />
+              </div>
+              {backlogTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center gap-2 px-2 py-2 border-b last:border-b-0 hover:bg-muted/50 transition-colors group cursor-pointer"
+                  onClick={() => openDetail(task)}
+                >
+                  {/* Select */}
+                  <Checkbox
+                    checked={selectedTasks.has(task.id)}
+                    onCheckedChange={(checked) => {
+                      setSelectedTasks(prev => {
+                        const next = new Set(prev)
+                        if (checked) next.add(task.id)
+                        else next.delete(task.id)
+                        return next
+                      })
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="shrink-0"
+                  />
+                  {/* Type icon */}
+                  {isStory(task) ? (
+                    <ListChecks className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  ) : (
+                    <CheckSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  )}
+                  {/* Key */}
+                  <span className="text-xs font-mono text-muted-foreground w-16 shrink-0">{taskKeyMap.get(task.id)}</span>
+                  {/* Title */}
+                  <span className="text-sm truncate flex-1">{task.title}</span>
+                  {/* Points */}
+                  <span className="w-14 shrink-0 text-center">
+                    {typeof task.metadata.points === 'number' ? (
+                      <span className="text-xs font-mono bg-muted rounded px-1.5 py-0.5">{task.metadata.points}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </span>
+                  {/* Priority */}
+                  <span className={`text-xs w-16 shrink-0 capitalize ${
+                    task.priority === 'urgent' ? 'text-red-500' :
+                    task.priority === 'high' ? 'text-orange-500' :
+                    task.priority === 'medium' ? 'text-yellow-500' : 'text-gray-400'
+                  }`}>
+                    {task.priority}
+                  </span>
+                  {/* Workspace */}
+                  <span className="w-20 shrink-0">
+                    {typeof task.metadata.workspace === 'string' ? (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                        task.metadata.workspace === 'work'
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      }`}>
+                        {task.metadata.workspace === 'work' ? 'Work' : 'Personal'}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </span>
+                  {/* Actions */}
+                  <div className="w-20 shrink-0 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-[10px] px-2 gap-1"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        update.mutate({
+                          id: task.id,
+                          updates: { status: 'active' as EntityStatus, updatedAt: new Date().toISOString() },
+                        })
+                        notify({ title: 'Moved to To Do', type: 'success' })
+                      }}
+                    >
+                      <ArrowRight className="h-3 w-3" /> Start
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       ) : (
         /* Log view */
         <div className="space-y-6">

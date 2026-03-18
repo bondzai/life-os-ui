@@ -30,12 +30,6 @@ const priorityColors: Record<EntityPriority, string> = {
   low: 'bg-gray-400',
 }
 
-const workspaceOptions: Array<{ value: TaskFilterState['workspace']; label: string }> = [
-  { value: 'all', label: 'All' },
-  { value: 'work', label: 'Work' },
-  { value: 'personal', label: 'Personal' },
-]
-
 const priorityOptions: EntityPriority[] = ['urgent', 'high', 'medium', 'low']
 
 const typeOptions: Array<{ value: TaskFilterState['type']; label: string }> = [
@@ -47,7 +41,6 @@ const typeOptions: Array<{ value: TaskFilterState['type']; label: string }> = [
 function isFiltered(filters: TaskFilterState): boolean {
   return (
     filters.search !== '' ||
-    filters.workspace !== 'all' ||
     filters.priorities.size > 0 ||
     filters.type !== 'all'
   )
@@ -104,22 +97,6 @@ export function TaskFilters({ filters, onChange }: TaskFiltersProps) {
       {/* Divider */}
       <div className="hidden h-5 border-r border-border sm:block" />
 
-      {/* Workspace */}
-      <div className="flex items-center gap-1">
-        {workspaceOptions.map((opt) => (
-          <Chip
-            key={opt.value}
-            active={filters.workspace === opt.value}
-            onClick={() => update({ workspace: opt.value })}
-          >
-            {opt.label}
-          </Chip>
-        ))}
-      </div>
-
-      {/* Divider */}
-      <div className="hidden h-5 border-r border-border sm:block" />
-
       {/* Priority */}
       <div className="flex items-center gap-1">
         {priorityOptions.map((p) => (
@@ -156,7 +133,7 @@ export function TaskFilters({ filters, onChange }: TaskFiltersProps) {
           variant="ghost"
           size="sm"
           className="h-7 px-2 text-xs text-muted-foreground"
-          onClick={() => onChange({ ...defaultFilters, priorities: new Set() })}
+          onClick={() => onChange({ ...defaultFilters, workspace: filters.workspace, priorities: new Set() })}
         >
           <X className="mr-1 h-3 w-3" />
           Clear
