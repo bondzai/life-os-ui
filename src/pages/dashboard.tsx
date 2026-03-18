@@ -160,7 +160,6 @@ export function DashboardPage() {
   const habitRate = useMemo(() => computeCheckInRate(habits, allTrackers, thisWeekStart, now), [habits, allTrackers, thisWeekStart, now])
   const habitRateLast = useMemo(() => computeCheckInRate(habits, allTrackers, lastWeekStart, thisWeekStart), [habits, allTrackers, lastWeekStart, thisWeekStart])
   const protocolRate = useMemo(() => computeCheckInRate(protocols, allTrackers, thisWeekStart, now), [protocols, allTrackers, thisWeekStart, now])
-  const protocolRateLast = useMemo(() => computeCheckInRate(protocols, allTrackers, lastWeekStart, thisWeekStart), [protocols, allTrackers, lastWeekStart, thisWeekStart])
   const avgSleepThisWeek = useMemo(() => computeAvgSleep(sleepEntities, thisWeekISO), [sleepEntities, thisWeekISO])
   const avgSleepLastWeek = useMemo(() => computeAvgSleep(sleepEntities, lastWeekISO, thisWeekISO), [sleepEntities, lastWeekISO, thisWeekISO])
   const activeMinThisWeek = useMemo(() => computeActiveMinutes(workouts, thisWeekISO), [workouts, thisWeekISO])
@@ -369,7 +368,7 @@ export function DashboardPage() {
                       fontSize: '12px',
                       padding: '6px 10px',
                     }}
-                    formatter={(value: number) => [`${value}%`, 'Score']}
+                    formatter={(value: number | undefined) => [`${value ?? 0}%`, 'Score']}
                   />
               </RadarChart>
             </ResponsiveContainer>

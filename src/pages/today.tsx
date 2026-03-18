@@ -124,7 +124,6 @@ const FocusStory = memo(function FocusStory({
   onAddSubtask: (entity: Entity, title: string) => void
 }) {
   const [expanded, setExpanded] = useState(true)
-  const nav = useNavigate()
 
   return (
     <div className={`rounded-lg border transition-colors ${
