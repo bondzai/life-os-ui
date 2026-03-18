@@ -81,7 +81,7 @@ export function StoryDialog({ open, onOpenChange, workspace, defaultSubtasks, on
   }
 
   const handleSubmit = () => {
-    if (!title.trim() || subtasks.length === 0) return
+    if (!title.trim()) return
     onSubmit({
       title: title.trim(),
       description: description.trim(),
@@ -200,13 +200,13 @@ export function StoryDialog({ open, onOpenChange, workspace, defaultSubtasks, on
             </div>
 
             {subtasks.length === 0 && (
-              <p className="text-[11px] text-muted-foreground">Add at least one step to create a story.</p>
+              <p className="text-[11px] text-muted-foreground">Steps are optional — you can add them later.</p>
             )}
           </div>
 
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleSubmit} disabled={!title.trim() || subtasks.length === 0}>
+            <Button size="sm" onClick={handleSubmit} disabled={!title.trim()}>
               Create Story
             </Button>
           </div>

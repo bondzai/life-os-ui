@@ -15,12 +15,11 @@ import { KanbanColumn } from './kanban-column'
 import { TaskCard } from './task-card'
 import type { Entity, EntityStatus } from '@/core/types'
 
-const kanbanColumns: { status: EntityStatus; label: string }[] = [
-  { status: 'active', label: 'Active' },
-  { status: 'paused', label: 'Paused' },
-  { status: 'completed', label: 'Completed' },
-  { status: 'archived', label: 'Archived' },
-]
+const BOARD_COLUMNS = [
+  { status: 'active' as EntityStatus, label: 'TO DO', color: '#2563eb', bgColor: '#2563eb10' },
+  { status: 'paused' as EntityStatus, label: 'IN PROGRESS', color: '#d97706', bgColor: '#d9770610' },
+  { status: 'completed' as EntityStatus, label: 'DONE', color: '#16a34a', bgColor: '#16a34a10' },
+] as const
 
 interface KanbanBoardProps {
   tasks: Entity[]
@@ -29,6 +28,8 @@ interface KanbanBoardProps {
   onEdit: (task: Entity) => void
   onDelete: (task: Entity) => void
   onSnooze?: (task: Entity, days: number) => void
+  onTaskClick?: (task: Entity) => void
+  onQuickAdd?: (title: string, status: EntityStatus) => void
 }
 
 export function KanbanBoard({
@@ -38,18 +39,22 @@ export function KanbanBoard({
   onEdit,
   onDelete,
   onSnooze,
+  onTaskClick,
+  onQuickAdd,
 }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Entity | null>(null)
 
+  const boardTasks = useMemo(() => tasks.filter((t) => t.status !== 'archived'), [tasks])
+
   const tasksByStatus = useMemo(() => {
     const map = new Map<EntityStatus, Entity[]>()
-    for (const col of kanbanColumns) {
-      map.set(col.status, tasks.filter((t) => t.status === col.status))
+    for (const col of BOARD_COLUMNS) {
+      map.set(col.status, boardTasks.filter((t) => t.status === col.status))
     }
     return map
-  }, [tasks])
+  }, [boardTasks])
 
-  const taskMap = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
+  const taskMap = useMemo(() => new Map(boardTasks.map((t) => [t.id, t])), [boardTasks])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -72,9 +77,7 @@ export function KanbanBoard({
     const task = taskMap.get(active.id as string)
     if (!task) return
 
-    // Determine target status: if dropped on a column, over.id is the status string;
-    // if dropped on another card, read its status from data
-    const columnStatuses = kanbanColumns.map((c) => c.status)
+    const columnStatuses = BOARD_COLUMNS.map((c) => c.status)
     let targetStatus: EntityStatus | undefined
 
     if (columnStatuses.includes(over.id as EntityStatus)) {
@@ -95,18 +98,22 @@ export function KanbanBoard({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kanbanColumns.map((col) => (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {BOARD_COLUMNS.map((col) => (
           <KanbanColumn
             key={col.status}
             status={col.status}
             label={col.label}
+            color={col.color}
+            bgColor={col.bgColor}
             tasks={tasksByStatus.get(col.status) ?? []}
             onToggleComplete={onToggleComplete}
             onMoveToStatus={onMoveToStatus}
             onEdit={onEdit}
             onDelete={onDelete}
             onSnooze={onSnooze}
+            onTaskClick={onTaskClick}
+            onQuickAdd={onQuickAdd}
           />
         ))}
       </div>

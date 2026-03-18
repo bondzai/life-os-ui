@@ -1,7 +1,16 @@
 import { forwardRef, memo } from 'react'
-import { Clock } from 'lucide-react'
+import {
+  CheckSquare,
+  ListChecks,
+  ChevronsUp,
+  ArrowUp,
+  ArrowRight,
+  ArrowDown,
+  Clock,
+  Pencil,
+  Trash2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu,
@@ -9,19 +18,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { PriorityBadge } from '@/core/components/priority-badge'
 import type { Entity, EntityStatus } from '@/core/types'
-
-const kanbanColumns: { status: EntityStatus; label: string }[] = [
-  { status: 'active', label: 'Active' },
-  { status: 'paused', label: 'Paused' },
-  { status: 'completed', label: 'Completed' },
-  { status: 'archived', label: 'Archived' },
-]
 
 export interface TaskCardProps {
   task: Entity
-  showStatusMove?: boolean
+  taskKey?: string
+  assignee?: string
+  onClick?: () => void
   onToggleComplete: (task: Entity) => void
   onMoveToStatus: (task: Entity, status: EntityStatus) => void
   onEdit: (task: Entity) => void
@@ -35,101 +38,212 @@ function isOverdue(task: Entity) {
   return task.dueDate && task.status !== 'completed' && task.dueDate < new Date().toISOString().split('T')[0]
 }
 
-const priorityBorder: Record<string, string> = {
-  urgent: 'border-l-4 border-l-red-500',
-  high: 'border-l-4 border-l-orange-500',
-  medium: 'border-l-4 border-l-yellow-500',
-  low: 'border-l-4 border-l-gray-300 dark:border-l-gray-600',
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export const TaskCard = memo(forwardRef<HTMLDivElement, TaskCardProps & React.HTMLAttributes<HTMLDivElement>>(
-  ({ task, showStatusMove, onToggleComplete, onMoveToStatus, onEdit, onDelete, onSnooze, style, className, ...attrs }, ref) => (
-    <Card ref={ref} style={style} className={`group ${priorityBorder[task.priority] || ''} ${className ?? ''}`} {...attrs}>
-      <CardContent className="flex items-start gap-3 py-3">
-        <Checkbox
-          checked={task.status === 'completed'}
-          onCheckedChange={() => onToggleComplete(task)}
-          className="mt-0.5"
-        />
-        <div className="flex-1 min-w-0 space-y-1">
-          <div className="flex items-start justify-between gap-2">
-            <span className={`text-sm font-medium ${task.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>
-              {task.title}
-            </span>
-            <div className="flex gap-1 shrink-0">
-              <PriorityBadge priority={task.priority} />
+function getSubtasks(task: Entity) {
+  if (!Array.isArray(task.metadata.subtasks)) return null
+  const subs = task.metadata.subtasks as Array<{ done: boolean }>
+  if (subs.length === 0) return null
+  const done = subs.filter((s) => s.done).length
+  return { done, total: subs.length, pct: Math.round((done / subs.length) * 100) }
+}
+
+function PriorityIcon({ priority }: { priority: string }) {
+  switch (priority) {
+    case 'urgent':
+      return <ChevronsUp className="h-3.5 w-3.5 text-red-500 shrink-0" />
+    case 'high':
+      return <ArrowUp className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+    case 'medium':
+      return <ArrowRight className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+    case 'low':
+      return <ArrowDown className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+    default:
+      return null
+  }
+}
+
+function InitialsAvatar({ name }: { name?: string }) {
+  const letter = name ? name.charAt(0).toUpperCase() : '?'
+  return (
+    <div className="h-5 w-5 rounded-full bg-muted text-[10px] font-medium flex items-center justify-center shrink-0 text-muted-foreground">
+      {letter}
+    </div>
+  )
+}
+
+export const TaskCard = memo(
+  forwardRef<HTMLDivElement, TaskCardProps & React.HTMLAttributes<HTMLDivElement>>(
+    (
+      {
+        task,
+        taskKey,
+        assignee,
+        onClick,
+        onToggleComplete,
+        onMoveToStatus: _onMoveToStatus,
+        onEdit,
+        onDelete,
+        onSnooze,
+        style,
+        className,
+        ...attrs
+      },
+      ref,
+    ) => {
+      const subtasks = getSubtasks(task)
+      const isStory = !!task.metadata.isStory || !!subtasks
+      const completed = task.status === 'completed'
+      const overdue = isOverdue(task)
+      const visibleTags = task.tags.slice(0, 2)
+      const extraTags = task.tags.length - 2
+
+      return (
+        <div
+          ref={ref}
+          style={style}
+          className={`group flex items-center gap-2 px-2 py-1.5 border-b border-border hover:bg-muted/50 transition-colors cursor-pointer ${className ?? ''}`}
+          onClick={onClick}
+          {...attrs}
+        >
+          {/* Checkbox */}
+          <Checkbox
+            checked={completed}
+            onCheckedChange={() => onToggleComplete(task)}
+            className="shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {/* Type icon */}
+          {isStory ? (
+            <ListChecks className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          ) : (
+            <CheckSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          )}
+
+          {/* Task key */}
+          {taskKey && (
+            <span className="text-xs font-mono text-muted-foreground shrink-0">{taskKey}</span>
+          )}
+
+          {/* Title */}
+          <span
+            className={`text-sm truncate min-w-0 flex-1 ${completed ? 'line-through text-muted-foreground' : ''}`}
+          >
+            {task.title}
+          </span>
+
+          {/* Subtask progress bar */}
+          {subtasks && (
+            <div className="w-12 shrink-0 flex items-center gap-1" title={`${subtasks.done}/${subtasks.total}`}>
+              <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${subtasks.pct}%` }}
+                />
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {task.dueDate && (
-              <span className={`text-xs ${isOverdue(task) ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
-                {isOverdue(task) ? 'Overdue: ' : 'Due: '}
-                {new Date(task.dueDate).toLocaleDateString()}
-              </span>
-            )}
-            {task.tags.map((tag) => (
-              <span key={tag} className="text-xs bg-secondary px-1.5 py-0.5 rounded">{tag}</span>
-            ))}
-            {Array.isArray(task.metadata.subtasks) && (task.metadata.subtasks as Array<{done: boolean}>).length > 0 && (() => {
-              const subs = task.metadata.subtasks as Array<{done: boolean}>
-              const done = subs.filter(s => s.done).length
-              return (
-                <span className="text-xs text-muted-foreground">
-                  Subtasks: {done}/{subs.length}
+          )}
+
+          {/* Tags */}
+          {visibleTags.length > 0 && (
+            <div className="flex items-center gap-1 shrink-0">
+              {visibleTags.map((tag) => (
+                <span
+                  key={tag}
+                  className="text-[10px] leading-tight bg-secondary px-1.5 py-0.5 rounded-full text-muted-foreground"
+                >
+                  {tag}
                 </span>
-              )
-            })()}
-          </div>
-          {showStatusMove && (
-            <div className="flex gap-1 pt-1">
-              {kanbanColumns
-                .filter((c) => c.status !== task.status)
-                .map((c) => (
+              ))}
+              {extraTags > 0 && (
+                <span className="text-[10px] text-muted-foreground">+{extraTags}</span>
+              )}
+            </div>
+          )}
+
+          {/* Priority icon */}
+          <PriorityIcon priority={task.priority} />
+
+          {/* Due date */}
+          {task.dueDate && (
+            <span
+              className={`text-xs whitespace-nowrap shrink-0 ${overdue ? 'text-destructive font-medium' : 'text-muted-foreground'}`}
+            >
+              {formatDate(task.dueDate)}
+            </span>
+          )}
+
+          {/* Assignee */}
+          <InitialsAvatar name={assignee} />
+
+          {/* Hover actions */}
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            {onSnooze && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
-                    key={c.status}
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-xs px-2"
+                    className="h-6 w-6 p-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="sr-only">Snooze</span>
+                    <Clock className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation()
-                      onMoveToStatus(task, c.status)
+                      onSnooze(task, 1)
                     }}
                   >
-                    → {c.label}
-                  </Button>
-                ))}
-            </div>
-          )}
+                    Snooze 1 day
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSnooze(task, 7)
+                    }}
+                  >
+                    Snooze 1 week
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(task)
+              }}
+            >
+              <span className="sr-only">Edit</span>
+              <Pencil className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(task)
+              }}
+            >
+              <span className="sr-only">Delete</span>
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {onSnooze && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => e.stopPropagation()}>
-                  <span className="sr-only">Snooze</span>
-                  <Clock className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSnooze(task, 1) }}>
-                  Snooze 1 day
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSnooze(task, 7) }}>
-                  Snooze 1 week
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onEdit(task)}>
-            <span className="sr-only">Edit</span>✎
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onDelete(task)}>
-            <span className="sr-only">Delete</span>×
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      )
+    },
   ),
-))
+)
 
 TaskCard.displayName = 'TaskCard'

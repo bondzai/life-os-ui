@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList, ListChecks } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,8 @@ import { TaskCard } from './tasks/task-card'
 import { KanbanBoard } from './tasks/kanban-board'
 import { StandupReport } from './tasks/standup-report'
 import { StoryDialog } from './tasks/story-dialog'
+import { TaskDetailPanel } from './tasks/task-detail-panel'
+import { TaskFilters, applyTaskFilters, defaultFilters, type TaskFilterState } from './tasks/task-filters'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,13 +32,20 @@ import {
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 
 type ViewMode = 'list' | 'kanban' | 'log'
-type Workspace = 'all' | 'work' | 'personal'
 
 const priorityOrder: Record<EntityPriority, number> = {
   urgent: 0,
   high: 1,
   medium: 2,
   low: 3,
+}
+
+// ── Task key generation ───────────────────────────────────────────────
+
+function generateTaskKey(task: Entity, allTasks: Entity[]): string {
+  const sorted = [...allTasks].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  const idx = sorted.findIndex((t) => t.id === task.id)
+  return `LO-${String(idx + 1).padStart(3, '0')}`
 }
 
 // ── Log view helpers ──────────────────────────────────────────────────
@@ -73,7 +82,7 @@ function getDateLabel(dateStr: string): { label: string; isToday: boolean; isYes
 function startOfWeek(date: Date): Date {
   const d = new Date(date)
   const day = d.getDay()
-  const diff = day === 0 ? 6 : day - 1 // Monday as start
+  const diff = day === 0 ? 6 : day - 1
   d.setDate(d.getDate() - diff)
   d.setHours(0, 0, 0, 0)
   return d
@@ -82,7 +91,7 @@ function startOfWeek(date: Date): Date {
 // ── Helpers ───────────────────────────────────────────────────────────
 
 function isStory(task: Entity): boolean {
-  return Array.isArray(task.metadata.subtasks) && (task.metadata.subtasks as unknown[]).length > 0
+  return !!task.metadata.isStory || (Array.isArray(task.metadata.subtasks) && (task.metadata.subtasks as unknown[]).length > 0)
 }
 
 // ── Drag-and-drop wrappers ────────────────────────────────────────────
@@ -105,7 +114,7 @@ function DroppableStory({ storyId, children }: { storyId: string; children: Reac
   )
 }
 
-// ── List view task wrapper (checkbox + draggable or droppable) ─────────
+// ── List view task wrapper ────────────────────────────────────────────
 
 function ListTaskWrapper({
   task,
@@ -156,7 +165,7 @@ export function TasksPage() {
   const currentUser = useAuthStore((s) => s.currentUser)
 
   const [view, setView] = useState<ViewMode>('list')
-  const [workspace, setWorkspace] = useState<Workspace>('all')
+  const [filters, setFilters] = useState<TaskFilterState>({ ...defaultFilters, priorities: new Set() })
   const [dialogOpen, setDialogOpen] = useState(false)
   const [storyDialogOpen, setStoryDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Entity | null>(null)
@@ -166,17 +175,27 @@ export function TasksPage() {
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [mergeSubtasks, setMergeSubtasks] = useState<Array<{ id: string; title: string; done: boolean }>>([])
 
+  // Detail panel state
+  const [detailTask, setDetailTask] = useState<Entity | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+
   // DnD sensors
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  // ── Workspace filter ──────────────────────────────────────────────
+  // ── Task key map ────────────────────────────────────────────────────
 
-  const workspaceTasks = useMemo(() => {
-    if (workspace === 'all') return tasks
-    return tasks.filter((t) => t.metadata.workspace === workspace)
-  }, [tasks, workspace])
+  const taskKeyMap = useMemo(() => {
+    const sorted = [...tasks].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    const map = new Map<string, string>()
+    sorted.forEach((t, i) => map.set(t.id, `LO-${String(i + 1).padStart(3, '0')}`))
+    return map
+  }, [tasks])
 
-  // ── Time-grouped list view ───────────────────────────────────────
+  // ── Filtered tasks ──────────────────────────────────────────────────
+
+  const filteredTasks = useMemo(() => applyTaskFilters(tasks, filters), [tasks, filters])
+
+  // ── Time-grouped list view ──────────────────────────────────────────
 
   const todayStr = new Date().toISOString().split('T')[0]
   const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0] })()
@@ -186,8 +205,8 @@ export function TasksPage() {
     [...items].sort((a, b) => (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2))
 
   const activeWsTasks = useMemo(
-    () => workspaceTasks.filter((t) => t.status === 'active' || t.status === 'paused'),
-    [workspaceTasks],
+    () => filteredTasks.filter((t) => t.status === 'active' || t.status === 'paused'),
+    [filteredTasks],
   )
 
   const todayGroup = useMemo(
@@ -212,28 +231,28 @@ export function TasksPage() {
   )
 
   const doneToday = useMemo(
-    () => workspaceTasks.filter((t) => t.status === 'completed' && t.updatedAt?.startsWith(todayStr)),
-    [workspaceTasks, todayStr],
+    () => filteredTasks.filter((t) => t.status === 'completed' && t.updatedAt?.startsWith(todayStr)),
+    [filteredTasks, todayStr],
   )
 
   const hasAnyListTasks = todayGroup.length > 0 || tomorrowGroup.length > 0 || thisWeekGroup.length > 0 || laterGroup.length > 0 || backlogGroup.length > 0 || doneToday.length > 0
 
   // Existing stories for "Add to Story" dropdown
   const existingStories = useMemo(
-    () => workspaceTasks.filter(t =>
+    () => filteredTasks.filter(t =>
       t.status === 'active' && Array.isArray(t.metadata.subtasks) && (t.metadata.subtasks as unknown[]).length > 0
     ),
-    [workspaceTasks],
+    [filteredTasks],
   )
 
-  // ── Log view data (Feature 3) ─────────────────────────────────────
+  // ── Log view data ───────────────────────────────────────────────────
 
   const completedTasks = useMemo(
     () =>
-      workspaceTasks
+      filteredTasks
         .filter((t) => t.status === 'completed')
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [workspaceTasks],
+    [filteredTasks],
   )
 
   const { thisWeekCount, lastWeekCount, last14DaysData, dateGroups } = useMemo(() => {
@@ -250,7 +269,6 @@ export function TasksPage() {
       else if (d >= lastWeekStart && d < thisWeekStart) lwc++
     }
 
-    // 14-day chart
     const days = getLast14Days()
     const countByDate = new Map<string, number>()
     for (const t of completedTasks) {
@@ -259,7 +277,6 @@ export function TasksPage() {
     }
     const chartData = days.map((d) => ({ ...d, count: countByDate.get(d.date) ?? 0 }))
 
-    // Group by date
     const grouped = new Map<string, Entity[]>()
     for (const t of completedTasks) {
       const dateKey = t.updatedAt.split('T')[0]
@@ -284,7 +301,72 @@ export function TasksPage() {
     [last14DaysData],
   )
 
-  // ── Handlers ──────────────────────────────────────────────────────
+  // ── Handlers ────────────────────────────────────────────────────────
+
+  const openDetail = useCallback((task: Entity) => {
+    setDetailTask(task)
+    setDetailOpen(true)
+  }, [])
+
+  const handleDetailUpdate = useCallback((id: string, updates: Partial<Entity>) => {
+    update.mutate({
+      id,
+      updates: { ...updates, updatedAt: new Date().toISOString() },
+    })
+    // Keep detail panel in sync
+    setDetailTask((prev) => prev && prev.id === id ? { ...prev, ...updates } : prev)
+  }, [update])
+
+  const handleLinkTask = useCallback((parentId: string, childTask: Entity) => {
+    const parent = tasks.find((t) => t.id === parentId)
+    if (!parent) return
+
+    const existingSubs = Array.isArray(parent.metadata.subtasks)
+      ? (parent.metadata.subtasks as Array<{ id: string; title: string; done: boolean }>)
+      : []
+
+    // Add child task as subtask
+    update.mutate({
+      id: parentId,
+      updates: {
+        metadata: {
+          ...parent.metadata,
+          subtasks: [...existingSubs, { id: crypto.randomUUID(), title: childTask.title, done: childTask.status === 'completed' }],
+        },
+        updatedAt: new Date().toISOString(),
+      },
+    })
+
+    // Archive the original task
+    update.mutate({
+      id: childTask.id,
+      updates: { status: 'archived' as EntityStatus, updatedAt: new Date().toISOString() },
+    })
+
+    // Update detail panel state
+    setDetailTask((prev) => {
+      if (!prev || prev.id !== parentId) return prev
+      const prevSubs = Array.isArray(prev.metadata.subtasks)
+        ? (prev.metadata.subtasks as Array<{ id: string; title: string; done: boolean }>)
+        : []
+      return {
+        ...prev,
+        metadata: {
+          ...prev.metadata,
+          subtasks: [...prevSubs, { id: crypto.randomUUID(), title: childTask.title, done: childTask.status === 'completed' }],
+        },
+      }
+    })
+
+    notify({ title: `"${childTask.title}" linked as subtask`, type: 'success' })
+  }, [tasks, update])
+
+  const handleDetailDelete = useCallback((task: Entity) => {
+    remove.mutate(task.id)
+    notify({ title: 'Task deleted', type: 'success' })
+    setDetailOpen(false)
+    setDetailTask(null)
+  }, [remove])
 
   const toggleComplete = (task: Entity) => {
     const newStatus = task.status === 'completed' ? 'active' : 'completed'
@@ -421,11 +503,30 @@ export function TasksPage() {
       priority: (values.priority as EntityPriority) || 'medium',
       tags,
       metadata: {
-        workspace: workspace !== 'all' ? workspace : undefined,
+        workspace: filters.workspace !== 'all' ? filters.workspace : undefined,
       },
       ownerId: currentUser?.id ?? '',
       visibility: 'private',
       dueDate: (values.dueDate as string) || undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    notify({ title: 'Task created', type: 'success' })
+  }
+
+  const handleQuickAdd = (title: string, status: EntityStatus) => {
+    create.mutate({
+      id: crypto.randomUUID(),
+      type: 'task',
+      title,
+      status,
+      priority: 'medium',
+      tags: [],
+      metadata: {
+        workspace: filters.workspace !== 'all' ? filters.workspace : undefined,
+      },
+      ownerId: currentUser?.id ?? '',
+      visibility: 'private',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -446,6 +547,7 @@ export function TasksPage() {
       metadata: {
         workspace: values.workspace || undefined,
         subtasks: values.subtasks,
+        isStory: true,
       },
       ownerId: currentUser?.id ?? '',
       visibility: 'private',
@@ -485,27 +587,25 @@ export function TasksPage() {
     return <div className="p-4 text-muted-foreground">Loading...</div>
   }
 
-  // ── Render ────────────────────────────────────────────────────────
+  // ── Render helper for task list items ───────────────────────────────
+
+  const renderTaskCard = (task: Entity) => (
+    <TaskCard
+      task={task}
+      taskKey={taskKeyMap.get(task.id)}
+      onClick={() => openDetail(task)}
+      onToggleComplete={toggleComplete}
+      onMoveToStatus={moveToStatus}
+      onEdit={setEditingTask}
+      onDelete={setDeleteTarget}
+      onSnooze={snoozeTask}
+    />
+  )
+
+  // ── Render ──────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
-      {/* Workspace Tabs */}
-      <div className="flex bg-muted rounded-lg p-0.5 gap-0.5 w-fit">
-        {(['all', 'work', 'personal'] as const).map((ws) => (
-          <button
-            key={ws}
-            onClick={() => { setWorkspace(ws); setSelectedTasks(new Set()) }}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              workspace === ws
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {ws === 'all' ? 'All' : ws === 'work' ? '🏢 Work' : '🏠 Personal'}
-          </button>
-        ))}
-      </div>
-
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
@@ -522,7 +622,6 @@ export function TasksPage() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
-
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => setStandupOpen(true)}>
@@ -546,6 +645,9 @@ export function TasksPage() {
         </div>
       </div>
 
+      {/* Filters bar */}
+      <TaskFilters filters={filters} onChange={setFilters} />
+
       {/* Content */}
       {tasks.length === 0 ? (
         <EmptyState
@@ -560,8 +662,8 @@ export function TasksPage() {
           <EmptyState
             icon={CheckSquare}
             title="No tasks"
-            description="Create a task to get started."
-            actionLabel="New Task"
+            description={filters.search || filters.priorities.size > 0 || filters.type !== 'all' ? 'Try adjusting your filters.' : 'Create a task to get started.'}
+            actionLabel={filters.search || filters.priorities.size > 0 || filters.type !== 'all' ? undefined : 'New Task'}
             onAction={() => setDialogOpen(true)}
           />
         ) : (
@@ -569,84 +671,69 @@ export function TasksPage() {
           <div className="space-y-6">
             {/* Today */}
             {todayGroup.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium flex items-center gap-2">
+              <div className="space-y-0">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 flex items-center gap-2">
                   Today
-                  <span className="text-xs text-muted-foreground">({todayGroup.length})</span>
+                  <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{todayGroup.length}</span>
                 </h3>
-                <div className="space-y-2">
+                <div className="rounded-lg border">
                   {todayGroup.map((task) => (
                     <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
-                      <TaskCard
-                        task={task}
-                        onToggleComplete={toggleComplete}
-                        onMoveToStatus={moveToStatus}
-                        onEdit={setEditingTask}
-                        onDelete={setDeleteTarget}
-                        onSnooze={snoozeTask}
-                      />
+                      {renderTaskCard(task)}
                     </ListTaskWrapper>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Upcoming */}
+            {/* Upcoming sections */}
             {(tomorrowGroup.length > 0 || thisWeekGroup.length > 0 || laterGroup.length > 0) && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium">Upcoming</h3>
-
+              <div className="space-y-4">
                 {tomorrowGroup.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground ml-1">Tomorrow</p>
-                    {tomorrowGroup.map((task) => (
-                      <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
-                        <TaskCard
-                          task={task}
-                          onToggleComplete={toggleComplete}
-                          onMoveToStatus={moveToStatus}
-                          onEdit={setEditingTask}
-                          onDelete={setDeleteTarget}
-                          onSnooze={snoozeTask}
-                        />
-                      </ListTaskWrapper>
-                    ))}
+                  <div className="space-y-0">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 flex items-center gap-2">
+                      Tomorrow
+                      <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{tomorrowGroup.length}</span>
+                    </h3>
+                    <div className="rounded-lg border">
+                      {tomorrowGroup.map((task) => (
+                        <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
+                          {renderTaskCard(task)}
+                        </ListTaskWrapper>
+                      ))}
+                    </div>
                   </div>
                 )}
 
                 {thisWeekGroup.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground ml-1">This Week</p>
-                    {thisWeekGroup.map((task) => (
-                      <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
-                        <TaskCard
-                          task={task}
-                          onToggleComplete={toggleComplete}
-                          onMoveToStatus={moveToStatus}
-                          onEdit={setEditingTask}
-                          onDelete={setDeleteTarget}
-                          onSnooze={snoozeTask}
-                        />
-                      </ListTaskWrapper>
-                    ))}
+                  <div className="space-y-0">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 flex items-center gap-2">
+                      This Week
+                      <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{thisWeekGroup.length}</span>
+                    </h3>
+                    <div className="rounded-lg border">
+                      {thisWeekGroup.map((task) => (
+                        <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
+                          {renderTaskCard(task)}
+                        </ListTaskWrapper>
+                      ))}
+                    </div>
                   </div>
                 )}
 
                 {laterGroup.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground ml-1">Later</p>
-                    {laterGroup.map((task) => (
-                      <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
-                        <TaskCard
-                          task={task}
-                          onToggleComplete={toggleComplete}
-                          onMoveToStatus={moveToStatus}
-                          onEdit={setEditingTask}
-                          onDelete={setDeleteTarget}
-                          onSnooze={snoozeTask}
-                        />
-                      </ListTaskWrapper>
-                    ))}
+                  <div className="space-y-0">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 flex items-center gap-2">
+                      Later
+                      <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{laterGroup.length}</span>
+                    </h3>
+                    <div className="rounded-lg border">
+                      {laterGroup.map((task) => (
+                        <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
+                          {renderTaskCard(task)}
+                        </ListTaskWrapper>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -654,48 +741,39 @@ export function TasksPage() {
 
             {/* Backlog */}
             {backlogGroup.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium flex items-center gap-2">
+              <div className="space-y-0">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 flex items-center gap-2">
                   Backlog
-                  <span className="text-xs text-muted-foreground">({backlogGroup.length})</span>
+                  <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{backlogGroup.length}</span>
                 </h3>
-                {backlogGroup.map((task) => (
-                  <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
-                    <TaskCard
-                      task={task}
-                      onToggleComplete={toggleComplete}
-                      onMoveToStatus={moveToStatus}
-                      onEdit={setEditingTask}
-                      onDelete={setDeleteTarget}
-                      onSnooze={snoozeTask}
-                    />
-                  </ListTaskWrapper>
-                ))}
+                <div className="rounded-lg border">
+                  {backlogGroup.map((task) => (
+                    <ListTaskWrapper key={task.id} task={task} selectedTasks={selectedTasks} setSelectedTasks={setSelectedTasks}>
+                      {renderTaskCard(task)}
+                    </ListTaskWrapper>
+                  ))}
+                </div>
               </div>
             )}
 
             {/* Done Today */}
             {doneToday.length > 0 && (
               <Collapsible open={showDone} onOpenChange={setShowDone}>
-                <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 py-2">
                   <ChevronRight
                     className={`h-3.5 w-3.5 transition-transform ${showDone ? 'rotate-90' : ''}`}
                   />
-                  Done Today ({doneToday.length})
+                  Done Today
+                  <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{doneToday.length}</span>
                 </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-2">
-                  {doneToday.map((task) => (
-                    <div key={task.id} className="opacity-50">
-                      <TaskCard
-                        task={task}
-                        onToggleComplete={toggleComplete}
-                        onMoveToStatus={moveToStatus}
-                        onEdit={setEditingTask}
-                        onDelete={setDeleteTarget}
-                        onSnooze={snoozeTask}
-                      />
-                    </div>
-                  ))}
+                <CollapsibleContent>
+                  <div className="rounded-lg border opacity-60">
+                    {doneToday.map((task) => (
+                      <div key={task.id}>
+                        {renderTaskCard(task)}
+                      </div>
+                    ))}
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
             )}
@@ -731,12 +809,14 @@ export function TasksPage() {
         )
       ) : view === 'kanban' ? (
         <KanbanBoard
-          tasks={workspaceTasks}
+          tasks={filteredTasks}
           onToggleComplete={toggleComplete}
           onMoveToStatus={moveToStatus}
           onEdit={setEditingTask}
           onDelete={setDeleteTarget}
           onSnooze={snoozeTask}
+          onTaskClick={openDetail}
+          onQuickAdd={handleQuickAdd}
         />
       ) : (
         /* Log view */
@@ -793,19 +873,14 @@ export function TasksPage() {
                     <ChevronRight className="h-4 w-4 transition-transform [[data-state=open]>&]:rotate-90" />
                     {group.label} ({group.tasks.length})
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-2 ml-6 mt-1">
-                    {group.tasks.map((task) => (
-                      <div key={task.id} className="opacity-70">
-                        <TaskCard
-                          task={task}
-                          onToggleComplete={toggleComplete}
-                          onMoveToStatus={moveToStatus}
-                          onEdit={setEditingTask}
-                          onDelete={setDeleteTarget}
-                          onSnooze={snoozeTask}
-                        />
-                      </div>
-                    ))}
+                  <CollapsibleContent>
+                    <div className="rounded-lg border mt-1 opacity-70">
+                      {group.tasks.map((task) => (
+                        <div key={task.id}>
+                          {renderTaskCard(task)}
+                        </div>
+                      ))}
+                    </div>
                   </CollapsibleContent>
                 </Collapsible>
               ))
@@ -813,6 +888,21 @@ export function TasksPage() {
           </div>
         </div>
       )}
+
+      {/* Task detail panel */}
+      <TaskDetailPanel
+        task={detailTask}
+        taskKey={detailTask ? taskKeyMap.get(detailTask.id) : undefined}
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open)
+          if (!open) setDetailTask(null)
+        }}
+        onUpdate={handleDetailUpdate}
+        onDelete={handleDetailDelete}
+        allTasks={tasks}
+        onLinkTask={handleLinkTask}
+      />
 
       {/* Create dialog */}
       <EntityDialog
@@ -823,7 +913,7 @@ export function TasksPage() {
         onSubmit={handleCreate}
       />
 
-      {/* Edit dialog */}
+      {/* Edit dialog (fallback) */}
       <EntityDialog
         open={!!editingTask}
         onOpenChange={(open) => !open && setEditingTask(null)}
@@ -854,13 +944,13 @@ export function TasksPage() {
           setStoryDialogOpen(open)
           if (!open) setMergeSubtasks([])
         }}
-        workspace={workspace !== 'all' ? workspace : undefined}
+        workspace={filters.workspace !== 'all' ? filters.workspace : undefined}
         defaultSubtasks={mergeSubtasks.length > 0 ? mergeSubtasks : undefined}
         onSubmit={handleCreateStory}
       />
 
       {/* Standup Report Sheet */}
-      <StandupReport open={standupOpen} onOpenChange={setStandupOpen} tasks={workspaceTasks} />
+      <StandupReport open={standupOpen} onOpenChange={setStandupOpen} tasks={filteredTasks} />
     </div>
   )
 }

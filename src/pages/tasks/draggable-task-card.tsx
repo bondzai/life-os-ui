@@ -1,8 +1,13 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TaskCard, type TaskCardProps } from './task-card'
+import type { Entity } from '@/core/types'
 
-export function DraggableTaskCard(props: TaskCardProps) {
+interface DraggableTaskCardProps extends TaskCardProps {
+  onTaskClick?: (task: Entity) => void
+}
+
+export function DraggableTaskCard({ onTaskClick, ...props }: DraggableTaskCardProps) {
   const { task } = props
   const {
     attributes,
@@ -29,7 +34,7 @@ export function DraggableTaskCard(props: TaskCardProps) {
       {...attributes}
       {...listeners}
       {...props}
-      showStatusMove={false}
+      onClick={onTaskClick ? () => onTaskClick(task) : undefined}
     />
   )
 }
