@@ -28,16 +28,16 @@ export const useAuthStore = create<AuthState>()(
           throw new Error(error.message || 'Login failed')
         }
         const data = await res.json()
-        localStorage.setItem('life-os:token', data.token)
+        localStorage.setItem('lyra:token', data.token)
         set({ currentUser: data.user, isAuthenticated: true })
       },
       logout: () => {
-        localStorage.removeItem('life-os:token')
+        localStorage.removeItem('lyra:token')
         set({ currentUser: null, isAuthenticated: false })
       },
     }),
     {
-      name: 'life-os:auth',
+      name: 'lyra:auth',
     },
   ),
 )

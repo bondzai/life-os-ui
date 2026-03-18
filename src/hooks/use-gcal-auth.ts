@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { API_URL } from '@/lib/api-url'
 
 function getToken(): string | null {
-  return localStorage.getItem('life-os:token')
+  return localStorage.getItem('lyra:token')
 }
 
 function authHeaders(): Record<string, string> {

@@ -32,7 +32,7 @@ export interface HealthProfile {
 
 export type BMICategory = 'underweight' | 'normal' | 'overweight' | 'obese'
 
-const STORAGE_KEY = 'life-os:health-profile'
+const STORAGE_KEY = 'lyra:health-profile'
 
 export function loadHealthProfile(): HealthProfile | null {
   try {

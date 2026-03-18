@@ -79,7 +79,7 @@ export const useFocusStore = create<FocusState>()(
 
       updateSettings: (partial) => set((s) => ({ settings: { ...s.settings, ...partial }, preset: 'custom' })),
     }),
-    { name: 'life-os:focus' },
+    { name: 'lyra:focus' },
   ),
 )
 

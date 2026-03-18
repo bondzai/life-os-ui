@@ -48,6 +48,6 @@ export const useNotificationStore = create<NotificationState>()(
         })),
       clearAll: () => set({ notifications: [] }),
     }),
-    { name: 'life-os:notifications' },
+    { name: 'lyra:notifications' },
   ),
 )

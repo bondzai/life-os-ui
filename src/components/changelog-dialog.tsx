@@ -57,7 +57,7 @@ export function ChangelogDialog({ open, onOpenChange }: ChangelogDialogProps) {
               <div>
                 <DialogTitle className="text-xl">What's New</DialogTitle>
                 <DialogDescription className="mt-0.5">
-                  Life-OS changelog and release history
+                  Lyra changelog and release history
                 </DialogDescription>
               </div>
             </div>

@@ -52,7 +52,7 @@ app.route('/api/gcal', gcalRoutes)
 const port = Number(process.env.PORT) || 3001
 
 serve({ fetch: app.fetch, port }, () => {
-  console.log(`Life-OS API running on http://localhost:${port}`)
+  console.log(`Lyra API running on http://localhost:${port}`)
 })
 
 // Graceful shutdown

@@ -11,7 +11,7 @@ import { useUiStore } from '@/stores/ui-store'
 
 function getPageTitle(pathname: string): string {
   const mod = modules.find((m) => m.path === pathname)
-  return mod?.label ?? 'Life-OS'
+  return mod?.label ?? 'Lyra'
 }
 
 export function AppLayout() {

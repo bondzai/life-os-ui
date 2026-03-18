@@ -174,7 +174,7 @@ export function TasksPage() {
   const taskKeyMap = useMemo(() => {
     const sorted = [...tasks].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     const map = new Map<string, string>()
-    sorted.forEach((t, i) => map.set(t.id, `LO-${String(i + 1).padStart(3, '0')}`))
+    sorted.forEach((t, i) => map.set(t.id, `LY-${String(i + 1).padStart(3, '0')}`))
     return map
   }, [tasks])
 

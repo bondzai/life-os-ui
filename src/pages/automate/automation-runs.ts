@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'life-os:automation-runs'
+const STORAGE_KEY = 'lyra:automation-runs'
 
 export interface AutomationRun {
   id: string

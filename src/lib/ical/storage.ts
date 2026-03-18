@@ -1,6 +1,6 @@
 import type { ICalFeed } from './types'
 
-const STORAGE_KEY = 'life-os:ical-feeds'
+const STORAGE_KEY = 'lyra:ical-feeds'
 
 export function getFeeds(): ICalFeed[] {
   try {

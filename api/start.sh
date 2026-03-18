@@ -1,5 +1,5 @@
 #!/bin/bash
-# Life-OS API — production startup script
+# Lyra API — production startup script
 # Run with: ./api/start.sh
 
 set -e
@@ -21,16 +21,16 @@ fi
 
 # Defaults
 export PORT="${PORT:-3001}"
-export CORS_ORIGINS="${CORS_ORIGINS:-https://life-os.onrender.com,http://localhost:5173}"
-export FRONTEND_URL="${FRONTEND_URL:-https://life-os.onrender.com}"
+export CORS_ORIGINS="${CORS_ORIGINS:-https://lyra.onrender.com,http://localhost:5173}"
+export FRONTEND_URL="${FRONTEND_URL:-https://lyra.onrender.com}"
 
-echo "Life-OS API starting..."
+echo "Lyra API starting..."
 echo "  Port: $PORT"
 echo "  CORS: $CORS_ORIGINS"
 echo "  Frontend: $FRONTEND_URL"
 
 # Seed database if empty
-if [ ! -f data/life-os.db ]; then
+if [ ! -f data/lyra.db ]; then
   echo "  Seeding database..."
   mkdir -p data
   npx tsx src/seed.ts

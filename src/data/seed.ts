@@ -1,6 +1,6 @@
 import type { User, Entity, Relation, Tracker } from '@/core/types'
 
-const KEY_PREFIX = 'life-os:'
+const KEY_PREFIX = 'lyra:'
 
 const users: User[] = [
   {
@@ -62,11 +62,11 @@ const entities: Entity[] = [
   {
     id: 'goal-3',
     type: 'goal',
-    title: 'Launch Life-OS',
-    description: 'Complete all 10 phases of the Life-OS project.',
+    title: 'Launch Lyra',
+    description: 'Complete all 10 phases of the Lyra project.',
     status: 'active',
     priority: 'urgent',
-    tags: ['dev', 'life-os'],
+    tags: ['dev', 'lyra'],
     metadata: { progress: 15 },
     ownerId: 'user-jb',
     visibility: 'private',
@@ -103,7 +103,7 @@ const entities: Entity[] = [
     createdAt: now,
     updatedAt: now,
   },
-  // Sub-goals for "Launch Life-OS"
+  // Sub-goals for "Launch Lyra"
   {
     id: 'goal-3a',
     type: 'goal',
@@ -111,7 +111,7 @@ const entities: Entity[] = [
     description: 'Scaffold, core engine, layout, auth, seed data.',
     status: 'completed',
     priority: 'urgent',
-    tags: ['dev', 'life-os'],
+    tags: ['dev', 'lyra'],
     metadata: { progress: 100 },
     parentId: 'goal-3',
     ownerId: 'user-jb',
@@ -126,7 +126,7 @@ const entities: Entity[] = [
     description: 'Goals, tasks, calendar modules.',
     status: 'active',
     priority: 'urgent',
-    tags: ['dev', 'life-os'],
+    tags: ['dev', 'lyra'],
     metadata: { progress: 0 },
     parentId: 'goal-3',
     ownerId: 'user-jb',
@@ -139,11 +139,11 @@ const entities: Entity[] = [
   {
     id: 'task-1',
     type: 'task',
-    title: 'Set up Life-OS dashboard',
+    title: 'Set up Lyra dashboard',
     description: 'Complete Phase 1 foundation implementation.',
     status: 'completed',
     priority: 'urgent',
-    tags: ['dev', 'life-os'],
+    tags: ['dev', 'lyra'],
     metadata: {},
     ownerId: 'user-jb',
     visibility: 'private',
@@ -173,7 +173,7 @@ const entities: Entity[] = [
     description: 'Build the goals module with CRUD, sub-goals, and progress tracking.',
     status: 'active',
     priority: 'high',
-    tags: ['dev', 'life-os'],
+    tags: ['dev', 'lyra'],
     metadata: {},
     ownerId: 'user-jb',
     visibility: 'private',
@@ -188,7 +188,7 @@ const entities: Entity[] = [
     description: 'Build the tasks module with list and kanban views.',
     status: 'active',
     priority: 'high',
-    tags: ['dev', 'life-os'],
+    tags: ['dev', 'lyra'],
     metadata: {},
     ownerId: 'user-jb',
     visibility: 'private',
@@ -353,11 +353,11 @@ const entities: Entity[] = [
   {
     id: 'note-1',
     type: 'note',
-    title: 'Life-OS Architecture Notes',
-    description: 'Key decisions and patterns for the Life-OS project.',
+    title: 'Lyra Architecture Notes',
+    description: 'Key decisions and patterns for the Lyra project.',
     status: 'active',
     priority: 'medium',
-    tags: ['dev', 'life-os'],
+    tags: ['dev', 'lyra'],
     metadata: { body: 'Entity-driven architecture with DRY core engine. All modules reuse the same CRUD hooks and dialog patterns. Zustand for client state, TanStack Query for data sync.', isJournal: false },
     ownerId: 'user-jb',
     visibility: 'private',
@@ -371,7 +371,7 @@ const entities: Entity[] = [
     status: 'active',
     priority: 'low',
     tags: ['journal'],
-    metadata: { body: 'Feeling productive today. Made good progress on Life-OS Phase 4.5. The notification system and map integration are coming together nicely.', isJournal: true, date: today, mood: 'happy' },
+    metadata: { body: 'Feeling productive today. Made good progress on Lyra Phase 4.5. The notification system and map integration are coming together nicely.', isJournal: true, date: today, mood: 'happy' },
     ownerId: 'user-jb',
     visibility: 'private',
     createdAt: now,
@@ -1005,7 +1005,7 @@ const entities: Entity[] = [
     id: 'device-1',
     type: 'device',
     title: 'Mini PC (Home Server)',
-    description: 'Main home server running Life-OS, OpenClaw, and Docker.',
+    description: 'Main home server running Lyra, OpenClaw, and Docker.',
     status: 'active',
     priority: 'high',
     tags: ['server', 'docker'],
@@ -1048,11 +1048,11 @@ const entities: Entity[] = [
   {
     id: 'service-1',
     type: 'service',
-    title: 'Life-OS API',
+    title: 'Lyra API',
     status: 'active',
     priority: 'high',
-    tags: ['api', 'life-os'],
-    metadata: { serviceType: 'api', serviceStatus: 'running', url: 'http://192.168.1.100:3000', port: 3000, deviceId: 'device-1', image: 'life-os-api:latest' },
+    tags: ['api', 'lyra'],
+    metadata: { serviceType: 'api', serviceStatus: 'running', url: 'http://192.168.1.100:3000', port: 3000, deviceId: 'device-1', image: 'lyra-api:latest' },
     ownerId: 'user-jb',
     visibility: 'shared',
     createdAt: now,

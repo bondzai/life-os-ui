@@ -7,7 +7,7 @@ interface NetWorthChartProps {
   currentNetWorth: number
 }
 
-const STORAGE_KEY = 'life-os:net-worth-snapshots'
+const STORAGE_KEY = 'lyra:net-worth-snapshots'
 
 interface Snapshot {
   month: string // YYYY-MM

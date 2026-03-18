@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 import { mkdirSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const dbPath = resolve(__dirname, '../../data/life-os.db')
+const dbPath = resolve(__dirname, '../../data/lyra.db')
 
 // Ensure data directory exists
 mkdirSync(dirname(dbPath), { recursive: true })

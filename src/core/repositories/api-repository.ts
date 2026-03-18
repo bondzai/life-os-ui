@@ -11,7 +11,7 @@ export class ApiRepository<T extends { id: string }> implements IRepository<T> {
   }
 
   protected getHeaders(): HeadersInit {
-    const token = localStorage.getItem('life-os:token')
+    const token = localStorage.getItem('lyra:token')
     return {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -20,8 +20,8 @@ export class ApiRepository<T extends { id: string }> implements IRepository<T> {
 
   private handleUnauthorized(res: Response): void {
     if (res.status === 401) {
-      localStorage.removeItem('life-os:token')
-      localStorage.removeItem('life-os:auth')
+      localStorage.removeItem('lyra:token')
+      localStorage.removeItem('lyra:auth')
       window.location.href = '/login'
     }
   }

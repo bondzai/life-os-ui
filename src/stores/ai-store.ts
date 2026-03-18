@@ -54,6 +54,6 @@ export const useAIStore = create<AIState>()(
       },
       resetConfig: () => set({ config: DEFAULT_CONFIGS.ollama, isConfigured: false }),
     }),
-    { name: 'life-os:ai' },
+    { name: 'lyra:ai' },
   ),
 )

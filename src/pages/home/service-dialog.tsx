@@ -177,7 +177,7 @@ export function ServiceDialog({
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="e.g. Life-OS API, Postgres" />
+                    <Input {...field} placeholder="e.g. Lyra API, Postgres" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

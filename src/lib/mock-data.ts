@@ -339,13 +339,13 @@ export function generateMockData() {
   )
 
   // ── Write to localStorage ──
-  localStorage.setItem('life-os:entities', JSON.stringify(entities))
-  localStorage.setItem('life-os:trackers', JSON.stringify(trackers))
-  localStorage.setItem('life-os:schedules', JSON.stringify([]))
-  localStorage.setItem('life-os:relations', JSON.stringify([]))
+  localStorage.setItem('lyra:entities', JSON.stringify(entities))
+  localStorage.setItem('lyra:trackers', JSON.stringify(trackers))
+  localStorage.setItem('lyra:schedules', JSON.stringify([]))
+  localStorage.setItem('lyra:relations', JSON.stringify([]))
 
   // Health profile
-  localStorage.setItem('life-os:health-profile', JSON.stringify({
+  localStorage.setItem('lyra:health-profile', JSON.stringify({
     heightCm: 175,
     birthDate: '1995-06-15',
     gender: 'male',
@@ -353,12 +353,12 @@ export function generateMockData() {
   }))
 
   // Mock user
-  localStorage.setItem('life-os:users', JSON.stringify([
+  localStorage.setItem('lyra:users', JSON.stringify([
     { id: 'user-demo', name: 'Demo User', role: 'admin', pin: 'demo' },
   ]))
 
   // Auto-login
-  localStorage.setItem('life-os:auth', JSON.stringify({
+  localStorage.setItem('lyra:auth', JSON.stringify({
     currentUser: { id: 'user-demo', name: 'Demo User', role: 'admin' },
     isAuthenticated: true,
   }))
@@ -367,6 +367,6 @@ export function generateMockData() {
 export function clearMockData() {
   const keys = ['entities', 'trackers', 'schedules', 'relations', 'users', 'auth', 'health-profile']
   for (const key of keys) {
-    localStorage.removeItem(`life-os:${key}`)
+    localStorage.removeItem(`lyra:${key}`)
   }
 }

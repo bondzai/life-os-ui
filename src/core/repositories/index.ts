@@ -9,7 +9,7 @@ import { ApiRelationRepository } from './api-relation-repository'
 
 // Runtime toggle: localStorage overrides env var
 // 'demo' mode uses local storage with mock data
-const storedMode = localStorage.getItem('life-os:data-mode')
+const storedMode = localStorage.getItem('lyra:data-mode')
 const useApi = storedMode !== null
   ? storedMode === 'api'
   : import.meta.env.VITE_USE_API === 'true'

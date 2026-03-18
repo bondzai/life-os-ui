@@ -1,5 +1,5 @@
-const PRIORITIES_KEY = 'life-os:today-priorities'
-const PROTOCOL_KEY = 'life-os:daily-protocol'
+const PRIORITIES_KEY = 'lyra:today-priorities'
+const PROTOCOL_KEY = 'lyra:daily-protocol'
 
 interface TodayPriorities {
   date: string

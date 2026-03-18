@@ -8,10 +8,10 @@ import { useAuthStore } from '@/stores/auth-store'
 import { generateMockData, clearMockData } from '@/lib/mock-data'
 import type { User } from '@/core/types'
 
-const KEY_PREFIX = 'life-os:'
+const KEY_PREFIX = 'lyra:'
 
 function getStoredMode(): string | null {
-  return localStorage.getItem('life-os:data-mode')
+  return localStorage.getItem('lyra:data-mode')
 }
 
 function isApiMode(): boolean {
@@ -54,7 +54,7 @@ export function LoginPage() {
   const handleDemo = () => {
     clearMockData()
     generateMockData()
-    localStorage.setItem('life-os:data-mode', 'demo')
+    localStorage.setItem('lyra:data-mode', 'demo')
     // Auto-login as demo user
     const users = getUsers()
     const demoUser = users.find((u) => u.id === 'user-demo') || users[0]
@@ -78,7 +78,7 @@ export function LoginPage() {
     if (isApiMode()) {
       setLoading(true)
       try {
-        localStorage.setItem('life-os:data-mode', 'api')
+        localStorage.setItem('lyra:data-mode', 'api')
         await loginWithApi(pin)
         navigate('/')
       } catch (err) {
@@ -97,7 +97,7 @@ export function LoginPage() {
       (u) => u.name.toLowerCase() === trimmedName && u.pin === pin,
     )
     if (matched) {
-      localStorage.setItem('life-os:data-mode', 'local')
+      localStorage.setItem('lyra:data-mode', 'local')
       login(matched)
       navigate('/')
     } else {
@@ -113,10 +113,10 @@ export function LoginPage() {
         <div className="w-full max-w-sm space-y-6 p-4">
           <div className="text-center space-y-2">
             <div className="mx-auto h-16 w-16 rounded-2xl bg-primary flex items-center justify-center text-2xl text-primary-foreground font-bold">
-              L
+              Ly
             </div>
-            <h1 className="text-2xl font-bold">Life-OS</h1>
-            <p className="text-sm text-muted-foreground">Your personal life operating system</p>
+            <h1 className="text-2xl font-bold tracking-tight">Lyra</h1>
+            <p className="text-sm text-muted-foreground">Navigate your life by the stars</p>
           </div>
 
           <div className="grid gap-3">

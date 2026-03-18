@@ -14,7 +14,7 @@ import { generateMockData, clearMockData } from '@/lib/mock-data'
 type DataMode = 'local' | 'api' | 'demo'
 
 function getDataMode(): DataMode {
-  const stored = localStorage.getItem('life-os:data-mode')
+  const stored = localStorage.getItem('lyra:data-mode')
   if (stored === 'api' || stored === 'demo' || stored === 'local') return stored
   return import.meta.env.VITE_USE_API === 'true' ? 'api' : 'local'
 }
@@ -29,7 +29,7 @@ function setDataMode(mode: DataMode) {
       clearMockData()
     }
   }
-  localStorage.setItem('life-os:data-mode', mode)
+  localStorage.setItem('lyra:data-mode', mode)
   window.location.reload()
 }
 
@@ -52,7 +52,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>Configure your Life-OS experience.</DialogDescription>
+          <DialogDescription>Configure your Lyra experience.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">

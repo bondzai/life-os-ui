@@ -6,7 +6,7 @@ import { useEntities } from '@/core/hooks'
 import { useAIStore } from '@/stores/ai-store'
 import { AIClient, gatherContext, buildDailyBriefPrompt } from '@/core/ai'
 
-const CACHE_KEY = 'life-os:daily-brief'
+const CACHE_KEY = 'lyra:daily-brief'
 
 function getCachedBrief(): string | null {
   const raw = sessionStorage.getItem(CACHE_KEY)

@@ -31,7 +31,7 @@ import { exportData, importData } from '@/lib/data-backup'
 import { notify } from '@/lib/notify'
 import { SettingsDialog } from '@/components/settings-dialog'
 
-const COLLAPSED_KEY = 'life-os:sidebar-collapsed'
+const COLLAPSED_KEY = 'lyra:sidebar-collapsed'
 
 function getCollapsed(): Record<string, boolean> {
   try {
@@ -101,7 +101,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-2">
-          <h1 className="text-lg font-bold tracking-tight">Life-OS</h1>
+          <h1 className="text-lg font-bold tracking-tight">Lyra</h1>
           <button
             onClick={() => setChangelogOpen(true)}
             className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"

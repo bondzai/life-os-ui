@@ -44,6 +44,6 @@ export const useFilterStore = create<FilterState>()(
           active: { ...state.active, [module]: filterId },
         })),
     }),
-    { name: 'life-os:saved-filters' },
+    { name: 'lyra:saved-filters' },
   ),
 )

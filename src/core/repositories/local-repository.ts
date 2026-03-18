@@ -1,6 +1,6 @@
 import type { IRepository } from './base-repository'
 
-const KEY_PREFIX = 'life-os:'
+const KEY_PREFIX = 'lyra:'
 
 export class LocalRepository<T extends { id: string }> implements IRepository<T> {
   protected readonly storageKey: string

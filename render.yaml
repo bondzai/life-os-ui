@@ -3,7 +3,7 @@
 
 services:
   - type: web
-    name: life-os
+    name: lyra
     runtime: static
     buildCommand: npm install && npm run build
     staticPublishPath: dist

@@ -14,6 +14,25 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.43.0',
+    date: '2026-03-18',
+    phase: 'Rebrand to Lyra',
+    sections: [
+      {
+        title: 'Changed',
+        items: [
+          '**Brand**: Rebranded from Life-OS to **Lyra** — constellation-themed, clean & modern',
+          '**Logo**: New "Ly" monogram with star accent on dark background',
+          '**Storage**: All localStorage keys migrated from `life-os:` to `lyra:` prefix',
+          '**Task keys**: Changed from `LO-XXX` to `LY-XXX` format',
+          '**Package names**: `lyra` (frontend) and `lyra-api` (backend)',
+          '**Database**: Renamed to `lyra.db`',
+          '**Deploy**: Updated Render service name, CORS origins, and startup script',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.42.0',
     date: '2026-03-18',
     phase: 'Backlog, Workspace & Subtask Polish',
@@ -50,7 +69,7 @@ export const CHANGELOG: ChangelogRelease[] = [
       {
         title: 'Added',
         items: [
-          '**Compact task cards**: Type icons, task keys (LO-001), priority arrows, and progress bars on every card',
+          '**Compact task cards**: Type icons, task keys (LY-001), priority arrows, and progress bars on every card',
           '**Detail panel**: Right slide-in panel with inline editing and status workflow',
           '**Inline filter bar**: Search, workspace, priority, and type filters in a single bar',
           '**Kanban board redesign**: TO DO / IN PROGRESS / DONE columns with quick-add',
@@ -438,7 +457,7 @@ export const CHANGELOG: ChangelogRelease[] = [
       {
         title: 'Added',
         items: [
-          '**Google Calendar OAuth**: Connect your Google account to create, edit, and delete events directly from Life-OS',
+          '**Google Calendar OAuth**: Connect your Google account to create, edit, and delete events directly from Lyra',
           '**Google Calendar CRUD**: Full create/update/delete via OAuth 2.0 with automatic token refresh',
           '**Per-event colors**: Events fetched from Google Calendar API v3 with actual per-event colors (no API key needed — uses Google\'s public embed key)',
           '**Calendar color auto-detect**: Calendar background color fetched in parallel, used as fallback for events without individual colorId',

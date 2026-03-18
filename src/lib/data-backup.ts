@@ -1,11 +1,11 @@
 const STORAGE_KEYS = [
-  'life-os:entities',
-  'life-os:trackers',
-  'life-os:relations',
-  'life-os:schedules',
-  'life-os:users',
-  'life-os:today-priorities',
-  'life-os:last-review',
+  'lyra:entities',
+  'lyra:trackers',
+  'lyra:relations',
+  'lyra:schedules',
+  'lyra:users',
+  'lyra:today-priorities',
+  'lyra:last-review',
 ]
 
 interface BackupData {
@@ -36,7 +36,7 @@ export function exportData(): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `life-os-backup-${new Date().toISOString().split('T')[0]}.json`
+  a.download = `lyra-backup-${new Date().toISOString().split('T')[0]}.json`
   a.click()
   URL.revokeObjectURL(url)
 }

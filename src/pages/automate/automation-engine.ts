@@ -4,9 +4,9 @@ import type { ActionType, Condition, ScheduleInterval } from './automate-helpers
 import { addRun } from './automation-runs'
 import type { AutomationEvent } from './automation-event-bus'
 
-const STORAGE_KEY = 'life-os:entities'
-const TRACKER_KEY = 'life-os:trackers'
-const ENGINE_LAST_RUN_KEY = 'life-os:automation-last-run'
+const STORAGE_KEY = 'lyra:entities'
+const TRACKER_KEY = 'lyra:trackers'
+const ENGINE_LAST_RUN_KEY = 'lyra:automation-last-run'
 
 function readEntities(): Entity[] {
   const raw = localStorage.getItem(STORAGE_KEY)

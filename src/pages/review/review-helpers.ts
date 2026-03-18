@@ -1,4 +1,4 @@
-const KEY = 'life-os:last-review'
+const KEY = 'lyra:last-review'
 
 export function getLastReviewDate(): string | null {
   return localStorage.getItem(KEY)

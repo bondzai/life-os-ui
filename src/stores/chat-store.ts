@@ -92,7 +92,7 @@ export const useChatStore = create<ChatState>()(
       clearAll: () => set({ conversations: [], activeConversationId: null }),
     }),
     {
-      name: 'life-os:chat',
+      name: 'lyra:chat',
       partialize: (state) => ({
         conversations: state.conversations,
         activeConversationId: state.activeConversationId,

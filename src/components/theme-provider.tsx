@@ -12,7 +12,7 @@ const ThemeProviderContext = createContext<ThemeProviderState>({
   setTheme: () => null,
 })
 
-const STORAGE_KEY = 'life-os:theme'
+const STORAGE_KEY = 'lyra:theme'
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(
