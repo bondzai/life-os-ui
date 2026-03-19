@@ -17,7 +17,6 @@ import { groupEventsByDate, type ICalEvent } from '@/lib/ical'
 import { notify } from '@/lib/notify'
 import { ICalSettingsDialog } from './calendar/ical-settings-dialog'
 import { MonthView } from './calendar/month-view'
-import { EventList } from './calendar/event-list'
 import { AgendaView } from './calendar/agenda-view'
 import { WeekView } from './calendar/week-view'
 import { EventDetailSheet } from './calendar/event-detail-sheet'
@@ -60,10 +59,9 @@ export function CalendarPage() {
   const [gcalDialogOpen, setGcalDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [calendarView, setCalendarView] = useState<CalendarViewMode>('month')
-  const [typeFilter, setTypeFilter] = useState<string[]>(['task', 'goal', 'event', 'habit'])
+  const [typeFilter, setTypeFilter] = useState<string[]>(['event'])
   const [detailEvent, setDetailEvent] = useState<Entity | ICalEvent | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
-  const [miniCalExpanded, setMiniCalExpanded] = useState(true)
 
   const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
 
@@ -184,8 +182,6 @@ export function CalendarPage() {
     refreshCalendar()
   }, [gcal, refreshCalendar])
 
-  const selectedEntities = selectedDate ? (entitiesByDate[selectedDate] ?? []) : []
-  const selectedICalEvents = selectedDate ? (icalByDate[selectedDate] ?? []) : []
 
   const headerTitle = calendarView === 'month'
     ? new Date(viewYear, viewMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -276,7 +272,7 @@ export function CalendarPage() {
         </div>
       </div>
 
-      {/* Type filter chips */}
+      {/* Calendar filter chips — entity types + iCal feeds */}
       <div className="flex gap-1.5 pb-2 overflow-x-auto shrink-0 scrollbar-none">
         {Object.entries(GCAL_TYPE_COLORS).map(([type, color]) => (
           <button
@@ -295,54 +291,44 @@ export function CalendarPage() {
             {type.charAt(0).toUpperCase() + type.slice(1)}
           </button>
         ))}
+        {feeds.map((feed) => (
+          <button
+            key={feed.id}
+            onClick={() => toggle(feed.id)}
+            className={`h-6 px-2.5 rounded-full text-xs font-medium shrink-0 transition-colors border flex items-center gap-1.5 ${
+              feed.enabled
+                ? 'border-transparent'
+                : 'border-border bg-transparent text-muted-foreground/50 line-through'
+            }`}
+            style={feed.enabled ? {
+              backgroundColor: `${feed.color}18`,
+              color: feed.color,
+            } : undefined}
+          >
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: feed.enabled ? feed.color : 'currentColor', opacity: feed.enabled ? 1 : 0.3 }}
+            />
+            {feed.name}
+          </button>
+        ))}
       </div>
 
       {/* Main content */}
       <div className="flex-1 min-h-0 flex flex-col">
-        {/* Month view */}
+        {/* Month view — full Google Calendar grid */}
         {calendarView === 'month' && (
-          <div className="flex flex-col h-full">
-            {/* Collapsible mini-month */}
-            <div className={`shrink-0 transition-all duration-300 overflow-hidden ${
-              miniCalExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
-            }`}>
-              <MonthView
-                viewYear={viewYear}
-                viewMonth={viewMonth}
-                selectedDate={selectedDate}
-                onSelectDate={handleDateSelect}
-                entitiesByDate={entitiesByDate}
-                icalByDate={icalByDate}
-                feedColorMap={feedColorMap}
-              />
-            </div>
-
-            {/* Collapse/expand handle */}
-            <button
-              className="w-full py-1 flex justify-center shrink-0 hover:bg-accent/30 transition-colors"
-              onClick={() => setMiniCalExpanded(!miniCalExpanded)}
-            >
-              <div className="w-8 h-1 rounded-full bg-muted-foreground/20" />
-            </button>
-
-            <div className="border-t shrink-0" />
-
-            {/* Event list for selected date */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              {selectedDate ? (
-                <EventList
-                  date={selectedDate}
-                  entities={selectedEntities}
-                  icalEvents={selectedICalEvents}
-                  feedColorMap={feedColorMap}
-                  onEventClick={handleEventClick}
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-sm text-muted-foreground/50">Select a date to view events</p>
-                </div>
-              )}
-            </div>
+          <div className="flex-1 min-h-0">
+            <MonthView
+              viewYear={viewYear}
+              viewMonth={viewMonth}
+              selectedDate={selectedDate}
+              onSelectDate={handleDateSelect}
+              onEventClick={handleEventClick}
+              entitiesByDate={entitiesByDate}
+              icalByDate={icalByDate}
+              feedColorMap={feedColorMap}
+            />
           </div>
         )}
 

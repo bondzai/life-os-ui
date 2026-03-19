@@ -61,11 +61,6 @@ export function extractCalendarId(url: string): string | null {
 }
 
 /**
- * Default Google Calendar blue — used when neither event nor calendar has a color.
- */
-const GCAL_DEFAULT_BLUE = '#039BE5'
-
-/**
  * Parse Google Calendar API v3 event items into ICalEvent[].
  * Every event is guaranteed to have a color:
  *   1. Event's own colorId → hex from EVENT_COLORS
@@ -78,8 +73,6 @@ function parseGCalItems(
   feedName: string,
   calendarColor?: string,
 ): ICalEvent[] {
-  const defaultColor = calendarColor || GCAL_DEFAULT_BLUE
-
   return items.map((item) => {
     const startObj = item.start as Record<string, string> | undefined
     const endObj = item.end as Record<string, string> | undefined
@@ -87,8 +80,9 @@ function parseGCalItems(
     const start = new Date(startObj?.dateTime ?? startObj?.date ?? '')
     const end = new Date(endObj?.dateTime ?? endObj?.date ?? '')
     const colorId = item.colorId as string | undefined
-    // Per-event color takes priority, then calendar color, then default blue
-    const color = (colorId ? EVENT_COLORS[colorId] : null) || defaultColor
+    // Only set color when Google actually provides one (per-event or calendar-level).
+    // Otherwise leave undefined so the feed's configured color is used.
+    const color = (colorId ? EVENT_COLORS[colorId] : null) || calendarColor || undefined
 
     return {
       id: (item.id as string) || crypto.randomUUID(),

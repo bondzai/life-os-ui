@@ -4,6 +4,7 @@ import {
   type ICalFeed,
   type ICalEvent,
   getFeeds,
+  saveFeeds,
   addFeed,
   removeFeed,
   toggleFeed,
@@ -20,6 +21,24 @@ import {
 
 const QUERY_KEY = ['ical-events']
 
+/**
+ * If events from Google Calendar API carry a calendar color that differs
+ * from the stored feed color, update the feed so the chip/dot match.
+ */
+function syncFeedColor(feed: ICalFeed, events: ICalEvent[]): void {
+  // Find a consistent calendar color from the events (events without per-event colorId
+  // get the calendar's backgroundColor — that's the one we want)
+  const calColor = events[0]?.color
+  if (calColor && calColor !== feed.color) {
+    const feeds = getFeeds()
+    const idx = feeds.findIndex((f) => f.id === feed.id)
+    if (idx !== -1) {
+      feeds[idx] = { ...feeds[idx], color: calColor }
+      saveFeeds(feeds)
+    }
+  }
+}
+
 async function fetchFeedEvents(feed: ICalFeed): Promise<ICalEvent[]> {
   const calendarId = extractCalendarId(feed.url)
 
@@ -27,7 +46,10 @@ async function fetchFeedEvents(feed: ICalFeed): Promise<ICalEvent[]> {
     // 1. Try direct Google Calendar API from browser (uses public embed key, gets per-event colors)
     try {
       const events = await fetchGCalEventsDirect(calendarId, feed.url, feed.name)
-      if (events && events.length > 0) return events
+      if (events && events.length > 0) {
+        syncFeedColor(feed, events)
+        return events
+      }
     } catch {
       // Fall back
     }
@@ -35,7 +57,10 @@ async function fetchFeedEvents(feed: ICalFeed): Promise<ICalEvent[]> {
     // 2. Try Google Calendar API via server proxy
     try {
       const events = await fetchGCalEventsViaProxy(calendarId, feed.url, feed.name)
-      if (events && events.length > 0) return events
+      if (events && events.length > 0) {
+        syncFeedColor(feed, events)
+        return events
+      }
     } catch {
       // Fall back
     }

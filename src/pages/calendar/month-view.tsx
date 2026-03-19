@@ -2,28 +2,40 @@ import { useMemo } from 'react'
 import type { Entity } from '@/core/types'
 import type { ICalEvent } from '@/lib/ical'
 
-// Google Calendar color palette
 const GCAL_COLORS = {
-  task: '#039BE5',     // Peacock
-  goal: '#33B679',     // Sage
-  event: '#7986CB',    // Lavender
-  habit: '#F4511E',    // Tangerine
-  chore: '#616161',    // Graphite
+  task: '#039BE5',
+  goal: '#33B679',
+  event: '#7986CB',
+  habit: '#F4511E',
+  chore: '#616161',
 } as const
 
-const DAYS_HEADER = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate()
 }
 
-function getFirstDayOfWeek(year: number, month: number) {
-  const day = new Date(year, month, 1).getDay()
-  return day === 0 ? 6 : day - 1
-}
-
 function formatDateKey(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function formatTime(date: Date): string {
+  const h = date.getHours()
+  const m = date.getMinutes()
+  const suffix = h >= 12 ? 'pm' : 'am'
+  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return m === 0 ? `${hour}${suffix}` : `${hour}:${String(m).padStart(2, '0')}${suffix}`
+}
+
+interface CalendarEvent {
+  id: string
+  title: string
+  color: string
+  time?: string
+  isAllDay: boolean
+  isMultiDay?: boolean
+  raw: Entity | ICalEvent
 }
 
 interface MonthViewProps {
@@ -31,6 +43,7 @@ interface MonthViewProps {
   viewMonth: number
   selectedDate: string | null
   onSelectDate: (dateKey: string) => void
+  onEventClick?: (event: Entity | ICalEvent) => void
   entitiesByDate: Record<string, Entity[]>
   icalByDate: Record<string, ICalEvent[]>
   feedColorMap: Record<string, string>
@@ -41,122 +54,188 @@ export function MonthView({
   viewMonth,
   selectedDate,
   onSelectDate,
+  onEventClick,
   entitiesByDate,
   icalByDate,
   feedColorMap,
 }: MonthViewProps) {
   const today = new Date()
   const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
+  const todayDayOfWeek = today.getDay()
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth)
-  const firstDay = getFirstDayOfWeek(viewYear, viewMonth)
+  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay()
 
-  // Previous month trailing days
   const prevMonth = viewMonth === 0 ? 11 : viewMonth - 1
   const prevYear = viewMonth === 0 ? viewYear - 1 : viewYear
   const prevMonthDays = getDaysInMonth(prevYear, prevMonth)
 
   const cells = useMemo(() => {
     const result: { day: number; month: number; year: number; isCurrentMonth: boolean }[] = []
-
-    // Leading days from previous month
-    for (let i = firstDay - 1; i >= 0; i--) {
-      result.push({
-        day: prevMonthDays - i,
-        month: prevMonth,
-        year: prevYear,
-        isCurrentMonth: false,
-      })
+    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+      result.push({ day: prevMonthDays - i, month: prevMonth, year: prevYear, isCurrentMonth: false })
     }
-
-    // Current month days
     for (let d = 1; d <= daysInMonth; d++) {
       result.push({ day: d, month: viewMonth, year: viewYear, isCurrentMonth: true })
     }
-
-    // Trailing days from next month
-    const nextMonth = viewMonth === 11 ? 0 : viewMonth + 1
-    const nextYear = viewMonth === 11 ? viewYear + 1 : viewYear
+    const nextMo = viewMonth === 11 ? 0 : viewMonth + 1
+    const nextYr = viewMonth === 11 ? viewYear + 1 : viewYear
     let trailDay = 1
     while (result.length % 7 !== 0) {
-      result.push({ day: trailDay++, month: nextMonth, year: nextYear, isCurrentMonth: false })
+      result.push({ day: trailDay++, month: nextMo, year: nextYr, isCurrentMonth: false })
     }
-
     return result
-  }, [viewYear, viewMonth, daysInMonth, firstDay, prevMonth, prevYear, prevMonthDays])
+  }, [viewYear, viewMonth, daysInMonth, firstDayOfWeek, prevMonth, prevYear, prevMonthDays])
+
+  const weeks = useMemo(() => {
+    const w: typeof cells[] = []
+    for (let i = 0; i < cells.length; i += 7) w.push(cells.slice(i, i + 7))
+    return w
+  }, [cells])
 
   function getEventColor(ev: ICalEvent) {
     return ev.color ?? feedColorMap[ev.sourceUrl] ?? '#6b7280'
   }
 
+  function getEventsForDate(dateKey: string): CalendarEvent[] {
+    const events: CalendarEvent[] = []
+    const ical = icalByDate[dateKey] ?? []
+    for (const ev of ical) {
+      if (ev.isAllDay) {
+        events.push({
+          id: ev.id, title: ev.title, color: getEventColor(ev),
+          isAllDay: true, isMultiDay: ev.end.getTime() - ev.start.getTime() > 86400000, raw: ev,
+        })
+      }
+    }
+    for (const ev of ical) {
+      if (!ev.isAllDay) {
+        events.push({
+          id: ev.id, title: ev.title, color: getEventColor(ev),
+          time: formatTime(ev.start), isAllDay: false, raw: ev,
+        })
+      }
+    }
+    const entities = entitiesByDate[dateKey] ?? []
+    for (const e of entities) {
+      events.push({
+        id: e.id, title: e.title,
+        color: GCAL_COLORS[e.type as keyof typeof GCAL_COLORS] ?? '#616161',
+        isAllDay: false, raw: e,
+      })
+    }
+    return events
+  }
+
+  // Show more events on desktop
+  const MAX_VISIBLE_MOBILE = 2
+  const MAX_VISIBLE_DESKTOP = 3
+
+  // Check if current view includes today (for highlighting day header)
+  const isCurrentMonthView = viewYear === today.getFullYear() && viewMonth === today.getMonth()
+
   return (
-    <div className="select-none">
-      {/* Day of week header */}
-      <div className="grid grid-cols-7 mb-1">
-        {DAYS_HEADER.map((d, i) => (
-          <div key={i} className="text-center text-[11px] font-medium text-muted-foreground/70 py-1.5">
+    <div className="flex flex-col h-full select-none">
+      {/* Day headers */}
+      <div className="grid grid-cols-7 border-b">
+        {DAYS_SHORT.map((d, i) => (
+          <div
+            key={i}
+            className={`text-center text-[11px] md:text-xs font-medium py-1.5 md:py-2 border-r last:border-r-0
+              ${isCurrentMonthView && i === todayDayOfWeek ? 'text-[#1a73e8]' : 'text-muted-foreground'}
+            `}
+          >
             {d}
           </div>
         ))}
       </div>
 
-      {/* Date grid — compact mini-month */}
-      <div className="grid grid-cols-7">
-        {cells.map((cell, idx) => {
-          const dateKey = formatDateKey(cell.year, cell.month, cell.day)
-          const isToday = dateKey === todayKey
-          const isSelected = dateKey === selectedDate
-          const dayEntities = cell.isCurrentMonth ? (entitiesByDate[dateKey] ?? []) : []
-          const dayIcal = cell.isCurrentMonth ? (icalByDate[dateKey] ?? []) : []
+      {/* Week rows */}
+      <div className="flex-1 grid" style={{ gridTemplateRows: `repeat(${weeks.length}, 1fr)` }}>
+        {weeks.map((week, wi) => (
+          <div key={wi} className="grid grid-cols-7 border-b last:border-b-0 min-h-0">
+            {week.map((cell, di) => {
+              const dateKey = formatDateKey(cell.year, cell.month, cell.day)
+              const isToday = dateKey === todayKey
+              const isSelected = dateKey === selectedDate
+              const events = getEventsForDate(dateKey)
 
-          // Collect unique dot colors (max 3)
-          const dotColors: string[] = []
-          for (const e of dayEntities) {
-            const c = GCAL_COLORS[e.type as keyof typeof GCAL_COLORS] ?? '#616161'
-            if (!dotColors.includes(c)) dotColors.push(c)
-            if (dotColors.length >= 3) break
-          }
-          if (dotColors.length < 3) {
-            for (const ev of dayIcal) {
-              const c = getEventColor(ev)
-              if (!dotColors.includes(c)) dotColors.push(c)
-              if (dotColors.length >= 3) break
-            }
-          }
+              return (
+                <div
+                  key={di}
+                  className={`border-r last:border-r-0 flex flex-col overflow-hidden cursor-pointer transition-colors
+                    ${isSelected ? 'bg-accent/40' : 'hover:bg-accent/20'}
+                    ${!cell.isCurrentMonth ? 'opacity-40' : ''}
+                  `}
+                  onClick={() => onSelectDate(dateKey)}
+                >
+                  {/* Date number */}
+                  <div className="px-0.5 md:px-1.5 pt-0.5 md:pt-1 pb-0 md:pb-0.5 flex justify-center md:justify-end">
+                    <span
+                      className={`
+                        text-xs md:text-sm leading-none inline-flex items-center justify-center
+                        ${isToday ? 'bg-[#1a73e8] text-white rounded-full w-6 h-6 md:w-7 md:h-7 font-semibold' : ''}
+                        ${!isToday && cell.isCurrentMonth ? 'text-foreground' : ''}
+                        ${!cell.isCurrentMonth ? 'text-muted-foreground' : ''}
+                      `}
+                    >
+                      {cell.day}
+                    </span>
+                  </div>
 
-          return (
-            <div
-              key={idx}
-              className="flex flex-col items-center py-1 cursor-pointer"
-              onClick={() => onSelectDate(dateKey)}
-            >
-              {/* Date number */}
-              <div
-                className={`
-                  w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full text-sm transition-all duration-150
-                  ${!cell.isCurrentMonth ? 'text-muted-foreground/30' : ''}
-                  ${isToday && !isSelected ? 'bg-[#1a73e8] text-white font-medium' : ''}
-                  ${isSelected && isToday ? 'bg-[#1a73e8] text-white font-medium ring-2 ring-[#1a73e8]/30 ring-offset-1 ring-offset-background' : ''}
-                  ${isSelected && !isToday ? 'bg-[#1a73e8]/10 text-[#1a73e8] font-medium ring-1 ring-[#1a73e8]/50' : ''}
-                  ${!isToday && !isSelected && cell.isCurrentMonth ? 'text-foreground hover:bg-accent/60' : ''}
-                `}
-              >
-                {cell.day}
-              </div>
-
-              {/* Event dots */}
-              <div className="flex gap-[3px] mt-0.5 h-[6px]">
-                {dotColors.map((color, i) => (
-                  <span
-                    key={i}
-                    className="w-[5px] h-[5px] rounded-full"
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
-            </div>
-          )
-        })}
+                  {/* Events as colored bars */}
+                  <div className="flex-1 min-h-0 px-px md:px-0.5 space-y-px overflow-hidden">
+                    {/* Mobile: MAX_VISIBLE_MOBILE, Desktop: MAX_VISIBLE_DESKTOP */}
+                    {events.slice(0, MAX_VISIBLE_MOBILE).map((ev) => (
+                      <button
+                        key={ev.id}
+                        className="w-full text-left rounded-[3px] md:rounded-[4px] truncate text-[9px] md:text-[11px] leading-[15px] md:leading-[18px] px-0.5 md:px-1 text-white font-medium transition-opacity hover:opacity-80 md:hidden"
+                        style={{ backgroundColor: ev.color }}
+                        onClick={(e) => { e.stopPropagation(); onEventClick?.(ev.raw) }}
+                      >
+                        {ev.time ? `${ev.title}` : ev.title}
+                      </button>
+                    ))}
+                    {events.slice(0, MAX_VISIBLE_DESKTOP).map((ev) => (
+                      <button
+                        key={ev.id}
+                        className="w-full text-left rounded-[4px] truncate text-[11px] leading-[18px] px-1 transition-opacity hover:opacity-80 hidden md:block"
+                        style={
+                          ev.isAllDay || ev.isMultiDay
+                            ? { backgroundColor: ev.color, color: 'white', fontWeight: 500 }
+                            : undefined
+                        }
+                        onClick={(e) => { e.stopPropagation(); onEventClick?.(ev.raw) }}
+                      >
+                        {ev.isAllDay || ev.isMultiDay ? (
+                          ev.title
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <span className="w-[6px] h-[6px] rounded-full shrink-0" style={{ backgroundColor: ev.color }} />
+                            <span className="text-muted-foreground">{ev.time}</span>
+                            <span className="truncate text-foreground">{ev.title}</span>
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                    {/* Mobile overflow */}
+                    {events.length > MAX_VISIBLE_MOBILE && (
+                      <div className="text-[8px] text-muted-foreground font-medium px-0.5 leading-[12px] md:hidden">
+                        +{events.length - MAX_VISIBLE_MOBILE}
+                      </div>
+                    )}
+                    {/* Desktop overflow */}
+                    {events.length > MAX_VISIBLE_DESKTOP && (
+                      <div className="text-[10px] text-muted-foreground font-medium px-1 leading-[16px] hidden md:block">
+                        +{events.length - MAX_VISIBLE_DESKTOP} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ))}
       </div>
     </div>
   )
