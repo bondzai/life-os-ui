@@ -14,6 +14,29 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.46.0',
+    date: '2026-03-19',
+    phase: 'Calendar Redesign & Emperor Time Editing',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Google Calendar month grid**: Full-grid month view with inline colored event bars on all screen sizes',
+          '**iCal feed toggle chips**: Quick enable/disable feeds from the calendar toolbar',
+          '**Inline editing in Emperor Time**: Edit task and subtask titles via pencil icon during focus sessions',
+          '**Auto-sync feed colors**: Feed color updates from Google Calendar API on each fetch',
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          '**iCal color override**: Events now respect feed configured color instead of always rendering blue',
+          '**Calendar default filter**: Only show events and iCal feeds by default (not tasks/goals/habits)',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.45.0',
     date: '2026-03-18',
     phase: 'Backend, Migrations & Setup',

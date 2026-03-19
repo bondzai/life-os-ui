@@ -68,6 +68,54 @@ const PHASE_STYLES = {
   },
 } as const
 
+function InlineEdit({ value, onSave, className }: { value: string; onSave: (v: string) => void; className?: string }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) {
+      setDraft(value)
+      setTimeout(() => inputRef.current?.focus(), 0)
+    }
+  }, [editing, value])
+
+  const save = () => {
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== value) onSave(trimmed)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        className={`bg-transparent border-0 border-b border-dashed border-zinc-600 focus:border-amber-500/50 focus:outline-none px-0 py-0 ${className ?? ''}`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') save()
+          if (e.key === 'Escape') setEditing(false)
+        }}
+        onBlur={save}
+        onClick={(e) => e.stopPropagation()}
+      />
+    )
+  }
+
+  return (
+    <span className="group/edit flex items-center gap-1.5 min-w-0 flex-1">
+      <span className={className}>{value}</span>
+      <button
+        onClick={(e) => { e.stopPropagation(); setEditing(true) }}
+        className="opacity-0 group-hover/edit:opacity-100 transition-opacity text-zinc-600 hover:text-amber-400 shrink-0"
+      >
+        <Pencil className="h-3 w-3" />
+      </button>
+    </span>
+  )
+}
+
 function QuickAddSubtask({ onAdd }: { onAdd: (title: string) => void }) {
   const [value, setValue] = useState('')
   return (
@@ -491,6 +539,37 @@ export function DeepWorkPage() {
     [entity, subtasks, update],
   )
 
+  // Rename entity title
+  const renameEntity = useCallback(
+    (targetEntity: Entity, newTitle: string) => {
+      update.mutate({
+        id: targetEntity.id,
+        updates: { title: newTitle, updatedAt: new Date().toISOString() },
+      })
+    },
+    [update],
+  )
+
+  // Rename subtask on any entity
+  const renameSubtask = useCallback(
+    (targetEntity: Entity, subtaskId: string, newTitle: string) => {
+      const subs = Array.isArray(targetEntity.metadata.subtasks)
+        ? (targetEntity.metadata.subtasks as Subtask[])
+        : []
+      const updated = subs.map((s) =>
+        s.id === subtaskId ? { ...s, title: newTitle } : s,
+      )
+      update.mutate({
+        id: targetEntity.id,
+        updates: {
+          metadata: { ...targetEntity.metadata, subtasks: updated },
+          updatedAt: new Date().toISOString(),
+        },
+      })
+    },
+    [update],
+  )
+
   // Add subtask to any entity
   const addSubtask = useCallback(
     (targetEntity: Entity, title: string) => {
@@ -653,9 +732,11 @@ export function DeepWorkPage() {
                   className="flex items-center gap-3 w-full p-3.5 text-left"
                 >
                   {isActive && <ChevronRight className="h-4 w-4 text-amber-500/70 shrink-0" />}
-                  <span className={`text-sm font-medium flex-1 truncate ${allDone ? 'line-through text-zinc-600' : 'text-zinc-200'}`}>
-                    {item.title}
-                  </span>
+                  <InlineEdit
+                    value={item.title}
+                    onSave={(v) => renameEntity(item, v)}
+                    className={`text-sm font-medium truncate ${allDone ? 'line-through text-zinc-600' : 'text-zinc-200'}`}
+                  />
                   {typeof item.metadata.workspace === 'string' && (
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${
                       item.metadata.workspace === 'work'
@@ -716,7 +797,9 @@ export function DeepWorkPage() {
 
                           {st === 'in-progress' && <span className="text-[9px] font-medium text-amber-500/70 shrink-0">WIP</span>}
                           {isCurrent && st === 'todo' && <span className="text-amber-500/70 text-xs shrink-0">&rarr;</span>}
-                          <span
+                          <InlineEdit
+                            value={sub.title}
+                            onSave={(v) => renameSubtask(item, sub.id, v)}
                             className={`text-sm ${
                               st === 'done'
                                 ? 'line-through text-zinc-600'
@@ -726,9 +809,7 @@ export function DeepWorkPage() {
                                     ? 'font-medium text-zinc-200'
                                     : 'text-zinc-400'
                             }`}
-                          >
-                            {sub.title}
-                          </span>
+                          />
                         </div>
                       )
                     })}
