@@ -229,17 +229,18 @@ export function AppSidebar() {
                                   {badges[mod.id]}
                                 </span>
                               ) : null}
+                              {hasChildren && (
+                                <CollapsibleTrigger asChild>
+                                  <span
+                                    role="button"
+                                    className="ml-auto p-0.5 rounded-md text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                                    onClick={(e) => { e.stopPropagation(); toggleSub(mod.id) }}
+                                  >
+                                    <ChevronRight className={`h-3.5 w-3.5 transition-transform duration-200 ${subOpen ? 'rotate-90' : ''}`} />
+                                  </span>
+                                </CollapsibleTrigger>
+                              )}
                             </SidebarMenuButton>
-                            {hasChildren && (
-                              <CollapsibleTrigger asChild>
-                                <button
-                                  className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/50 transition-colors"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <ChevronRight className={`h-3.5 w-3.5 transition-transform duration-200 ${subOpen ? 'rotate-90' : ''}`} />
-                                </button>
-                              </CollapsibleTrigger>
-                            )}
                             {hasChildren && (
                               <CollapsibleContent>
                                 <SidebarMenuSub>

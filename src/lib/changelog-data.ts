@@ -14,6 +14,20 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.48.0',
+    date: '2026-03-19',
+    phase: 'Focus Cockpit & Arrow Balance',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          '**Review under Focus**: Weekly Review moved into Focus sub-menu — plan, execute, reflect in one cockpit',
+          '**Chevron balance**: Arrow moved inline with menu label for cleaner visual alignment',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.47.0',
     date: '2026-03-19',
     phase: 'Sidebar Redesign & Navigation',

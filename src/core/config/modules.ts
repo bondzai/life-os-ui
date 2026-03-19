@@ -40,6 +40,7 @@ export const modules: ModuleConfig[] = [
     id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Core', entityTypes: [],
     children: [
       { id: 'emperor-time', label: 'Emperor Time', icon: Crown, path: '/sessions' },
+      { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review' },
     ],
   },
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard', group: 'Core', entityTypes: [] },
@@ -57,7 +58,6 @@ export const modules: ModuleConfig[] = [
   { id: 'learning', label: 'Learning', icon: GraduationCap, path: '/learning', group: 'Life', entityTypes: ['book', 'course', 'skill'] },
   { id: 'travel', label: 'Travel', icon: MapPin, path: '/travel', group: 'Life', entityTypes: ['place', 'location', 'trip'] },
   { id: 'family', label: 'Family', icon: Users, path: '/family', group: 'Life', entityTypes: ['chore'] },
-  { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review', group: 'Life', entityTypes: [] },
 ]
 
 export function getModuleGroups(): { group: string; modules: ModuleConfig[] }[] {
