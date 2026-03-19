@@ -10,6 +10,10 @@ import {
   BookOpen,
   ListChecks,
   Crown,
+  AlertTriangle,
+  Archive,
+  CalendarClock,
+  RotateCcw,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -27,7 +31,8 @@ import { PriorityPicker } from './today/priority-picker'
 import { StandupReport } from './tasks/standup-report'
 import { CaptureBar } from './today/capture-bar'
 // DailyProtocol removed — protocols are on left column
-import { isReviewDoneThisWeek } from './review/review-helpers'
+import { isReviewDoneThisWeek, daysAgo } from './review/review-helpers'
+import { getRecurrence, buildRecurringNext } from './tasks/task-helpers'
 import { getTodayPriorities, setTodayPriorities } from './today/today-helpers'
 import type { Entity } from '@/core/types'
 
@@ -349,6 +354,38 @@ export function TodayPage() {
     return projects.slice(0, 5)
   }, [allEntities])
 
+  // Stale items — active but untouched 14+ days
+  const STALE_DAYS = 14
+  const staleItems = useMemo(
+    () =>
+      allEntities
+        .filter(
+          (e) =>
+            ['task', 'goal', 'chore', 'note'].includes(e.type) &&
+            e.status !== 'done' &&
+            e.status !== 'archived' &&
+            daysAgo(e.updatedAt) >= STALE_DAYS,
+        )
+        .sort((a, b) => daysAgo(b.updatedAt) - daysAgo(a.updatedAt)),
+    [allEntities],
+  )
+
+  const handleArchiveStale = useCallback(
+    (item: Entity) => {
+      update.mutate({ id: item.id, updates: { status: 'archived', updatedAt: new Date().toISOString() } })
+      notify({ title: `"${item.title}" archived`, type: 'success' })
+    },
+    [update],
+  )
+
+  const handleSnoozeStale = useCallback(
+    (item: Entity) => {
+      update.mutate({ id: item.id, updates: { updatedAt: new Date().toISOString() } })
+      notify({ title: `"${item.title}" snoozed for ${STALE_DAYS} days`, type: 'success' })
+    },
+    [update],
+  )
+
   // ─── Metrics ───
 
   const habitsChecked = habits.filter((h) => h.checkedToday).length
@@ -439,15 +476,28 @@ export function TodayPage() {
 
   const toggleItem = useCallback(
     (item: Entity) => {
+      const newStatus = item.status === 'done' ? 'todo' : 'done'
       update.mutate({
         id: item.id,
         updates: {
-          status: item.status === 'done' ? 'todo' : 'done',
+          status: newStatus,
           updatedAt: new Date().toISOString(),
         },
       })
+      // Spawn next occurrence for recurring tasks
+      if (newStatus === 'done' && getRecurrence(item.metadata) !== 'none') {
+        const now = new Date().toISOString()
+        const next = buildRecurringNext(item)
+        create.mutate({
+          ...next,
+          id: crypto.randomUUID(),
+          createdAt: now,
+          updatedAt: now,
+        })
+        notify({ title: `Next "${item.title}" created`, type: 'success' })
+      }
     },
-    [update],
+    [update, create],
   )
 
   const handleHabitCheckIn = useCallback(
@@ -1116,6 +1166,53 @@ export function TodayPage() {
               </div>
             </CollapsibleContent>
           </Collapsible>
+
+          {/* Stale Items */}
+          {staleItems.length > 0 && (
+            <Collapsible defaultOpen={false}>
+              <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                <span className="text-sm flex-1 font-medium">Stale</span>
+                <span className="text-[11px] text-amber-500/70 tabular-nums">{staleItems.length}</span>
+                <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="px-4 pb-3 space-y-1">
+                  {staleItems.slice(0, 10).map((item) => (
+                    <div key={item.id} className="flex items-center gap-2 py-1.5 group">
+                      <span className="text-sm flex-1 truncate">{item.title}</span>
+                      <span className="text-[10px] text-muted-foreground/40 flex items-center gap-0.5 shrink-0">
+                        <CalendarClock className="h-2.5 w-2.5" />
+                        {daysAgo(item.updatedAt)}d
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/30 capitalize shrink-0">{item.type}</span>
+                      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button
+                          onClick={() => handleSnoozeStale(item)}
+                          className="p-1 rounded hover:bg-muted transition-colors"
+                          title="Snooze — reset timer"
+                        >
+                          <RotateCcw className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                        <button
+                          onClick={() => handleArchiveStale(item)}
+                          className="p-1 rounded hover:bg-muted transition-colors"
+                          title="Archive"
+                        >
+                          <Archive className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {staleItems.length > 10 && (
+                    <button onClick={() => navigate('/review')} className="text-xs text-primary/60 hover:text-primary transition-colors pt-1">
+                      +{staleItems.length - 10} more → Review
+                    </button>
+                  )}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
 
           {/* Weekly Review nudge */}
           {reviewDue && (

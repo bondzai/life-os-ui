@@ -14,6 +14,21 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.50.0',
+    date: '2026-03-19',
+    phase: 'Recurring Tasks, Stale Detector & Strategic Blueprint',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Recurring tasks**: Set daily/weekly/biweekly/monthly recurrence — next occurrence auto-created on completion',
+          '**Stale item detector**: Focus page shows items untouched 14+ days with snooze/archive actions',
+          '**Strategic blueprint**: INTJ invisible empire framework doc + Phase 17 roadmap in TODO',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.49.0',
     date: '2026-03-19',
     phase: 'Sidebar Reorganization',

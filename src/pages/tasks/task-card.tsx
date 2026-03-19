@@ -9,6 +9,7 @@ import {
   Clock,
   Pencil,
   Trash2,
+  Repeat,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -19,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { Entity, EntityStatus } from '@/core/types'
-import { isStory as checkIsStory, getSubtaskProgress, isOverdue as checkIsOverdue, formatShortDate } from './task-helpers'
+import { isStory as checkIsStory, getSubtaskProgress, isOverdue as checkIsOverdue, formatShortDate, getRecurrence } from './task-helpers'
 
 export interface TaskCardProps {
   task: Entity
@@ -171,6 +172,11 @@ export const TaskCard = memo(
 
           {/* Priority icon */}
           <PriorityIcon priority={task.priority} />
+
+          {/* Recurrence indicator */}
+          {getRecurrence(task.metadata) !== 'none' && (
+            <Repeat className="h-3 w-3 text-muted-foreground/50 shrink-0" title={`Recurring: ${getRecurrence(task.metadata)}`} />
+          )}
 
           {/* Due date */}
           {task.dueDate && (

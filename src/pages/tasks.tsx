@@ -23,7 +23,7 @@ import { StandupReport } from './tasks/standup-report'
 import { StoryDialog } from './tasks/story-dialog'
 import { TaskDetailPanel } from './tasks/task-detail-panel'
 import { TaskFilters, applyTaskFilters, defaultFilters, type TaskFilterState } from './tasks/task-filters'
-import { isStory } from './tasks/task-helpers'
+import { isStory, getRecurrence, buildRecurringNext } from './tasks/task-helpers'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -283,9 +283,24 @@ export function TasksPage() {
       id,
       updates: { ...updates, updatedAt: new Date().toISOString() },
     })
+    // Spawn next occurrence when marked done from detail panel
+    if (updates.status === 'done') {
+      const task = tasks.find((t) => t.id === id)
+      if (task && task.status !== 'done' && getRecurrence(task.metadata) !== 'none') {
+        const now = new Date().toISOString()
+        const next = buildRecurringNext(task)
+        create.mutate({
+          ...next,
+          id: crypto.randomUUID(),
+          createdAt: now,
+          updatedAt: now,
+        })
+        notify({ title: `Next "${task.title}" created`, type: 'success' })
+      }
+    }
     // Keep detail panel in sync
     setDetailTask((prev) => prev && prev.id === id ? { ...prev, ...updates } : prev)
-  }, [update])
+  }, [update, tasks, create])
 
   const handleLinkTask = useCallback((parentId: string, childTask: Entity) => {
     const parent = tasks.find((t) => t.id === parentId)
@@ -354,6 +369,18 @@ export function TasksPage() {
       oldStatus: task.status,
       newStatus,
     })
+    // Spawn next occurrence for recurring tasks
+    if (newStatus === 'done' && getRecurrence(task.metadata) !== 'none') {
+      const now = new Date().toISOString()
+      const next = buildRecurringNext(task)
+      create.mutate({
+        ...next,
+        id: crypto.randomUUID(),
+        createdAt: now,
+        updatedAt: now,
+      })
+      notify({ title: `Next "${task.title}" created`, type: 'success' })
+    }
   }
 
   const snoozeTask = (task: Entity, days: number) => {
@@ -455,6 +482,18 @@ export function TasksPage() {
       oldStatus: task.status,
       newStatus,
     })
+    // Spawn next occurrence for recurring tasks
+    if (newStatus === 'done' && task.status !== 'done' && getRecurrence(task.metadata) !== 'none') {
+      const now = new Date().toISOString()
+      const next = buildRecurringNext(task)
+      create.mutate({
+        ...next,
+        id: crypto.randomUUID(),
+        createdAt: now,
+        updatedAt: now,
+      })
+      notify({ title: `Next "${task.title}" created`, type: 'success' })
+    }
   }
 
   const handleCreate = (values: Record<string, unknown>) => {

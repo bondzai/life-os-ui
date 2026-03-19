@@ -2,6 +2,58 @@
 
 See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with 4 priority tiers.
 See [`docs/minimalist-mind-life-os.md`](docs/minimalist-mind-life-os.md) for cognitive system philosophy.
+See [`docs/strategic-blueprint.md`](docs/strategic-blueprint.md) for INTJ strategic identity & invisible empire framework.
+
+---
+
+## Phase 17: Strategic Empire Layer
+
+Based on the [Strategic Blueprint](docs/strategic-blueprint.md) — features that evolve Lyra from productivity tool → strategic OS.
+
+### 17a. War Mode Protocol (Level 2)
+
+Daily strategic protocol aligned with "1 move + 1 ignore" doctrine.
+
+- [ ] **Daily War Card**: Morning prompt — "What is your 1 strategic move today?" + "What will you ignore?"
+- [ ] **War Card history**: Track daily strategic moves over time, surface patterns
+- [ ] **Leverage score**: For each task/goal, tag as leverage-building vs maintenance — track ratio
+- [ ] **Signal vs Noise badge**: Tag incoming items as signal/noise during clarify, track ratio over time
+
+### 17b. Decision Engine (Level 3)
+
+Structured decision-making for high-stakes choices.
+
+- [ ] **Decision log**: Record decisions with context, options considered, reasoning, outcome
+- [ ] **Asymmetry check**: For each decision, rate upside/downside — flag symmetric (bad) bets
+- [ ] **Second-order prompt**: When creating a goal/decision, AI asks "what happens after this succeeds?"
+- [ ] **Decision review**: Weekly Review step — revisit past decisions, log actual outcomes vs expected
+
+### 17c. Leverage Dashboard (Level 3)
+
+Track power accumulation across flows.
+
+- [ ] **Leverage metrics widget**: Dashboard card showing leverage ratio (leverage tasks / maintenance tasks)
+- [ ] **Optionality tracker**: Tag goals/projects as optionality-creating vs optionality-consuming
+- [ ] **Dependency map**: For each project, list what depends on you vs what you depend on
+- [ ] **Empire metrics**: Flow volume, dependency count, switching cost — manual or derived
+
+### 17d. Strategic Map v2 (Level 3-4)
+
+Extend the existing Strategic Map TODO (16d) with empire framing.
+
+- [ ] **Control point tags**: Tag goals/projects by control type: Infra / Protocol / Capital / Access
+- [ ] **Power stack view**: Visual showing Signal → Decision → Execution → Distribution pipeline
+- [ ] **Strategic alignment score**: For each active project, rate alignment with empire direction (1-5)
+- [ ] **180-day roadmap view**: Phase-based timeline with current position marker
+
+### 17e. Personal Data Graph (Level 4 — AI OS)
+
+Foundation for Option C (AI OS Layer).
+
+- [ ] **Entity relationship graph**: Visual graph of all entity connections (goals ↔ tasks ↔ knowledge ↔ decisions)
+- [ ] **Auto-link suggestions**: AI suggests connections between entities based on content/tags
+- [ ] **Personal API**: Expose read-only API of your structured data for external tools/agents
+- [ ] **Agent orchestration hooks**: Define triggers that spawn AI agents (research, review, strategy)
 
 ---
 

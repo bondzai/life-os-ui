@@ -7,6 +7,7 @@ import {
   ListChecks,
   Pencil,
   Plus,
+  Repeat,
   Search,
   Tag,
   Trash2,
@@ -30,7 +31,7 @@ import {
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import type { Entity, EntityPriority, EntityStatus } from '@/core/types'
-import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, subtaskStatus, subtaskDone, type Subtask, type SubtaskStatus } from './task-helpers'
+import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, subtaskStatus, subtaskDone, getRecurrence, RECURRENCE_OPTIONS, RECURRENCE_LABELS, type Subtask, type SubtaskStatus, type Recurrence } from './task-helpers'
 
 export interface TaskDetailPanelProps {
   task: Entity | null
@@ -535,6 +536,37 @@ export function TaskDetailPanel({
                   ))}
                 </div>
               </div>
+            </div>
+
+            {/* Recurrence */}
+            <div className="grid grid-cols-[120px_1fr] items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                <Repeat className="h-3 w-3" />
+                Repeat
+              </span>
+              <Select
+                value={getRecurrence(task.metadata)}
+                onValueChange={(v) => {
+                  if (!task) return
+                  onUpdate(task.id, {
+                    metadata: {
+                      ...task.metadata,
+                      recurring: v === 'none' ? undefined : v,
+                    },
+                  })
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RECURRENCE_OPTIONS.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {RECURRENCE_LABELS[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Story points */}
