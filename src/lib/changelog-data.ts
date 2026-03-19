@@ -14,6 +14,21 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.47.0',
+    date: '2026-03-19',
+    phase: 'Sidebar Redesign & Navigation',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Emperor Time sub-menu**: Sessions moved under Focus as "Emperor Time" child item',
+          '**Collapsible sub-menus**: Module items with children show chevron toggle with persistent state',
+          '**Group header chevrons**: Rotating arrow affordance on all collapsible sidebar groups',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.46.0',
     date: '2026-03-19',
     phase: 'Calendar Redesign & Emperor Time Editing',

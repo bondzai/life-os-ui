@@ -17,6 +17,13 @@ import {
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
 
+export interface SubModuleConfig {
+  id: string
+  label: string
+  icon: LucideIcon
+  path: string
+}
+
 export interface ModuleConfig {
   id: string
   label: string
@@ -24,12 +31,17 @@ export interface ModuleConfig {
   path: string
   group: string
   entityTypes: EntityType[]
+  children?: SubModuleConfig[]
 }
 
 export const modules: ModuleConfig[] = [
   // Core — daily drivers
-  { id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Core', entityTypes: [] },
-  { id: 'sessions', label: 'Sessions', icon: Crown, path: '/sessions', group: 'Core', entityTypes: [] },
+  {
+    id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Core', entityTypes: [],
+    children: [
+      { id: 'emperor-time', label: 'Emperor Time', icon: Crown, path: '/sessions' },
+    ],
+  },
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard', group: 'Core', entityTypes: [] },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Core', entityTypes: ['task'] },
   { id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Core', entityTypes: ['note'] },

@@ -579,9 +579,9 @@ export function SessionsPage() {
       <header className="shrink-0 pb-4">
         <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
           <Crown className="h-6 w-6 text-amber-500/70" />
-          Sessions
+          Emperor Time
         </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Emperor Time history — review, edit, and analyze your focus sessions</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Review, edit, and analyze your focus sessions</p>
       </header>
 
       <div className="space-y-6 pb-8">

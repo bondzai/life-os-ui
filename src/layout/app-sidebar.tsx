@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { LogOut, Download, Upload, Settings, Crown } from 'lucide-react'
+import { LogOut, Download, Upload, Settings, Crown, ChevronRight } from 'lucide-react'
 import { ChangelogDialog } from '@/components/changelog-dialog'
 import { APP_VERSION } from '@/lib/changelog-data'
 import {
@@ -14,6 +14,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   SidebarSeparator,
   useSidebar,
 } from '@/components/ui/sidebar'
@@ -33,19 +36,30 @@ import { notify } from '@/lib/notify'
 import { SettingsDialog } from '@/components/settings-dialog'
 
 const COLLAPSED_KEY = 'lyra:sidebar-collapsed'
+const EXPANDED_SUBS_KEY = 'lyra:sidebar-expanded-subs'
 
 function getCollapsed(): Record<string, boolean> {
   try {
     const stored = localStorage.getItem(COLLAPSED_KEY)
     if (stored) return JSON.parse(stored)
-  } catch {
-    // ignore
-  }
+  } catch { /* ignore */ }
   return { ...DEFAULT_COLLAPSED_GROUPS }
 }
 
 function setCollapsed(state: Record<string, boolean>) {
   localStorage.setItem(COLLAPSED_KEY, JSON.stringify(state))
+}
+
+function getExpandedSubs(): Record<string, boolean> {
+  try {
+    const stored = localStorage.getItem(EXPANDED_SUBS_KEY)
+    if (stored) return JSON.parse(stored)
+  } catch { /* ignore */ }
+  return {}
+}
+
+function setExpandedSubs(state: Record<string, boolean>) {
+  localStorage.setItem(EXPANDED_SUBS_KEY, JSON.stringify(state))
 }
 
 export function AppSidebar() {
@@ -57,6 +71,7 @@ export function AppSidebar() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [collapsed, setCollapsedState] = useState<Record<string, boolean>>(() => getCollapsed())
+  const [expandedSubs, setExpandedSubsState] = useState<Record<string, boolean>>(() => getExpandedSubs())
   const [changelogOpen, setChangelogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
@@ -83,6 +98,19 @@ export function AppSidebar() {
     setCollapsed(next)
   }
 
+  const toggleSub = (modId: string) => {
+    const next = { ...expandedSubs, [modId]: !expandedSubs[modId] }
+    setExpandedSubsState(next)
+    setExpandedSubs(next)
+  }
+
+  const isSubExpanded = (modId: string) => {
+    // Explicitly toggled state takes priority
+    if (expandedSubs[modId] !== undefined) return expandedSubs[modId]
+    // Default: expanded if current route is the parent or a child
+    return true
+  }
+
   const handleLogout = () => {
     logout()
     navigate('/login')
@@ -102,6 +130,11 @@ export function AppSidebar() {
       notify({ title: 'Import failed', message: 'Invalid backup file.', type: 'error' })
     }
     e.target.value = ''
+  }
+
+  const handleNav = (path: string) => {
+    navigate(path)
+    if (isMobile) setOpenMobile(false)
   }
 
   return (
@@ -148,8 +181,9 @@ export function AppSidebar() {
           >
             <SidebarGroup>
               <CollapsibleTrigger asChild>
-                <SidebarGroupLabel className="cursor-pointer select-none">
-                  {group}
+                <SidebarGroupLabel className="cursor-pointer select-none group/label">
+                  <span className="flex-1">{group}</span>
+                  <ChevronRight className={`h-3 w-3 text-muted-foreground/50 transition-transform duration-200 group-hover/label:text-muted-foreground ${!collapsed[group] ? 'rotate-90' : ''}`} />
                 </SidebarGroupLabel>
               </CollapsibleTrigger>
               <CollapsibleContent>
@@ -159,10 +193,7 @@ export function AppSidebar() {
                     {group === 'Core' && hasActiveSession && location.pathname !== '/deep-work' && (
                       <SidebarMenuItem>
                         <SidebarMenuButton
-                          onClick={() => {
-                            navigate('/deep-work')
-                            if (isMobile) setOpenMobile(false)
-                          }}
+                          onClick={() => handleNav('/deep-work')}
                           className="group/focus relative bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/15 rounded-md"
                         >
                           <span className="relative flex h-4 w-4 items-center justify-center">
@@ -176,24 +207,58 @@ export function AppSidebar() {
                     )}
                     {mods.map((mod) => {
                       const isActive = location.pathname === mod.path
+                      const hasChildren = mod.children && mod.children.length > 0
+                      const subOpen = hasChildren && isSubExpanded(mod.id)
+
                       return (
-                        <SidebarMenuItem key={mod.id}>
-                          <SidebarMenuButton
-                            isActive={isActive}
-                            onClick={() => {
-                              navigate(mod.path)
-                              if (isMobile) setOpenMobile(false)
-                            }}
-                          >
-                            <mod.icon className="h-4 w-4" />
-                            <span className="flex-1">{mod.label}</span>
-                            {badges[mod.id] ? (
-                              <span className="ml-auto text-xs bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center">
-                                {badges[mod.id]}
-                              </span>
-                            ) : null}
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
+                        <Collapsible
+                          key={mod.id}
+                          open={subOpen}
+                          onOpenChange={() => hasChildren && toggleSub(mod.id)}
+                          asChild
+                        >
+                          <SidebarMenuItem>
+                            <SidebarMenuButton
+                              isActive={isActive}
+                              onClick={() => handleNav(mod.path)}
+                            >
+                              <mod.icon className="h-4 w-4" />
+                              <span className="flex-1">{mod.label}</span>
+                              {badges[mod.id] ? (
+                                <span className="ml-auto text-xs bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center">
+                                  {badges[mod.id]}
+                                </span>
+                              ) : null}
+                            </SidebarMenuButton>
+                            {hasChildren && (
+                              <CollapsibleTrigger asChild>
+                                <button
+                                  className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/50 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <ChevronRight className={`h-3.5 w-3.5 transition-transform duration-200 ${subOpen ? 'rotate-90' : ''}`} />
+                                </button>
+                              </CollapsibleTrigger>
+                            )}
+                            {hasChildren && (
+                              <CollapsibleContent>
+                                <SidebarMenuSub>
+                                  {mod.children!.map((child) => (
+                                    <SidebarMenuSubItem key={child.id}>
+                                      <SidebarMenuSubButton
+                                        isActive={location.pathname === child.path}
+                                        onClick={() => handleNav(child.path)}
+                                      >
+                                        <child.icon className="h-3.5 w-3.5" />
+                                        <span>{child.label}</span>
+                                      </SidebarMenuSubButton>
+                                    </SidebarMenuSubItem>
+                                  ))}
+                                </SidebarMenuSub>
+                              </CollapsibleContent>
+                            )}
+                          </SidebarMenuItem>
+                        </Collapsible>
                       )
                     })}
                   </SidebarMenu>
