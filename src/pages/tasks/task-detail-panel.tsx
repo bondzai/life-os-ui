@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import type { Entity, EntityPriority, EntityStatus } from '@/core/types'
-import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, subtaskStatus, subtaskDone, getRecurrence, RECURRENCE_OPTIONS, RECURRENCE_LABELS, type Subtask, type SubtaskStatus, type Recurrence } from './task-helpers'
+import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, subtaskStatus, subtaskDone, getRecurrence, RECURRENCE_OPTIONS, RECURRENCE_LABELS, type Subtask, type SubtaskStatus } from './task-helpers'
 
 export interface TaskDetailPanelProps {
   task: Entity | null

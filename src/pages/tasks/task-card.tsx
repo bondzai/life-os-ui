@@ -175,7 +175,7 @@ export const TaskCard = memo(
 
           {/* Recurrence indicator */}
           {getRecurrence(task.metadata) !== 'none' && (
-            <Repeat className="h-3 w-3 text-muted-foreground/50 shrink-0" title={`Recurring: ${getRecurrence(task.metadata)}`} />
+            <Repeat className="h-3 w-3 text-muted-foreground/50 shrink-0" />
           )}
 
           {/* Due date */}
