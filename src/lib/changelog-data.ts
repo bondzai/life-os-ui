@@ -14,6 +14,19 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.49.0',
+    date: '2026-03-19',
+    phase: 'Sidebar Reorganization',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          '**Strategic sidebar groups**: Reorganized from Core/Track/Life to Command/Operate/Track/Life — maps to INTJ workflow: strategy → execution → measurement → growth',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.48.0',
     date: '2026-03-19',
     phase: 'Focus Cockpit & Arrow Balance',

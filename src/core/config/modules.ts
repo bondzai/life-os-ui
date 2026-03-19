@@ -35,26 +35,28 @@ export interface ModuleConfig {
 }
 
 export const modules: ModuleConfig[] = [
-  // Core — daily drivers
+  // Command — strategic cockpit
   {
-    id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Core', entityTypes: [],
+    id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Command', entityTypes: [],
     children: [
       { id: 'emperor-time', label: 'Emperor Time', icon: Crown, path: '/sessions' },
       { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review' },
     ],
   },
-  { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard', group: 'Core', entityTypes: [] },
-  { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Core', entityTypes: ['task'] },
-  { id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Core', entityTypes: ['note'] },
-  { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Core', entityTypes: ['event'] },
+  { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard', group: 'Command', entityTypes: [] },
 
-  // Track — goals & measurement
+  // Operate — daily tactical tools
+  { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Operate', entityTypes: ['task'] },
+  { id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Operate', entityTypes: ['note'] },
+  { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Operate', entityTypes: ['event'] },
+
+  // Track — metrics & measurement
   { id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Track', entityTypes: ['goal'] },
   { id: 'habits', label: 'Habits', icon: Repeat, path: '/habits', group: 'Track', entityTypes: ['habit'] },
   { id: 'health', label: 'Health', icon: Heart, path: '/health', group: 'Track', entityTypes: ['body-metric', 'workout', 'sleep-mood'] },
   { id: 'wealth', label: 'Wealth', icon: Wallet, path: '/wealth', group: 'Track', entityTypes: ['transaction', 'budget', 'account', 'asset', 'wallet', 'crypto-tx'] },
 
-  // Life — lifestyle
+  // Life — growth & lifestyle
   { id: 'learning', label: 'Learning', icon: GraduationCap, path: '/learning', group: 'Life', entityTypes: ['book', 'course', 'skill'] },
   { id: 'travel', label: 'Travel', icon: MapPin, path: '/travel', group: 'Life', entityTypes: ['place', 'location', 'trip'] },
   { id: 'family', label: 'Family', icon: Users, path: '/family', group: 'Life', entityTypes: ['chore'] },
