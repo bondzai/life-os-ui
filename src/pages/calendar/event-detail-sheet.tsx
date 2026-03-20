@@ -44,6 +44,8 @@ interface EventDetailSheetProps {
     end?: { dateTime: string; timeZone: string }
   }) => Promise<void>
   onDeleteEvent?: (eventId: string) => Promise<void>
+  /** Delete a local entity event */
+  onDeleteEntity?: (id: string) => void
 }
 
 function isICalEvent(e: Entity | ICalEvent): e is ICalEvent {
@@ -67,6 +69,7 @@ export function EventDetailSheet({
   googleConnected,
   onEditEvent,
   onDeleteEvent,
+  onDeleteEntity,
 }: EventDetailSheetProps) {
   const [editOpen, setEditOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -83,18 +86,24 @@ export function EventDetailSheet({
   // Show edit/delete for Google Calendar events when connected
   const canEdit = isIcal && googleConnected && !!onEditEvent
   const canDelete = isIcal && googleConnected && !!onDeleteEvent
+  const canDeleteLocal = !isIcal && !!onDeleteEntity
 
   const handleDelete = async () => {
-    if (!isIcal || !onDeleteEvent) return
-    setDeleting(true)
-    try {
-      await onDeleteEvent(event.id)
+    if (isIcal && onDeleteEvent) {
+      setDeleting(true)
+      try {
+        await onDeleteEvent(event.id)
+        setConfirmDelete(false)
+        onOpenChange(false)
+      } catch {
+        // Error handled upstream
+      } finally {
+        setDeleting(false)
+      }
+    } else if (!isIcal && onDeleteEntity) {
+      onDeleteEntity(event.id)
       setConfirmDelete(false)
       onOpenChange(false)
-    } catch {
-      // Error handled upstream
-    } finally {
-      setDeleting(false)
     }
   }
 
@@ -230,8 +239,8 @@ export function EventDetailSheet({
               </div>
             )}
 
-            {/* Edit/Delete actions for Google Calendar events */}
-            {(canEdit || canDelete) && (
+            {/* Edit/Delete actions */}
+            {(canEdit || canDelete || canDeleteLocal) && (
               <div className="pt-3 border-t flex gap-2">
                 {canEdit && (
                   <Button
@@ -244,7 +253,7 @@ export function EventDetailSheet({
                     Edit
                   </Button>
                 )}
-                {canDelete && (
+                {(canDelete || canDeleteLocal) && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -281,7 +290,7 @@ export function EventDetailSheet({
           <DialogHeader>
             <DialogTitle>Delete Event</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete &ldquo;{event.title}&rdquo;? This will remove it from Google Calendar.
+              Are you sure you want to delete &ldquo;{event.title}&rdquo;?{isIcal ? ' This will remove it from Google Calendar.' : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 justify-end">

@@ -40,7 +40,7 @@ function formatDateKey(year: number, month: number, day: number) {
 
 export function CalendarPage() {
   const queryClient = useQueryClient()
-  const { items: allEntities, create } = useEntities()
+  const { items: allEntities, create, remove: removeEntity } = useEntities()
   const currentUser = useAuthStore((s) => s.currentUser)
   const { feeds, events: icalEvents, add, remove, toggle } = useICalEvents()
   const gcal = useGCalAuth()
@@ -181,6 +181,11 @@ export function CalendarPage() {
     notify({ title: 'Event deleted', type: 'success' })
     refreshCalendar()
   }, [gcal, refreshCalendar])
+
+  const handleDeleteEntity = useCallback((id: string) => {
+    removeEntity.mutate(id)
+    notify({ title: 'Event deleted', type: 'success' })
+  }, [removeEntity])
 
 
   const headerTitle = calendarView === 'month'
@@ -367,6 +372,7 @@ export function CalendarPage() {
         googleConnected={gcal.isConnected}
         onEditEvent={handleEditEvent}
         onDeleteEvent={handleDeleteEvent}
+        onDeleteEntity={handleDeleteEntity}
       />
 
       {/* Entity creation dialog */}

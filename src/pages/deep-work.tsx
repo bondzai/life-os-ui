@@ -15,12 +15,13 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { X, Play, Pause, SkipForward, Square, Timer, Flame, Crown, ChevronRight, Plus, CheckCircle2, ChevronDown, Pencil, Trash2, GripVertical } from 'lucide-react'
+import { X, Play, Pause, SkipForward, Square, Timer, Flame, Crown, ChevronRight, Plus, CheckCircle2, ChevronDown, Pencil, Trash2, GripVertical, MessageSquare, Send, ExternalLink, ChevronsUp, ArrowUp, ArrowDown, Minus as MinusIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { useFocusStore } from '@/stores/focus-store'
+import { TaskDetailPanel } from '@/pages/tasks/task-detail-panel'
 import type { Entity, Tracker } from '@/core/types'
 
 function formatTime(totalSeconds: number): string {
@@ -37,7 +38,9 @@ function formatMinutes(minutes: number): string {
 }
 
 type SubtaskStatus = 'todo' | 'in-progress' | 'done'
-type Subtask = { id: string; title: string; done: boolean; status?: SubtaskStatus }
+type SubtaskNote = { id: string; text: string; timestamp: string }
+type SubtaskPriority = 'urgent' | 'high' | 'medium' | 'low'
+type Subtask = { id: string; title: string; done: boolean; status?: SubtaskStatus; priority?: SubtaskPriority; notes?: SubtaskNote[] }
 
 function stStatus(s: Subtask): SubtaskStatus {
   if (s.status) return s.status
@@ -131,6 +134,91 @@ function InlineEdit({ value, onSave, className }: { value: string; onSave: (v: s
   )
 }
 
+interface TaskNote {
+  id: string
+  text: string
+  timestamp: string
+}
+
+function getNotes(metadata: Record<string, unknown>): TaskNote[] {
+  return Array.isArray(metadata.notes) ? (metadata.notes as TaskNote[]) : []
+}
+
+function QuickNote({ entity, onUpdate }: { entity: Entity; onUpdate: (id: string, updates: Partial<Entity>) => void }) {
+  const [value, setValue] = useState('')
+  const [expanded, setExpanded] = useState(false)
+  const notes = getNotes(entity.metadata)
+
+  const handleAdd = () => {
+    if (!value.trim()) return
+    const note: TaskNote = { id: crypto.randomUUID(), text: value.trim(), timestamp: new Date().toISOString() }
+    const existing = getNotes(entity.metadata)
+    onUpdate(entity.id, {
+      metadata: { ...entity.metadata, notes: [note, ...existing] },
+      updatedAt: new Date().toISOString(),
+    })
+    setValue('')
+  }
+
+  return (
+    <div className="pt-2 px-3 space-y-1.5">
+      {/* Existing notes (collapsed by default) */}
+      {notes.length > 0 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1.5 text-[10px] text-zinc-500 hover:text-zinc-400 transition-colors cursor-pointer"
+        >
+          <MessageSquare className="h-3 w-3" />
+          {notes.length} note{notes.length !== 1 ? 's' : ''}
+          <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? '' : '-rotate-90'}`} />
+        </button>
+      )}
+      {expanded && notes.slice(0, 5).map((n) => (
+        <div key={n.id} className="group/note flex gap-2 text-[11px] text-zinc-400 bg-white/[0.02] rounded px-2.5 py-1.5 border border-zinc-800/30">
+          <div className="flex-1 min-w-0">
+            <p className="whitespace-pre-wrap">{n.text}</p>
+            <span className="text-[9px] text-zinc-600 tabular-nums">
+              {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              const existing = getNotes(entity.metadata).filter((x) => x.id !== n.id)
+              onUpdate(entity.id, {
+                metadata: { ...entity.metadata, notes: existing.length > 0 ? existing : undefined },
+                updatedAt: new Date().toISOString(),
+              })
+            }}
+            className="shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity text-zinc-600 hover:text-red-400 cursor-pointer self-start"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+      {/* Quick add */}
+      <div className="flex items-center gap-2">
+        <MessageSquare className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+        <input
+          className="flex-1 text-sm bg-transparent border-0 border-b border-dashed border-zinc-800 px-0 py-1 focus:outline-none focus:border-amber-500/50 placeholder:text-zinc-700 text-zinc-300"
+          placeholder="Add a note..."
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && value.trim()) {
+              handleAdd()
+            }
+          }}
+        />
+        {value.trim() && (
+          <button onClick={handleAdd} className="text-amber-500/70 hover:text-amber-400 cursor-pointer shrink-0">
+            <Send className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function QuickAddSubtask({ onAdd }: { onAdd: (title: string) => void }) {
   const [value, setValue] = useState('')
   return (
@@ -160,13 +248,19 @@ function SortableEmperorSubtask({
   item,
   onToggle,
   onRename,
+  onAddNote,
+  onRemoveNote,
 }: {
   sub: Subtask
   isCurrent: boolean
   item: Entity
   onToggle: (id: string) => void
   onRename: (entity: Entity, subtaskId: string, title: string) => void
+  onAddNote: (entity: Entity, subtaskId: string, text: string) => void
+  onRemoveNote: (entity: Entity, subtaskId: string, noteId: string) => void
 }) {
+  const [showNotes, setShowNotes] = useState(false)
+  const [noteVal, setNoteVal] = useState('')
   const st = stStatus(sub)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sub.id })
 
@@ -181,7 +275,7 @@ function SortableEmperorSubtask({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-3 py-1.5 px-3 rounded-lg transition-colors ${
+      className={`rounded-lg transition-colors group/sub ${
         isCurrent
           ? 'bg-amber-500/[0.06] border border-amber-500/15'
           : st === 'done'
@@ -191,6 +285,7 @@ function SortableEmperorSubtask({
               : 'hover:bg-white/[0.03]'
       }`}
     >
+    <div className="flex items-center gap-3 py-1.5 px-3">
       <button
         type="button"
         className="shrink-0 cursor-grab active:cursor-grabbing text-zinc-700 hover:text-zinc-500 touch-none"
@@ -223,6 +318,18 @@ function SortableEmperorSubtask({
 
       {st === 'in-progress' && <span className="text-[9px] font-medium text-amber-500/70 shrink-0">WIP</span>}
       {isCurrent && st === 'todo' && <span className="text-amber-500/70 text-xs shrink-0">&rarr;</span>}
+      {sub.priority && sub.priority !== 'medium' && (
+        <span className="shrink-0" title={sub.priority}>
+          {sub.priority === 'urgent' && <ChevronsUp className="h-3.5 w-3.5 text-red-500" />}
+          {sub.priority === 'high' && <ArrowUp className="h-3.5 w-3.5 text-orange-500" />}
+          {sub.priority === 'low' && <ArrowDown className="h-3.5 w-3.5 text-blue-400" />}
+        </span>
+      )}
+      {sub.priority === 'medium' && (
+        <span className="shrink-0" title="medium">
+          <MinusIcon className="h-3.5 w-3.5 text-yellow-500" />
+        </span>
+      )}
       <InlineEdit
         value={sub.title}
         onSave={(v) => onRename(item, sub.id, v)}
@@ -236,7 +343,58 @@ function SortableEmperorSubtask({
                 : 'text-zinc-400'
         }`}
       />
+      <button
+        onClick={(e) => { e.stopPropagation(); setShowNotes(!showNotes) }}
+        className={`shrink-0 transition-colors cursor-pointer ${
+          (sub.notes?.length ?? 0) > 0 ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-700 hover:text-zinc-500 opacity-0 group-hover/sub:opacity-100'
+        }`}
+        title="Notes"
+      >
+        <MessageSquare className="h-3 w-3" />
+      </button>
     </div>
+
+    {/* Subtask notes */}
+    {showNotes && (
+      <div className="ml-12 pb-2 space-y-1">
+        <div className="flex items-center gap-2">
+          <input
+            className="flex-1 text-xs bg-transparent border-0 border-b border-dashed border-zinc-800 px-0 py-0.5 focus:outline-none focus:border-amber-500/50 placeholder:text-zinc-700 text-zinc-300"
+            placeholder="Add note..."
+            value={noteVal}
+            onChange={(e) => setNoteVal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && noteVal.trim()) {
+                onAddNote(item, sub.id, noteVal.trim())
+                setNoteVal('')
+              }
+            }}
+          />
+          {noteVal.trim() && (
+            <button onClick={() => { onAddNote(item, sub.id, noteVal.trim()); setNoteVal('') }} className="text-amber-500/70 hover:text-amber-400 cursor-pointer shrink-0">
+              <Send className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+        {sub.notes?.map((n) => (
+          <div key={n.id} className="group/note flex gap-2 text-[11px] text-zinc-400 bg-white/[0.02] rounded px-2 py-1 border border-zinc-800/30">
+            <div className="flex-1 min-w-0">
+              <p className="whitespace-pre-wrap">{n.text}</p>
+              <span className="text-[9px] text-zinc-600 tabular-nums">
+                {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+            <button
+              onClick={() => onRemoveNote(item, sub.id, n.id)}
+              className="shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity text-zinc-600 hover:text-red-400 cursor-pointer self-start"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
   )
 }
 
@@ -457,9 +615,13 @@ export function DeepWorkPage() {
     setPhase,
     setPreset,
   } = useFocusStore()
-  const { items: allEntities, update } = useEntities()
+  const { items: allEntities, update, remove: removeEntity } = useEntities()
   const { items: allTrackers, create: createTracker, update: updateTracker, remove: removeTracker } = useTrackers()
   const currentUser = useAuthStore((s) => s.currentUser)
+
+  // Task detail drawer state
+  const [detailTask, setDetailTask] = useState<Entity | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
 
   const entityTitles = useMemo(() => {
     const m = new Map<string, string>()
@@ -694,6 +856,49 @@ export function DeepWorkPage() {
     [update],
   )
 
+  // Add note to a subtask
+  const addSubtaskNote = useCallback(
+    (targetEntity: Entity, subtaskId: string, text: string) => {
+      const subs = Array.isArray(targetEntity.metadata.subtasks)
+        ? (targetEntity.metadata.subtasks as Subtask[])
+        : []
+      const note: SubtaskNote = { id: crypto.randomUUID(), text, timestamp: new Date().toISOString() }
+      const updated = subs.map((s) =>
+        s.id === subtaskId ? { ...s, notes: [note, ...(s.notes ?? [])] } : s,
+      )
+      update.mutate({
+        id: targetEntity.id,
+        updates: {
+          metadata: { ...targetEntity.metadata, subtasks: updated },
+          updatedAt: new Date().toISOString(),
+        },
+      })
+    },
+    [update],
+  )
+
+  // Remove note from a subtask
+  const removeSubtaskNote = useCallback(
+    (targetEntity: Entity, subtaskId: string, noteId: string) => {
+      const subs = Array.isArray(targetEntity.metadata.subtasks)
+        ? (targetEntity.metadata.subtasks as Subtask[])
+        : []
+      const updated = subs.map((s) => {
+        if (s.id !== subtaskId) return s
+        const notes = (s.notes ?? []).filter((n) => n.id !== noteId)
+        return { ...s, notes: notes.length > 0 ? notes : undefined }
+      })
+      update.mutate({
+        id: targetEntity.id,
+        updates: {
+          metadata: { ...targetEntity.metadata, subtasks: updated },
+          updatedAt: new Date().toISOString(),
+        },
+      })
+    },
+    [update],
+  )
+
   // Add subtask to any entity
   const addSubtask = useCallback(
     (targetEntity: Entity, title: string) => {
@@ -711,6 +916,20 @@ export function DeepWorkPage() {
     },
     [update],
   )
+
+  const openTaskDetail = useCallback((entity: Entity) => {
+    setDetailTask(entity)
+    setDetailOpen(true)
+  }, [])
+
+  const handleDetailUpdate = useCallback((id: string, updates: Partial<Entity>) => {
+    update.mutate({ id, updates })
+  }, [update])
+
+  const handleDetailDelete = useCallback((entity: Entity) => {
+    removeEntity.mutate(entity.id)
+    setDetailOpen(false)
+  }, [removeEntity])
 
   const todayFocusMinutes = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0]
@@ -840,7 +1059,7 @@ export function DeepWorkPage() {
             return (
               <div
                 key={item.id}
-                className={`rounded-xl transition-all duration-300 ${
+                className={`rounded-xl transition-all duration-300 relative group/task ${
                   isActive
                     ? 'bg-white/[0.04] border border-zinc-700/50 shadow-lg shadow-black/20'
                     : allDone
@@ -877,6 +1096,14 @@ export function DeepWorkPage() {
                     </span>
                   )}
                 </button>
+                {/* Open full detail panel */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); openTaskDetail(item) }}
+                  className="absolute top-3 right-3 text-zinc-700 hover:text-zinc-400 transition-colors cursor-pointer opacity-0 group-hover/task:opacity-100"
+                  title="Open detail"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </button>
 
                 {/* Subtasks + quick add — drag to reorder */}
                 {isActive && (
@@ -895,11 +1122,14 @@ export function DeepWorkPage() {
                             item={item}
                             onToggle={toggleSubtask}
                             onRename={renameSubtask}
+                            onAddNote={addSubtaskNote}
+                            onRemoveNote={removeSubtaskNote}
                           />
                         ))}
                       </SortableContext>
                     </DndContext>
                     <QuickAddSubtask onAdd={(title) => addSubtask(item, title)} />
+                    <QuickNote entity={item} onUpdate={(id, updates) => update.mutate({ id, updates })} />
                   </div>
                 )}
               </div>
@@ -942,6 +1172,16 @@ export function DeepWorkPage() {
           {formatMinutes(todayFocusMinutes)} today
         </span>
       </div>
+
+      {/* Task detail drawer */}
+      <TaskDetailPanel
+        task={detailTask}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onUpdate={handleDetailUpdate}
+        onDelete={handleDetailDelete}
+        allTasks={allEntities}
+      />
     </div>
   )
 }

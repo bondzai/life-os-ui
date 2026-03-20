@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList, ListChecks, Archive, ArrowRight, Trash2 } from 'lucide-react'
+import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList, ListChecks, Archive, ArrowRight, Trash2, ChevronsUpDown } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -10,7 +10,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { useEntities } from '@/core/hooks'
+import { useEntities, useRelations, useKeyboardNav } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
 import { EmptyState } from '@/core/components/empty-state'
@@ -138,6 +138,7 @@ export function TasksPage() {
   const [editingTask, setEditingTask] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
   const [showDone, setShowDone] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [standupOpen, setStandupOpen] = useState(false)
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
@@ -146,6 +147,9 @@ export function TasksPage() {
   // Detail panel state
   const [detailTask, setDetailTask] = useState<Entity | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+
+  // Relations
+  const { items: allRelations } = useRelations()
 
   // DnD sensors
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -209,6 +213,15 @@ export function TasksPage() {
   )
 
   const hasAnyListTasks = todayGroup.length > 0 || tomorrowGroup.length > 0 || thisWeekGroup.length > 0 || laterGroup.length > 0 || backlogGroup.length > 0 || backlogTasks.length > 0 || doneToday.length > 0
+
+  // Blocked task IDs (from Relations)
+  const blockedTaskIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const r of allRelations) {
+      if (r.type === 'blocks') ids.add(r.toId)
+    }
+    return ids
+  }, [allRelations])
 
   // Existing stories for "Add to Story" dropdown
   const existingStories = useMemo(
@@ -278,6 +291,21 @@ export function TasksPage() {
     setDetailTask(task)
     setDetailOpen(true)
   }, [])
+
+  // Flat list for J/K navigation (list view only)
+  const flatVisibleTasks = useMemo(() => {
+    if (view !== 'list') return []
+    const groups: [string, Entity[]][] = [
+      ['today', todayGroup],
+      ['tomorrow', tomorrowGroup],
+      ['this-week', thisWeekGroup],
+      ['later', laterGroup],
+      ['no-due', backlogGroup],
+    ]
+    return groups.flatMap(([key, items]) => collapsedGroups.has(key) ? [] : items)
+  }, [view, todayGroup, tomorrowGroup, thisWeekGroup, laterGroup, backlogGroup, collapsedGroups])
+
+  const { focusedIndex } = useKeyboardNav(flatVisibleTasks, openDetail)
 
   const handleDetailUpdate = useCallback((id: string, updates: Partial<Entity>) => {
     update.mutate({
@@ -636,7 +664,7 @@ export function TasksPage() {
     })
   }, [])
 
-  const renderTaskCard = (task: Entity) => (
+  const renderTaskCard = (task: Entity, navIndex?: number) => (
     <TaskCard
       task={task}
       taskKey={taskKeyMap.get(task.id)}
@@ -648,6 +676,9 @@ export function TasksPage() {
       onSnooze={snoozeTask}
       selected={selectMode ? selectedTasks.has(task.id) : undefined}
       onSelectTask={selectMode ? handleSelect : undefined}
+      blocked={blockedTaskIds.has(task.id)}
+      data-nav-index={navIndex}
+      className={navIndex !== undefined && navIndex === focusedIndex ? 'ring-1 ring-primary bg-primary/5' : undefined}
     />
   )
 
@@ -727,6 +758,27 @@ export function TasksPage() {
             </TabsTrigger>
           </TabsList>
         </Tabs>
+        {view === 'list' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs gap-1 cursor-pointer"
+            onClick={() => {
+              const allGroups = ['today', 'tomorrow', 'this-week', 'later', 'no-due', 'done']
+              if (collapsedGroups.size >= allGroups.length) {
+                setCollapsedGroups(new Set())
+                setShowDone(false)
+              } else {
+                setCollapsedGroups(new Set(allGroups))
+                setShowDone(false)
+              }
+            }}
+            title={collapsedGroups.size > 0 ? 'Expand all groups' : 'Collapse all groups'}
+          >
+            <ChevronsUpDown className="h-3.5 w-3.5" />
+            {collapsedGroups.size > 0 ? 'Expand All' : 'Collapse All'}
+          </Button>
+        )}
       </div>
 
       {/* Filters bar (no workspace — it's in the top switcher now) */}
@@ -755,95 +807,110 @@ export function TasksPage() {
           <div className="space-y-6">
             {/* Today */}
             {todayGroup.length > 0 && (
-              <div className="space-y-0">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 flex items-center gap-2">
+              <Collapsible open={!collapsedGroups.has('today')} onOpenChange={() => setCollapsedGroups((prev) => { const next = new Set(prev); next.has('today') ? next.delete('today') : next.add('today'); return next })}>
+                <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 cursor-pointer">
+                  <ChevronRight className={`h-3.5 w-3.5 transition-transform ${!collapsedGroups.has('today') ? 'rotate-90' : ''}`} />
                   Today
                   <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{todayGroup.length}</span>
-                </h3>
-                <div className="rounded-lg border">
-                  {todayGroup.map((task) => (
-                    <ListTaskWrapper key={task.id} task={task}>
-                      {renderTaskCard(task)}
-                    </ListTaskWrapper>
-                  ))}
-                </div>
-              </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="rounded-lg border">
+                    {todayGroup.map((task) => (
+                      <ListTaskWrapper key={task.id} task={task}>
+                        {renderTaskCard(task, flatVisibleTasks.indexOf(task))}
+                      </ListTaskWrapper>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             )}
 
             {/* Upcoming sections */}
             {(tomorrowGroup.length > 0 || thisWeekGroup.length > 0 || laterGroup.length > 0) && (
               <div className="space-y-4">
                 {tomorrowGroup.length > 0 && (
-                  <div className="space-y-0">
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 flex items-center gap-2">
+                  <Collapsible open={!collapsedGroups.has('tomorrow')} onOpenChange={() => setCollapsedGroups((prev) => { const next = new Set(prev); next.has('tomorrow') ? next.delete('tomorrow') : next.add('tomorrow'); return next })}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 cursor-pointer">
+                      <ChevronRight className={`h-3.5 w-3.5 transition-transform ${!collapsedGroups.has('tomorrow') ? 'rotate-90' : ''}`} />
                       Tomorrow
                       <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{tomorrowGroup.length}</span>
-                    </h3>
-                    <div className="rounded-lg border">
-                      {tomorrowGroup.map((task) => (
-                        <ListTaskWrapper key={task.id} task={task}>
-                          {renderTaskCard(task)}
-                        </ListTaskWrapper>
-                      ))}
-                    </div>
-                  </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="rounded-lg border">
+                        {tomorrowGroup.map((task) => (
+                          <ListTaskWrapper key={task.id} task={task}>
+                            {renderTaskCard(task, flatVisibleTasks.indexOf(task))}
+                          </ListTaskWrapper>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
 
                 {thisWeekGroup.length > 0 && (
-                  <div className="space-y-0">
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 flex items-center gap-2">
+                  <Collapsible open={!collapsedGroups.has('this-week')} onOpenChange={() => setCollapsedGroups((prev) => { const next = new Set(prev); next.has('this-week') ? next.delete('this-week') : next.add('this-week'); return next })}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 cursor-pointer">
+                      <ChevronRight className={`h-3.5 w-3.5 transition-transform ${!collapsedGroups.has('this-week') ? 'rotate-90' : ''}`} />
                       This Week
                       <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{thisWeekGroup.length}</span>
-                    </h3>
-                    <div className="rounded-lg border">
-                      {thisWeekGroup.map((task) => (
-                        <ListTaskWrapper key={task.id} task={task}>
-                          {renderTaskCard(task)}
-                        </ListTaskWrapper>
-                      ))}
-                    </div>
-                  </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="rounded-lg border">
+                        {thisWeekGroup.map((task) => (
+                          <ListTaskWrapper key={task.id} task={task}>
+                            {renderTaskCard(task, flatVisibleTasks.indexOf(task))}
+                          </ListTaskWrapper>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
 
                 {laterGroup.length > 0 && (
-                  <div className="space-y-0">
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 flex items-center gap-2">
+                  <Collapsible open={!collapsedGroups.has('later')} onOpenChange={() => setCollapsedGroups((prev) => { const next = new Set(prev); next.has('later') ? next.delete('later') : next.add('later'); return next })}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 cursor-pointer">
+                      <ChevronRight className={`h-3.5 w-3.5 transition-transform ${!collapsedGroups.has('later') ? 'rotate-90' : ''}`} />
                       Later
                       <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{laterGroup.length}</span>
-                    </h3>
-                    <div className="rounded-lg border">
-                      {laterGroup.map((task) => (
-                        <ListTaskWrapper key={task.id} task={task}>
-                          {renderTaskCard(task)}
-                        </ListTaskWrapper>
-                      ))}
-                    </div>
-                  </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="rounded-lg border">
+                        {laterGroup.map((task) => (
+                          <ListTaskWrapper key={task.id} task={task}>
+                            {renderTaskCard(task, flatVisibleTasks.indexOf(task))}
+                          </ListTaskWrapper>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
               </div>
             )}
 
             {/* No due date */}
             {backlogGroup.length > 0 && (
-              <div className="space-y-0">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 flex items-center gap-2">
+              <Collapsible open={!collapsedGroups.has('no-due')} onOpenChange={() => setCollapsedGroups((prev) => { const next = new Set(prev); next.has('no-due') ? next.delete('no-due') : next.add('no-due'); return next })}>
+                <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-2 cursor-pointer">
+                  <ChevronRight className={`h-3.5 w-3.5 transition-transform ${!collapsedGroups.has('no-due') ? 'rotate-90' : ''}`} />
                   No Due Date
                   <span className="text-[10px] font-medium bg-muted rounded-full px-1.5 py-0.5">{backlogGroup.length}</span>
-                </h3>
-                <div className="rounded-lg border">
-                  {backlogGroup.map((task) => (
-                    <ListTaskWrapper key={task.id} task={task}>
-                      {renderTaskCard(task)}
-                    </ListTaskWrapper>
-                  ))}
-                </div>
-              </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="rounded-lg border">
+                    {backlogGroup.map((task) => (
+                      <ListTaskWrapper key={task.id} task={task}>
+                        {renderTaskCard(task, flatVisibleTasks.indexOf(task))}
+                      </ListTaskWrapper>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             )}
 
             {/* Done Today */}
             {doneToday.length > 0 && (
               <Collapsible open={showDone} onOpenChange={setShowDone}>
-                <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 py-2">
+                <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground px-2 py-2 cursor-pointer">
                   <ChevronRight
                     className={`h-3.5 w-3.5 transition-transform ${showDone ? 'rotate-90' : ''}`}
                   />

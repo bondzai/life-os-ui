@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   BarChart3,
+  Briefcase,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -12,6 +13,7 @@ import {
   Flame,
   Brain,
   Timer,
+  User,
   Zap,
   Crown,
   ChevronDown,
@@ -27,6 +29,7 @@ import {
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { calcFocusStats, formatMinutes as fmtMin } from '@/lib/focus-stats'
 import { loadHealthProfile, calcBMI, getBMICategory } from '@/lib/health-calc'
@@ -139,6 +142,20 @@ export function DashboardPage() {
   const { items: allEntities } = useEntities()
   const { items: allTrackers } = useTrackers()
   const [focusLogOpen, setFocusLogOpen] = useState(true)
+  const [workspace, setWorkspace] = useState<'all' | 'work' | 'personal'>('all')
+
+  // Filter entities by workspace
+  const filteredEntities = useMemo(() => {
+    if (workspace === 'all') return allEntities
+    return allEntities.filter((e) => e.metadata.workspace === workspace)
+  }, [allEntities, workspace])
+
+  // Filter trackers to only include those for filtered entities
+  const filteredTrackers = useMemo(() => {
+    if (workspace === 'all') return allTrackers
+    const entityIds = new Set(filteredEntities.map((e) => e.id))
+    return allTrackers.filter((t) => entityIds.has(t.entityId))
+  }, [allTrackers, filteredEntities, workspace])
 
   const now = useMemo(() => new Date(), [])
   const thisWeekStart = useMemo(() => startOfWeek(now), [now])
@@ -146,20 +163,20 @@ export function DashboardPage() {
   const thisWeekISO = useMemo(() => thisWeekStart.toISOString(), [thisWeekStart])
   const lastWeekISO = useMemo(() => lastWeekStart.toISOString(), [lastWeekStart])
 
-  // ─── Filtered entities ───
-  const tasks = useMemo(() => allEntities.filter((e) => e.type === 'task'), [allEntities])
-  const habits = useMemo(() => allEntities.filter((e) => e.type === 'habit' && e.status === 'todo' && !e.metadata.isProtocol), [allEntities])
-  const protocols = useMemo(() => allEntities.filter((e) => e.type === 'habit' && e.status === 'todo' && e.metadata.isProtocol === true), [allEntities])
-  const goals = useMemo(() => allEntities.filter((e) => e.type === 'goal' && e.status === 'todo'), [allEntities])
-  const sleepEntities = useMemo(() => allEntities.filter((e) => e.type === 'sleep-mood'), [allEntities])
-  const workouts = useMemo(() => allEntities.filter((e) => e.type === 'workout'), [allEntities])
+  // ─── Filtered entities by type ───
+  const tasks = useMemo(() => filteredEntities.filter((e) => e.type === 'task'), [filteredEntities])
+  const habits = useMemo(() => filteredEntities.filter((e) => e.type === 'habit' && e.status === 'todo' && !e.metadata.isProtocol), [filteredEntities])
+  const protocols = useMemo(() => filteredEntities.filter((e) => e.type === 'habit' && e.status === 'todo' && e.metadata.isProtocol === true), [filteredEntities])
+  const goals = useMemo(() => filteredEntities.filter((e) => e.type === 'goal' && e.status === 'todo'), [filteredEntities])
+  const sleepEntities = useMemo(() => filteredEntities.filter((e) => e.type === 'sleep-mood'), [filteredEntities])
+  const workouts = useMemo(() => filteredEntities.filter((e) => e.type === 'workout'), [filteredEntities])
 
   // ─── Metrics ───
   const tasksThisWeek = useMemo(() => tasks.filter((t) => t.status === 'done' && t.updatedAt >= thisWeekISO).length, [tasks, thisWeekISO])
   const tasksLastWeek = useMemo(() => tasks.filter((t) => t.status === 'done' && t.updatedAt >= lastWeekISO && t.updatedAt < thisWeekISO).length, [tasks, lastWeekISO, thisWeekISO])
-  const habitRate = useMemo(() => computeCheckInRate(habits, allTrackers, thisWeekStart, now), [habits, allTrackers, thisWeekStart, now])
-  const habitRateLast = useMemo(() => computeCheckInRate(habits, allTrackers, lastWeekStart, thisWeekStart), [habits, allTrackers, lastWeekStart, thisWeekStart])
-  const protocolRate = useMemo(() => computeCheckInRate(protocols, allTrackers, thisWeekStart, now), [protocols, allTrackers, thisWeekStart, now])
+  const habitRate = useMemo(() => computeCheckInRate(habits, filteredTrackers, thisWeekStart, now), [habits, filteredTrackers, thisWeekStart, now])
+  const habitRateLast = useMemo(() => computeCheckInRate(habits, filteredTrackers, lastWeekStart, thisWeekStart), [habits, filteredTrackers, lastWeekStart, thisWeekStart])
+  const protocolRate = useMemo(() => computeCheckInRate(protocols, filteredTrackers, thisWeekStart, now), [protocols, filteredTrackers, thisWeekStart, now])
   const avgSleepThisWeek = useMemo(() => computeAvgSleep(sleepEntities, thisWeekISO), [sleepEntities, thisWeekISO])
   const avgSleepLastWeek = useMemo(() => computeAvgSleep(sleepEntities, lastWeekISO, thisWeekISO), [sleepEntities, lastWeekISO, thisWeekISO])
   const activeMinThisWeek = useMemo(() => computeActiveMinutes(workouts, thisWeekISO), [workouts, thisWeekISO])
@@ -172,15 +189,15 @@ export function DashboardPage() {
   // ─── Focus stats ───
   const entityTitles = useMemo(() => {
     const m = new Map<string, string>()
-    for (const e of allEntities) m.set(e.id, e.title)
+    for (const e of filteredEntities) m.set(e.id, e.title)
     return m
-  }, [allEntities])
-  const focusStats = useMemo(() => calcFocusStats(allTrackers, entityTitles), [allTrackers, entityTitles])
+  }, [filteredEntities])
+  const focusStats = useMemo(() => calcFocusStats(filteredTrackers, entityTitles), [filteredTrackers, entityTitles])
 
   // Focus sessions for today's log
   const todaySessions = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0]
-    return allTrackers
+    return filteredTrackers
       .filter((t) => t.unit === 'focus-min' && t.timestamp.startsWith(todayStr))
       .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
       .map((t) => ({
@@ -189,19 +206,19 @@ export function DashboardPage() {
         minutes: t.value,
         time: new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }))
-  }, [allTrackers, entityTitles])
+  }, [filteredTrackers, entityTitles])
 
   // Focus heatmap (90 days)
   const focusHeatmapDays = useMemo(() => getLast90Days(), [])
   const focusHeatmap = useMemo(() => {
     const m = new Map<string, number>()
-    for (const t of allTrackers) {
+    for (const t of filteredTrackers) {
       if (t.unit !== 'focus-min') continue
       const day = t.timestamp.split('T')[0]
       m.set(day, (m.get(day) ?? 0) + t.value)
     }
     return m
-  }, [allTrackers])
+  }, [filteredTrackers])
   const maxFocusHeatmap = useMemo(() => {
     let max = 1
     for (const v of focusHeatmap.values()) { if (v > max) max = v }
@@ -259,18 +276,18 @@ export function DashboardPage() {
   const heatmapData = useMemo(() => {
     const allHabitIds = new Set([...habits.map((h) => h.id), ...protocols.map((p) => p.id)])
     const m = new Map<string, number>()
-    for (const t of allTrackers) { if (allHabitIds.has(t.entityId)) { const d = t.timestamp.split('T')[0]; m.set(d, (m.get(d) ?? 0) + 1) } }
+    for (const t of filteredTrackers) { if (allHabitIds.has(t.entityId)) { const d = t.timestamp.split('T')[0]; m.set(d, (m.get(d) ?? 0) + 1) } }
     return m
-  }, [habits, protocols, allTrackers])
+  }, [habits, protocols, filteredTrackers])
   const maxHeatmapValue = useMemo(() => { let max = 1; for (const v of heatmapData.values()) { if (v > max) max = v }; return max }, [heatmapData])
   const totalCheckIns = useMemo(() => Array.from(heatmapData.values()).reduce((a, b) => a + b, 0), [heatmapData])
 
   // ─── Health ───
   const healthProfile = useMemo(() => loadHealthProfile(), [])
   const latestWeight = useMemo(() => {
-    const metrics = allEntities.filter((e) => e.type === 'body-metric' && typeof e.metadata.weight === 'number').sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const metrics = filteredEntities.filter((e) => e.type === 'body-metric' && typeof e.metadata.weight === 'number').sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     return metrics.length > 0 ? (metrics[0].metadata.weight as number) : null
-  }, [allEntities])
+  }, [filteredEntities])
   const bmiInfo = useMemo(() => {
     if (!healthProfile || !latestWeight) return null
     const bmi = calcBMI(latestWeight, healthProfile.heightCm)
@@ -306,11 +323,31 @@ export function DashboardPage() {
   return (
     <div className="h-[calc(100vh-5rem)] flex flex-col overflow-y-auto scrollbar-thin">
       <header className="shrink-0 pb-4">
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-          <BarChart3 className="h-6 w-6 text-primary/70" />
-          Dashboard
-        </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Life metrics, focus analytics, and weekly trends</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+              <BarChart3 className="h-6 w-6 text-primary/70" />
+              Dashboard
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Life metrics, focus analytics, and weekly trends</p>
+          </div>
+          <Tabs value={workspace} onValueChange={(v) => setWorkspace(v as 'all' | 'work' | 'personal')}>
+            <TabsList>
+              <TabsTrigger value="all" className="gap-1.5 text-xs">
+                <BarChart3 className="h-3 w-3" />
+                All
+              </TabsTrigger>
+              <TabsTrigger value="work" className="gap-1.5 text-xs">
+                <Briefcase className="h-3 w-3" />
+                Work
+              </TabsTrigger>
+              <TabsTrigger value="personal" className="gap-1.5 text-xs">
+                <User className="h-3 w-3" />
+                Personal
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </header>
 
       <div className="space-y-6 pb-8">

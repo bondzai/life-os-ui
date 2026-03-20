@@ -71,11 +71,19 @@ export function buildRecurringNext(task: Entity): Omit<Entity, 'id' | 'createdAt
 
 export type SubtaskStatus = 'todo' | 'in-progress' | 'done'
 
+export interface SubtaskNote {
+  id: string
+  text: string
+  timestamp: string
+}
+
 export interface Subtask {
   id: string
   title: string
   done: boolean
   status?: SubtaskStatus
+  priority?: 'urgent' | 'high' | 'medium' | 'low'
+  notes?: SubtaskNote[]
 }
 
 /** Resolve effective status — backwards compatible with legacy `done` field */

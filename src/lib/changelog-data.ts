@@ -14,6 +14,91 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.57.0',
+    date: '2026-03-20',
+    phase: 'Event Delete, Subtask Notes & Emperor Time CRUD',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Subtask notes**: Add timestamped notes per subtask — click the chat icon on any subtask row in the detail panel or Emperor Time',
+          '**Emperor Time task detail**: Click the arrow icon on any task card in Emperor Time to open the full detail drawer for complete CRUD without leaving deep work',
+          '**Subtask notes in standup**: Subtask notes appear in the Standup Summary prefixed with the subtask name',
+          '**Subtask priority icons**: Jira-style priority icons (urgent/high/medium/low) on subtasks across Task Detail, Emperor Time, Focus page, and Standup Report',
+        ],
+      },
+      {
+        title: 'Fixed',
+        items: [
+          '**Local event delete**: Local events can now be deleted from the calendar event detail sheet — previously only Google Calendar events had a delete button',
+        ],
+      },
+    ],
+  },
+  {
+    version: '0.56.0',
+    date: '2026-03-20',
+    phase: 'Task Notes',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Task notes**: Add timestamped notes to any task from the detail panel — press Enter to save, Shift+Enter for newlines',
+          '**Emperor Time notes**: Quick note input below subtasks during deep work sessions — jot context without leaving focus',
+          '**Standup notes**: Recent notes (since last workday) appear under each task in the Standup Summary and copy to clipboard',
+        ],
+      },
+    ],
+  },
+  {
+    version: '0.55.0',
+    date: '2026-03-20',
+    phase: 'Relations Primitive, Keyboard Navigation & Visibility',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Relation primitive**: Task dependencies now use proper Relations (blocks, supports, relates) instead of metadata — foundation for knowledge graph and strategic map',
+          '**J/K keyboard navigation**: Press `J`/`K` to navigate up/down through task list, `Enter` to open detail, `Esc` to deselect',
+          '**Visibility toggle**: Set tasks as Private or Shared in the detail panel — shared tasks show a globe icon on cards',
+          '**Multi-type relation linking**: Search tasks and link as blocker, supporter, or related — all managed via the Relations store',
+          '**Related tasks section**: Detail panel shows all linked relations (supports, relates) with type labels and remove buttons',
+        ],
+      },
+    ],
+  },
+  {
+    version: '0.54.0',
+    date: '2026-03-20',
+    phase: 'Blocked By Dependencies & Workspace Dashboard',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Blocked by dependencies**: Link tasks as blockers in the detail panel — search/link UI with activity logging',
+          '**Blocked indicator**: Ban icon on task cards when a task has blockers',
+          '**Workspace dashboard split**: Filter all dashboard metrics (Life Score, trends, heatmaps, focus) by Work or Personal workspace',
+        ],
+      },
+    ],
+  },
+  {
+    version: '0.53.0',
+    date: '2026-03-20',
+    phase: 'Focus Bar, Activity Timeline & Collapsible Groups',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Focus Mode floating bar**: Clock + page title + exit button appears at top when in focus mode',
+          '**Activity timeline**: Task detail panel logs status changes, priority changes, and subtask completions with relative timestamps',
+          '**Collapse/expand all**: Toggle all time groups in task list view with one click',
+          '**Collapsible time groups**: Each group (Today, Tomorrow, This Week, etc.) is independently collapsible',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.52.0',
     date: '2026-03-20',
     phase: 'Focus Mode',

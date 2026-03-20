@@ -30,6 +30,10 @@ import {
   Archive,
   CalendarClock,
   RotateCcw,
+  ChevronsUp,
+  ArrowUp,
+  ArrowDown,
+  Minus,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -133,7 +137,7 @@ function SortableFocusSubtask({
   item,
   onToggle,
 }: {
-  sub: { id: string; title: string; done: boolean; status?: 'todo' | 'in-progress' | 'done' }
+  sub: { id: string; title: string; done: boolean; status?: 'todo' | 'in-progress' | 'done'; priority?: 'urgent' | 'high' | 'medium' | 'low' }
   item: Entity
   onToggle: (entity: Entity, subtaskId: string) => void
 }) {
@@ -186,6 +190,10 @@ function SortableFocusSubtask({
       {st === 'in-progress' && (
         <span className="text-[9px] font-medium px-1 py-px rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">WIP</span>
       )}
+      {sub.priority === 'urgent' && <ChevronsUp className="h-3.5 w-3.5 text-red-500 shrink-0" />}
+      {sub.priority === 'high' && <ArrowUp className="h-3.5 w-3.5 text-orange-500 shrink-0" />}
+      {sub.priority === 'medium' && <Minus className="h-3.5 w-3.5 text-yellow-500 shrink-0" />}
+      {sub.priority === 'low' && <ArrowDown className="h-3.5 w-3.5 text-blue-400 shrink-0" />}
       <span className={`text-sm ${
         st === 'done' ? 'line-through text-muted-foreground/60' :
         st === 'in-progress' ? 'font-medium text-amber-700 dark:text-amber-300' : ''

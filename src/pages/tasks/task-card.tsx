@@ -5,7 +5,9 @@ import {
   ArrowUp,
   ArrowRight,
   ArrowDown,
+  Ban,
   Clock,
+  Globe,
   Pencil,
   Trash2,
   Repeat,
@@ -33,6 +35,7 @@ export interface TaskCardProps {
   onSnooze?: (task: Entity, days: number) => void
   selected?: boolean
   onSelectTask?: (task: Entity, selected: boolean) => void
+  blocked?: boolean
   style?: React.CSSProperties
   className?: string
 }
@@ -101,6 +104,7 @@ export const TaskCard = memo(
         onSnooze,
         selected,
         onSelectTask,
+        blocked,
         style,
         className,
         ...attrs
@@ -205,6 +209,13 @@ export const TaskCard = memo(
             </span>
           )}
 
+          {/* Shared indicator */}
+          {task.visibility === 'shared' && (
+            <span className="shrink-0" title="Shared">
+              <Globe className="h-3 w-3 text-muted-foreground/50" />
+            </span>
+          )}
+
           {/* Tags */}
           {visibleTags.length > 0 && (
             <div className="flex items-center gap-1 shrink-0">
@@ -235,6 +246,13 @@ export const TaskCard = memo(
           {/* Recurrence indicator */}
           {getRecurrence(task.metadata) !== 'none' && (
             <Repeat className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+          )}
+
+          {/* Blocked indicator */}
+          {blocked && (
+            <span className="flex items-center gap-0.5 text-[10px] text-destructive font-medium shrink-0" title="Blocked">
+              <Ban className="h-3 w-3" />
+            </span>
           )}
 
           {/* Due date */}

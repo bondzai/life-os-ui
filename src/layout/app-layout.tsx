@@ -1,4 +1,4 @@
-import { useEffect, Suspense } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { Outlet, useLocation } from 'react-router'
 import { Eye, EyeOff } from 'lucide-react'
 import { SidebarProvider } from '@/components/ui/sidebar'
@@ -16,12 +16,22 @@ function getPageTitle(pathname: string): string {
   return mod?.label ?? 'Lyra'
 }
 
+function useClock() {
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+  return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 export function AppLayout() {
   const location = useLocation()
   const title = getPageTitle(location.pathname)
   const setCommandBarOpen = useUiStore((s) => s.setCommandBarOpen)
   const focusMode = useUiStore((s) => s.focusMode)
   const toggleFocusMode = useUiStore((s) => s.toggleFocusMode)
+  const clock = useClock()
 
   // Global Cmd+K and Cmd+Shift+F listeners
   useEffect(() => {
@@ -62,18 +72,34 @@ export function AppLayout() {
       <CommandBar />
       <InboxCapture />
 
-      {/* Focus mode toggle — always visible */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className={`fixed bottom-4 right-4 z-50 h-8 w-8 rounded-full shadow-md border bg-background/80 backdrop-blur-sm transition-opacity ${
-          focusMode ? 'opacity-100' : 'opacity-0 hover:opacity-100'
-        }`}
-        onClick={toggleFocusMode}
-        title={focusMode ? 'Exit Focus Mode (⌘⇧F)' : 'Enter Focus Mode (⌘⇧F)'}
-      >
-        {focusMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-      </Button>
+      {/* Focus mode: floating bar with clock + page + exit */}
+      {focusMode ? (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background/80 backdrop-blur-sm border rounded-full shadow-md px-4 py-1.5 opacity-0 hover:opacity-100 transition-opacity">
+          <span className="text-xs tabular-nums text-muted-foreground font-medium">{clock}</span>
+          <span className="w-px h-3 bg-border" />
+          <span className="text-xs font-medium">{title}</span>
+          <span className="w-px h-3 bg-border" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 cursor-pointer"
+            onClick={toggleFocusMode}
+            title="Exit Focus Mode (⌘⇧F)"
+          >
+            <EyeOff className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed bottom-4 right-4 z-50 h-8 w-8 rounded-full shadow-md border bg-background/80 backdrop-blur-sm opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+          onClick={toggleFocusMode}
+          title="Enter Focus Mode (⌘⇧F)"
+        >
+          <Eye className="h-4 w-4" />
+        </Button>
+      )}
     </SidebarProvider>
   )
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -16,11 +16,18 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   Archive,
+  ArrowDown,
+  ArrowUp,
   Calendar,
   CheckSquare,
+  ChevronsUp,
+  ChevronRight,
   GripVertical,
+  History,
   Link,
   ListChecks,
+  MessageSquare,
+  Minus,
   Pencil,
   Plus,
   Repeat,
@@ -46,7 +53,9 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import type { Entity, EntityPriority, EntityStatus } from '@/core/types'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import type { Entity, EntityPriority, EntityStatus, Relation } from '@/core/types'
+import { useRelations } from '@/core/hooks'
 import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, subtaskStatus, subtaskDone, getRecurrence, RECURRENCE_OPTIONS, RECURRENCE_LABELS, type Subtask, type SubtaskStatus } from './task-helpers'
 
 export interface TaskDetailPanelProps {
@@ -95,6 +104,18 @@ const PRIORITY_DOT: Record<EntityPriority, string> = {
   low: 'bg-gray-400',
 }
 
+const SUBTASK_PRIORITY_ORDER: ('urgent' | 'high' | 'medium' | 'low')[] = ['medium', 'low', 'urgent', 'high']
+
+function SubtaskPriorityIcon({ priority, size = 12 }: { priority?: 'urgent' | 'high' | 'medium' | 'low'; size?: number }) {
+  const p = priority ?? 'medium'
+  switch (p) {
+    case 'urgent': return <ChevronsUp style={{ width: size, height: size }} className="text-red-500" />
+    case 'high': return <ArrowUp style={{ width: size, height: size }} className="text-orange-500" />
+    case 'medium': return <Minus style={{ width: size, height: size }} className="text-yellow-500" />
+    case 'low': return <ArrowDown style={{ width: size, height: size }} className="text-blue-400" />
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -105,6 +126,59 @@ function formatDetailDate(iso: string) {
     month: 'short',
     day: 'numeric',
   })
+}
+
+// Activity timeline
+interface ActivityEntry {
+  id: string
+  action: string
+  timestamp: string
+}
+
+function getActivity(metadata: Record<string, unknown>): ActivityEntry[] {
+  return Array.isArray(metadata.activity) ? (metadata.activity as ActivityEntry[]) : []
+}
+
+function addActivity(metadata: Record<string, unknown>, action: string): Record<string, unknown> {
+  const entries = getActivity(metadata)
+  const entry: ActivityEntry = { id: crypto.randomUUID(), action, timestamp: new Date().toISOString() }
+  return { ...metadata, activity: [entry, ...entries].slice(0, 50) }
+}
+
+// Task notes
+interface TaskNote {
+  id: string
+  text: string
+  timestamp: string
+}
+
+function getNotes(metadata: Record<string, unknown>): TaskNote[] {
+  return Array.isArray(metadata.notes) ? (metadata.notes as TaskNote[]) : []
+}
+
+function addNote(metadata: Record<string, unknown>, text: string): Record<string, unknown> {
+  const notes = getNotes(metadata)
+  const note: TaskNote = { id: crypto.randomUUID(), text, timestamp: new Date().toISOString() }
+  return { ...metadata, notes: [note, ...notes] }
+}
+
+function removeNote(metadata: Record<string, unknown>, noteId: string): Record<string, unknown> {
+  const notes = getNotes(metadata).filter((n) => n.id !== noteId)
+  return { ...metadata, notes: notes.length > 0 ? notes : undefined }
+}
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const seconds = Math.floor(diff / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'yesterday'
+  if (days < 7) return `${days}d ago`
+  return formatDetailDate(iso)
 }
 
 function resolveWorkspace(metadata: Record<string, unknown>): 'work' | 'personal' | null {
@@ -148,6 +222,9 @@ interface SortableSubtaskProps {
   onEditCommit: (id: string) => void
   onEditCancel: () => void
   editRef: React.RefObject<HTMLInputElement | null>
+  onAddNote: (subtaskId: string, text: string) => void
+  onRemoveNote: (subtaskId: string, noteId: string) => void
+  onCyclePriority: (subtaskId: string) => void
 }
 
 function SortableSubtaskRow({
@@ -161,7 +238,12 @@ function SortableSubtaskRow({
   onEditCommit,
   onEditCancel,
   editRef,
+  onAddNote,
+  onRemoveNote,
+  onCyclePriority,
 }: SortableSubtaskProps) {
+  const [showNotes, setShowNotes] = useState(false)
+  const [noteVal, setNoteVal] = useState('')
   const {
     attributes,
     listeners,
@@ -181,11 +263,8 @@ function SortableSubtaskRow({
   const status = subtaskStatus(st)
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-2 px-2 py-1.5 group/st hover:bg-muted/50 transition-colors bg-background"
-    >
+    <div ref={setNodeRef} style={style} className="group/st hover:bg-muted/50 transition-colors bg-background">
+      <div className="flex items-center gap-2 px-2 py-1.5">
       {/* Drag handle */}
       <button
         type="button"
@@ -247,18 +326,31 @@ function SortableSubtaskRow({
         </div>
       )}
 
-      {/* Status badge */}
-      <Badge
-        variant="outline"
-        className={`text-[10px] shrink-0 px-1.5 py-0 ${
-          st.done ? 'border-green-500 text-green-600' : 'border-blue-400 text-blue-500'
-        }`}
+      {/* Priority (click to cycle) */}
+      <button
+        onClick={() => onCyclePriority(st.id)}
+        className="shrink-0 p-0.5 rounded hover:bg-muted transition-colors cursor-pointer"
+        title={`Priority: ${st.priority ?? 'medium'} — click to cycle`}
       >
-        {st.done ? 'DONE' : 'TO DO'}
-      </Badge>
+        <SubtaskPriorityIcon priority={st.priority} />
+      </button>
 
       {/* Actions */}
       <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/st:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`h-6 w-6 p-0 ${(st.notes?.length ?? 0) > 0 ? 'opacity-100 text-muted-foreground' : ''}`}
+          onClick={() => setShowNotes(!showNotes)}
+          title="Notes"
+        >
+          <MessageSquare className="h-3 w-3" />
+          {(st.notes?.length ?? 0) > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 text-[8px] bg-primary text-primary-foreground rounded-full h-3 w-3 flex items-center justify-center">
+              {st.notes!.length}
+            </span>
+          )}
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -278,6 +370,45 @@ function SortableSubtaskRow({
           <span className="sr-only">Remove</span>
         </Button>
       </div>
+
+      </div>
+
+      {/* Subtask notes */}
+      {showNotes && (
+        <div className="ml-8 px-2 pb-1.5 space-y-1.5">
+          <div className="flex gap-1.5">
+            <Input
+              placeholder="Add note to subtask..."
+              value={noteVal}
+              onChange={(e) => setNoteVal(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && noteVal.trim()) {
+                  e.preventDefault()
+                  onAddNote(st.id, noteVal.trim())
+                  setNoteVal('')
+                }
+              }}
+              className="h-6 text-xs flex-1"
+            />
+          </div>
+          {st.notes?.map((n) => (
+            <div key={n.id} className="group/note flex gap-2 text-xs bg-muted/30 rounded px-2 py-1">
+              <div className="flex-1 min-w-0">
+                <p className="whitespace-pre-wrap text-foreground/80">{n.text}</p>
+                <span className="text-[9px] text-muted-foreground/50 tabular-nums">
+                  {formatRelativeTime(n.timestamp)}
+                </span>
+              </div>
+              <button
+                onClick={() => onRemoveNote(st.id, n.id)}
+                className="shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity text-muted-foreground hover:text-destructive cursor-pointer self-start"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -292,6 +423,9 @@ export function TaskDetailPanel({
   allTasks = [],
   onLinkTask,
 }: TaskDetailPanelProps) {
+  // -- Relations (blocks, supports, relates) --------------------------------
+  const { items: allRelations, create: createRelation, remove: removeRelation } = useRelations(task?.id)
+
   // -- Local editing state --------------------------------------------------
 
   const [editingTitle, setEditingTitle] = useState(false)
@@ -310,10 +444,18 @@ export function TaskDetailPanel({
   const [subtaskDraft, setSubtaskDraft] = useState('')
   const subtaskEditRef = useRef<HTMLInputElement>(null)
 
+  // Notes
+  const [noteInput, setNoteInput] = useState('')
+
   // Set parent (make this task a subtask of another)
   const [showParentSearch, setShowParentSearch] = useState(false)
   const [parentSearch, setParentSearch] = useState('')
   const parentInputRef = useRef<HTMLInputElement>(null)
+
+  // Blocked by
+  const [showBlockerSearch, setShowBlockerSearch] = useState(false)
+  const [blockerSearch, setBlockerSearch] = useState('')
+  const blockerInputRef = useRef<HTMLInputElement>(null)
 
   // Reset local state when task changes
   useEffect(() => {
@@ -326,6 +468,8 @@ export function TaskDetailPanel({
     setSubtaskDraft('')
     setShowParentSearch(false)
     setParentSearch('')
+    setShowBlockerSearch(false)
+    setBlockerSearch('')
   }, [task?.id])
 
   // Auto-focus title input
@@ -347,6 +491,109 @@ export function TaskDetailPanel({
   useEffect(() => {
     if (showParentSearch) parentInputRef.current?.focus()
   }, [showParentSearch])
+
+  // Auto-focus blocker search input
+  useEffect(() => {
+    if (showBlockerSearch) blockerInputRef.current?.focus()
+  }, [showBlockerSearch])
+
+  // Blocker helpers — powered by Relations primitive
+  const blockerRelations = useMemo(
+    () => allRelations.filter((r): r is Relation => r.type === 'blocks' && r.toId === task?.id),
+    [allRelations, task?.id],
+  )
+  const blockedByIds = useMemo(() => blockerRelations.map((r) => r.fromId), [blockerRelations])
+
+  // "Supports" and "relates" relations for display
+  const supportRelations = useMemo(
+    () => allRelations.filter((r): r is Relation => r.type === 'supports' && (r.fromId === task?.id || r.toId === task?.id)),
+    [allRelations, task?.id],
+  )
+  const relatesRelations = useMemo(
+    () => allRelations.filter((r): r is Relation => r.type === 'relates' && (r.fromId === task?.id || r.toId === task?.id)),
+    [allRelations, task?.id],
+  )
+
+  const blockerEntities = useMemo(
+    () => allTasks.filter((t) => blockedByIds.includes(t.id)),
+    [allTasks, blockedByIds],
+  )
+
+  // Related entities (supports + relates)
+  const linkedEntityIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const r of [...supportRelations, ...relatesRelations]) {
+      ids.add(r.fromId === task?.id ? r.toId : r.fromId)
+    }
+    return ids
+  }, [supportRelations, relatesRelations, task?.id])
+
+  const linkedEntities = useMemo(
+    () => allTasks.filter((t) => linkedEntityIds.has(t.id)),
+    [allTasks, linkedEntityIds],
+  )
+
+  const blockerCandidates = useMemo(() => {
+    if (!task) return []
+    return allTasks.filter((t) => {
+      if (t.id === task.id) return false
+      if (t.status === 'archived') return false
+      if (blockedByIds.includes(t.id)) return false
+      if (blockerSearch && !t.title.toLowerCase().includes(blockerSearch.toLowerCase())) return false
+      return true
+    })
+  }, [task, allTasks, blockedByIds, blockerSearch])
+
+  const addBlocker = useCallback(
+    (blockerId: string) => {
+      if (!task) return
+      createRelation.mutate({
+        id: crypto.randomUUID(),
+        fromId: blockerId,
+        toId: task.id,
+        type: 'blocks',
+      })
+      const metadata = addActivity(task.metadata, `Blocked by "${allTasks.find((t) => t.id === blockerId)?.title}"`)
+      onUpdate(task.id, { metadata })
+      setBlockerSearch('')
+    },
+    [task, allTasks, onUpdate, createRelation],
+  )
+
+  const removeBlockerRelation = useCallback(
+    (blockerId: string) => {
+      if (!task) return
+      const rel = blockerRelations.find((r) => r.fromId === blockerId)
+      if (rel) removeRelation.mutate(rel.id)
+      const metadata = addActivity(task.metadata, `Unblocked from "${allTasks.find((t) => t.id === blockerId)?.title}"`)
+      onUpdate(task.id, { metadata })
+    },
+    [task, allTasks, onUpdate, blockerRelations, removeRelation],
+  )
+
+  const addRelation = useCallback(
+    (targetId: string, type: 'supports' | 'relates') => {
+      if (!task) return
+      createRelation.mutate({
+        id: crypto.randomUUID(),
+        fromId: task.id,
+        toId: targetId,
+        type,
+      })
+      const label = type === 'supports' ? 'Supports' : 'Related to'
+      const metadata = addActivity(task.metadata, `${label} "${allTasks.find((t) => t.id === targetId)?.title}"`)
+      onUpdate(task.id, { metadata })
+      setBlockerSearch('')
+    },
+    [task, allTasks, onUpdate, createRelation],
+  )
+
+  const removeRelationById = useCallback(
+    (relationId: string) => {
+      removeRelation.mutate(relationId)
+    },
+    [removeRelation],
+  )
 
   // -- Callbacks ------------------------------------------------------------
 
@@ -371,7 +618,8 @@ export function TaskDetailPanel({
   const handleStatusChange = useCallback(
     (status: EntityStatus) => {
       if (!task || task.status === status) return
-      onUpdate(task.id, { status })
+      const metadata = addActivity(task.metadata, `Status changed to **${status}**`)
+      onUpdate(task.id, { status, metadata })
     },
     [task, onUpdate],
   )
@@ -379,7 +627,8 @@ export function TaskDetailPanel({
   const handlePriorityChange = useCallback(
     (priority: EntityPriority) => {
       if (!task) return
-      onUpdate(task.id, { priority })
+      const metadata = addActivity(task.metadata, `Priority changed to **${priority}**`)
+      onUpdate(task.id, { priority, metadata })
     },
     [task, onUpdate],
   )
@@ -411,16 +660,20 @@ export function TaskDetailPanel({
   const handleSubtaskToggle = useCallback(
     (subtaskId: string) => {
       if (!task) return
-      const subtasks = getSubtasks(task.metadata).map((s) => {
+      const allSubs = getSubtasks(task.metadata)
+      const target = allSubs.find((s) => s.id === subtaskId)
+      const subtasks = allSubs.map((s) => {
         if (s.id !== subtaskId) return s
-        // Cycle: todo → in-progress → done → todo
         const current = subtaskStatus(s)
         const next: SubtaskStatus = current === 'todo' ? 'in-progress' : current === 'in-progress' ? 'done' : 'todo'
         return { ...s, done: next === 'done', status: next }
       })
       const derivedStatus = deriveStatusFromSubtasks(subtasks)
+      const current = target ? subtaskStatus(target) : 'todo'
+      const next = current === 'todo' ? 'in-progress' : current === 'in-progress' ? 'done' : 'todo'
+      const updatedMeta = target ? addActivity(task.metadata, `Subtask "${target.title}" → **${next}**`) : task.metadata
       onUpdate(task.id, {
-        metadata: { ...task.metadata, subtasks },
+        metadata: { ...updatedMeta, subtasks },
         ...(derivedStatus ? { status: derivedStatus } : {}),
       })
     },
@@ -472,6 +725,47 @@ export function TaskDetailPanel({
       setSubtaskDraft('')
     },
     [task, subtaskDraft, onUpdate],
+  )
+
+  const handleSubtaskCyclePriority = useCallback(
+    (subtaskId: string) => {
+      if (!task) return
+      const subtasks = getSubtasks(task.metadata).map((s) => {
+        if (s.id !== subtaskId) return s
+        const current = s.priority ?? 'medium'
+        const idx = SUBTASK_PRIORITY_ORDER.indexOf(current)
+        const next = SUBTASK_PRIORITY_ORDER[(idx + 1) % SUBTASK_PRIORITY_ORDER.length]
+        return { ...s, priority: next }
+      })
+      onUpdate(task.id, { metadata: { ...task.metadata, subtasks }, updatedAt: new Date().toISOString() })
+    },
+    [task, onUpdate],
+  )
+
+  const handleSubtaskAddNote = useCallback(
+    (subtaskId: string, text: string) => {
+      if (!task) return
+      const subtasks = getSubtasks(task.metadata).map((s) => {
+        if (s.id !== subtaskId) return s
+        const note = { id: crypto.randomUUID(), text, timestamp: new Date().toISOString() }
+        return { ...s, notes: [note, ...(s.notes ?? [])] }
+      })
+      onUpdate(task.id, { metadata: { ...task.metadata, subtasks }, updatedAt: new Date().toISOString() })
+    },
+    [task, onUpdate],
+  )
+
+  const handleSubtaskRemoveNote = useCallback(
+    (subtaskId: string, noteId: string) => {
+      if (!task) return
+      const subtasks = getSubtasks(task.metadata).map((s) => {
+        if (s.id !== subtaskId) return s
+        const notes = (s.notes ?? []).filter((n) => n.id !== noteId)
+        return { ...s, notes: notes.length > 0 ? notes : undefined }
+      })
+      onUpdate(task.id, { metadata: { ...task.metadata, subtasks }, updatedAt: new Date().toISOString() })
+    },
+    [task, onUpdate],
   )
 
   const sensors = useSensors(
@@ -861,6 +1155,141 @@ export function TaskDetailPanel({
               </div>
             )}
 
+            {/* Dependencies & Relations */}
+            <div className="grid grid-cols-[120px_1fr] items-start gap-2">
+              <span className="text-xs text-muted-foreground font-medium flex items-center gap-1 pt-1">
+                <Link className="h-3 w-3" />
+                Dependencies
+              </span>
+              <div className="space-y-1">
+                {/* Current blockers */}
+                {blockerEntities.map((b) => (
+                  <div key={b.id} className="flex items-center gap-1.5 text-xs bg-destructive/10 text-destructive rounded px-2 py-1">
+                    <span className="truncate flex-1">{b.title}</span>
+                    <button
+                      onClick={() => removeBlockerRelation(b.id)}
+                      className="shrink-0 hover:text-destructive/80 cursor-pointer"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+
+                {showBlockerSearch ? (
+                  <div className="space-y-1">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        ref={blockerInputRef}
+                        placeholder="Search tasks..."
+                        value={blockerSearch}
+                        onChange={(e) => setBlockerSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            setShowBlockerSearch(false)
+                            setBlockerSearch('')
+                          }
+                        }}
+                        className="h-7 text-xs pl-7"
+                      />
+                    </div>
+                    {blockerCandidates.length > 0 ? (
+                      <div className="max-h-48 overflow-y-auto rounded-md border">
+                        {blockerCandidates.slice(0, 8).map((t) => (
+                          <div
+                            key={t.id}
+                            className="flex items-center gap-1 px-2 py-1.5 text-xs border-b last:border-b-0 hover:bg-muted/30"
+                          >
+                            <CheckSquare className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="truncate flex-1">{t.title}</span>
+                            <button
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive hover:bg-destructive/20 cursor-pointer shrink-0"
+                              onClick={() => addBlocker(t.id)}
+                            >
+                              blocks
+                            </button>
+                            <button
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 cursor-pointer shrink-0"
+                              onClick={() => addRelation(t.id, 'supports')}
+                            >
+                              supports
+                            </button>
+                            <button
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:bg-muted/80 cursor-pointer shrink-0"
+                              onClick={() => addRelation(t.id, 'relates')}
+                            >
+                              relates
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : blockerSearch ? (
+                      <p className="text-[11px] text-muted-foreground py-1">No matching tasks</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs text-muted-foreground gap-1.5 cursor-pointer"
+                    onClick={() => setShowBlockerSearch(true)}
+                  >
+                    Link task
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Related tasks (supports + relates) */}
+            {(linkedEntities.length > 0 || supportRelations.length > 0 || relatesRelations.length > 0) && (
+              <div className="grid grid-cols-[120px_1fr] items-start gap-2">
+                <span className="text-xs text-muted-foreground font-medium flex items-center gap-1 pt-1">
+                  <Link className="h-3 w-3" />
+                  Relations
+                </span>
+                <div className="space-y-1">
+                  {[...supportRelations, ...relatesRelations].map((rel) => {
+                    const otherId = rel.fromId === task.id ? rel.toId : rel.fromId
+                    const other = allTasks.find((t) => t.id === otherId)
+                    if (!other) return null
+                    return (
+                      <div key={rel.id} className="flex items-center gap-1.5 text-xs bg-muted/50 rounded px-2 py-1">
+                        <span className="text-[10px] text-muted-foreground shrink-0 uppercase font-medium">{rel.type}</span>
+                        <span className="truncate flex-1">{other.title}</span>
+                        <button
+                          onClick={() => removeRelationById(rel.id)}
+                          className="shrink-0 hover:text-destructive cursor-pointer"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Visibility */}
+            <div className="grid grid-cols-[120px_1fr] items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Visibility</span>
+              <Select
+                value={task.visibility}
+                onValueChange={(v) => {
+                  if (!task) return
+                  const metadata = addActivity(task.metadata, `Visibility changed to ${v}`)
+                  onUpdate(task.id, { visibility: v as 'private' | 'shared', metadata })
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">Private</SelectItem>
+                  <SelectItem value="shared">Shared</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Tags */}
             <div className="grid grid-cols-[120px_1fr] items-start gap-2">
               <span className="text-xs text-muted-foreground font-medium flex items-center gap-1 pt-1">
@@ -965,6 +1394,60 @@ export function TaskDetailPanel({
             )}
           </div>
 
+          {/* Notes */}
+          <div className="border-t mx-5" />
+          <div className="px-5 py-4">
+            <h3 className="text-xs font-medium text-muted-foreground mb-2">
+              Notes
+              {getNotes(task.metadata).length > 0 && (
+                <span className="ml-1.5">({getNotes(task.metadata).length})</span>
+              )}
+            </h3>
+            <div className="flex gap-1.5 mb-2">
+              <Textarea
+                placeholder="Add a note..."
+                value={noteInput}
+                onChange={(e) => setNoteInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && noteInput.trim()) {
+                    e.preventDefault()
+                    const metadata = addNote(
+                      addActivity(task.metadata, 'Added a note'),
+                      noteInput.trim(),
+                    )
+                    onUpdate(task.id, { metadata })
+                    setNoteInput('')
+                  }
+                }}
+                rows={2}
+                className="text-xs resize-none flex-1"
+              />
+            </div>
+            {getNotes(task.metadata).length > 0 && (
+              <div className="space-y-2">
+                {getNotes(task.metadata).map((note) => (
+                  <div key={note.id} className="group flex gap-2 text-xs bg-muted/30 rounded-lg px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="whitespace-pre-wrap text-foreground/90">{note.text}</p>
+                      <span className="text-[10px] text-muted-foreground/50 tabular-nums">
+                        {formatRelativeTime(note.timestamp)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const metadata = removeNote(task.metadata, note.id)
+                        onUpdate(task.id, { metadata })
+                      }}
+                      className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive cursor-pointer self-start"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Subtasks — always visible so any task can become a story */}
           <div className="border-t mx-5" />
           <div className="px-5 py-4">
@@ -1020,6 +1503,9 @@ export function TaskDetailPanel({
                           setSubtaskDraft('')
                         }}
                         editRef={subtaskEditRef}
+                        onAddNote={handleSubtaskAddNote}
+                        onRemoveNote={handleSubtaskRemoveNote}
+                        onCyclePriority={handleSubtaskCyclePriority}
                       />
                     ))}
                   </div>
@@ -1053,6 +1539,45 @@ export function TaskDetailPanel({
 
           </div>
         </div>
+
+        {/* Activity timeline */}
+        {task && getActivity(task.metadata).length > 0 && (
+          <>
+            <div className="border-t mx-5" />
+            <div className="px-5 py-4">
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium text-muted-foreground cursor-pointer group">
+                  <History className="h-3.5 w-3.5" />
+                  Activity
+                  <span className="text-[10px] bg-muted rounded-full px-1.5 py-0.5">
+                    {getActivity(task.metadata).length}
+                  </span>
+                  <ChevronRight className="h-3 w-3 ml-auto transition-transform group-data-[state=open]:rotate-90" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 space-y-1.5 ml-1 border-l border-dashed pl-3">
+                    {getActivity(task.metadata).map((entry) => (
+                      <div key={entry.id} className="flex items-start gap-2 text-xs">
+                        <span className="text-muted-foreground/50 tabular-nums shrink-0">
+                          {formatRelativeTime(entry.timestamp)}
+                        </span>
+                        <span
+                          className="text-muted-foreground"
+                          dangerouslySetInnerHTML={{
+                            __html: entry.action.replace(
+                              /\*\*(.+?)\*\*/g,
+                              '<strong class="text-foreground font-medium">$1</strong>',
+                            ),
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          </>
+        )}
 
         {/* Footer */}
         <div className="border-t px-5 py-3 flex items-center gap-2">
