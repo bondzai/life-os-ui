@@ -14,6 +14,30 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.59.0',
+    date: '2026-03-20',
+    phase: 'Report & Review Restructure',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Report page**: New unified Report page (Focus > Report) with Daily/Weekly tab toggle',
+          '**Weekly Report**: Summary of completed tasks, active goals with progress bars, habit streaks, spending — with Copy Markdown',
+          '**Daily Review**: Evening debrief — energy level selector, today\'s win, lesson learned, tomorrow\'s intent — saves as journal entry',
+          '**Present mode**: "Present" button on Daily Report launches the full-screen briefing page for standup delivery',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Sidebar restructure**: Focus submenus are now Inbox, Report, Review (was Inbox, Morning Summary, Review)',
+          '**Review page**: Added Daily/Weekly tab toggle — Daily = evening debrief, Weekly = existing 5-step wizard',
+          '**Tasks page**: "Standup" button renamed to "Report", navigates to `/report`',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.58.0',
     date: '2026-03-20',
     phase: 'Inbox, Capture Protocol & Note Templates',

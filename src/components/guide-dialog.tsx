@@ -43,6 +43,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
       { label: 'Focus page', detail: 'Your home screen — set up to 3 daily priorities, run morning/evening protocols, and launch Emperor Time focus sessions.' },
       { label: 'Capture anything', detail: 'Press `/` to focus the capture bar and see 20+ slash commands grouped by ⚡ Capture, ♟️ Strategic, 🧠 Deep Mind. Type `/` to browse, `/t` to filter. Quick prefixes: `!` task, `?` question, `*` idea, `@` goal, `#` habit. Try `/spark`, `/think`, `/decide`, `/blocker`, `/experiment`.' },
       { label: 'Inbox', detail: 'All captured items land in the Inbox (Focus > Inbox). View, edit, convert to task, archive, or delete. Filter by type.' },
+      { label: 'Report', detail: 'Focus > Report — Daily tab: standup-style report (done, plan, blockers) with "Present" full-screen mode. Weekly tab: completed tasks, goal progress, habit streaks, spending summary. Both have Copy Markdown.' },
+      { label: 'Review', detail: 'Focus > Review — Daily tab: evening debrief (energy level, win, learned, tomorrow\'s intent). Weekly tab: 5-step wizard (accomplishments, stale items, habits, spending, reflection).' },
       { label: 'Command palette', detail: 'Press `Cmd+K` from any page to search everything — tasks, goals, notes, habits, and navigation.' },
     ],
   },

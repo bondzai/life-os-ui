@@ -11,8 +11,8 @@ import {
   MapPin,
   LayoutDashboard,
   ClipboardCheck,
-  ClipboardList,
   Inbox,
+  FileText,
   BarChart3,
   type LucideIcon,
 } from 'lucide-react'
@@ -41,7 +41,7 @@ export const modules: ModuleConfig[] = [
     id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Command', entityTypes: [],
     children: [
       { id: 'inbox', label: 'Inbox', icon: Inbox, path: '/inbox' },
-      { id: 'morning-summary', label: 'Morning Summary', icon: ClipboardList, path: '/briefing' },
+      { id: 'report', label: 'Report', icon: FileText, path: '/report' },
       { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review' },
     ],
   },
