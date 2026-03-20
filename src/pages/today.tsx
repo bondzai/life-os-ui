@@ -22,7 +22,10 @@ import {
   Target,
   Plus,
   Inbox,
-  ArrowRight,
+  ArrowRightLeft,
+  NotebookPen,
+  CalendarPlus,
+  Repeat,
   BookOpen,
   ListChecks,
   Crown,
@@ -41,13 +44,19 @@ import { useICalEvents } from '@/hooks/use-ical-events'
 import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useFocusStore } from '@/stores/focus-store'
 import { PriorityPicker } from './today/priority-picker'
 import { CaptureBar } from './today/capture-bar'
 // DailyProtocol removed — protocols are on left column
 import { getRecurrence, buildRecurringNext } from './tasks/task-helpers'
 import { getTodayPriorities, setTodayPriorities } from './today/today-helpers'
-import type { Entity } from '@/core/types'
+import type { Entity, EntityType } from '@/core/types'
 
 function isProtocol(habit: Entity): boolean {
   return habit.metadata.isProtocol === true && Array.isArray(habit.metadata.steps)
@@ -611,27 +620,18 @@ export function TodayPage() {
     notify({ title: 'Journal saved', type: 'success' })
   }, [create, currentUser, today, journalText])
 
-  const handleConvertToTask = useCallback(
-    (item: Entity) => {
-      create.mutate({
-        id: crypto.randomUUID(),
-        type: 'task',
-        title: item.title,
-        description: typeof item.metadata.body === 'string' ? (item.metadata.body as string) : undefined,
-        status: 'todo',
-        priority: 'medium',
-        tags: [],
-        metadata: {},
-        ownerId: currentUser?.id ?? '',
-        visibility: 'private',
-        dueDate: today,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+  const handleConvertInbox = useCallback(
+    (item: Entity, targetType: EntityType) => {
+      const now = new Date().toISOString()
+      const cleanTags = (item.tags ?? []).filter((t) => t !== 'inbox')
+      const { isInbox: _, ...restMeta } = item.metadata as Record<string, unknown>
+      update.mutate({
+        id: item.id,
+        updates: { type: targetType, tags: cleanTags, metadata: restMeta, updatedAt: now },
       })
-      update.mutate({ id: item.id, updates: { status: 'archived', updatedAt: new Date().toISOString() } })
-      notify({ title: 'Converted to task', type: 'success' })
+      notify({ title: `Promoted to ${targetType}`, type: 'success' })
     },
-    [create, update, currentUser, today],
+    [update],
   )
 
   const handleArchiveInbox = useCallback(
@@ -903,9 +903,27 @@ export function TodayPage() {
                   <div key={item.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors group">
                     <span className="text-sm flex-1 truncate">{item.title}</span>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => handleConvertToTask(item)}>
-                        <ArrowRight className="h-3 w-3 mr-1" /> Task
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]">
+                            <ArrowRightLeft className="h-3 w-3 mr-1" /> Convert
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-[130px]">
+                          {([
+                            { type: 'task' as EntityType, icon: CheckSquare, label: 'Task' },
+                            { type: 'note' as EntityType, icon: NotebookPen, label: 'Note' },
+                            { type: 'event' as EntityType, icon: CalendarPlus, label: 'Event' },
+                            { type: 'goal' as EntityType, icon: Target, label: 'Goal' },
+                            { type: 'habit' as EntityType, icon: Repeat, label: 'Habit' },
+                          ]).filter((t) => t.type !== item.type).map((target) => (
+                            <DropdownMenuItem key={target.type} onClick={() => handleConvertInbox(item, target.type)} className="text-xs cursor-pointer">
+                              <target.icon className="h-3.5 w-3.5 mr-2" />
+                              {target.label}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => handleArchiveInbox(item)}>
                         Done
                       </Button>
