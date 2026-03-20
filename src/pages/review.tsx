@@ -26,14 +26,14 @@ import type { Entity } from '@/core/types'
 
 type ReviewTab = 'daily' | 'weekly'
 
-export function ReviewPage() {
+export function ReviewPage({ embedded }: { embedded?: boolean }) {
   const [tab, setTab] = useState<ReviewTab>('daily')
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className={`${embedded ? '' : 'max-w-2xl'} space-y-5`}>
       {/* Header */}
       <div className="flex items-center gap-3">
-        <h1 className="text-xl font-semibold">Review</h1>
+        {!embedded && <h1 className="text-xl font-semibold">Review</h1>}
         <div className="flex bg-muted rounded-lg p-0.5 gap-0.5">
           <button
             onClick={() => setTab('daily')}

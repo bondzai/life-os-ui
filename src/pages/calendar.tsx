@@ -38,7 +38,7 @@ function formatDateKey(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-export function CalendarPage() {
+export function CalendarPage({ embedded }: { embedded?: boolean }) {
   const queryClient = useQueryClient()
   const { items: allEntities, create, remove: removeEntity } = useEntities()
   const currentUser = useAuthStore((s) => s.currentUser)
@@ -195,7 +195,7 @@ export function CalendarPage() {
       : 'Schedule'
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)]">
+    <div className={`flex flex-col ${embedded ? 'h-full' : 'h-[calc(100vh-5rem)]'}`}>
       {/* Toolbar row — nav + title + actions */}
       <div className="flex items-center gap-1 pb-2 shrink-0 flex-wrap">
         {/* Left group: nav + title */}

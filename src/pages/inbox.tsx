@@ -55,7 +55,7 @@ const CONVERT_TARGETS: { type: EntityType; icon: LucideIcon; label: string }[] =
 
 type FilterType = 'all' | 'task' | 'note' | 'goal' | 'habit' | 'event'
 
-export function InboxPage() {
+export function InboxPage({ embedded }: { embedded?: boolean }) {
   const { items, update, remove } = useEntities()
   const [filter, setFilter] = useState<FilterType>('all')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -151,12 +151,12 @@ export function InboxPage() {
   ]
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className={`${embedded ? '' : 'max-w-3xl mx-auto'} space-y-6`}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Inbox className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-semibold">Inbox</h1>
+          {!embedded && <Inbox className="h-5 w-5 text-primary" />}
+          {!embedded && <h1 className="text-xl font-semibold">Inbox</h1>}
           <span className="text-sm text-muted-foreground">
             {inboxItems.length} item{inboxItems.length !== 1 ? 's' : ''}
           </span>

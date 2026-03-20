@@ -27,9 +27,10 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
-  Settings2,
+  Calendar,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
+import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useEntities, useTrackers } from '@/core/hooks'
@@ -42,11 +43,11 @@ import { PriorityPicker } from './today/priority-picker'
 import { getRecurrence, buildRecurringNext } from './tasks/task-helpers'
 import { getTodayPriorities, setTodayPriorities } from './today/today-helpers'
 import {
-  AVAILABLE_FAVORITES,
   getFocusFavorites,
   saveFocusFavorites,
   FavoritesEditor,
-  FavoriteWidget,
+  FocusTabBar,
+  FavoriteTabContent,
 } from './today/focus-favorites'
 import type { Entity } from '@/core/types'
 
@@ -300,10 +301,14 @@ export function TodayPage() {
   const navigate = useNavigate()
   const displayName = currentUser?.name?.split(' ')[0] ?? 'there'
 
+  const hasActiveSession = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)
+  const focusSecondsLeft = useFocusStore((s) => s.secondsLeft)
+
   const [priorities, setPriorities] = useState<string[]>(() => getTodayPriorities())
   const [addingStory, setAddingStory] = useState(false)
   const [favoriteIds, setFavoriteIds] = useState<string[]>(() => getFocusFavorites())
   const [editingFavs, setEditingFavs] = useState(false)
+  const [activeTab, setActiveTab] = useState('overview')
 
   const today = new Date().toISOString().split('T')[0]
   const todayStart = useMemo(() => {
@@ -580,45 +585,6 @@ export function TodayPage() {
     [getTodayTracker, createTracker, updateTracker, update, currentUser],
   )
 
-  // ─── Habit toggle for widget ───
-  const handleToggleHabit = useCallback(
-    (habit: Entity) => {
-      const existing = getTodayTracker(habit.id)
-      if (existing) return // already checked today
-      createTracker.mutate({
-        id: crypto.randomUUID(),
-        entityId: habit.id,
-        value: 1,
-        unit: 'done',
-        note: '',
-        timestamp: new Date().toISOString(),
-        ownerId: currentUser?.id ?? '',
-      })
-      const streak = typeof habit.metadata.streak === 'number' ? (habit.metadata.streak as number) : 0
-      update.mutate({
-        id: habit.id,
-        updates: {
-          metadata: { ...habit.metadata, streak: streak + 1 },
-          updatedAt: new Date().toISOString(),
-        },
-      })
-    },
-    [getTodayTracker, createTracker, update, currentUser],
-  )
-
-  const habitCheckedMap = useMemo(() => {
-    const map = new Map<string, boolean>()
-    for (const { habit, checkedToday } of habits) {
-      map.set(habit.id, checkedToday)
-    }
-    return map
-  }, [habits])
-
-  const resolvedFavorites = useMemo(
-    () => favoriteIds.map((id) => AVAILABLE_FAVORITES.find((f) => f.id === id)).filter(Boolean) as typeof AVAILABLE_FAVORITES,
-    [favoriteIds],
-  )
-
   const dateStr = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -658,10 +624,18 @@ export function TodayPage() {
         </div>
       </header>
 
-      {/* ─── Favorites Strip ─── */}
+      {/* ─── Tab Bar ─── */}
       <div className="shrink-0 pb-4">
-        {editingFavs ? (
-          <div className="space-y-2">
+        <FocusTabBar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          favoriteIds={favoriteIds}
+          allEntities={allEntities}
+          today={today}
+          onEditFavorites={() => setEditingFavs(!editingFavs)}
+        />
+        {editingFavs && (
+          <div className="space-y-2 pt-2">
             <FavoritesEditor
               selected={favoriteIds}
               onChange={(ids) => { setFavoriteIds(ids); saveFocusFavorites(ids) }}
@@ -673,33 +647,15 @@ export function TodayPage() {
               Done
             </button>
           </div>
-        ) : (
-          <div className="flex items-center gap-1">
-            {resolvedFavorites.map((fav) => {
-              const Icon = fav.icon
-              return (
-                <button
-                  key={fav.id}
-                  onClick={() => navigate(fav.path)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {fav.label}
-                </button>
-              )
-            })}
-            <button
-              onClick={() => setEditingFavs(true)}
-              className="p-1.5 rounded-md text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted/60 transition-colors ml-0.5"
-              title="Edit favorites"
-            >
-              <Settings2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
         )}
       </div>
 
-      {/* ─── Main Grid ─── */}
+      {/* ─── Content ─── */}
+      {activeTab !== 'overview' ? (
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+          <FavoriteTabContent id={activeTab} />
+        </div>
+      ) : (
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
         {/* ═══ LEFT — Focus + Protocols (7/12) ═══ */}
@@ -719,8 +675,12 @@ export function TodayPage() {
                     </span>
                   </CollapsibleTrigger>
                   <div className="flex items-center gap-2">
-                    <button
-                      className="flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`h-6 px-2 text-[11px] gap-1 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 ${
+                        hasActiveSession ? 'animate-pulse' : ''
+                      }`}
                       onClick={() => {
                         const store = useFocusStore.getState()
                         const same = store.emperorEntityIds.length === priorities.length &&
@@ -732,15 +692,19 @@ export function TodayPage() {
                       }}
                     >
                       <Crown className="h-3 w-3" />
-                      Emperor Time
-                    </button>
-                    <span className="text-muted-foreground/20">|</span>
-                    <button
-                      className="text-[11px] text-muted-foreground/50 hover:text-foreground transition-colors"
+                      {hasActiveSession && focusSecondsLeft > 0
+                        ? <>Continue {Math.floor(focusSecondsLeft / 60)}:{String(focusSecondsLeft % 60).padStart(2, '0')}</>
+                        : 'Deep Focus'
+                      }
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[11px] text-muted-foreground/50"
                       onClick={() => { setTodayPriorities([]); setPriorities([]) }}
                     >
                       Reset
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 <CollapsibleContent>
@@ -902,22 +866,33 @@ export function TodayPage() {
           <div className="pb-6" />
         </div>
 
-        {/* ═══ RIGHT — Favorite Widgets (5/12) ═══ */}
+        {/* ═══ RIGHT — Schedule (5/12) ═══ */}
         <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-5 scrollbar-thin">
-          {favoriteIds.map((id) => (
-            <FavoriteWidget
-              key={id}
-              id={id}
-              allEntities={allEntities}
-              today={today}
-              habitCheckedMap={habitCheckedMap}
-              iCalEvents={todayICalEvents}
-              onToggleTask={toggleItem}
-              onToggleHabit={handleToggleHabit}
-            />
-          ))}
+          {/* Today's Schedule */}
+          <section>
+            <SH>
+              <Calendar className="h-3 w-3 inline mr-1.5 -mt-px" />
+              Today&apos;s Schedule
+            </SH>
+            {todayICalEvents.length === 0 ? (
+              <p className="text-xs text-muted-foreground/30">No events today.</p>
+            ) : (
+              <div className="space-y-0.5">
+                {todayICalEvents.map((event) => (
+                  <div key={event.id} className="flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-muted/40 transition-colors">
+                    <span className="text-xs tabular-nums text-muted-foreground/50 w-14 shrink-0">
+                      {event.isAllDay ? 'All day' : event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: event.color || '#7986cb' }} />
+                    <span className="text-sm flex-1 truncate">{event.title}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </aside>
       </div>
+      )}
 
     </div>
   )

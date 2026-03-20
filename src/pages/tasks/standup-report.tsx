@@ -646,7 +646,7 @@ function StandupRender({
 // Full-screen page
 // ---------------------------------------------------------------------------
 
-export function BriefingPage() {
+export function BriefingPage({ embedded }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const [ws, setWs] = useState<StandupWorkspace>('all')
   const { items: allEntities, update } = useEntities()
@@ -759,6 +759,44 @@ export function BriefingPage() {
 
   const today = new Date()
   const dateLine = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
+  if (embedded) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex bg-muted rounded-lg p-0.5 gap-0.5">
+            {(['all', 'work', 'personal'] as const).map((w) => (
+              <button
+                key={w}
+                onClick={() => setWs(w)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                  ws === w
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {w === 'all' ? 'All' : w === 'work' ? 'Work' : 'Personal'}
+              </button>
+            ))}
+          </div>
+          <Button onClick={copyToClipboard} variant="outline" size="sm" className="gap-1.5">
+            <ClipboardCopy className="h-3.5 w-3.5" />
+            Copy
+          </Button>
+        </div>
+        <StandupRender
+          done={done}
+          inProgressWithDoneSubs={inProgressWithDoneSubs}
+          planInProgress={planInProgress}
+          plan={plan}
+          blocked={blocked}
+          lastWorkday={lastWorkday}
+          sinceLabel={sinceLabel}
+          actions={noteActions}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">

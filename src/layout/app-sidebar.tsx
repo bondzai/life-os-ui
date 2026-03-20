@@ -92,7 +92,14 @@ export function AppSidebar() {
   if (dueChoreCount > 0) badges['family'] = dueChoreCount
 
   // Active focus session detection
-  const hasActiveSession = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0 && s.phase !== 'idle')
+  const hasActiveSession = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)
+  const focusSecondsLeft = useFocusStore((s) => s.secondsLeft)
+  const focusPhase = useFocusStore((s) => s.phase)
+  const focusIsRunning = useFocusStore((s) => s.isRunning)
+
+  const focusTimeLabel = hasActiveSession && focusSecondsLeft > 0
+    ? `${Math.floor(focusSecondsLeft / 60)}:${String(focusSecondsLeft % 60).padStart(2, '0')}`
+    : null
 
   const toggleGroup = (group: string) => {
     const next = { ...collapsed, [group]: !collapsed[group] }
@@ -223,10 +230,22 @@ export function AppSidebar() {
                             <SidebarMenuButton
                               isActive={isActive}
                               onClick={() => handleNav(mod.path)}
+                              className={mod.id === 'focus' && hasActiveSession && location.pathname !== '/deep-work' ? 'text-amber-600 dark:text-amber-400' : ''}
                             >
-                              <mod.icon className="h-4 w-4" />
+                              {mod.id === 'focus' && hasActiveSession && location.pathname !== '/deep-work' ? (
+                                <span className="relative flex h-4 w-4 items-center justify-center">
+                                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-30" />
+                                  <mod.icon className="relative h-4 w-4 text-amber-500" />
+                                </span>
+                              ) : (
+                                <mod.icon className="h-4 w-4" />
+                              )}
                               <span className="flex-1">{mod.label}</span>
-                              {badges[mod.id] ? (
+                              {mod.id === 'focus' && hasActiveSession && location.pathname !== '/deep-work' && focusTimeLabel ? (
+                                <span className={`ml-auto text-[10px] tabular-nums font-medium ${focusIsRunning ? 'text-amber-500' : 'text-amber-500/60'}`}>
+                                  {focusPhase === 'break' || focusPhase === 'long-break' ? '☕ ' : ''}{focusTimeLabel}
+                                </span>
+                              ) : badges[mod.id] ? (
                                 <span className="ml-auto text-xs bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center">
                                   {badges[mod.id]}
                                 </span>

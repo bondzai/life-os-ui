@@ -15,13 +15,15 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { X, Play, Pause, SkipForward, Square, Timer, Flame, Crown, ChevronRight, Plus, CheckCircle2, ChevronDown, Pencil, Trash2, GripVertical, MessageSquare, Send, ExternalLink, ChevronsUp, ArrowUp, ArrowDown, Minus as MinusIcon } from 'lucide-react'
+import { X, Play, Pause, SkipForward, Square, Timer, Flame, Crown, ChevronRight, Plus, CheckCircle2, ChevronDown, Pencil, Trash2, GripVertical, MessageSquare, Send, ExternalLink, ChevronsUp, ArrowUp, ArrowDown, Minus as MinusIcon, Inbox } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { useFocusStore } from '@/stores/focus-store'
 import { TaskDetailPanel } from '@/pages/tasks/task-detail-panel'
+import { InboxCapture } from '@/components/inbox-capture'
+import { useUiStore } from '@/stores/ui-store'
 import type { Entity, Tracker } from '@/core/types'
 
 function formatTime(totalSeconds: number): string {
@@ -986,6 +988,14 @@ export function DeepWorkPage() {
           <span className="text-xs text-zinc-600 tabular-nums">
             {currentSession}/{settings.sessionsBeforeLongBreak}
           </span>
+          <span className="w-px h-3 bg-zinc-800" />
+          <button
+            onClick={() => useUiStore.getState().setCaptureOpen(true)}
+            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-zinc-600 hover:text-zinc-400 cursor-pointer"
+            title="Quick Capture (⌘⇧I)"
+          >
+            <Inbox className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -1182,6 +1192,7 @@ export function DeepWorkPage() {
         onDelete={handleDetailDelete}
         allTasks={allEntities}
       />
+      <InboxCapture />
     </div>
   )
 }

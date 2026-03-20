@@ -10,6 +10,7 @@ import { ChatSidebar } from '@/pages/ai/chat-sidebar'
 import { CommandBar } from '@/pages/ai/command-bar'
 import { InboxCapture } from '@/components/inbox-capture'
 import { useUiStore } from '@/stores/ui-store'
+import { useFocusStore } from '@/stores/focus-store'
 
 function getPageTitle(pathname: string): string {
   const mod = modules.find((m) => m.path === pathname)
@@ -32,6 +33,23 @@ export function AppLayout() {
   const focusMode = useUiStore((s) => s.focusMode)
   const toggleFocusMode = useUiStore((s) => s.toggleFocusMode)
   const clock = useClock()
+
+  // Browser tab title — show focus timer when session is active
+  const focusSessionActive = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)
+  const focusSeconds = useFocusStore((s) => s.secondsLeft)
+  const focusPhase = useFocusStore((s) => s.phase)
+
+  useEffect(() => {
+    if (location.pathname === '/deep-work') return // deep-work page manages its own title
+    if (focusSessionActive && focusSeconds > 0) {
+      const m = Math.floor(focusSeconds / 60)
+      const s = String(focusSeconds % 60).padStart(2, '0')
+      const label = focusPhase === 'break' || focusPhase === 'long-break' ? 'Break' : 'Focus'
+      document.title = `${m}:${s} ${label} — Lyra`
+    } else {
+      document.title = 'Lyra'
+    }
+  }, [focusSessionActive, focusSeconds, focusPhase, location.pathname])
 
   // Global Cmd+K and Cmd+Shift+F listeners
   useEffect(() => {

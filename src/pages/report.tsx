@@ -12,6 +12,7 @@ import { notify } from '@/lib/notify'
 import { getSubtasks, subtaskDone } from './tasks/task-helpers'
 import { getTodayPriorities } from './today/today-helpers'
 import { getWeekStart } from './review/review-helpers'
+import { BriefingPage } from './tasks/standup-report'
 import { CaptureBar } from './today/capture-bar'
 import type { EntityPriority } from '@/core/types'
 
@@ -31,16 +32,16 @@ const pChar = (p: EntityPriority) => p === 'urgent' ? '⬆⬆' : p === 'high' ? 
 
 type ReportTab = 'daily' | 'weekly'
 
-export function ReportPage() {
+export function ReportPage({ embedded }: { embedded?: boolean }) {
   const [tab, setTab] = useState<ReportTab>('daily')
   const navigate = useNavigate()
 
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className={`${embedded ? '' : 'max-w-3xl'} space-y-5`}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">Report</h1>
+          {!embedded && <h1 className="text-xl font-semibold">Report</h1>}
           <div className="flex bg-muted rounded-lg p-0.5 gap-0.5">
             <button
               onClick={() => setTab('daily')}
@@ -70,7 +71,10 @@ export function ReportPage() {
         )}
       </div>
 
-      {tab === 'daily' ? <DailyReport /> : <WeeklyReport />}
+      {tab === 'daily'
+        ? (embedded ? <BriefingPage embedded /> : <DailyReport />)
+        : <WeeklyReport />
+      }
     </div>
   )
 }
