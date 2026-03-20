@@ -37,22 +37,22 @@ export interface ModuleConfig {
 export const modules: ModuleConfig[] = [
   // Daily — what you open every day
   { id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Daily', entityTypes: [] },
-  { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Daily', entityTypes: ['task'] },
+  { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard', group: 'Daily', entityTypes: [] },
+
+  // Plan — strategic tools & review cycles
+  { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Plan', entityTypes: ['task'] },
   {
-    id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Daily', entityTypes: ['event'],
+    id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Plan', entityTypes: ['event'],
     children: [
       { id: 'events', label: 'Events', icon: CalendarPlus, path: '/events' },
     ],
   },
   {
-    id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Daily', entityTypes: ['note'],
+    id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Plan', entityTypes: ['note'],
     children: [
       { id: 'note-map', label: 'Note Map', icon: GitBranch, path: '/note-map' },
     ],
   },
-
-  // Plan — strategic tools & review cycles
-  { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard', group: 'Plan', entityTypes: [] },
   {
     id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Plan', entityTypes: ['goal'],
     children: [
