@@ -231,6 +231,9 @@ export function AppSidebar() {
                             >
                               <mod.icon className="h-4 w-4" />
                               <span className="flex-1">{mod.label}</span>
+                              {mod.id === 'inbox' && (
+                                <kbd className="hidden sm:inline text-[9px] font-mono text-muted-foreground/40 bg-muted px-1 py-0.5 rounded">⌘⇧I</kbd>
+                              )}
                               {badges[mod.id] ? (
                                 <span className="ml-auto text-xs bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center">
                                   {badges[mod.id]}

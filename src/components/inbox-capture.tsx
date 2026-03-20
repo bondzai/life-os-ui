@@ -136,7 +136,8 @@ export function InboxCapture() {
       <button
         onClick={() => setOpen(true)}
         className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center"
-        aria-label="Quick capture"
+        aria-label="Quick capture (⌘⇧I)"
+        title="Quick Capture (⌘⇧I)"
       >
         <Plus className="h-5 w-5" />
         {inboxCount > 0 && (
@@ -271,7 +272,8 @@ export function InboxCapture() {
           {/* Footer */}
           <div className="px-4 py-2.5 border-t bg-muted/30 flex items-center justify-between">
             <span className="text-[11px] text-muted-foreground">
-              <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">Enter</kbd> save
+              <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">⌘⇧I</kbd> open
+              {' '}<kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">Enter</kbd> save
               {' '}<kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">Shift+Enter</kbd> newline
             </span>
             <Button

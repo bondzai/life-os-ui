@@ -14,6 +14,29 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.61.0',
+    date: '2026-03-20',
+    phase: 'Sidebar Redesign, Events Page & Quick Capture',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Events page**: Dedicated `/events` page for event CRUD — flat rows with done toggle, time/location badges, date grouping (Today/Tomorrow/This Week/Later/Past), pill filters with counts',
+          '**Quick Capture shortcut**: `⌘⇧I` hotkey hint shown in sidebar, floating button tooltip, and capture dialog footer',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Sidebar groups**: Reorganized from 4 groups (Command/Operate/Track/Life) to 3 intuitive groups (Daily/Plan/Life)',
+          '**Inbox → Quick Capture**: Renamed sidebar entry for clarity (module ID unchanged for compatibility)',
+          '**Calendar children**: Events page added as child of Calendar module',
+          '**Focus page**: Removed inbox section and quick journal — inbox lives in its own dedicated page now',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.60.0',
     date: '2026-03-20',
     phase: 'Goal Map, Note Map & Rich Demo Data',

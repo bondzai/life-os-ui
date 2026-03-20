@@ -15,6 +15,7 @@ import {
   FileText,
   BarChart3,
   GitBranch,
+  CalendarPlus,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -37,39 +38,38 @@ export interface ModuleConfig {
 }
 
 export const modules: ModuleConfig[] = [
-  // Command — strategic cockpit
+  // Daily — what you open every day
+  { id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Daily', entityTypes: [] },
+  { id: 'inbox', label: 'Quick Capture', icon: Inbox, path: '/inbox', group: 'Daily', entityTypes: [] },
+  { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Daily', entityTypes: ['task'] },
   {
-    id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Command', entityTypes: [],
+    id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Daily', entityTypes: ['event'],
     children: [
-      { id: 'inbox', label: 'Inbox', icon: Inbox, path: '/inbox' },
-      { id: 'report', label: 'Report', icon: FileText, path: '/report' },
-      { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review' },
+      { id: 'events', label: 'Events', icon: CalendarPlus, path: '/events' },
     ],
   },
-  { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard', group: 'Command', entityTypes: [] },
-
-  // Operate — daily tactical tools
-  { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Operate', entityTypes: ['task'] },
   {
-    id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Operate', entityTypes: ['note'],
+    id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Daily', entityTypes: ['note'],
     children: [
       { id: 'note-map', label: 'Note Map', icon: GitBranch, path: '/note-map' },
     ],
   },
-  { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Operate', entityTypes: ['event'] },
 
-  // Track — metrics & measurement
+  // Plan — strategic tools & review cycles
+  { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard', group: 'Plan', entityTypes: [] },
   {
-    id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Track', entityTypes: ['goal'],
+    id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Plan', entityTypes: ['goal'],
     children: [
       { id: 'goal-map', label: 'Goal Map', icon: GitBranch, path: '/goal-map' },
     ],
   },
-  { id: 'habits', label: 'Habits', icon: Repeat, path: '/habits', group: 'Track', entityTypes: ['habit'] },
-  { id: 'health', label: 'Health', icon: Heart, path: '/health', group: 'Track', entityTypes: ['body-metric', 'workout', 'sleep-mood'] },
-  { id: 'wealth', label: 'Wealth', icon: Wallet, path: '/wealth', group: 'Track', entityTypes: ['transaction', 'budget', 'account', 'asset', 'wallet', 'crypto-tx'] },
+  { id: 'habits', label: 'Habits', icon: Repeat, path: '/habits', group: 'Plan', entityTypes: ['habit'] },
+  { id: 'report', label: 'Report', icon: FileText, path: '/report', group: 'Plan', entityTypes: [] },
+  { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review', group: 'Plan', entityTypes: [] },
 
-  // Life — growth & lifestyle
+  // Life — domains you track
+  { id: 'health', label: 'Health', icon: Heart, path: '/health', group: 'Life', entityTypes: ['body-metric', 'workout', 'sleep-mood'] },
+  { id: 'wealth', label: 'Wealth', icon: Wallet, path: '/wealth', group: 'Life', entityTypes: ['transaction', 'budget', 'account', 'asset', 'wallet', 'crypto-tx'] },
   { id: 'learning', label: 'Learning', icon: GraduationCap, path: '/learning', group: 'Life', entityTypes: ['book', 'course', 'skill'] },
   { id: 'travel', label: 'Travel', icon: MapPin, path: '/travel', group: 'Life', entityTypes: ['place', 'location', 'trip'] },
   { id: 'family', label: 'Family', icon: Users, path: '/family', group: 'Life', entityTypes: ['chore'] },

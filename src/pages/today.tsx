@@ -21,11 +21,6 @@ import {
   GripVertical,
   Target,
   Plus,
-  Inbox,
-  ArrowRightLeft,
-  NotebookPen,
-  CalendarPlus,
-  Repeat,
   ListChecks,
   Crown,
   ChevronsUp,
@@ -34,7 +29,6 @@ import {
   Minus,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
-import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useEntities, useTrackers } from '@/core/hooks'
@@ -42,19 +36,13 @@ import { useICalEvents } from '@/hooks/use-ical-events'
 import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { useFocusStore } from '@/stores/focus-store'
 import { PriorityPicker } from './today/priority-picker'
 import { CaptureBar } from './today/capture-bar'
 // DailyProtocol removed — protocols are on left column
 import { getRecurrence, buildRecurringNext } from './tasks/task-helpers'
 import { getTodayPriorities, setTodayPriorities } from './today/today-helpers'
-import type { Entity, EntityType } from '@/core/types'
+import type { Entity } from '@/core/types'
 
 function isProtocol(habit: Entity): boolean {
   return habit.metadata.isProtocol === true && Array.isArray(habit.metadata.steps)
@@ -406,11 +394,6 @@ export function TodayPage() {
     [protocols, getTodayTracker],
   )
 
-  const inboxItems = useMemo(
-    () => allEntities.filter((e) => e.metadata.isInbox === true && e.status === 'todo'),
-    [allEntities],
-  )
-
   // Active Projects — for quick nav count
   // ─── Metrics ───
 
@@ -594,27 +577,6 @@ export function TodayPage() {
       }
     },
     [getTodayTracker, createTracker, updateTracker, update, currentUser],
-  )
-
-  const handleConvertInbox = useCallback(
-    (item: Entity, targetType: EntityType) => {
-      const now = new Date().toISOString()
-      const cleanTags = (item.tags ?? []).filter((t) => t !== 'inbox')
-      const { isInbox: _, ...restMeta } = item.metadata as Record<string, unknown>
-      update.mutate({
-        id: item.id,
-        updates: { type: targetType, tags: cleanTags, metadata: restMeta, updatedAt: now },
-      })
-      notify({ title: `Promoted to ${targetType}`, type: 'success' })
-    },
-    [update],
-  )
-
-  const handleArchiveInbox = useCallback(
-    (item: Entity) => {
-      update.mutate({ id: item.id, updates: { status: 'archived', updatedAt: new Date().toISOString() } })
-    },
-    [update],
   )
 
   const dateStr = new Date().toLocaleDateString('en-US', {
@@ -863,49 +825,6 @@ export function TodayPage() {
                     </div>
                   )
                 })}
-              </div>
-            </section>
-          )}
-
-          {/* Inbox */}
-          {inboxItems.length > 0 && (
-            <section>
-              <SH>
-                <Inbox className="h-3 w-3 inline mr-1.5 -mt-px" />
-                Inbox ({inboxItems.length})
-              </SH>
-              <div className="space-y-0.5">
-                {inboxItems.slice(0, 8).map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors group">
-                    <span className="text-sm flex-1 truncate">{item.title}</span>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]">
-                            <ArrowRightLeft className="h-3 w-3 mr-1" /> Convert
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[130px]">
-                          {([
-                            { type: 'task' as EntityType, icon: CheckSquare, label: 'Task' },
-                            { type: 'note' as EntityType, icon: NotebookPen, label: 'Note' },
-                            { type: 'event' as EntityType, icon: CalendarPlus, label: 'Event' },
-                            { type: 'goal' as EntityType, icon: Target, label: 'Goal' },
-                            { type: 'habit' as EntityType, icon: Repeat, label: 'Habit' },
-                          ]).filter((t) => t.type !== item.type).map((target) => (
-                            <DropdownMenuItem key={target.type} onClick={() => handleConvertInbox(item, target.type)} className="text-xs cursor-pointer">
-                              <target.icon className="h-3.5 w-3.5 mr-2" />
-                              {target.label}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => handleArchiveInbox(item)}>
-                        Done
-                      </Button>
-                    </div>
-                  </div>
-                ))}
               </div>
             </section>
           )}

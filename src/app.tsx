@@ -31,6 +31,7 @@ const InboxPage = lazy(() => import('@/pages/inbox').then((m) => ({ default: m.I
 const BriefingPage = lazy(() => import('@/pages/tasks/standup-report').then((m) => ({ default: m.BriefingPage })))
 const GoalMapPage = lazy(() => import('@/pages/goal-map').then((m) => ({ default: m.GoalMapPage })))
 const NoteMapPage = lazy(() => import('@/pages/note-map').then((m) => ({ default: m.NoteMapPage })))
+const EventsPage = lazy(() => import('@/pages/events').then((m) => ({ default: m.EventsPage })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +59,7 @@ export function App() {
                   <Route path="goal-map" element={<GoalMapPage />} />
                   <Route path="tasks" element={<TasksPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="events" element={<EventsPage />} />
                   <Route path="notes" element={<NotesPage />} />
                   <Route path="note-map" element={<NoteMapPage />} />
                   <Route path="habits" element={<HabitsPage />} />
