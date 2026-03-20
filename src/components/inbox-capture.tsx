@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/popover'
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
+import { useUiStore } from '@/stores/ui-store'
 import { notify } from '@/lib/notify'
 import { CAPTURE_RULES, parseCapture, type CaptureRule } from '@/core/config/capture-protocol'
 import type { EntityType, EntityStatus, EntityPriority } from '@/core/types'
@@ -57,7 +58,8 @@ function buildEntity(
 }
 
 export function InboxCapture() {
-  const [open, setOpen] = useState(false)
+  const open = useUiStore((s) => s.captureOpen)
+  const setOpen = useUiStore((s) => s.setCaptureOpen)
   const [text, setText] = useState('')
   const [activeRule, setActiveRule] = useState<CaptureRule>(CAPTURE_RULES[0])
   const [tagsInput, setTagsInput] = useState('')

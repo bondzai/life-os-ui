@@ -27,6 +27,7 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
+  Settings2,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { Progress } from '@/components/ui/progress'
@@ -38,10 +39,15 @@ import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useFocusStore } from '@/stores/focus-store'
 import { PriorityPicker } from './today/priority-picker'
-import { CaptureBar } from './today/capture-bar'
-// DailyProtocol removed — protocols are on left column
 import { getRecurrence, buildRecurringNext } from './tasks/task-helpers'
 import { getTodayPriorities, setTodayPriorities } from './today/today-helpers'
+import {
+  AVAILABLE_FAVORITES,
+  getFocusFavorites,
+  saveFocusFavorites,
+  FavoritesEditor,
+  FavoriteWidget,
+} from './today/focus-favorites'
 import type { Entity } from '@/core/types'
 
 function isProtocol(habit: Entity): boolean {
@@ -296,6 +302,8 @@ export function TodayPage() {
 
   const [priorities, setPriorities] = useState<string[]>(() => getTodayPriorities())
   const [addingStory, setAddingStory] = useState(false)
+  const [favoriteIds, setFavoriteIds] = useState<string[]>(() => getFocusFavorites())
+  const [editingFavs, setEditingFavs] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
   const todayStart = useMemo(() => {
@@ -333,13 +341,6 @@ export function TodayPage() {
 
   // Keep actionItems reference for metrics (total count of active items)
   const actionItems = todayTasks
-
-  const todayEvents = useMemo(
-    () => allEntities
-      .filter((e) => e.type === 'event' && e.status === 'todo' && e.dueDate === today)
-      .sort((a, b) => ((a.metadata.time as string) ?? '').localeCompare((b.metadata.time as string) ?? '')),
-    [allEntities, today],
-  )
 
   const todayICalEvents = useMemo(
     () => icalEvents
@@ -579,6 +580,45 @@ export function TodayPage() {
     [getTodayTracker, createTracker, updateTracker, update, currentUser],
   )
 
+  // ─── Habit toggle for widget ───
+  const handleToggleHabit = useCallback(
+    (habit: Entity) => {
+      const existing = getTodayTracker(habit.id)
+      if (existing) return // already checked today
+      createTracker.mutate({
+        id: crypto.randomUUID(),
+        entityId: habit.id,
+        value: 1,
+        unit: 'done',
+        note: '',
+        timestamp: new Date().toISOString(),
+        ownerId: currentUser?.id ?? '',
+      })
+      const streak = typeof habit.metadata.streak === 'number' ? (habit.metadata.streak as number) : 0
+      update.mutate({
+        id: habit.id,
+        updates: {
+          metadata: { ...habit.metadata, streak: streak + 1 },
+          updatedAt: new Date().toISOString(),
+        },
+      })
+    },
+    [getTodayTracker, createTracker, update, currentUser],
+  )
+
+  const habitCheckedMap = useMemo(() => {
+    const map = new Map<string, boolean>()
+    for (const { habit, checkedToday } of habits) {
+      map.set(habit.id, checkedToday)
+    }
+    return map
+  }, [habits])
+
+  const resolvedFavorites = useMemo(
+    () => favoriteIds.map((id) => AVAILABLE_FAVORITES.find((f) => f.id === id)).filter(Boolean) as typeof AVAILABLE_FAVORITES,
+    [favoriteIds],
+  )
+
   const dateStr = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -588,47 +628,81 @@ export function TodayPage() {
   return (
     <div className="h-[calc(100vh-5rem)] flex flex-col">
       {/* ─── Header ─── */}
-      <header className="shrink-0 pb-4 flex items-end justify-between gap-4 flex-wrap">
+      <header className="shrink-0 pb-4 flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight truncate">
+          <h1 className="text-xl font-semibold tracking-tight truncate">
             {getGreeting()}, {displayName}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {dateStr} <LiveClock />
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {dateStr} &middot; <LiveClock />
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          {/* Focus Score pill */}
+        <div className="flex items-center gap-3">
           {focusScore !== null && (
-            <div className={`px-3 py-1 rounded-full text-xs font-medium tabular-nums ${
+            <span className={`text-xs font-medium tabular-nums ${
               focusScore >= 100
-                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                ? 'text-green-600 dark:text-green-400'
                 : focusScore >= 50
-                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                  : 'bg-muted text-muted-foreground'
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-muted-foreground'
             }`}>
-              Focus {focusScore}%
-            </div>
+              {focusScore}%
+            </span>
           )}
-          {/* Day progress */}
           {totalItems > 0 && (
-            <div className="flex items-center gap-2 min-w-[120px]">
-              <Progress value={totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 100} className="h-1.5 flex-1" />
-              <span className="text-[11px] tabular-nums text-muted-foreground">{doneItems}/{totalItems}</span>
+            <div className="flex items-center gap-2 min-w-[100px]">
+              <Progress value={Math.round((doneItems / totalItems) * 100)} className="h-1 flex-1" />
+              <span className="text-[10px] tabular-nums text-muted-foreground/60">{doneItems}/{totalItems}</span>
             </div>
           )}
         </div>
       </header>
 
-      {/* ─── Capture Bar ─── */}
-      <div className="shrink-0 pb-5">
-        <CaptureBar />
+      {/* ─── Favorites Strip ─── */}
+      <div className="shrink-0 pb-4">
+        {editingFavs ? (
+          <div className="space-y-2">
+            <FavoritesEditor
+              selected={favoriteIds}
+              onChange={(ids) => { setFavoriteIds(ids); saveFocusFavorites(ids) }}
+            />
+            <button
+              onClick={() => setEditingFavs(false)}
+              className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            {resolvedFavorites.map((fav) => {
+              const Icon = fav.icon
+              return (
+                <button
+                  key={fav.id}
+                  onClick={() => navigate(fav.path)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {fav.label}
+                </button>
+              )
+            })}
+            <button
+              onClick={() => setEditingFavs(true)}
+              className="p-1.5 rounded-md text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted/60 transition-colors ml-0.5"
+              title="Edit favorites"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ─── Main Grid ─── */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        {/* ═══ LEFT — Actionable (7/12) ═══ */}
+        {/* ═══ LEFT — Focus + Protocols (7/12) ═══ */}
         <div className="lg:col-span-7 min-h-0 overflow-y-auto space-y-6 pr-1 scrollbar-thin">
 
           {/* Today Focus — story-based */}
@@ -682,7 +756,6 @@ export function TodayPage() {
                     const isGoal = item.type === 'goal'
                     const goalProgress = typeof item.metadata.progress === 'number' ? (item.metadata.progress as number) : 0
 
-                    // ── Goal → clickable link to goal detail ──
                     if (isGoal) {
                       return (
                         <button
@@ -701,7 +774,6 @@ export function TodayPage() {
                       )
                     }
 
-                    // ── Task (no subtasks) → checkbox ──
                     if (!hasSubs) {
                       return (
                         <div key={item.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors">
@@ -723,7 +795,6 @@ export function TodayPage() {
                       )
                     }
 
-                    // ── Story (task with subtasks) → collapsible checklist ──
                     return (
                       <FocusStory
                         key={item.id}
@@ -740,7 +811,6 @@ export function TodayPage() {
                   })}
                 </div>
 
-                {/* Add to focus */}
                 {priorities.length < 3 && !addingStory && (
                   <button
                     className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-3 flex items-center gap-1"
@@ -832,43 +902,20 @@ export function TodayPage() {
           <div className="pb-6" />
         </div>
 
-        {/* ═══ RIGHT — Quick Summary (5/12) ═══ */}
-        <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-1 scrollbar-thin">
-
-          {/* Header */}
-          <div className="px-4 pb-1">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">Quick Summary</h2>
-          </div>
-
-          {/* Calendar — today's events only */}
-          <div className="px-4 space-y-1">
-            {todayEvents.length === 0 && todayICalEvents.length === 0 ? (
-              <p className="text-xs text-muted-foreground/40 py-1">No events today</p>
-            ) : (
-              <>
-                {/* Local events */}
-                {todayEvents.map((event) => (
-                  <div key={event.id} className="flex items-center gap-2.5 py-1.5">
-                    <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
-                      {(event.metadata.time as string) ?? 'All day'}
-                    </span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" />
-                    <span className="text-sm truncate">{event.title}</span>
-                  </div>
-                ))}
-                {/* iCal / Google Calendar events */}
-                {todayICalEvents.map((event) => (
-                  <div key={event.id} className="flex items-center gap-2.5 py-1.5">
-                    <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
-                      {event.isAllDay ? 'All day' : event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: event.color || '#7986cb' }} />
-                    <span className="text-sm truncate">{event.title}</span>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
+        {/* ═══ RIGHT — Favorite Widgets (5/12) ═══ */}
+        <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-5 scrollbar-thin">
+          {favoriteIds.map((id) => (
+            <FavoriteWidget
+              key={id}
+              id={id}
+              allEntities={allEntities}
+              today={today}
+              habitCheckedMap={habitCheckedMap}
+              iCalEvents={todayICalEvents}
+              onToggleTask={toggleItem}
+              onToggleHabit={handleToggleHabit}
+            />
+          ))}
         </aside>
       </div>
 

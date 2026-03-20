@@ -87,14 +87,9 @@ export function AppSidebar() {
     (e) => e.type === 'chore' && e.status !== 'done' && e.status !== 'archived' && e.dueDate && e.dueDate <= today,
   ).length
 
-  const inboxCount = allEntities.filter(
-    (e) => e.metadata.isInbox === true && e.status === 'todo',
-  ).length
-
   const badges: Record<string, number> = {}
   if (dueTaskCount > 0) badges['tasks'] = dueTaskCount
   if (dueChoreCount > 0) badges['family'] = dueChoreCount
-  if (inboxCount > 0) badges['inbox'] = inboxCount
 
   // Active focus session detection
   const hasActiveSession = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0 && s.phase !== 'idle')
@@ -231,9 +226,6 @@ export function AppSidebar() {
                             >
                               <mod.icon className="h-4 w-4" />
                               <span className="flex-1">{mod.label}</span>
-                              {mod.id === 'inbox' && (
-                                <kbd className="hidden sm:inline text-[9px] font-mono text-muted-foreground/40 bg-muted px-1 py-0.5 rounded">⌘⇧I</kbd>
-                              )}
                               {badges[mod.id] ? (
                                 <span className="ml-auto text-xs bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center">
                                   {badges[mod.id]}

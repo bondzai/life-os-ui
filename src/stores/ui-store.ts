@@ -6,6 +6,8 @@ interface UiState {
   toggleSidebar: () => void
   commandBarOpen: boolean
   setCommandBarOpen: (open: boolean) => void
+  captureOpen: boolean
+  setCaptureOpen: (open: boolean) => void
   focusMode: boolean
   setFocusMode: (on: boolean) => void
   toggleFocusMode: () => void
@@ -17,6 +19,8 @@ export const useUiStore = create<UiState>()((set) => ({
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   commandBarOpen: false,
   setCommandBarOpen: (open) => set({ commandBarOpen: open }),
+  captureOpen: false,
+  setCaptureOpen: (open) => set({ captureOpen: open }),
   focusMode: false,
   setFocusMode: (on) => set({ focusMode: on }),
   toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),

@@ -10,9 +10,6 @@ import {
   NotebookPen,
   MapPin,
   LayoutDashboard,
-  ClipboardCheck,
-  Inbox,
-  FileText,
   BarChart3,
   GitBranch,
   CalendarPlus,
@@ -40,7 +37,6 @@ export interface ModuleConfig {
 export const modules: ModuleConfig[] = [
   // Daily — what you open every day
   { id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Daily', entityTypes: [] },
-  { id: 'inbox', label: 'Quick Capture', icon: Inbox, path: '/inbox', group: 'Daily', entityTypes: [] },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Daily', entityTypes: ['task'] },
   {
     id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Daily', entityTypes: ['event'],
@@ -64,8 +60,6 @@ export const modules: ModuleConfig[] = [
     ],
   },
   { id: 'habits', label: 'Habits', icon: Repeat, path: '/habits', group: 'Plan', entityTypes: ['habit'] },
-  { id: 'report', label: 'Report', icon: FileText, path: '/report', group: 'Plan', entityTypes: [] },
-  { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review', group: 'Plan', entityTypes: [] },
 
   // Life — domains you track
   { id: 'health', label: 'Health', icon: Heart, path: '/health', group: 'Life', entityTypes: ['body-metric', 'workout', 'sleep-mood'] },

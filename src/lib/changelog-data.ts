@@ -14,6 +14,31 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.62.0',
+    date: '2026-03-20',
+    phase: 'Configurable Focus Dashboard',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Favorites system**: Focus page right column now shows configurable widgets — pick from Inbox, Tasks, Schedule, Habits, Goals, Notes, Report, Review',
+          '**Favorites editor**: Click the gear icon on Focus to toggle which modules appear as widgets and action buttons',
+          '**Habit widget**: Check off daily habits directly from Focus page with streak display',
+          '**Goals widget**: View active goals with progress bars inline',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Focus action strip**: Now driven by favorites config — buttons navigate to full page, widgets show compact content inline',
+          '**Capture button**: Navigates to full Inbox page instead of opening modal dialog',
+          '**Sidebar streamlined**: Removed Inbox, Report, Review as standalone sidebar items — accessible from Focus page favorites',
+          '**Capture dialog**: Now uses global store state, triggerable from anywhere via `⌘⇧I`',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.61.0',
     date: '2026-03-20',
     phase: 'Sidebar Redesign, Events Page & Quick Capture',
