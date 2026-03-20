@@ -14,6 +14,27 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.64.0',
+    date: '2026-03-20',
+    phase: 'Lyra Constellation Loader',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Lyra constellation loader**: Custom branded loading animation — stars connect one by one with progressive glow, matching the Lyra logo',
+          '**Loader test page**: `/test-loader` page to preview loader at different sizes and simulated load delays',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Page loading**: Suspense fallback replaced with LyraPageLoader constellation animation',
+          '**Export/Import buttons**: Loading spinner replaced with inline Lyra constellation loader',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.63.0',
     date: '2026-03-20',
     phase: 'GitHub-Style Focus Tabs & Deep Focus UX',

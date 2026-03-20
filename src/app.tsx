@@ -32,6 +32,7 @@ const BriefingPage = lazy(() => import('@/pages/tasks/standup-report').then((m) 
 const GoalMapPage = lazy(() => import('@/pages/goal-map').then((m) => ({ default: m.GoalMapPage })))
 const NoteMapPage = lazy(() => import('@/pages/note-map').then((m) => ({ default: m.NoteMapPage })))
 const EventsPage = lazy(() => import('@/pages/events').then((m) => ({ default: m.EventsPage })))
+const TestLoaderPage = lazy(() => import('@/pages/test-loader').then((m) => ({ default: m.TestLoaderPage })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,6 +76,7 @@ export function App() {
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="today" element={<TodayPage />} />
+                  <Route path="test-loader" element={<TestLoaderPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
               </Route>
