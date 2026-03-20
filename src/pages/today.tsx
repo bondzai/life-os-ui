@@ -1,8 +1,24 @@
 import { useState, useMemo, useCallback, useEffect, memo } from 'react'
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   CheckSquare,
   ChevronDown,
   ChevronRight,
+  GripVertical,
   Target,
   Plus,
   Inbox,
@@ -110,6 +126,76 @@ const QuickAddInput = memo(function QuickAddInput({ placeholder, onAdd }: { plac
   )
 })
 
+/* ─── Sortable subtask row for Focus page ─── */
+
+function SortableFocusSubtask({
+  sub,
+  item,
+  onToggle,
+}: {
+  sub: { id: string; title: string; done: boolean; status?: 'todo' | 'in-progress' | 'done' }
+  item: Entity
+  onToggle: (entity: Entity, subtaskId: string) => void
+}) {
+  const st = sub.status ?? (sub.done ? 'done' : 'todo')
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sub.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    opacity: isDragging ? 0.5 : undefined,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-2.5 py-1 rounded px-1 transition-colors bg-background ${
+        st === 'in-progress' ? 'bg-amber-500/[0.06]' : 'hover:bg-muted/40'
+      }`}
+    >
+      <button
+        type="button"
+        className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground touch-none"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-3 w-3" />
+      </button>
+      <button
+        onClick={() => onToggle(item, sub.id)}
+        className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors cursor-pointer ${
+          st === 'done'
+            ? 'bg-primary border-primary text-primary-foreground'
+            : st === 'in-progress'
+              ? 'border-amber-500 bg-amber-500/20'
+              : 'border-muted-foreground/30'
+        }`}
+        title={`${st} — click to cycle`}
+      >
+        {st === 'done' && (
+          <svg className="h-2 w-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+        {st === 'in-progress' && (
+          <div className="h-1 w-1 rounded-full bg-amber-500" />
+        )}
+      </button>
+      {st === 'in-progress' && (
+        <span className="text-[9px] font-medium px-1 py-px rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">WIP</span>
+      )}
+      <span className={`text-sm ${
+        st === 'done' ? 'line-through text-muted-foreground/60' :
+        st === 'in-progress' ? 'font-medium text-amber-700 dark:text-amber-300' : ''
+      }`}>
+        {sub.title}
+      </span>
+    </div>
+  )
+}
+
 /* ─── Focus Story — collapsible subtask card ─── */
 const FocusStory = memo(function FocusStory({
   item,
@@ -119,6 +205,7 @@ const FocusStory = memo(function FocusStory({
   allDone,
   onToggleSubtask,
   onAddSubtask,
+  onReorderSubtasks,
 }: {
   item: Entity
   subs: Array<{ id: string; title: string; done: boolean; status?: 'todo' | 'in-progress' | 'done' }>
@@ -127,8 +214,13 @@ const FocusStory = memo(function FocusStory({
   allDone: boolean
   onToggleSubtask: (entity: Entity, subtaskId: string) => void
   onAddSubtask: (entity: Entity, title: string) => void
+  onReorderSubtasks: (entity: Entity, event: DragEndEvent) => void
 }) {
   const [expanded, setExpanded] = useState(true)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  )
 
   return (
     <div className={`rounded-lg border transition-colors ${
@@ -138,7 +230,7 @@ const FocusStory = memo(function FocusStory({
       <div className="flex items-center gap-3 w-full p-3 hover:bg-muted/30 rounded-lg transition-colors">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+          className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer"
         >
           <ListChecks className="h-4 w-4 text-purple-500 shrink-0" />
           {expanded
@@ -161,51 +253,26 @@ const FocusStory = memo(function FocusStory({
         </span>
       </div>
 
-      {/* Subtasks — collapsible */}
+      {/* Subtasks — drag to reorder */}
       {expanded && (
         <div className="px-3 pb-3 space-y-1.5">
           <div className="space-y-0.5 pl-1">
-            {subs.map((sub) => {
-              const st = sub.status ?? (sub.done ? 'done' : 'todo')
-              return (
-                <div
-                  key={sub.id}
-                  className={`flex items-center gap-2.5 py-1 rounded px-1 transition-colors ${
-                    st === 'in-progress' ? 'bg-amber-500/[0.06]' : 'hover:bg-muted/40'
-                  }`}
-                >
-                  <button
-                    onClick={() => onToggleSubtask(item, sub.id)}
-                    className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
-                      st === 'done'
-                        ? 'bg-primary border-primary text-primary-foreground'
-                        : st === 'in-progress'
-                          ? 'border-amber-500 bg-amber-500/20'
-                          : 'border-muted-foreground/30'
-                    }`}
-                    title={`${st} — click to cycle`}
-                  >
-                    {st === 'done' && (
-                      <svg className="h-2 w-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                    {st === 'in-progress' && (
-                      <div className="h-1 w-1 rounded-full bg-amber-500" />
-                    )}
-                  </button>
-                  {st === 'in-progress' && (
-                    <span className="text-[9px] font-medium px-1 py-px rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">WIP</span>
-                  )}
-                  <span className={`text-sm ${
-                    st === 'done' ? 'line-through text-muted-foreground/60' :
-                    st === 'in-progress' ? 'font-medium text-amber-700 dark:text-amber-300' : ''
-                  }`}>
-                    {sub.title}
-                  </span>
-                </div>
-              )
-            })}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(e) => onReorderSubtasks(item, e)}
+            >
+              <SortableContext items={subs.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                {subs.map((sub) => (
+                  <SortableFocusSubtask
+                    key={sub.id}
+                    sub={sub}
+                    item={item}
+                    onToggle={onToggleSubtask}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           </div>
 
           <QuickAddInput
@@ -469,6 +536,27 @@ export function TodayPage() {
           },
           updatedAt: new Date().toISOString(),
         },
+      })
+    },
+    [update],
+  )
+
+  const reorderSubtasks = useCallback(
+    (entity: Entity, event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+      const subs = Array.isArray(entity.metadata.subtasks)
+        ? (entity.metadata.subtasks as Array<{ id: string; title: string; done: boolean; status?: string }>)
+        : []
+      const oldIndex = subs.findIndex((s) => s.id === active.id)
+      const newIndex = subs.findIndex((s) => s.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
+      const updated = [...subs]
+      const [moved] = updated.splice(oldIndex, 1)
+      updated.splice(newIndex, 0, moved)
+      update.mutate({
+        id: entity.id,
+        updates: { metadata: { ...entity.metadata, subtasks: updated } },
       })
     },
     [update],
@@ -780,6 +868,7 @@ export function TodayPage() {
                         allDone={allDone}
                         onToggleSubtask={toggleSubtask}
                         onAddSubtask={addSubtask}
+                        onReorderSubtasks={reorderSubtasks}
                       />
                     )
                   })}

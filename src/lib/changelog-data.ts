@@ -14,6 +14,19 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.52.0',
+    date: '2026-03-20',
+    phase: 'Focus Mode',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Focus Mode**: Hide sidebar and top bar for distraction-free work — toggle via floating button or `Cmd+Shift+F`',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.51.0',
     date: '2026-03-20',
     phase: 'Drag-to-Reorder Subtasks',

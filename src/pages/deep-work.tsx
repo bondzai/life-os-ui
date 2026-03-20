@@ -1,6 +1,21 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router'
-import { X, Play, Pause, SkipForward, Square, Timer, Flame, Crown, ChevronRight, Plus, CheckCircle2, ChevronDown, Pencil, Trash2 } from 'lucide-react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { X, Play, Pause, SkipForward, Square, Timer, Flame, Crown, ChevronRight, Plus, CheckCircle2, ChevronDown, Pencil, Trash2, GripVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEntities, useTrackers } from '@/core/hooks'
@@ -108,7 +123,7 @@ function InlineEdit({ value, onSave, className }: { value: string; onSave: (v: s
       <span className={className}>{value}</span>
       <button
         onClick={(e) => { e.stopPropagation(); setEditing(true) }}
-        className="opacity-0 group-hover/edit:opacity-100 transition-opacity text-zinc-600 hover:text-amber-400 shrink-0"
+        className="opacity-0 group-hover/edit:opacity-100 transition-opacity text-zinc-600 hover:text-amber-400 shrink-0 cursor-pointer"
       >
         <Pencil className="h-3 w-3" />
       </button>
@@ -132,6 +147,94 @@ function QuickAddSubtask({ onAdd }: { onAdd: (title: string) => void }) {
             setValue('')
           }
         }}
+      />
+    </div>
+  )
+}
+
+/* ─── Sortable subtask row for Emperor Time ─── */
+
+function SortableEmperorSubtask({
+  sub,
+  isCurrent,
+  item,
+  onToggle,
+  onRename,
+}: {
+  sub: Subtask
+  isCurrent: boolean
+  item: Entity
+  onToggle: (id: string) => void
+  onRename: (entity: Entity, subtaskId: string, title: string) => void
+}) {
+  const st = stStatus(sub)
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sub.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    opacity: isDragging ? 0.5 : undefined,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 py-1.5 px-3 rounded-lg transition-colors ${
+        isCurrent
+          ? 'bg-amber-500/[0.06] border border-amber-500/15'
+          : st === 'done'
+            ? 'opacity-40'
+            : st === 'in-progress'
+              ? 'bg-amber-500/[0.03] border border-amber-500/10'
+              : 'hover:bg-white/[0.03]'
+      }`}
+    >
+      <button
+        type="button"
+        className="shrink-0 cursor-grab active:cursor-grabbing text-zinc-700 hover:text-zinc-500 touch-none"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+
+      <button
+        onClick={() => onToggle(sub.id)}
+        className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors cursor-pointer ${
+          st === 'done'
+            ? 'bg-emerald-600 border-emerald-600'
+            : st === 'in-progress'
+              ? 'border-amber-500 bg-amber-500/20'
+              : 'border-zinc-700'
+        }`}
+        title={`${st} — click to cycle`}
+      >
+        {st === 'done' && (
+          <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+        {st === 'in-progress' && (
+          <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        )}
+      </button>
+
+      {st === 'in-progress' && <span className="text-[9px] font-medium text-amber-500/70 shrink-0">WIP</span>}
+      {isCurrent && st === 'todo' && <span className="text-amber-500/70 text-xs shrink-0">&rarr;</span>}
+      <InlineEdit
+        value={sub.title}
+        onSave={(v) => onRename(item, sub.id, v)}
+        className={`text-sm ${
+          st === 'done'
+            ? 'line-through text-zinc-600'
+            : st === 'in-progress'
+              ? 'font-medium text-amber-300'
+              : isCurrent
+                ? 'font-medium text-zinc-200'
+                : 'text-zinc-400'
+        }`}
       />
     </div>
   )
@@ -513,6 +616,27 @@ export function DeepWorkPage() {
     return () => document.removeEventListener('keydown', handler)
   }, [handleLeave])
 
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  )
+
+  const handleSubtaskDragEnd = useCallback(
+    (entityItem: Entity, event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+      const subs = Array.isArray(entityItem.metadata.subtasks) ? (entityItem.metadata.subtasks as Subtask[]) : []
+      const oldIndex = subs.findIndex((s) => s.id === active.id)
+      const newIndex = subs.findIndex((s) => s.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
+      const updated = [...subs]
+      const [moved] = updated.splice(oldIndex, 1)
+      updated.splice(newIndex, 0, moved)
+      update.mutate({ id: entityItem.id, updates: { metadata: { ...entityItem.metadata, subtasks: updated } } })
+    },
+    [update],
+  )
+
   // Cycle subtask: todo → in-progress → done
   const toggleSubtask = useCallback(
     (subtaskId: string) => {
@@ -627,7 +751,7 @@ export function DeepWorkPage() {
       <div className="flex items-center justify-between px-6 py-4">
         <button
           onClick={handleLeave}
-          className="p-2 rounded-lg hover:bg-white/5 transition-colors text-zinc-600 hover:text-zinc-400"
+          className="p-2 rounded-lg hover:bg-white/5 transition-colors text-zinc-600 hover:text-zinc-400 cursor-pointer"
           title="Leave (Esc) — session stays active"
         >
           <X className="h-5 w-5" />
@@ -679,18 +803,18 @@ export function DeepWorkPage() {
           ) : (
             <>
               {isRunning ? (
-                <button onClick={handlePause} className="h-12 w-12 rounded-full border border-zinc-700 flex items-center justify-center hover:bg-white/5 transition-colors text-zinc-400 hover:text-zinc-200">
+                <button onClick={handlePause} className="h-12 w-12 rounded-full border border-zinc-700 flex items-center justify-center hover:bg-white/5 transition-colors text-zinc-400 hover:text-zinc-200 cursor-pointer">
                   <Pause className="h-5 w-5" />
                 </button>
               ) : (
-                <button onClick={handleResume} className={`h-12 w-12 rounded-full flex items-center justify-center transition-colors ${phase === 'work' ? 'bg-amber-500 hover:bg-amber-400 text-black' : phase === 'break' ? 'bg-emerald-500 hover:bg-emerald-400 text-black' : 'bg-sky-500 hover:bg-sky-400 text-black'}`}>
+                <button onClick={handleResume} className={`h-12 w-12 rounded-full flex items-center justify-center transition-colors cursor-pointer ${phase === 'work' ? 'bg-amber-500 hover:bg-amber-400 text-black' : phase === 'break' ? 'bg-emerald-500 hover:bg-emerald-400 text-black' : 'bg-sky-500 hover:bg-sky-400 text-black'}`}>
                   <Play className="h-5 w-5" />
                 </button>
               )}
-              <button onClick={handleSkip} className="h-10 w-10 rounded-full border border-zinc-800 flex items-center justify-center hover:bg-white/5 transition-colors text-zinc-500 hover:text-zinc-300">
+              <button onClick={handleSkip} className="h-10 w-10 rounded-full border border-zinc-800 flex items-center justify-center hover:bg-white/5 transition-colors text-zinc-500 hover:text-zinc-300 cursor-pointer">
                 <SkipForward className="h-4 w-4" />
               </button>
-              <button onClick={handleEnd} className="h-10 w-10 rounded-full border border-red-900/50 flex items-center justify-center hover:bg-red-500/10 transition-colors text-red-500/60 hover:text-red-400" title="End session">
+              <button onClick={handleEnd} className="h-10 w-10 rounded-full border border-red-900/50 flex items-center justify-center hover:bg-red-500/10 transition-colors text-red-500/60 hover:text-red-400 cursor-pointer" title="End session">
                 <Square className="h-4 w-4" />
               </button>
             </>
@@ -729,7 +853,7 @@ export function DeepWorkPage() {
                   onClick={() => {
                     if (!allDone) useFocusStore.setState({ activeEntityId: item.id })
                   }}
-                  className="flex items-center gap-3 w-full p-3.5 text-left"
+                  className="flex items-center gap-3 w-full p-3.5 text-left cursor-pointer"
                 >
                   {isActive && <ChevronRight className="h-4 w-4 text-amber-500/70 shrink-0" />}
                   <InlineEdit
@@ -754,65 +878,27 @@ export function DeepWorkPage() {
                   )}
                 </button>
 
-                {/* Subtasks + quick add */}
+                {/* Subtasks + quick add — drag to reorder */}
                 {isActive && (
                   <div className="px-3.5 pb-3.5 space-y-0.5">
-                    {subs.map((sub, i) => {
-                      const st = stStatus(sub)
-                      const isCurrent = st !== 'done' && i === subs.findIndex((s) => stStatus(s) !== 'done')
-                      return (
-                        <div
-                          key={sub.id}
-                          className={`flex items-center gap-3 py-1.5 px-3 rounded-lg transition-colors ${
-                            isCurrent
-                              ? 'bg-amber-500/[0.06] border border-amber-500/15'
-                              : st === 'done'
-                                ? 'opacity-40'
-                                : st === 'in-progress'
-                                  ? 'bg-amber-500/[0.03] border border-amber-500/10'
-                                  : 'hover:bg-white/[0.03]'
-                          }`}
-                        >
-                          {/* 3-state toggle: todo → in-progress → done */}
-                          <button
-                            onClick={() => toggleSubtask(sub.id)}
-                            className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
-                              st === 'done'
-                                ? 'bg-emerald-600 border-emerald-600'
-                                : st === 'in-progress'
-                                  ? 'border-amber-500 bg-amber-500/20'
-                                  : 'border-zinc-700'
-                            }`}
-                            title={`${st} — click to cycle`}
-                          >
-                            {st === 'done' && (
-                              <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                            {st === 'in-progress' && (
-                              <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                            )}
-                          </button>
-
-                          {st === 'in-progress' && <span className="text-[9px] font-medium text-amber-500/70 shrink-0">WIP</span>}
-                          {isCurrent && st === 'todo' && <span className="text-amber-500/70 text-xs shrink-0">&rarr;</span>}
-                          <InlineEdit
-                            value={sub.title}
-                            onSave={(v) => renameSubtask(item, sub.id, v)}
-                            className={`text-sm ${
-                              st === 'done'
-                                ? 'line-through text-zinc-600'
-                                : st === 'in-progress'
-                                  ? 'font-medium text-amber-300'
-                                  : isCurrent
-                                    ? 'font-medium text-zinc-200'
-                                    : 'text-zinc-400'
-                            }`}
+                    <DndContext
+                      sensors={dndSensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={(e) => handleSubtaskDragEnd(item, e)}
+                    >
+                      <SortableContext items={subs.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                        {subs.map((sub, i) => (
+                          <SortableEmperorSubtask
+                            key={sub.id}
+                            sub={sub}
+                            isCurrent={stStatus(sub) !== 'done' && i === subs.findIndex((s) => stStatus(s) !== 'done')}
+                            item={item}
+                            onToggle={toggleSubtask}
+                            onRename={renameSubtask}
                           />
-                        </div>
-                      )
-                    })}
+                        ))}
+                      </SortableContext>
+                    </DndContext>
                     <QuickAddSubtask onAdd={(title) => addSubtask(item, title)} />
                   </div>
                 )}

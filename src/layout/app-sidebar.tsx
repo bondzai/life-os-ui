@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { LogOut, Download, Upload, Settings, Crown, ChevronRight } from 'lucide-react'
+import { LogOut, Download, Upload, Settings, HelpCircle, Crown, ChevronRight } from 'lucide-react'
 import { ChangelogDialog } from '@/components/changelog-dialog'
+import { GuideDialog } from '@/components/guide-dialog'
 import { APP_VERSION } from '@/lib/changelog-data'
 import {
   Sidebar,
@@ -74,6 +75,7 @@ export function AppSidebar() {
   const [expandedSubs, setExpandedSubsState] = useState<Record<string, boolean>>(() => getExpandedSubs())
   const [changelogOpen, setChangelogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
 
   // Badge counts
   const { items: allEntities } = useEntities()
@@ -308,6 +310,9 @@ export function AppSidebar() {
           </div>
           <div className="flex items-center gap-1">
             <ModeToggle />
+            <SidebarMenuButton onClick={() => setGuideOpen(true)} className="w-auto px-2">
+              <HelpCircle className="h-4 w-4" />
+            </SidebarMenuButton>
             <SidebarMenuButton onClick={() => setSettingsOpen(true)} className="w-auto px-2">
               <Settings className="h-4 w-4" />
             </SidebarMenuButton>
@@ -319,6 +324,7 @@ export function AppSidebar() {
       </SidebarFooter>
       <ChangelogDialog open={changelogOpen} onOpenChange={setChangelogOpen} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <GuideDialog open={guideOpen} onOpenChange={setGuideOpen} />
     </Sidebar>
   )
 }

@@ -1,0 +1,220 @@
+import { useState } from 'react'
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  Command,
+  Crown,
+  Eye,
+  Keyboard,
+  LayoutDashboard,
+  ListChecks,
+  Target,
+  Zap,
+} from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+
+interface GuideDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+interface GuideSection {
+  id: string
+  icon: React.ReactNode
+  title: string
+  items: { label: string; detail: string }[]
+}
+
+const GUIDE_SECTIONS: GuideSection[] = [
+  {
+    id: 'quick-start',
+    icon: <Zap className="h-4 w-4" />,
+    title: 'Quick Start',
+    items: [
+      { label: 'Focus page', detail: 'Your home screen — set up to 3 daily priorities, run morning/evening protocols, and launch Emperor Time focus sessions.' },
+      { label: 'Capture anything', detail: 'Press `/` to focus the capture bar on the Focus page. Use `!` prefix for tasks, `?` for quick notes. Or press `Cmd+Shift+I` for the inbox dialog from anywhere.' },
+      { label: 'Command palette', detail: 'Press `Cmd+K` from any page to search everything — tasks, goals, notes, habits, and navigation.' },
+    ],
+  },
+  {
+    id: 'tasks',
+    icon: <ListChecks className="h-4 w-4" />,
+    title: 'Tasks & Stories',
+    items: [
+      { label: 'Task types', detail: 'Simple tasks stand alone. Add subtasks to create a **story** — the parent status auto-derives from subtask progress.' },
+      { label: 'Status workflow', detail: 'Click the status badge on any task to change: Backlog → To Do → In Progress → Done. Stories with subtasks show a static badge.' },
+      { label: 'Subtask 3-state cycle', detail: 'Click the circle on a subtask to cycle: Todo → In Progress (WIP) → Done. The parent task status updates automatically.' },
+      { label: 'Drag to reorder', detail: 'Grab the grip handle on subtasks to drag and reorder them in any view — task detail, Focus page, or Emperor Time.' },
+      { label: 'Recurring tasks', detail: 'Set recurrence (daily/weekly/biweekly/monthly) in task detail. When completed, the next occurrence auto-creates with reset subtasks.' },
+      { label: 'Bulk actions', detail: 'Toggle "Select" mode in the task toolbar, check multiple tasks, then archive, delete, or change status in batch.' },
+      { label: 'Workspaces', detail: 'Tag tasks as Work or Personal. Filter by workspace in the task toolbar and standup summary.' },
+    ],
+  },
+  {
+    id: 'focus',
+    icon: <Target className="h-4 w-4" />,
+    title: 'Focus System',
+    items: [
+      { label: 'Daily priorities', detail: 'Pick up to 3 tasks/stories as today\'s focus on the Focus page. These drive your Focus Score and appear in the standup summary.' },
+      { label: 'Focus Score', detail: 'Percentage of today\'s priority items completed. Visible on the Focus page — aim for 100% daily.' },
+      { label: 'Standup summary', detail: 'Click "Summary" on the Focus page to see what\'s done, in progress, and planned. Copy to clipboard for standups.' },
+      { label: 'Stale item detector', detail: 'Items untouched for 14+ days surface in the Focus sidebar. Snooze them (resets the clock) or archive to reduce noise.' },
+    ],
+  },
+  {
+    id: 'emperor-time',
+    icon: <Crown className="h-4 w-4" />,
+    title: 'Emperor Time (Deep Work)',
+    items: [
+      { label: 'What it is', detail: 'A full-screen distraction-free mode with a Pomodoro timer. Sidebar and top bar disappear — just you and your focus tasks.' },
+      { label: 'Timer presets', detail: '**Classic** (25m work / 5m break), **Deep** (50m / 10m), **Sprint** (90m / 20m). Pick in the bottom bar.' },
+      { label: 'Focus tasks', detail: 'Your daily priorities carry into Emperor Time. Click a task to expand its subtasks. Cycle subtask status inline.' },
+      { label: 'Session logging', detail: 'Each completed pomodoro is logged as a tracker entry. View session history on the Sessions page.' },
+    ],
+  },
+  {
+    id: 'focus-mode',
+    icon: <Eye className="h-4 w-4" />,
+    title: 'Focus Mode',
+    items: [
+      { label: 'Toggle', detail: 'Press `Cmd+Shift+F` or click the eye icon (bottom-right corner) to hide the sidebar and top bar for distraction-free browsing.' },
+      { label: 'Difference from Emperor Time', detail: 'Focus Mode keeps you on your current page with full navigation via `Cmd+K`. Emperor Time is a dedicated deep work session with timer.' },
+    ],
+  },
+  {
+    id: 'modules',
+    icon: <LayoutDashboard className="h-4 w-4" />,
+    title: 'Modules Overview',
+    items: [
+      { label: 'Command', detail: '**Focus** (daily priorities, protocols), **Dashboard** (overview), **Emperor Time** (deep work), **Review** (weekly review).' },
+      { label: 'Operate', detail: '**Tasks** (Jira-style board + list), **Notes** (freeform), **Calendar** (schedule + Google Calendar feeds).' },
+      { label: 'Track', detail: '**Goals** (strategic direction, milestones), **Habits** (daily streaks, protocols), **Health** (body metrics, workouts), **Wealth** (transactions, budgets).' },
+      { label: 'Life', detail: '**Learning** (skills, reading lists), **Travel** (trips, places), **Family** (chores, shared tasks).' },
+    ],
+  },
+  {
+    id: 'keyboard',
+    icon: <Keyboard className="h-4 w-4" />,
+    title: 'Keyboard Shortcuts',
+    items: [
+      { label: '`Cmd+K`', detail: 'Open command palette — search and navigate anywhere.' },
+      { label: '`Cmd+Shift+I`', detail: 'Open inbox capture dialog from any page.' },
+      { label: '`Cmd+Shift+F`', detail: 'Toggle Focus Mode (hide sidebar + top bar).' },
+      { label: '`Cmd+B`', detail: 'Toggle sidebar collapse.' },
+      { label: '`/`', detail: 'Focus the capture bar (on Focus page).' },
+      { label: '`Esc`', detail: 'Pause / leave Emperor Time session.' },
+    ],
+  },
+  {
+    id: 'data',
+    icon: <Command className="h-4 w-4" />,
+    title: 'Data & Settings',
+    items: [
+      { label: 'Export / Import', detail: 'Click your avatar in the sidebar footer to export a full JSON backup or import from a previous backup.' },
+      { label: 'Two users', detail: 'Lyra supports two accounts — admin and member. Switch in the login screen.' },
+      { label: 'Local-first', detail: 'All data lives in localStorage by default. Enable the API backend (`VITE_USE_API=true`) for server-side SQLite persistence.' },
+      { label: 'Dark mode', detail: 'Toggle in the sidebar footer (sun/moon icon). Follows your system preference by default.' },
+    ],
+  },
+]
+
+export function GuideDialog({ open, onOpenChange }: GuideDialogProps) {
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['quick-start']))
+
+  const toggle = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] p-0 gap-0 overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent px-6 pt-6 pb-4">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                <BookOpen className="h-5 w-5 text-blue-500" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl">How to Use Lyra</DialogTitle>
+                <DialogDescription className="mt-0.5">
+                  Navigate your life by the stars
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+        </div>
+
+        <Separator />
+
+        <ScrollArea className="h-[60vh]">
+          <div className="px-6 py-4 space-y-1">
+            {GUIDE_SECTIONS.map((section) => {
+              const isOpen = expanded.has(section.id)
+              return (
+                <div key={section.id}>
+                  <button
+                    onClick={() => toggle(section.id)}
+                    className="w-full flex items-center gap-3 py-2.5 px-3 -mx-3 rounded-lg hover:bg-accent/50 transition-colors text-left cursor-pointer"
+                  >
+                    {isOpen
+                      ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                      : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    }
+                    <span className="text-muted-foreground shrink-0">{section.icon}</span>
+                    <span className="text-sm font-semibold flex-1">{section.title}</span>
+                    <span className="text-[10px] text-muted-foreground/50 tabular-nums shrink-0">
+                      {section.items.length}
+                    </span>
+                  </button>
+
+                  {isOpen && (
+                    <div className="ml-11 pb-3 pt-1 space-y-3">
+                      {section.items.map((item, i) => (
+                        <div key={i} className="flex gap-2.5">
+                          <span className="text-muted-foreground/30 shrink-0 mt-1.5">
+                            <span className="block w-1.5 h-1.5 rounded-full bg-current" />
+                          </span>
+                          <div>
+                            <span
+                              className="text-sm font-medium text-foreground"
+                              dangerouslySetInnerHTML={{ __html: formatText(item.label) }}
+                            />
+                            <p
+                              className="text-sm text-muted-foreground leading-relaxed mt-0.5"
+                              dangerouslySetInnerHTML={{ __html: formatText(item.detail) }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function formatText(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-foreground font-medium">$1</strong>')
+    .replace(/`(.+?)`/g, '<kbd class="text-[11px] bg-muted px-1.5 py-0.5 rounded font-mono border border-border">$1</kbd>')
+}

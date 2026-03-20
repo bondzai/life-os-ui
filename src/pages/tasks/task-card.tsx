@@ -142,7 +142,7 @@ export const TaskCard = memo(
               <DropdownMenuTrigger asChild>
                 <button
                   onClick={(e) => e.stopPropagation()}
-                  className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border shrink-0 transition-colors hover:opacity-80 ${STATUS_STYLE[task.status] ?? ''}`}
+                  className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border shrink-0 transition-colors hover:opacity-80 cursor-pointer ${STATUS_STYLE[task.status] ?? ''}`}
                 >
                   {STATUS_SHORT[task.status] ?? task.status}
                 </button>
