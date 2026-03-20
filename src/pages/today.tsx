@@ -934,7 +934,7 @@ export function TodayPage() {
               onClick={() => setStandupOpen(true)}
               className="text-[11px] text-muted-foreground/50 hover:text-foreground transition-colors flex items-center gap-1"
             >
-              📋 Standup
+              📋 Summary
             </button>
           </div>
 
@@ -1235,6 +1235,7 @@ export function TodayPage() {
         open={standupOpen}
         onOpenChange={setStandupOpen}
         tasks={allEntities.filter((e) => e.type === 'task' || e.type === 'chore')}
+        todayPriorityIds={priorities}
       />
     </div>
   )
