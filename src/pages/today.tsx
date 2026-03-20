@@ -26,7 +26,6 @@ import {
   NotebookPen,
   CalendarPlus,
   Repeat,
-  BookOpen,
   ListChecks,
   Crown,
   ChevronsUp,
@@ -38,7 +37,6 @@ import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Textarea } from '@/components/ui/textarea'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useICalEvents } from '@/hooks/use-ical-events'
 import { useAuthStore } from '@/stores/auth-store'
@@ -310,8 +308,6 @@ export function TodayPage() {
 
   const [priorities, setPriorities] = useState<string[]>(() => getTodayPriorities())
   const [addingStory, setAddingStory] = useState(false)
-  const [journalText, setJournalText] = useState('')
-  const [showJournal, setShowJournal] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
   const todayStart = useMemo(() => {
@@ -599,26 +595,6 @@ export function TodayPage() {
     },
     [getTodayTracker, createTracker, updateTracker, update, currentUser],
   )
-
-  const handleJournalSave = useCallback(() => {
-    if (!journalText.trim()) return
-    create.mutate({
-      id: crypto.randomUUID(),
-      type: 'note',
-      title: `Journal — ${new Date().toLocaleDateString()}`,
-      status: 'todo',
-      priority: 'low',
-      tags: ['journal'],
-      metadata: { body: journalText.trim(), isJournal: true, date: today, mood: '' },
-      ownerId: currentUser?.id ?? '',
-      visibility: 'private',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    })
-    setJournalText('')
-    setShowJournal(false)
-    notify({ title: 'Journal saved', type: 'success' })
-  }, [create, currentUser, today, journalText])
 
   const handleConvertInbox = useCallback(
     (item: Entity, targetType: EntityType) => {
@@ -934,30 +910,7 @@ export function TodayPage() {
             </section>
           )}
 
-          {/* Journal — collapsed */}
-          <section className="pb-6">
-            <button
-              onClick={() => setShowJournal((v) => !v)}
-              className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-            >
-              <BookOpen className="h-3 w-3" />
-              Quick Journal
-              <ChevronRight className={`h-3 w-3 transition-transform ${showJournal ? 'rotate-90' : ''}`} />
-            </button>
-            {showJournal && (
-              <div className="mt-3 space-y-2">
-                <Textarea
-                  placeholder="What's on your mind?"
-                  rows={3}
-                  value={journalText}
-                  onChange={(e) => setJournalText(e.target.value)}
-                  className="resize-none"
-                  autoFocus
-                />
-                <Button size="sm" disabled={!journalText.trim()} onClick={handleJournalSave}>Save</Button>
-              </div>
-            )}
-          </section>
+          <div className="pb-6" />
         </div>
 
         {/* ═══ RIGHT — Quick Summary (5/12) ═══ */}
