@@ -11,8 +11,9 @@ import {
   MapPin,
   LayoutDashboard,
   ClipboardCheck,
+  ClipboardList,
+  Inbox,
   BarChart3,
-  Crown,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -39,7 +40,8 @@ export const modules: ModuleConfig[] = [
   {
     id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Command', entityTypes: [],
     children: [
-      { id: 'emperor-time', label: 'Emperor Time', icon: Crown, path: '/sessions' },
+      { id: 'inbox', label: 'Inbox', icon: Inbox, path: '/inbox' },
+      { id: 'morning-summary', label: 'Morning Summary', icon: ClipboardList, path: '/briefing' },
       { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review' },
     ],
   },

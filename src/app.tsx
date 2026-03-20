@@ -26,6 +26,8 @@ const DashboardPage = lazy(() => import('@/pages/dashboard').then((m) => ({ defa
 const NotificationsPage = lazy(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationsPage })))
 const DeepWorkPage = lazy(() => import('@/pages/deep-work').then((m) => ({ default: m.DeepWorkPage })))
 const SessionsPage = lazy(() => import('@/pages/sessions').then((m) => ({ default: m.SessionsPage })))
+const InboxPage = lazy(() => import('@/pages/inbox').then((m) => ({ default: m.InboxPage })))
+const BriefingPage = lazy(() => import('@/pages/tasks/standup-report').then((m) => ({ default: m.BriefingPage })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +48,7 @@ export function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route path="deep-work" element={<DeepWorkPage />} />
+                <Route path="briefing" element={<BriefingPage />} />
                 <Route element={<AppLayout />}>
                   <Route index element={<TodayPage />} />
                   <Route path="goals" element={<GoalsPage />} />
@@ -60,6 +63,7 @@ export function App() {
                   <Route path="family" element={<FamilyPage />} />
                   <Route path="review" element={<ReviewPage />} />
                   <Route path="sessions" element={<SessionsPage />} />
+                  <Route path="inbox" element={<InboxPage />} />
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="today" element={<TodayPage />} />

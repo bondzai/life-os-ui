@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router'
 import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList, ListChecks, Archive, ArrowRight, Trash2, ChevronsUpDown } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
 import { Button } from '@/components/ui/button'
@@ -19,7 +20,6 @@ import { notify } from '@/lib/notify'
 import { emitAutomationEvent } from './automate/automation-event-bus'
 import { TaskCard } from './tasks/task-card'
 import { KanbanBoard } from './tasks/kanban-board'
-import { StandupReport } from './tasks/standup-report'
 import { StoryDialog } from './tasks/story-dialog'
 import { TaskDetailPanel } from './tasks/task-detail-panel'
 import { TaskFilters, applyTaskFilters, defaultFilters, type TaskFilterState } from './tasks/task-filters'
@@ -139,7 +139,7 @@ export function TasksPage() {
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
   const [showDone, setShowDone] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
-  const [standupOpen, setStandupOpen] = useState(false)
+  const navigate = useNavigate()
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
   const [mergeSubtasks, setMergeSubtasks] = useState<Array<{ id: string; title: string; done: boolean }>>([])
@@ -716,7 +716,7 @@ export function TasksPage() {
           >
             <CheckSquare className="h-4 w-4 mr-1" /> Select
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setStandupOpen(true)}>
+          <Button size="sm" variant="outline" onClick={() => navigate('/briefing')}>
             <ClipboardList className="h-4 w-4 mr-1" /> Standup
           </Button>
           <DropdownMenu>
@@ -1260,8 +1260,6 @@ export function TasksPage() {
         onSubmit={handleCreateStory}
       />
 
-      {/* Standup Report Sheet */}
-      <StandupReport open={standupOpen} onOpenChange={setStandupOpen} tasks={filteredTasks} />
     </div>
   )
 }

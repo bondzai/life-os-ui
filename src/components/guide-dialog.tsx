@@ -41,7 +41,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Quick Start',
     items: [
       { label: 'Focus page', detail: 'Your home screen — set up to 3 daily priorities, run morning/evening protocols, and launch Emperor Time focus sessions.' },
-      { label: 'Capture anything', detail: 'Press `/` to focus the capture bar on the Focus page. Use `!` prefix for tasks, `?` for quick notes. Or press `Cmd+Shift+I` for the inbox dialog from anywhere.' },
+      { label: 'Capture anything', detail: 'Press `/` to focus the capture bar and see 20+ slash commands grouped by ⚡ Capture, ♟️ Strategic, 🧠 Deep Mind. Type `/` to browse, `/t` to filter. Quick prefixes: `!` task, `?` question, `*` idea, `@` goal, `#` habit. Try `/spark`, `/think`, `/decide`, `/blocker`, `/experiment`.' },
+      { label: 'Inbox', detail: 'All captured items land in the Inbox (Focus > Inbox). View, edit, convert to task, archive, or delete. Filter by type.' },
       { label: 'Command palette', detail: 'Press `Cmd+K` from any page to search everything — tasks, goals, notes, habits, and navigation.' },
     ],
   },

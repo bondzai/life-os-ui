@@ -26,10 +26,6 @@ import {
   BookOpen,
   ListChecks,
   Crown,
-  AlertTriangle,
-  Archive,
-  CalendarClock,
-  RotateCcw,
   ChevronsUp,
   ArrowUp,
   ArrowDown,
@@ -46,12 +42,9 @@ import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useFocusStore } from '@/stores/focus-store'
-import { calcFocusStats, formatMinutes } from '@/lib/focus-stats'
 import { PriorityPicker } from './today/priority-picker'
-import { StandupReport } from './tasks/standup-report'
 import { CaptureBar } from './today/capture-bar'
 // DailyProtocol removed — protocols are on left column
-import { isReviewDoneThisWeek, daysAgo } from './review/review-helpers'
 import { getRecurrence, buildRecurringNext } from './tasks/task-helpers'
 import { getTodayPriorities, setTodayPriorities } from './today/today-helpers'
 import type { Entity } from '@/core/types'
@@ -224,7 +217,7 @@ const FocusStory = memo(function FocusStory({
   onAddSubtask: (entity: Entity, title: string) => void
   onReorderSubtasks: (entity: Entity, event: DragEndEvent) => void
 }) {
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor),
@@ -308,7 +301,6 @@ export function TodayPage() {
 
   const [priorities, setPriorities] = useState<string[]>(() => getTodayPriorities())
   const [addingStory, setAddingStory] = useState(false)
-  const [standupOpen, setStandupOpen] = useState(false)
   const [journalText, setJournalText] = useState('')
   const [showJournal, setShowJournal] = useState(false)
 
@@ -415,52 +407,6 @@ export function TodayPage() {
   )
 
   // Active Projects — for quick nav count
-  const activeProjects = useMemo(() => {
-    const childParentIds = new Set(
-      allEntities.filter((e) => e.type === 'goal' && e.parentId).map((e) => e.parentId!),
-    )
-    // Projects = goals with children, or top-level goals with progress tracking
-    const projects = allEntities.filter(
-      (e) =>
-        e.type === 'goal' &&
-        e.status === 'todo' &&
-        (childParentIds.has(e.id) || typeof e.metadata.progress === 'number'),
-    )
-    return projects.slice(0, 5)
-  }, [allEntities])
-
-  // Stale items — active but untouched 14+ days
-  const STALE_DAYS = 14
-  const staleItems = useMemo(
-    () =>
-      allEntities
-        .filter(
-          (e) =>
-            ['task', 'goal', 'chore', 'note'].includes(e.type) &&
-            e.status !== 'done' &&
-            e.status !== 'archived' &&
-            daysAgo(e.updatedAt) >= STALE_DAYS,
-        )
-        .sort((a, b) => daysAgo(b.updatedAt) - daysAgo(a.updatedAt)),
-    [allEntities],
-  )
-
-  const handleArchiveStale = useCallback(
-    (item: Entity) => {
-      update.mutate({ id: item.id, updates: { status: 'archived', updatedAt: new Date().toISOString() } })
-      notify({ title: `"${item.title}" archived`, type: 'success' })
-    },
-    [update],
-  )
-
-  const handleSnoozeStale = useCallback(
-    (item: Entity) => {
-      update.mutate({ id: item.id, updates: { updatedAt: new Date().toISOString() } })
-      notify({ title: `"${item.title}" snoozed for ${STALE_DAYS} days`, type: 'success' })
-    },
-    [update],
-  )
-
   // ─── Metrics ───
 
   const habitsChecked = habits.filter((h) => h.checkedToday).length
@@ -484,14 +430,6 @@ export function TodayPage() {
     }
     return totalSteps > 0 ? Math.round((doneSteps / totalSteps) * 100) : 0
   }, [priorities, priorityEntities])
-
-  const reviewDue = useMemo(() => !isReviewDoneThisWeek(), [])
-
-  // Deep Work stats
-  const focusStatsData = useMemo(() => {
-    const titleMap = new Map(allEntities.map((e) => [e.id, e.title]))
-    return calcFocusStats(allTrackers, titleMap)
-  }, [allTrackers, allEntities])
 
   // ─── Handlers ───
 
@@ -594,29 +532,6 @@ export function TodayPage() {
       }
     },
     [update, create],
-  )
-
-  const handleHabitCheckIn = useCallback(
-    (habit: Entity) => {
-      createTracker.mutate({
-        id: crypto.randomUUID(),
-        entityId: habit.id,
-        value: 1,
-        unit: 'done',
-        timestamp: new Date().toISOString(),
-        ownerId: currentUser?.id ?? '',
-      })
-      const currentStreak = typeof habit.metadata.streak === 'number' ? (habit.metadata.streak as number) : 0
-      update.mutate({
-        id: habit.id,
-        updates: {
-          metadata: { ...habit.metadata, streak: currentStreak + 1 },
-          updatedAt: new Date().toISOString(),
-        },
-      })
-      notify({ title: `${habit.title} done!`, type: 'success' })
-    },
-    [createTracker, update, currentUser],
   )
 
   const handleToggleStep = useCallback(
@@ -781,14 +696,21 @@ export function TodayPage() {
           {/* Today Focus — story-based */}
           <section>
             {priorities.length > 0 ? (
-              <>
-                <SH action={
+              <Collapsible defaultOpen>
+                <div className="flex items-center justify-between mb-2">
+                  <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                    <ChevronRight className="h-3 w-3 transition-transform [[data-state=open]>&]:rotate-90" />
+                    <Target className="h-3 w-3 inline -mt-px" />
+                    Today Focus
+                    <span className="text-muted-foreground/50 font-normal normal-case tracking-normal ml-1">
+                      {priorityEntities.filter((i) => i.status === 'done').length}/{priorityEntities.length}
+                    </span>
+                  </CollapsibleTrigger>
                   <div className="flex items-center gap-2">
                     <button
                       className="flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
                       onClick={() => {
                         const store = useFocusStore.getState()
-                        // Resume existing session if same tasks, otherwise start new
                         const same = store.emperorEntityIds.length === priorities.length &&
                           priorities.every((id) => store.emperorEntityIds.includes(id))
                         if (!same || !store.sessionId) {
@@ -808,10 +730,8 @@ export function TodayPage() {
                       Reset
                     </button>
                   </div>
-                }>
-                  <Target className="h-3 w-3 inline mr-1.5 -mt-px" />
-                  Today Focus
-                </SH>
+                </div>
+                <CollapsibleContent>
                 <div className="space-y-2">
                   {priorityEntities.map((item) => {
                     const subs = Array.isArray(item.metadata.subtasks)
@@ -907,7 +827,8 @@ export function TodayPage() {
                     </button>
                   </div>
                 )}
-              </>
+                </CollapsibleContent>
+              </Collapsible>
             ) : (
               <PriorityPicker
                 candidates={priorityCandidates}
@@ -1024,316 +945,43 @@ export function TodayPage() {
         {/* ═══ RIGHT — Quick Summary (5/12) ═══ */}
         <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-1 scrollbar-thin">
 
-          {/* Header with standup button */}
-          <div className="flex items-center justify-between px-4 pb-1">
+          {/* Header */}
+          <div className="px-4 pb-1">
             <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">Quick Summary</h2>
-            <button
-              onClick={() => setStandupOpen(true)}
-              className="text-[11px] text-muted-foreground/50 hover:text-foreground transition-colors flex items-center gap-1"
-            >
-              📋 Summary
-            </button>
           </div>
 
-          {/* Calendar — today's tasks, events + iCal */}
-          <Collapsible defaultOpen>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
-              <span className="text-sm">📅</span>
-              <span className="text-sm flex-1 font-medium">Calendar</span>
-              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{todayTasks.length + todayEvents.length + todayICalEvents.length}</span>
-              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="px-4 pb-3 space-y-1">
-                {todayTasks.length === 0 && todayEvents.length === 0 && todayICalEvents.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/40 py-1">Nothing scheduled today</p>
-                ) : (
-                  <>
-                    {/* Tasks due today */}
-                    {todayTasks.map((task) => (
-                      <div key={task.id} className="flex items-center gap-2.5 py-1.5">
-                        <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">Task</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-500/60 shrink-0" />
-                        <span className={`text-sm truncate flex-1 ${task.status === 'done' ? 'line-through text-muted-foreground/40' : ''}`}>{task.title}</span>
-                        {typeof task.metadata.workspace === 'string' && (
-                          <span className="text-[10px] text-muted-foreground/30">{task.metadata.workspace === 'work' ? '🏢' : '🏠'}</span>
-                        )}
-                      </div>
-                    ))}
-                    {/* Local events */}
-                    {todayEvents.map((event) => (
-                      <div key={event.id} className="flex items-center gap-2.5 py-1.5">
-                        <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
-                          {(event.metadata.time as string) ?? 'All day'}
-                        </span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" />
-                        <span className="text-sm truncate">{event.title}</span>
-                      </div>
-                    ))}
-                    {/* iCal / Google Calendar events */}
-                    {todayICalEvents.map((event) => (
-                      <div key={event.id} className="flex items-center gap-2.5 py-1.5">
-                        <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
-                          {event.isAllDay ? 'All day' : event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: event.color || '#7986cb' }} />
-                        <span className="text-sm truncate">{event.title}</span>
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Deep Work Log */}
-          <Collapsible defaultOpen={false}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
-              <span className="text-sm">🎯</span>
-              <span className="text-sm flex-1 font-medium">Deep Work</span>
-              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{formatMinutes(focusStatsData.todayMinutes)}</span>
-              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="px-4 pb-3 space-y-3">
-                {/* Today */}
-                <p className="text-xs text-muted-foreground">
-                  Today: {focusStatsData.todaySessions} session{focusStatsData.todaySessions !== 1 ? 's' : ''} · {formatMinutes(focusStatsData.todayMinutes)}
-                </p>
-
-                {/* Weekly bar chart */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-muted-foreground/50">This Week</span>
-                    <span className="text-[10px] text-muted-foreground/50 tabular-nums">
-                      {formatMinutes(focusStatsData.thisWeekMinutes)}
-                      {focusStatsData.weekDiff !== 0 && (
-                        <span className={focusStatsData.weekDiff > 0 ? ' text-green-500' : ' text-red-500'}>
-                          {' '}{focusStatsData.weekDiff > 0 ? '+' : ''}{formatMinutes(Math.abs(focusStatsData.weekDiff))}
-                        </span>
-                      )}
+          {/* Calendar — today's events only */}
+          <div className="px-4 space-y-1">
+            {todayEvents.length === 0 && todayICalEvents.length === 0 ? (
+              <p className="text-xs text-muted-foreground/40 py-1">No events today</p>
+            ) : (
+              <>
+                {/* Local events */}
+                {todayEvents.map((event) => (
+                  <div key={event.id} className="flex items-center gap-2.5 py-1.5">
+                    <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
+                      {(event.metadata.time as string) ?? 'All day'}
                     </span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" />
+                    <span className="text-sm truncate">{event.title}</span>
                   </div>
-                  <div className="flex items-end gap-1 h-10">
-                    {focusStatsData.weekDays.map((day) => {
-                      const maxMin = Math.max(1, ...focusStatsData.weekDays.map((d) => d.minutes))
-                      const heightPct = day.minutes > 0 ? Math.max(10, (day.minutes / maxMin) * 100) : 0
-                      const isToday = day.date === today
-                      return (
-                        <div key={day.date} className="flex-1 flex flex-col items-center gap-0.5">
-                          <div
-                            className={`w-full rounded-sm transition-all ${
-                              isToday ? 'bg-primary' : day.minutes > 0 ? 'bg-primary/40' : 'bg-muted/30'
-                            }`}
-                            style={{ height: `${heightPct}%`, minHeight: day.minutes > 0 ? 3 : 1 }}
-                          />
-                          <span className={`text-[9px] ${isToday ? 'text-foreground font-medium' : 'text-muted-foreground/40'}`}>
-                            {day.label.charAt(0)}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Top tasks */}
-                {focusStatsData.topTasks.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-muted-foreground/50">Top Focus</p>
-                    {focusStatsData.topTasks.slice(0, 3).map((task) => {
-                      const maxMin = Math.max(1, ...focusStatsData.topTasks.map((t) => t.minutes))
-                      return (
-                        <div key={task.entityId} className="space-y-0.5">
-                          <div className="flex justify-between text-xs">
-                            <span className="truncate pr-2">{task.title}</span>
-                            <span className="text-muted-foreground/50 tabular-nums shrink-0">{formatMinutes(task.minutes)}</span>
-                          </div>
-                          <div className="h-1 bg-muted/30 rounded-full overflow-hidden">
-                            <div className="h-full bg-primary/50 rounded-full" style={{ width: `${(task.minutes / maxMin) * 100}%` }} />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {/* Streak */}
-                {focusStatsData.streak > 0 && (
-                  <p className="text-xs flex items-center gap-1">
-                    <span>🔥</span>
-                    <span className="font-medium">{focusStatsData.streak} day streak</span>
-                  </p>
-                )}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Tasks — due today count */}
-          <Collapsible defaultOpen={false}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
-              <span className="text-sm">📋</span>
-              <span className="text-sm flex-1 font-medium">Tasks</span>
-              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{todayTasks.length} due</span>
-              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="px-4 pb-3 space-y-1">
-                {todayTasks.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/40 py-1">No tasks due today</p>
-                ) : (
-                  todayTasks.slice(0, 8).map((task) => (
-                    <div key={task.id} className="flex items-center gap-2.5 py-1.5">
-                      <Checkbox
-                        checked={task.status === 'done'}
-                        onCheckedChange={() => toggleItem(task)}
-                        className="h-3.5 w-3.5 shrink-0"
-                      />
-                      <span className={`text-sm truncate flex-1 ${task.status === 'done' ? 'line-through text-muted-foreground/50' : ''}`}>{task.title}</span>
-                      {typeof task.metadata.workspace === 'string' && (
-                        <span className="text-[10px] text-muted-foreground/30">{task.metadata.workspace === 'work' ? '🏢' : '🏠'}</span>
-                      )}
-                    </div>
-                  ))
-                )}
-                {todayTasks.length > 8 && (
-                  <button onClick={() => navigate('/tasks')} className="text-xs text-primary/60 hover:text-primary transition-colors pt-1">
-                    +{todayTasks.length - 8} more →
-                  </button>
-                )}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Goals — active with progress */}
-          <Collapsible defaultOpen={false}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
-              <span className="text-sm">🎯</span>
-              <span className="text-sm flex-1 font-medium">Goals</span>
-              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{activeProjects.length} active</span>
-              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="px-4 pb-3 space-y-2">
-                {activeProjects.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/40 py-1">No active goals</p>
-                ) : (
-                  activeProjects.map((goal) => {
-                    const p = typeof goal.metadata.progress === 'number' ? (goal.metadata.progress as number) : 0
-                    return (
-                      <button key={goal.id} onClick={() => navigate(`/goals?id=${goal.id}`)} className="w-full text-left hover:bg-muted/30 rounded px-1 py-1 transition-colors">
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="truncate pr-2">{goal.title}</span>
-                          <span className="text-[11px] tabular-nums text-muted-foreground/50 shrink-0">{p}%</span>
-                        </div>
-                        <Progress value={p} className="h-1" />
-                      </button>
-                    )
-                  })
-                )}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Habits */}
-          <Collapsible defaultOpen={false}>
-            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
-              <span className="text-sm">🔁</span>
-              <span className="text-sm flex-1 font-medium">Habits</span>
-              <span className="text-[11px] text-muted-foreground/50 tabular-nums">{habitsChecked}/{habits.length}</span>
-              <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-                {habits.map(({ habit, checkedToday, streak }) => (
-                  <button
-                    key={habit.id}
-                    onClick={() => !checkedToday && handleHabitCheckIn(habit)}
-                    disabled={checkedToday}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-all ${
-                      checkedToday
-                        ? 'bg-green-500/10 text-green-700 dark:text-green-400'
-                        : 'bg-muted/40 hover:bg-muted text-foreground'
-                    }`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${checkedToday ? 'bg-green-500' : 'bg-muted-foreground/20'}`} />
-                    {habit.title}
-                    {streak > 0 && <span className="text-[10px] text-muted-foreground/40 tabular-nums">{streak}d</span>}
-                  </button>
                 ))}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Stale Items */}
-          {staleItems.length > 0 && (
-            <Collapsible defaultOpen={false}>
-              <CollapsibleTrigger className="flex items-center gap-2 w-full py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors text-left">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                <span className="text-sm flex-1 font-medium">Stale</span>
-                <span className="text-[11px] text-amber-500/70 tabular-nums">{staleItems.length}</span>
-                <ChevronRight className="h-3 w-3 text-muted-foreground/30 transition-transform [[data-state=open]>&]:rotate-90" />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="px-4 pb-3 space-y-1">
-                  {staleItems.slice(0, 10).map((item) => (
-                    <div key={item.id} className="flex items-center gap-2 py-1.5 group">
-                      <span className="text-sm flex-1 truncate">{item.title}</span>
-                      <span className="text-[10px] text-muted-foreground/40 flex items-center gap-0.5 shrink-0">
-                        <CalendarClock className="h-2.5 w-2.5" />
-                        {daysAgo(item.updatedAt)}d
-                      </span>
-                      <span className="text-[10px] text-muted-foreground/30 capitalize shrink-0">{item.type}</span>
-                      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                        <button
-                          onClick={() => handleSnoozeStale(item)}
-                          className="p-1 rounded hover:bg-muted transition-colors"
-                          title="Snooze — reset timer"
-                        >
-                          <RotateCcw className="h-3 w-3 text-muted-foreground" />
-                        </button>
-                        <button
-                          onClick={() => handleArchiveStale(item)}
-                          className="p-1 rounded hover:bg-muted transition-colors"
-                          title="Archive"
-                        >
-                          <Archive className="h-3 w-3 text-muted-foreground" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {staleItems.length > 10 && (
-                    <button onClick={() => navigate('/review')} className="text-xs text-primary/60 hover:text-primary transition-colors pt-1">
-                      +{staleItems.length - 10} more → Review
-                    </button>
-                  )}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-
-          {/* Weekly Review nudge */}
-          {reviewDue && (
-            <button
-              onClick={() => navigate('/review')}
-              className="w-full rounded-lg border border-dashed border-primary/20 p-3 mt-2 text-left hover:bg-muted/30 transition-colors flex items-center gap-3"
-            >
-              <div className="flex-1">
-                <p className="text-sm font-medium">Weekly Review</p>
-                <p className="text-[11px] text-muted-foreground/50">Time to reflect on your week</p>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
-            </button>
-          )}
+                {/* iCal / Google Calendar events */}
+                {todayICalEvents.map((event) => (
+                  <div key={event.id} className="flex items-center gap-2.5 py-1.5">
+                    <span className="text-[11px] tabular-nums text-muted-foreground/50 w-12 shrink-0">
+                      {event.isAllDay ? 'All day' : event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: event.color || '#7986cb' }} />
+                    <span className="text-sm truncate">{event.title}</span>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
         </aside>
       </div>
 
-      {/* Standup Report Sheet */}
-      <StandupReport
-        open={standupOpen}
-        onOpenChange={setStandupOpen}
-        tasks={allEntities.filter((e) => e.type === 'task' || e.type === 'chore')}
-        todayPriorityIds={priorities}
-      />
     </div>
   )
 }

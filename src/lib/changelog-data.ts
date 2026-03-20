@@ -14,6 +14,32 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.58.0',
+    date: '2026-03-20',
+    phase: 'Inbox, Capture Protocol & Note Templates',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Inbox page**: Full CRUD for inbox items — view, edit, convert to task, archive, delete with type filters (Focus > Inbox)',
+          '**Capture protocol**: Enum-based prefix system — `!` task, `?` question, `*` idea, `@` goal, `#` habit with shared single source of truth',
+          '**Slash commands**: 20+ VS Code-style `/commands` with emoji, grouped into ⚡ Capture, ♟️ Strategic, 🧠 Deep Mind categories',
+          '**Slash command dropdown**: Type `/` in capture bar to browse commands with dynamic filtering, arrow key navigation, Enter/Tab to select',
+          '**Note templates**: Type `/` in any task note input for 12 emoji-prefixed templates (`/action`, `/blocker`, `/decision`, `/risk`, `/win`, `/handoff`, etc.)',
+          '**Capture bar direction**: Dropdown renders below on Focus/Inbox pages, dropup on Morning Summary bottom bar — always stays on screen',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Morning Summary capture**: Bottom bar upgraded from plain text input to protocol-aware capture bar with slash commands',
+          '**InboxCapture dialog**: Refactored to use shared capture protocol instead of duplicated type detection logic',
+          '**Sidebar**: Inbox added as first submenu under Focus alongside Morning Summary and Review',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.57.0',
     date: '2026-03-20',
     phase: 'Event Delete, Subtask Notes & Emperor Time CRUD',

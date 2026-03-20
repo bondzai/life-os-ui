@@ -1,11 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Plus,
-  CheckSquare,
-  NotebookPen,
-  Lightbulb,
-  Target,
-  Repeat,
   CalendarIcon,
   X,
 } from 'lucide-react'
@@ -26,111 +21,48 @@ import {
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
+import { CAPTURE_RULES, parseCapture, type CaptureRule } from '@/core/config/capture-protocol'
 import type { EntityType, EntityStatus, EntityPriority } from '@/core/types'
-import type { LucideIcon } from 'lucide-react'
 
-type CaptureType = 'task' | 'note' | 'idea' | 'goal' | 'habit'
-
-interface CaptureTypeOption {
-  key: CaptureType
-  label: string
-  icon: LucideIcon
-  entityType: EntityType
-}
-
-const CAPTURE_TYPES: CaptureTypeOption[] = [
-  { key: 'task', label: 'Task', icon: CheckSquare, entityType: 'task' },
-  { key: 'note', label: 'Note', icon: NotebookPen, entityType: 'note' },
-  { key: 'idea', label: 'Idea', icon: Lightbulb, entityType: 'note' },
-  { key: 'goal', label: 'Goal', icon: Target, entityType: 'goal' },
-  { key: 'habit', label: 'Habit', icon: Repeat, entityType: 'habit' },
-]
-
-function detectType(text: string): { type: CaptureType; extraTags: string[] } | null {
-  const trimmed = text.trim()
-  if (trimmed.startsWith('TODO ') || trimmed.startsWith('- [ ]')) {
-    return { type: 'task', extraTags: [] }
-  }
-  if (trimmed.startsWith('?') || trimmed.endsWith('?')) {
-    return { type: 'note', extraTags: ['question'] }
-  }
-  return null
-}
-
+// Default note rule for when no prefix matches
 function buildEntity(
   text: string,
-  captureType: CaptureType,
+  rule: CaptureRule,
   tags: string[],
   dueDate: string | undefined,
   ownerId: string,
 ) {
   const now = new Date().toISOString()
-  const title = text.trim().replace(/^(TODO |- \[ \] )/, '').slice(0, 120) || 'Inbox item'
+  const title = text.trim().slice(0, 120) || 'Inbox item'
 
-  const base = {
+  return {
     id: crypto.randomUUID(),
+    type: rule.entityType as EntityType,
     title,
-    tags,
+    status: 'todo' as EntityStatus,
+    priority: rule.defaultPriority as EntityPriority,
+    tags: [...new Set([...tags, ...rule.autoTags])],
+    metadata: {
+      body: text.trim(),
+      isInbox: true,
+      ...(rule.entityType === 'note' ? { isJournal: false } : {}),
+      ...(rule.entityType === 'habit' ? { frequency: 'daily' } : {}),
+    },
     ownerId,
     visibility: 'private' as const,
     createdAt: now,
     updatedAt: now,
     dueDate,
   }
-
-  switch (captureType) {
-    case 'task':
-      return {
-        ...base,
-        type: 'task' as EntityType,
-        status: 'todo' as EntityStatus,
-        priority: 'medium' as EntityPriority,
-        metadata: { body: text.trim(), isInbox: true },
-      }
-    case 'note':
-      return {
-        ...base,
-        type: 'note' as EntityType,
-        status: 'todo' as EntityStatus,
-        priority: 'medium' as EntityPriority,
-        metadata: { body: text.trim(), isInbox: true, isJournal: false },
-      }
-    case 'idea':
-      return {
-        ...base,
-        type: 'note' as EntityType,
-        status: 'todo' as EntityStatus,
-        priority: 'medium' as EntityPriority,
-        tags: [...tags.filter((t) => t !== 'idea'), 'idea'],
-        metadata: { body: text.trim(), isInbox: true, isJournal: false },
-      }
-    case 'goal':
-      return {
-        ...base,
-        type: 'goal' as EntityType,
-        status: 'todo' as EntityStatus,
-        priority: 'medium' as EntityPriority,
-        metadata: { body: text.trim() },
-      }
-    case 'habit':
-      return {
-        ...base,
-        type: 'habit' as EntityType,
-        status: 'todo' as EntityStatus,
-        priority: 'medium' as EntityPriority,
-        metadata: { body: text.trim(), frequency: 'daily' },
-      }
-  }
 }
 
 export function InboxCapture() {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
-  const [captureType, setCaptureType] = useState<CaptureType>('note')
+  const [activeRule, setActiveRule] = useState<CaptureRule>(CAPTURE_RULES[0])
   const [tagsInput, setTagsInput] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [showDueDate, setShowDueDate] = useState(false)
-  const [autoDetected, setAutoDetected] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const { create, items } = useEntities()
@@ -156,42 +88,26 @@ export function InboxCapture() {
   useEffect(() => {
     if (open) {
       setText('')
-      setCaptureType('note')
+      setActiveRule(CAPTURE_RULES.find((r) => r.entityType === 'note' && r.autoTags.length === 0) ?? CAPTURE_RULES[0])
       setTagsInput('')
       setDueDate('')
       setShowDueDate(false)
-      setAutoDetected(false)
-      // Focus textarea after dialog animation
       setTimeout(() => textareaRef.current?.focus(), 50)
     }
   }, [open])
 
-  // Smart type detection
+  // Smart type detection from prefix
   useEffect(() => {
-    const detected = detectType(text)
-    if (detected) {
-      setCaptureType(detected.type)
-      setAutoDetected(true)
-      if (detected.extraTags.length > 0) {
-        setTagsInput((prev) => {
-          const existing = prev
-            .split(',')
-            .map((t) => t.trim())
-            .filter(Boolean)
-          const merged = [...new Set([...existing, ...detected.extraTags])]
-          return merged.join(', ')
-        })
-      }
-    } else if (autoDetected) {
-      // If user clears the trigger text, reset to note
-      setCaptureType('note')
-      setAutoDetected(false)
+    const { rule } = parseCapture(text)
+    if (rule.prefix) {
+      setActiveRule(rule)
     }
-  }, [text, autoDetected])
+  }, [text])
 
   const handleSave = useCallback(() => {
     if (!text.trim()) return
 
+    const { cleanText } = parseCapture(text)
     const userTags = tagsInput
       .split(',')
       .map((t) => t.trim())
@@ -199,17 +115,12 @@ export function InboxCapture() {
     const tags = [...new Set(['inbox', ...userTags])]
     const due = dueDate || undefined
 
-    const entity = buildEntity(text, captureType, tags, due, currentUser?.id ?? '')
+    const entity = buildEntity(cleanText || text.trim(), activeRule, tags, due, currentUser?.id ?? '')
     create.mutate(entity)
 
     setOpen(false)
-
-    const typeOption = CAPTURE_TYPES.find((t) => t.key === captureType)
-    notify({
-      title: `Captured! (${typeOption?.label ?? captureType})`,
-      type: 'success',
-    })
-  }, [text, captureType, tagsInput, dueDate, create, currentUser])
+    notify({ title: `Captured! (${activeRule.label})`, type: 'success' })
+  }, [text, activeRule, tagsInput, dueDate, create, currentUser])
 
   // Enter to save, Shift+Enter for newline
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -218,8 +129,6 @@ export function InboxCapture() {
       handleSave()
     }
   }
-
-  const activeOption = CAPTURE_TYPES.find((t) => t.key === captureType)!
 
   return (
     <>
@@ -260,21 +169,30 @@ export function InboxCapture() {
             />
           </div>
 
+          {/* Protocol hint */}
+          <div className="px-4 py-1">
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground/50">
+              {CAPTURE_RULES.map((r) => (
+                <span key={r.prefix} className={activeRule.prefix === r.prefix ? 'text-primary font-medium' : ''}>
+                  <span className="font-mono">{r.prefix}</span>{r.label.toLowerCase()}
+                </span>
+              ))}
+            </div>
+          </div>
+
           {/* Type picker row */}
           <div className="px-4 py-2 flex items-center gap-1.5 flex-wrap">
-            {CAPTURE_TYPES.map((opt) => {
-              const Icon = opt.icon
-              const isActive = captureType === opt.key
+            {CAPTURE_RULES.map((rule) => {
+              const Icon = rule.icon
+              const isActive = activeRule.prefix === rule.prefix
               return (
                 <button
-                  key={opt.key}
+                  key={rule.prefix}
                   type="button"
                   onClick={() => {
-                    setCaptureType(opt.key)
-                    setAutoDetected(false)
-                    // Show due date picker when switching to task
-                    if (opt.key === 'task') setShowDueDate(true)
-                    if (opt.key !== 'task') {
+                    setActiveRule(rule)
+                    if (rule.entityType === 'task') setShowDueDate(true)
+                    if (rule.entityType !== 'task') {
                       setShowDueDate(false)
                       setDueDate('')
                     }
@@ -286,7 +204,7 @@ export function InboxCapture() {
                   }`}
                 >
                   <Icon className="h-3.5 w-3.5" />
-                  {opt.label}
+                  {rule.label}
                 </button>
               )
             })}
@@ -294,8 +212,7 @@ export function InboxCapture() {
 
           {/* Options row: due date + tags */}
           <div className="px-4 pb-3 flex items-center gap-2 flex-wrap">
-            {/* Due date (only for Task) */}
-            {captureType === 'task' && (
+            {activeRule.entityType === 'task' && (
               <Popover open={showDueDate} onOpenChange={setShowDueDate}>
                 <PopoverTrigger asChild>
                   <button
@@ -334,7 +251,6 @@ export function InboxCapture() {
               </Popover>
             )}
 
-            {/* Tags input */}
             <div className="flex-1 min-w-[120px]">
               <Input
                 type="text"
@@ -364,7 +280,7 @@ export function InboxCapture() {
               onClick={handleSave}
               className="h-7 text-xs px-3"
             >
-              <activeOption.icon className="h-3.5 w-3.5 mr-1" />
+              <activeRule.icon className="h-3.5 w-3.5 mr-1" />
               Capture
             </Button>
           </div>
