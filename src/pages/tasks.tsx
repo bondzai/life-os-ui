@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList, ListChecks, Archive, ArrowRight } from 'lucide-react'
+import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList, ListChecks, Archive, ArrowRight, Trash2 } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -140,6 +140,7 @@ export function TasksPage() {
   const [showDone, setShowDone] = useState(false)
   const [standupOpen, setStandupOpen] = useState(false)
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
+  const [selectMode, setSelectMode] = useState(false)
   const [mergeSubtasks, setMergeSubtasks] = useState<Array<{ id: string; title: string; done: boolean }>>([])
 
   // Detail panel state
@@ -436,6 +437,33 @@ export function TasksPage() {
     notify({ title: `${selected.length} task${selected.length > 1 ? 's' : ''} added to story`, type: 'success' })
   }
 
+  const handleBulkArchive = () => {
+    const count = selectedTasks.size
+    for (const id of selectedTasks) {
+      update.mutate({ id, updates: { status: 'archived' as EntityStatus, updatedAt: new Date().toISOString() } })
+    }
+    setSelectedTasks(new Set())
+    notify({ title: `${count} item${count > 1 ? 's' : ''} archived`, type: 'success' })
+  }
+
+  const handleBulkDelete = () => {
+    const count = selectedTasks.size
+    for (const id of selectedTasks) {
+      remove.mutate(id)
+    }
+    setSelectedTasks(new Set())
+    notify({ title: `${count} item${count > 1 ? 's' : ''} deleted`, type: 'success' })
+  }
+
+  const handleBulkStatus = (status: EntityStatus) => {
+    const count = selectedTasks.size
+    for (const id of selectedTasks) {
+      update.mutate({ id, updates: { status, updatedAt: new Date().toISOString() } })
+    }
+    setSelectedTasks(new Set())
+    notify({ title: `${count} item${count > 1 ? 's' : ''} moved to ${status}`, type: 'success' })
+  }
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over) return
@@ -599,6 +627,15 @@ export function TasksPage() {
 
   // ── Render helper for task list items ───────────────────────────────
 
+  const handleSelect = useCallback((task: Entity, checked: boolean) => {
+    setSelectedTasks((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(task.id)
+      else next.delete(task.id)
+      return next
+    })
+  }, [])
+
   const renderTaskCard = (task: Entity) => (
     <TaskCard
       task={task}
@@ -609,6 +646,8 @@ export function TasksPage() {
       onEdit={setEditingTask}
       onDelete={setDeleteTarget}
       onSnooze={snoozeTask}
+      selected={selectMode ? selectedTasks.has(task.id) : undefined}
+      onSelect={selectMode ? handleSelect : undefined}
     />
   )
 
@@ -639,6 +678,13 @@ export function TasksPage() {
           ))}
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={selectMode ? 'default' : 'outline'}
+            onClick={() => { setSelectMode((v) => !v); if (selectMode) setSelectedTasks(new Set()) }}
+          >
+            <CheckSquare className="h-4 w-4 mr-1" /> Select
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setStandupOpen(true)}>
             <ClipboardList className="h-4 w-4 mr-1" /> Standup
           </Button>
@@ -821,6 +867,25 @@ export function TasksPage() {
           {selectedTasks.size > 0 && (
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-background border rounded-full shadow-lg px-4 py-2 flex items-center gap-3 z-50">
               <span className="text-sm font-medium">{selectedTasks.size} selected</span>
+              <div className="h-4 border-r" />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline">Move to &#9662;</Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => handleBulkStatus('backlog')}>Backlog</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkStatus('todo')}>To Do</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkStatus('in-progress')}>In Progress</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkStatus('done')}>Done</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button size="sm" variant="outline" onClick={handleBulkArchive}>
+                <Archive className="h-3.5 w-3.5 mr-1.5" /> Archive
+              </Button>
+              <Button size="sm" variant="destructive" onClick={handleBulkDelete}>
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
+              </Button>
+              <div className="h-4 border-r" />
               <Button size="sm" variant="default" onClick={handleMergeIntoNewStory}>
                 <ListChecks className="h-3.5 w-3.5 mr-1.5" /> Create Story
               </Button>
@@ -838,7 +903,7 @@ export function TasksPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-              <Button size="sm" variant="ghost" onClick={() => setSelectedTasks(new Set())}>
+              <Button size="sm" variant="ghost" onClick={() => { setSelectedTasks(new Set()); setSelectMode(false) }}>
                 Cancel
               </Button>
             </div>
