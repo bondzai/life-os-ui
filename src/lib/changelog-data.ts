@@ -14,6 +14,33 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.63.0',
+    date: '2026-03-20',
+    phase: 'GitHub-Style Focus Tabs & Deep Focus UX',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**GitHub-style tab bar**: Focus page now has Overview + configurable favorite tabs — each tab renders the full page inline (Tasks, Calendar, Habits, Report, etc.)',
+          '**Embedded report view**: Report tab renders the present/briefing view directly when Daily is selected — no extra click needed',
+          '**Deep Focus timer in sidebar**: When a focus session is active, the Focus menu item blinks amber and shows remaining time',
+          '**Browser tab countdown**: Document title shows focus countdown (e.g. "24:30 Focus — Lyra") when a session is active',
+          '**Quick Capture in deep work**: Inbox button + `⌘⇧I` shortcut now available during Emperor Time sessions',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Emperor Time → Deep Focus**: Renamed the focus button, now styled as a proper button with amber outline',
+          '**Deep Focus button blinks**: Shows "Continue MM:SS" with pulse animation when a session is active',
+          '**Reset button**: Now styled as a ghost button instead of plain text',
+          '**Sidebar groups reorganized**: Daily (Focus, Dashboard) / Plan (Tasks, Calendar, Notes, Goals, Habits) / Life (Health, Wealth, Learning, Travel, Family)',
+          '**Pages support embedding**: Calendar, Inbox, Report, Review adapt layout when rendered inside Focus tabs (no redundant headers/constraints)',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.62.0',
     date: '2026-03-20',
     phase: 'Configurable Focus Dashboard',
