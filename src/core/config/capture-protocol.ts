@@ -78,6 +78,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { command: '/meeting',  aliases: ['/mtg'],  label: 'Meeting',   emoji: '🤝', description: 'Meeting note or action item',      icon: CalendarPlus, entityType: 'note', defaultPriority: 'medium', autoTags: ['meeting'],   category: 'capture' },
   { command: '/link',     aliases: ['/url'],  label: 'Link',      emoji: '🔗', description: 'Save URL or bookmark',             icon: Link,         entityType: 'note', defaultPriority: 'medium', autoTags: ['link'],      category: 'capture' },
   { command: '/snippet',  aliases: ['/code'], label: 'Snippet',   emoji: '💻', description: 'Save code snippet or pattern',     icon: Code,         entityType: 'note', defaultPriority: 'medium', autoTags: ['snippet'],   category: 'capture' },
+  { command: '/event',    aliases: ['/ev'],   label: 'Event',     emoji: '📅', description: 'Calendar event or appointment',    icon: CalendarPlus, entityType: 'event', defaultPriority: 'medium', autoTags: [],           category: 'capture' },
   { command: '/bookmark', aliases: ['/bm'],   label: 'Bookmark',  emoji: '🔖', description: 'Bookmark for later reading',       icon: Bookmark,     entityType: 'note', defaultPriority: 'low',    autoTags: ['bookmark'],  category: 'capture' },
 
   // ── Strategic (INTJ master plan)

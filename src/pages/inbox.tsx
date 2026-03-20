@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import {
   Inbox,
-  ArrowRight,
   Archive,
   Trash2,
   Pencil,
@@ -13,36 +12,51 @@ import {
   Target,
   Repeat,
   HelpCircle,
+  CalendarPlus,
+  ArrowRightLeft,
+  type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useEntities } from '@/core/hooks'
-import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
 import { CaptureBar } from '@/pages/today/capture-bar'
-import type { Entity } from '@/core/types'
-import type { LucideIcon } from 'lucide-react'
+import type { Entity, EntityType } from '@/core/types'
 
 const TYPE_META: Record<string, { icon: LucideIcon; label: string; color: string }> = {
-  task:  { icon: CheckSquare, label: 'Task',     color: 'text-blue-500' },
-  note:  { icon: NotebookPen, label: 'Note',     color: 'text-amber-500' },
-  goal:  { icon: Target,      label: 'Goal',     color: 'text-emerald-500' },
-  habit: { icon: Repeat,      label: 'Habit',    color: 'text-violet-500' },
+  task:  { icon: CheckSquare,  label: 'Task',  color: 'text-blue-500' },
+  note:  { icon: NotebookPen,  label: 'Note',  color: 'text-amber-500' },
+  goal:  { icon: Target,       label: 'Goal',  color: 'text-emerald-500' },
+  habit: { icon: Repeat,       label: 'Habit', color: 'text-violet-500' },
+  event: { icon: CalendarPlus, label: 'Event', color: 'text-pink-500' },
 }
 
 function getTypeInfo(entity: Entity) {
   const base = TYPE_META[entity.type] ?? { icon: NotebookPen, label: entity.type, color: 'text-muted-foreground' }
-  // Detect ideas and questions by tags
   if (entity.tags?.includes('idea')) return { icon: Lightbulb, label: 'Idea', color: 'text-yellow-500' }
   if (entity.tags?.includes('question')) return { icon: HelpCircle, label: 'Question', color: 'text-cyan-500' }
   return base
 }
 
-type FilterType = 'all' | 'task' | 'note' | 'goal' | 'habit'
+// Targets you can convert/promote an inbox item to
+const CONVERT_TARGETS: { type: EntityType; icon: LucideIcon; label: string }[] = [
+  { type: 'task',  icon: CheckSquare,  label: 'Task' },
+  { type: 'note',  icon: NotebookPen,  label: 'Note' },
+  { type: 'event', icon: CalendarPlus, label: 'Event' },
+  { type: 'goal',  icon: Target,       label: 'Goal' },
+  { type: 'habit', icon: Repeat,       label: 'Habit' },
+]
+
+type FilterType = 'all' | 'task' | 'note' | 'goal' | 'habit' | 'event'
 
 export function InboxPage() {
-  const { items, update, create, remove } = useEntities()
-  const currentUser = useAuthStore((s) => s.currentUser)
+  const { items, update, remove } = useEntities()
   const [filter, setFilter] = useState<FilterType>('all')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
@@ -54,43 +68,36 @@ export function InboxPage() {
 
   const filtered = useMemo(() => {
     if (filter === 'all') return inboxItems
-    return inboxItems.filter((e) => {
-      if (filter === 'note') return e.type === 'note'
-      return e.type === filter
-    })
+    return inboxItems.filter((e) => e.type === filter)
   }, [inboxItems, filter])
 
   const counts = useMemo(() => {
-    const c = { all: inboxItems.length, task: 0, note: 0, goal: 0, habit: 0 }
+    const c: Record<FilterType, number> = { all: inboxItems.length, task: 0, note: 0, goal: 0, habit: 0, event: 0 }
     for (const e of inboxItems) {
-      if (e.type in c) c[e.type as keyof typeof c]++
+      if (e.type in c) c[e.type as FilterType]++
     }
     return c
   }, [inboxItems])
 
-  const today = new Date().toISOString().split('T')[0]
-
-  const handleConvertToTask = useCallback(
-    (item: Entity) => {
-      create.mutate({
-        id: crypto.randomUUID(),
-        type: 'task',
-        title: item.title,
-        description: typeof item.metadata.body === 'string' ? item.metadata.body : undefined,
-        status: 'todo',
-        priority: 'medium',
-        tags: [],
-        metadata: {},
-        ownerId: currentUser?.id ?? '',
-        visibility: 'private',
-        dueDate: today,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+  // Promote: change type, strip isInbox flag, keep tags (minus 'inbox')
+  const handleConvert = useCallback(
+    (item: Entity, targetType: EntityType) => {
+      const now = new Date().toISOString()
+      const cleanTags = (item.tags ?? []).filter((t) => t !== 'inbox')
+      const { isInbox: _, ...restMeta } = item.metadata as Record<string, unknown>
+      update.mutate({
+        id: item.id,
+        updates: {
+          type: targetType,
+          tags: cleanTags,
+          metadata: restMeta,
+          updatedAt: now,
+        },
       })
-      update.mutate({ id: item.id, updates: { status: 'archived', updatedAt: new Date().toISOString() } })
-      notify({ title: 'Converted to task', type: 'success' })
+      const label = CONVERT_TARGETS.find((t) => t.type === targetType)?.label ?? targetType
+      notify({ title: `Promoted to ${label}`, type: 'success' })
     },
-    [create, update, currentUser, today],
+    [update],
   )
 
   const handleArchive = useCallback(
@@ -138,6 +145,7 @@ export function InboxPage() {
     { key: 'all', label: 'All' },
     { key: 'task', label: 'Tasks' },
     { key: 'note', label: 'Notes' },
+    { key: 'event', label: 'Events' },
     { key: 'goal', label: 'Goals' },
     { key: 'habit', label: 'Habits' },
   ]
@@ -170,7 +178,7 @@ export function InboxPage() {
           <button
             key={key}
             onClick={() => setFilter(key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
               filter === key
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -240,18 +248,38 @@ export function InboxPage() {
                     )}
                     {/* Actions */}
                     <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleStartEdit(item)} title="Edit">
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleStartEdit(item)}>
                         <Pencil className="h-3 w-3" />
                       </Button>
-                      {item.type !== 'task' && (
-                        <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => handleConvertToTask(item)} title="Convert to task">
-                          <ArrowRight className="h-3 w-3 mr-1" /> Task
-                        </Button>
-                      )}
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleArchive(item)} title="Archive">
+
+                      {/* Convert/Promote dropdown */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]">
+                            <ArrowRightLeft className="h-3 w-3 mr-1" /> Convert
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-[140px]">
+                          {CONVERT_TARGETS.filter((t) => t.type !== item.type).map((target) => {
+                            const Icon = target.icon
+                            return (
+                              <DropdownMenuItem
+                                key={target.type}
+                                onClick={() => handleConvert(item, target.type)}
+                                className="text-xs cursor-pointer"
+                              >
+                                <Icon className="h-3.5 w-3.5 mr-2" />
+                                {target.label}
+                              </DropdownMenuItem>
+                            )
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleArchive(item)}>
                         <Archive className="h-3 w-3" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive/60 hover:text-destructive" onClick={() => handleDelete(item)} title="Delete">
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive/60 hover:text-destructive" onClick={() => handleDelete(item)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
