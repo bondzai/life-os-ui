@@ -14,6 +14,25 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.51.0',
+    date: '2026-03-20',
+    phase: 'Drag-to-Reorder Subtasks',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Drag-to-reorder subtasks**: Drag handle on subtask rows for intuitive reordering via @dnd-kit/sortable',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          'Replaced arrow-based subtask reorder buttons with drag handles (GripVertical icon)',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.50.0',
     date: '2026-03-19',
     phase: 'Recurring Tasks, Stale Detector & Strategic Blueprint',

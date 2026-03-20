@@ -32,7 +32,7 @@ export interface TaskCardProps {
   onDelete: (task: Entity) => void
   onSnooze?: (task: Entity, days: number) => void
   selected?: boolean
-  onSelect?: (task: Entity, selected: boolean) => void
+  onSelectTask?: (task: Entity, selected: boolean) => void
   style?: React.CSSProperties
   className?: string
 }
@@ -100,7 +100,7 @@ export const TaskCard = memo(
         onDelete,
         onSnooze,
         selected,
-        onSelect,
+        onSelectTask,
         style,
         className,
         ...attrs
@@ -123,10 +123,10 @@ export const TaskCard = memo(
           {...attrs}
         >
           {/* Select checkbox */}
-          {onSelect && (
+          {onSelectTask && (
             <Checkbox
               checked={selected ?? false}
-              onCheckedChange={(checked) => onSelect(task, !!checked)}
+              onCheckedChange={(checked) => onSelectTask(task, !!checked)}
               className="shrink-0"
               onClick={(e) => e.stopPropagation()}
             />

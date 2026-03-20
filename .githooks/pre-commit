@@ -1,0 +1,9 @@
+#!/bin/sh
+echo "Running typecheck (same as prod build)..."
+npx tsc -b
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "TypeScript errors found. Commit blocked."
+  echo "Fix errors above, then try again."
+  exit 1
+fi

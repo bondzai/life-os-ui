@@ -28,13 +28,11 @@ export function DraggableTaskCard({ onTaskClick, ...props }: DraggableTaskCardPr
   }
 
   return (
-    <TaskCard
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      {...props}
-      onClick={onTaskClick ? () => onTaskClick(task) : undefined}
-    />
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <TaskCard
+        {...props}
+        onClick={onTaskClick ? () => onTaskClick(task) : undefined}
+      />
+    </div>
   )
 }

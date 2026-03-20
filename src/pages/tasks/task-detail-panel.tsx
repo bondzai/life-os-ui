@@ -1,8 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   Archive,
   Calendar,
   CheckSquare,
+  GripVertical,
   Link,
   ListChecks,
   Pencil,
@@ -116,6 +132,155 @@ function deriveStatusFromSubtasks(subtasks: Subtask[]): EntityStatus | null {
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Sortable subtask row
+// ---------------------------------------------------------------------------
+
+interface SortableSubtaskProps {
+  st: Subtask
+  onToggle: (id: string) => void
+  onRemove: (id: string) => void
+  onStartEdit: (st: Subtask) => void
+  isEditing: boolean
+  editDraft: string
+  onEditDraftChange: (val: string) => void
+  onEditCommit: (id: string) => void
+  onEditCancel: () => void
+  editRef: React.RefObject<HTMLInputElement | null>
+}
+
+function SortableSubtaskRow({
+  st,
+  onToggle,
+  onRemove,
+  onStartEdit,
+  isEditing,
+  editDraft,
+  onEditDraftChange,
+  onEditCommit,
+  onEditCancel,
+  editRef,
+}: SortableSubtaskProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: st.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    opacity: isDragging ? 0.5 : undefined,
+  }
+
+  const status = subtaskStatus(st)
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 px-2 py-1.5 group/st hover:bg-muted/50 transition-colors bg-background"
+    >
+      {/* Drag handle */}
+      <button
+        type="button"
+        className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground touch-none"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+
+      {/* Status toggle */}
+      <button
+        onClick={() => onToggle(st.id)}
+        className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
+          status === 'done'
+            ? 'bg-primary border-primary text-primary-foreground'
+            : status === 'in-progress'
+              ? 'border-amber-500 bg-amber-500/20'
+              : 'border-muted-foreground/30'
+        }`}
+        title={`Status: ${status} — click to cycle`}
+      >
+        {status === 'done' && (
+          <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+        {status === 'in-progress' && (
+          <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        )}
+      </button>
+
+      {/* Title — inline editable */}
+      {isEditing ? (
+        <Input
+          ref={editRef}
+          value={editDraft}
+          onChange={(e) => onEditDraftChange(e.target.value)}
+          onBlur={() => onEditCommit(st.id)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onEditCommit(st.id)
+            if (e.key === 'Escape') onEditCancel()
+          }}
+          className="h-6 text-sm flex-1 py-0"
+        />
+      ) : (
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          {status === 'in-progress' && (
+            <span className="text-[9px] font-medium px-1 py-px rounded bg-amber-500/15 text-amber-500 shrink-0">WIP</span>
+          )}
+          <span
+            className={`text-sm truncate cursor-pointer rounded px-1 -mx-1 hover:bg-muted transition-colors ${
+              subtaskDone(st) ? 'line-through text-muted-foreground' : ''
+            }`}
+            onClick={() => onStartEdit(st)}
+          >
+            {st.title}
+          </span>
+        </div>
+      )}
+
+      {/* Status badge */}
+      <Badge
+        variant="outline"
+        className={`text-[10px] shrink-0 px-1.5 py-0 ${
+          st.done ? 'border-green-500 text-green-600' : 'border-blue-400 text-blue-500'
+        }`}
+      >
+        {st.done ? 'DONE' : 'TO DO'}
+      </Badge>
+
+      {/* Actions */}
+      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/st:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0"
+          onClick={() => onStartEdit(st)}
+        >
+          <Pencil className="h-3 w-3" />
+          <span className="sr-only">Edit</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 hover:text-destructive"
+          onClick={() => onRemove(st.id)}
+        >
+          <Trash2 className="h-3 w-3" />
+          <span className="sr-only">Remove</span>
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 export function TaskDetailPanel({
   task,
@@ -309,14 +474,22 @@ export function TaskDetailPanel({
     [task, subtaskDraft, onUpdate],
   )
 
-  const handleSubtaskReorder = useCallback(
-    (index: number, dir: -1 | 1) => {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  )
+
+  const handleSubtaskDragEnd = useCallback(
+    (event: DragEndEvent) => {
       if (!task) return
+      const { active, over } = event
+      if (!over || active.id === over.id) return
       const subtasks = getSubtasks(task.metadata)
-      const newIndex = index + dir
-      if (newIndex < 0 || newIndex >= subtasks.length) return
+      const oldIndex = subtasks.findIndex((s) => s.id === active.id)
+      const newIndex = subtasks.findIndex((s) => s.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
       const updated = [...subtasks]
-      const [moved] = updated.splice(index, 1)
+      const [moved] = updated.splice(oldIndex, 1)
       updated.splice(newIndex, 0, moved)
       onUpdate(task.id, { metadata: { ...task.metadata, subtasks: updated } })
     },
@@ -816,128 +989,42 @@ export function TaskDetailPanel({
               </div>
             )}
 
-            {/* Subtask list — Jira-style rows */}
+            {/* Subtask list — drag-to-reorder */}
             {subtasks.length > 0 && (
-              <div className="rounded-md border divide-y">
-                {subtasks.map((st, i) => (
-                  <div
-                    key={st.id}
-                    className="flex items-center gap-2 px-2 py-1.5 group/st hover:bg-muted/50 transition-colors"
-                  >
-                    {/* Reorder buttons */}
-                    <div className="flex flex-col shrink-0 opacity-0 group-hover/st:opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        className="text-muted-foreground hover:text-foreground text-[10px] leading-none h-3 disabled:opacity-20"
-                        onClick={() => handleSubtaskReorder(i, -1)}
-                        disabled={i === 0}
-                      >
-                        ▲
-                      </button>
-                      <button
-                        type="button"
-                        className="text-muted-foreground hover:text-foreground text-[10px] leading-none h-3 disabled:opacity-20"
-                        onClick={() => handleSubtaskReorder(i, 1)}
-                        disabled={i === subtasks.length - 1}
-                      >
-                        ▼
-                      </button>
-                    </div>
-
-                    {/* Status toggle — cycles todo → in-progress → done */}
-                    <button
-                      onClick={() => handleSubtaskToggle(st.id)}
-                      className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        subtaskStatus(st) === 'done'
-                          ? 'bg-primary border-primary text-primary-foreground'
-                          : subtaskStatus(st) === 'in-progress'
-                            ? 'border-amber-500 bg-amber-500/20'
-                            : 'border-muted-foreground/30'
-                      }`}
-                      title={`Status: ${subtaskStatus(st)} — click to cycle`}
-                    >
-                      {subtaskStatus(st) === 'done' && (
-                        <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                      {subtaskStatus(st) === 'in-progress' && (
-                        <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                      )}
-                    </button>
-
-                    {/* Title — inline editable */}
-                    {editingSubtaskId === st.id ? (
-                      <Input
-                        ref={subtaskEditRef}
-                        value={subtaskDraft}
-                        onChange={(e) => setSubtaskDraft(e.target.value)}
-                        onBlur={() => handleSubtaskRename(st.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSubtaskRename(st.id)
-                          if (e.key === 'Escape') {
-                            setEditingSubtaskId(null)
-                            setSubtaskDraft('')
-                          }
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleSubtaskDragEnd}
+              >
+                <SortableContext
+                  items={subtasks.map((s) => s.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="rounded-md border divide-y">
+                    {subtasks.map((st) => (
+                      <SortableSubtaskRow
+                        key={st.id}
+                        st={st}
+                        onToggle={handleSubtaskToggle}
+                        onRemove={handleSubtaskRemove}
+                        onStartEdit={(s) => {
+                          setSubtaskDraft(s.title)
+                          setEditingSubtaskId(s.id)
                         }}
-                        className="h-6 text-sm flex-1 py-0"
+                        isEditing={editingSubtaskId === st.id}
+                        editDraft={subtaskDraft}
+                        onEditDraftChange={setSubtaskDraft}
+                        onEditCommit={handleSubtaskRename}
+                        onEditCancel={() => {
+                          setEditingSubtaskId(null)
+                          setSubtaskDraft('')
+                        }}
+                        editRef={subtaskEditRef}
                       />
-                    ) : (
-                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        {subtaskStatus(st) === 'in-progress' && (
-                          <span className="text-[9px] font-medium px-1 py-px rounded bg-amber-500/15 text-amber-500 shrink-0">WIP</span>
-                        )}
-                        <span
-                          className={`text-sm truncate cursor-pointer rounded px-1 -mx-1 hover:bg-muted transition-colors ${
-                            subtaskDone(st) ? 'line-through text-muted-foreground' : ''
-                          }`}
-                          onClick={() => {
-                            setSubtaskDraft(st.title)
-                            setEditingSubtaskId(st.id)
-                          }}
-                        >
-                          {st.title}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Status badge */}
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] shrink-0 px-1.5 py-0 ${
-                        st.done ? 'border-green-500 text-green-600' : 'border-blue-400 text-blue-500'
-                      }`}
-                    >
-                      {st.done ? 'DONE' : 'TO DO'}
-                    </Badge>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/st:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => {
-                          setSubtaskDraft(st.title)
-                          setEditingSubtaskId(st.id)
-                        }}
-                      >
-                        <Pencil className="h-3 w-3" />
-                        <span className="sr-only">Edit</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 hover:text-destructive"
-                        onClick={() => handleSubtaskRemove(st.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                        <span className="sr-only">Remove</span>
-                      </Button>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             )}
 
             {/* Add subtask */}

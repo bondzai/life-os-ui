@@ -647,7 +647,7 @@ export function TasksPage() {
       onDelete={setDeleteTarget}
       onSnooze={snoozeTask}
       selected={selectMode ? selectedTasks.has(task.id) : undefined}
-      onSelect={selectMode ? handleSelect : undefined}
+      onSelectTask={selectMode ? handleSelect : undefined}
     />
   )
 

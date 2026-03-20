@@ -1,5 +1,5 @@
-.PHONY: help dev dev-ui dev-api install install-ui install-api build build-ui build-api \
-       lint typecheck test seed clean docker-up docker-down docker-build docker-logs \
+.PHONY: help dev dev-safe dev-ui dev-api install install-ui install-api build build-ui build-api \
+       lint typecheck typecheck-w check test seed clean docker-up docker-down docker-build docker-logs \
        preview
 
 # ──────────────────────────────────────────────
@@ -34,6 +34,9 @@ install-api: ## Install API dependencies
 dev: ## Start both UI and API in parallel
 	@$(MAKE) -j2 dev-ui dev-api
 
+dev-safe: ## Start UI + API + live typecheck (catches TS errors in real time)
+	@$(MAKE) -j3 dev-ui dev-api typecheck-w
+
 dev-ui: ## Start frontend dev server (HTTPS)
 	npx vite --host $(HOST) --port $(UI_PORT)
 
@@ -57,8 +60,13 @@ build-api: ## Build API
 lint: ## Run ESLint
 	npm run lint
 
-typecheck: ## Run TypeScript type checking
-	npx tsc -b --noEmit
+typecheck: ## Run TypeScript type checking (one-shot)
+	npx tsc -b
+
+typecheck-w: ## Run TypeScript type checking (watch mode)
+	npx tsc -b --watch --preserveWatchOutput
+
+check: typecheck lint ## Run all quality checks (same as prod)
 
 # ──────────────────────────────────────────────
 # Database
