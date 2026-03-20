@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { LogOut, Download, Upload, Settings, HelpCircle, Crown, ChevronRight } from 'lucide-react'
+import { LogOut, Download, Upload, Settings, HelpCircle, Crown, ChevronRight, Check } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import { ChangelogDialog } from '@/components/changelog-dialog'
 import { GuideDialog } from '@/components/guide-dialog'
 import { APP_VERSION } from '@/lib/changelog-data'
@@ -76,6 +77,8 @@ export function AppSidebar() {
   const [changelogOpen, setChangelogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
+  const [exportState, setExportState] = useState<'idle' | 'exporting' | 'done'>('idle')
+  const [importState, setImportState] = useState<'idle' | 'importing' | 'done'>('idle')
 
   // Badge counts
   const { items: allEntities } = useEntities()
@@ -301,28 +304,58 @@ export function AppSidebar() {
           <Button
             variant="ghost"
             size="sm"
-            className="flex-1 h-7 text-xs"
+            className={`flex-1 h-7 text-xs transition-all duration-300 ${
+              exportState === 'done' ? 'text-green-500' : ''
+            }`}
+            disabled={exportState !== 'idle'}
             onClick={() => {
-              exportData()
-              notify({ title: 'Backup downloaded', type: 'success' })
+              setExportState('exporting')
+              setTimeout(() => {
+                exportData()
+                setExportState('done')
+                notify({ title: 'Backup downloaded', type: 'success' })
+                setTimeout(() => setExportState('idle'), 1500)
+              }, 400)
             }}
           >
-            <Download className="h-3.5 w-3.5 mr-1" /> Export
+            {exportState === 'exporting' ? (
+              <LyraLoader size={14} className="mr-1" />
+            ) : exportState === 'done' ? (
+              <Check className="h-3.5 w-3.5 mr-1" />
+            ) : (
+              <Download className="h-3.5 w-3.5 mr-1" />
+            )}
+            {exportState === 'done' ? 'Done' : 'Export'}
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="flex-1 h-7 text-xs"
+            className={`flex-1 h-7 text-xs transition-all duration-300 ${
+              importState === 'done' ? 'text-green-500' : ''
+            }`}
+            disabled={importState !== 'idle'}
             onClick={() => fileRef.current?.click()}
           >
-            <Upload className="h-3.5 w-3.5 mr-1" /> Import
+            {importState === 'importing' ? (
+              <LyraLoader size={14} className="mr-1" />
+            ) : importState === 'done' ? (
+              <Check className="h-3.5 w-3.5 mr-1" />
+            ) : (
+              <Upload className="h-3.5 w-3.5 mr-1" />
+            )}
+            {importState === 'importing' ? 'Importing...' : importState === 'done' ? 'Done' : 'Import'}
           </Button>
           <input
             ref={fileRef}
             type="file"
             accept=".json"
             className="hidden"
-            onChange={handleImport}
+            onChange={async (e) => {
+              setImportState('importing')
+              await handleImport(e)
+              setImportState('done')
+              setTimeout(() => setImportState('idle'), 1500)
+            }}
           />
         </div>
         <div className="flex items-center justify-between pt-2">

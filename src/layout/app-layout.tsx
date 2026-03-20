@@ -11,6 +11,7 @@ import { CommandBar } from '@/pages/ai/command-bar'
 import { InboxCapture } from '@/components/inbox-capture'
 import { useUiStore } from '@/stores/ui-store'
 import { useFocusStore } from '@/stores/focus-store'
+import { LyraPageLoader } from '@/components/lyra-loader'
 
 function getPageTitle(pathname: string): string {
   const mod = modules.find((m) => m.path === pathname)
@@ -75,11 +76,7 @@ export function AppLayout() {
           {!focusMode && <TopBar title={title} />}
           <div className={`flex-1 ${focusMode ? 'p-4 sm:p-8' : 'p-3 sm:p-6'}`}>
             <Suspense
-              fallback={
-                <div className="flex items-center justify-center py-20">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                </div>
-              }
+              fallback={<LyraPageLoader />}
             >
               <Outlet />
             </Suspense>
