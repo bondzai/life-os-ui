@@ -14,6 +14,7 @@ import {
   Inbox,
   FileText,
   BarChart3,
+  GitBranch,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -49,11 +50,21 @@ export const modules: ModuleConfig[] = [
 
   // Operate — daily tactical tools
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Operate', entityTypes: ['task'] },
-  { id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Operate', entityTypes: ['note'] },
+  {
+    id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Operate', entityTypes: ['note'],
+    children: [
+      { id: 'note-map', label: 'Note Map', icon: GitBranch, path: '/note-map' },
+    ],
+  },
   { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Operate', entityTypes: ['event'] },
 
   // Track — metrics & measurement
-  { id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Track', entityTypes: ['goal'] },
+  {
+    id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Track', entityTypes: ['goal'],
+    children: [
+      { id: 'goal-map', label: 'Goal Map', icon: GitBranch, path: '/goal-map' },
+    ],
+  },
   { id: 'habits', label: 'Habits', icon: Repeat, path: '/habits', group: 'Track', entityTypes: ['habit'] },
   { id: 'health', label: 'Health', icon: Heart, path: '/health', group: 'Track', entityTypes: ['body-metric', 'workout', 'sleep-mood'] },
   { id: 'wealth', label: 'Wealth', icon: Wallet, path: '/wealth', group: 'Track', entityTypes: ['transaction', 'budget', 'account', 'asset', 'wallet', 'crypto-tx'] },

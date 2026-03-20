@@ -29,6 +29,8 @@ const DeepWorkPage = lazy(() => import('@/pages/deep-work').then((m) => ({ defau
 const SessionsPage = lazy(() => import('@/pages/sessions').then((m) => ({ default: m.SessionsPage })))
 const InboxPage = lazy(() => import('@/pages/inbox').then((m) => ({ default: m.InboxPage })))
 const BriefingPage = lazy(() => import('@/pages/tasks/standup-report').then((m) => ({ default: m.BriefingPage })))
+const GoalMapPage = lazy(() => import('@/pages/goal-map').then((m) => ({ default: m.GoalMapPage })))
+const NoteMapPage = lazy(() => import('@/pages/note-map').then((m) => ({ default: m.NoteMapPage })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,9 +55,11 @@ export function App() {
                 <Route element={<AppLayout />}>
                   <Route index element={<TodayPage />} />
                   <Route path="goals" element={<GoalsPage />} />
+                  <Route path="goal-map" element={<GoalMapPage />} />
                   <Route path="tasks" element={<TasksPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
                   <Route path="notes" element={<NotesPage />} />
+                  <Route path="note-map" element={<NoteMapPage />} />
                   <Route path="habits" element={<HabitsPage />} />
                   <Route path="learning" element={<LearningPage />} />
                   <Route path="health" element={<HealthPage />} />

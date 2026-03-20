@@ -14,6 +14,29 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.60.0',
+    date: '2026-03-20',
+    phase: 'Goal Map, Note Map & Rich Demo Data',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Goal Map**: Interactive goal → task → subtask tree visualization using ReactFlow — click nodes, cycle status, add tasks, toggle subtasks, stale indicators, detail side panel',
+          '**Note Map**: Knowledge graph for notes — notes as nodes, shared tags as hub nodes, relation edges (relates/supports/blocks/parent), tag filtering, detail panel with connected notes',
+          '**Rich demo data**: 14 interconnected notes with overlapping tags, 14 note-to-note relations, tasks linked to goals with subtasks — both maps show compelling MVP on demo login',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Goal Map background**: Switched from dots to grid lines for cleaner look',
+          '**Sidebar**: Note Map added as child of Notes, Goal Map as child of Goals',
+          '**Weekly Report**: Removed spending section (sensitive data)',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.59.0',
     date: '2026-03-20',
     phase: 'Report & Review Restructure',

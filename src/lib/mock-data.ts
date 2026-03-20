@@ -71,13 +71,13 @@ export function generateMockData() {
     entity({ id: goalIds.reading, type: 'goal', title: 'Read 24 books this year', priority: 'medium', tags: ['growth'], metadata: { progress: 25 } }),
   )
 
-  // ── Stories (tasks with subtasks) ──
-  const storyIds = { auth: uid(), deploy: uid(), weekend: uid() }
+  // ── Stories (tasks with subtasks, linked to goals) ──
+  const storyIds = { auth: uid(), deploy: uid(), weekend: uid(), training: uid(), budget: uid() }
   entities.push(
     entity({
       id: storyIds.auth, type: 'task', title: 'Implement OAuth login', priority: 'high',
       tags: ['dev'], dueDate: today, metadata: {
-        workspace: 'work',
+        workspace: 'work', goalId: goalIds.project,
         subtasks: [
           { id: uid(), title: 'Set up Google OAuth client', done: true },
           { id: uid(), title: 'Build callback handler', done: true },
@@ -90,12 +90,35 @@ export function generateMockData() {
     entity({
       id: storyIds.deploy, type: 'task', title: 'Deploy to production', priority: 'urgent',
       tags: ['devops'], dueDate: daysFromNow(1), metadata: {
-        workspace: 'work',
+        workspace: 'work', goalId: goalIds.project,
         subtasks: [
           { id: uid(), title: 'Run full test suite', done: false },
           { id: uid(), title: 'Build Docker image', done: false },
           { id: uid(), title: 'Update nginx config', done: false },
           { id: uid(), title: 'Deploy and smoke test', done: false },
+        ],
+      },
+    }),
+    entity({
+      id: storyIds.training, type: 'task', title: 'Build 8-week running plan', priority: 'high',
+      tags: ['fitness'], dueDate: daysFromNow(7), metadata: {
+        workspace: 'personal', goalId: goalIds.fitness,
+        subtasks: [
+          { id: uid(), title: 'Research beginner plans', done: true },
+          { id: uid(), title: 'Set weekly mileage targets', done: true },
+          { id: uid(), title: 'Buy running shoes', done: false },
+          { id: uid(), title: 'Schedule first 5K race', done: false },
+        ],
+      },
+    }),
+    entity({
+      id: storyIds.budget, type: 'task', title: 'Set up auto-transfer to savings', priority: 'medium',
+      tags: ['finance'], dueDate: daysFromNow(3), metadata: {
+        workspace: 'personal', goalId: goalIds.savings,
+        subtasks: [
+          { id: uid(), title: 'Compare savings accounts', done: true },
+          { id: uid(), title: 'Configure auto-transfer', done: false },
+          { id: uid(), title: 'Set up alerts at milestones', done: false },
         ],
       },
     }),
@@ -126,12 +149,18 @@ export function generateMockData() {
     ],
   }
 
+  const workGoalMap: Record<string, string | undefined> = {
+    'Review PR #234': goalIds.project,
+    'Update API documentation': goalIds.project,
+    'Fix pagination bug': goalIds.project,
+    'Refactor user service': goalIds.project,
+  }
   for (const title of taskTitles.work) {
     entities.push(entity({
       type: 'task', title, priority: pick(['high', 'medium', 'low']),
       tags: [pick(['dev', 'meeting', 'infra'])],
       dueDate: pick([today, daysFromNow(1), daysFromNow(3), daysFromNow(7)]),
-      metadata: { workspace: 'work' },
+      metadata: { workspace: 'work', ...(workGoalMap[title] ? { goalId: workGoalMap[title] } : {}) },
     }))
   }
 
@@ -248,12 +277,80 @@ export function generateMockData() {
     entity({ type: 'event', title: 'Code review meeting', dueDate: daysFromNow(1), metadata: { time: '10:00' } }),
   )
 
-  // ── Notes ──
+  // ── Notes (rich set for Note Map / Knowledge Graph) ──
+  const noteIds = {
+    eventSourcing: uid(),
+    cqrs: uid(),
+    productSync: uid(),
+    apiDesign: uid(),
+    systemDesign: uid(),
+    dockerBestPractices: uid(),
+    ciCd: uid(),
+    techDebt: uid(),
+    secondBrain: uid(),
+    zettelkasten: uid(),
+    deepWorkNote: uid(),
+    stoicism: uid(),
+    weeklyReflection: uid(),
+    morningReflection: uid(),
+    investingBasics: uid(),
+    compoundInterest: uid(),
+  }
+
   entities.push(
-    entity({ type: 'note', title: 'Architecture Decision: Event Sourcing', tags: ['dev', 'architecture'], metadata: { body: 'Decided to use event sourcing for the audit log module. Key benefits: full history, replay capability, natural fit for CQRS.', isJournal: false } }),
-    entity({ type: 'note', title: 'Meeting Notes — Product Sync', tags: ['meeting'], metadata: { body: 'Discussed Q2 roadmap. Focus on mobile experience and API v2. Timeline: 6 weeks.', isJournal: false } }),
-    entity({ type: 'note', title: 'Morning reflection', tags: ['journal'], metadata: { body: 'Feeling productive today. Made good progress on the OAuth implementation. Need to focus on tests tomorrow.', isJournal: true, date: today, mood: 'good' } }),
+    // Dev / Architecture cluster
+    entity({ id: noteIds.eventSourcing, type: 'note', title: 'Architecture Decision: Event Sourcing', tags: ['dev', 'architecture', 'backend'], metadata: { body: 'Decided to use event sourcing for the audit log module. Key benefits: full history, replay capability, natural fit for CQRS. Trade-offs: increased storage, eventual consistency complexity.' } }),
+    entity({ id: noteIds.cqrs, type: 'note', title: 'CQRS Pattern Deep Dive', tags: ['dev', 'architecture', 'patterns'], metadata: { body: 'Command Query Responsibility Segregation separates read and write models. Works well with event sourcing. Consider for high-read/low-write scenarios.' } }),
+    entity({ id: noteIds.apiDesign, type: 'note', title: 'API Design Principles', tags: ['dev', 'backend', 'api'], metadata: { body: 'REST best practices: use nouns for resources, proper HTTP verbs, pagination via cursor, versioning in URL path. Consider GraphQL for complex queries.' } }),
+    entity({ id: noteIds.systemDesign, type: 'note', title: 'System Design Interview Notes', tags: ['dev', 'architecture', 'career'], metadata: { body: 'Key areas: load balancing, caching (Redis), database sharding, message queues, CDN. Always start with requirements and back-of-envelope calculations.' } }),
+    entity({ id: noteIds.dockerBestPractices, type: 'note', title: 'Docker Best Practices', tags: ['dev', 'devops', 'infra'], metadata: { body: 'Multi-stage builds, .dockerignore, non-root user, health checks, layer caching optimization. Pin base image versions for reproducibility.' } }),
+    entity({ id: noteIds.ciCd, type: 'note', title: 'CI/CD Pipeline Design', tags: ['dev', 'devops', 'infra'], metadata: { body: 'Stages: lint → test → build → deploy. Use matrix builds for multi-platform. Cache dependencies aggressively. Blue-green deployment for zero-downtime.' } }),
+    entity({ id: noteIds.techDebt, type: 'note', title: 'Tech Debt Quadrant', tags: ['dev', 'architecture', 'strategy'], metadata: { body: 'Martin Fowler\'s quadrant: Reckless/Deliberate × Prudent/Inadvertent. Track tech debt as tickets. Allocate 20% sprint capacity for paydown. Document decisions in ADRs.' } }),
+
+    // Meeting / Work
+    entity({ id: noteIds.productSync, type: 'note', title: 'Meeting Notes — Product Sync', tags: ['meeting', 'strategy'], metadata: { body: 'Discussed Q2 roadmap. Focus on mobile experience and API v2. Timeline: 6 weeks. Key decision: defer analytics dashboard to Q3.' } }),
+
+    // Knowledge / Learning cluster
+    entity({ id: noteIds.secondBrain, type: 'note', title: 'Building a Second Brain (PARA)', tags: ['productivity', 'knowledge', 'strategy'], metadata: { body: 'Tiago Forte\'s PARA: Projects, Areas, Resources, Archives. Capture → Organize → Distill → Express. Progressive summarization for notes.', isPinned: true } }),
+    entity({ id: noteIds.zettelkasten, type: 'note', title: 'Zettelkasten Method', tags: ['productivity', 'knowledge', 'writing'], metadata: { body: 'Atomic notes, unique IDs, bidirectional links. Each note = one idea. Connection-first thinking. Luhmann\'s slip box produced 70 books and 400 papers.' } }),
+    entity({ id: noteIds.deepWorkNote, type: 'note', title: 'Deep Work — Key Takeaways', tags: ['productivity', 'career', 'books'], metadata: { body: 'Cal Newport: Deep work is rare and valuable. Rules: Work deeply, embrace boredom, quit social media, drain the shallows. Schedule every minute of your day.' } }),
+
+    // Philosophy / Growth
+    entity({ id: noteIds.stoicism, type: 'note', title: 'Stoic Principles for Daily Life', tags: ['philosophy', 'growth', 'strategy'], metadata: { body: 'Dichotomy of control, memento mori, amor fati, negative visualization. Marcus Aurelius: "You have power over your mind, not outside events."' } }),
+
+    // Finance cluster
+    entity({ id: noteIds.investingBasics, type: 'note', title: 'Investing 101 — Index Funds', tags: ['finance', 'strategy', 'learning'], metadata: { body: 'Low-cost index funds outperform 90% of active managers over 15 years. Dollar-cost averaging removes timing risk. Start with total market + international.' } }),
+    entity({ id: noteIds.compoundInterest, type: 'note', title: 'The Power of Compound Interest', tags: ['finance', 'growth'], metadata: { body: 'Rule of 72: divide 72 by annual return to get doubling time. 7% return → doubles in ~10 years. Start early, stay consistent, reinvest dividends.' } }),
+
+    // Journals
+    entity({ id: noteIds.morningReflection, type: 'note', title: 'Morning reflection', tags: ['journal'], metadata: { body: 'Feeling productive today. Made good progress on the OAuth implementation. Need to focus on tests tomorrow.', isJournal: true, date: today, mood: 'good' } }),
+    entity({ id: noteIds.weeklyReflection, type: 'note', title: 'Weekly Review — Week 12', tags: ['journal', 'strategy'], metadata: { body: 'Good week overall. Shipped auth feature, maintained exercise streak. Need to improve sleep schedule. Next week: focus on deployment pipeline.', isJournal: true, date: daysAgo(2), mood: 'calm' } }),
   )
+
+  // ── Relations (for Note Map knowledge graph) ──
+  const relations = [
+    // Architecture cluster connections
+    { id: uid(), fromId: noteIds.eventSourcing, toId: noteIds.cqrs, type: 'relates' },
+    { id: uid(), fromId: noteIds.cqrs, toId: noteIds.apiDesign, type: 'relates' },
+    { id: uid(), fromId: noteIds.systemDesign, toId: noteIds.eventSourcing, type: 'supports' },
+    { id: uid(), fromId: noteIds.systemDesign, toId: noteIds.apiDesign, type: 'supports' },
+    { id: uid(), fromId: noteIds.techDebt, toId: noteIds.cqrs, type: 'relates' },
+
+    // DevOps cluster
+    { id: uid(), fromId: noteIds.dockerBestPractices, toId: noteIds.ciCd, type: 'relates' },
+    { id: uid(), fromId: noteIds.ciCd, toId: noteIds.techDebt, type: 'supports' },
+
+    // Knowledge / Productivity cluster
+    { id: uid(), fromId: noteIds.secondBrain, toId: noteIds.zettelkasten, type: 'relates' },
+    { id: uid(), fromId: noteIds.deepWorkNote, toId: noteIds.secondBrain, type: 'supports' },
+    { id: uid(), fromId: noteIds.zettelkasten, toId: noteIds.deepWorkNote, type: 'relates' },
+
+    // Cross-cluster connections
+    { id: uid(), fromId: noteIds.stoicism, toId: noteIds.deepWorkNote, type: 'supports' },
+    { id: uid(), fromId: noteIds.productSync, toId: noteIds.techDebt, type: 'relates' },
+    { id: uid(), fromId: noteIds.investingBasics, toId: noteIds.compoundInterest, type: 'relates' },
+    { id: uid(), fromId: noteIds.stoicism, toId: noteIds.secondBrain, type: 'supports' },
+  ]
 
   // ── Health: Body Metrics ──
   for (let i = 14; i >= 0; i--) {
@@ -342,7 +439,7 @@ export function generateMockData() {
   localStorage.setItem('lyra:entities', JSON.stringify(entities))
   localStorage.setItem('lyra:trackers', JSON.stringify(trackers))
   localStorage.setItem('lyra:schedules', JSON.stringify([]))
-  localStorage.setItem('lyra:relations', JSON.stringify([]))
+  localStorage.setItem('lyra:relations', JSON.stringify(relations))
 
   // Health profile
   localStorage.setItem('lyra:health-profile', JSON.stringify({

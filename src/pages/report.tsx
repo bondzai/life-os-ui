@@ -223,13 +223,6 @@ function WeeklyReport() {
     })
   }, [allEntities, allTrackers, weekStart])
 
-  const weekTransactions = useMemo(
-    () => allEntities.filter((e) => e.type === 'transaction' && ((e.metadata.date as string) || e.createdAt.split('T')[0]) >= weekStart),
-    [allEntities, weekStart],
-  )
-
-  const totalSpent = weekTransactions.reduce((sum, t) => sum + (Number(t.metadata.amount) || 0), 0)
-
   const inboxCount = allEntities.filter((e) => e.metadata.isInbox === true && e.status === 'todo').length
 
   const markdown = useMemo(() => {
@@ -253,26 +246,22 @@ function WeeklyReport() {
       lines.push(`- ${h.habit.title}: ${h.checkIns} check-ins, streak ${h.streak}`)
     })
 
-    lines.push('', '## Spending', '')
-    lines.push(`Total this week: ${totalSpent.toLocaleString()}`)
-
     if (inboxCount > 0) {
       lines.push('', `## Inbox: ${inboxCount} items pending`)
     }
 
     return lines.join('\n')
-  }, [completed, goalsInProgress, habitSummaries, totalSpent, inboxCount, weekStart])
+  }, [completed, goalsInProgress, habitSummaries, inboxCount, weekStart])
 
   const copy = () => { navigator.clipboard.writeText(markdown); notify({ title: 'Copied', type: 'success' }) }
 
   return (
     <div className="space-y-6">
       {/* Summary stats */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <StatCard label="Completed" value={completed.length} />
         <StatCard label="Active Goals" value={goalsInProgress.length} />
         <StatCard label="Habit Avg" value={habitSummaries.length > 0 ? `${Math.round(habitSummaries.reduce((s, h) => s + h.checkIns, 0) / habitSummaries.length)}` : '0'} />
-        <StatCard label="Spent" value={totalSpent.toLocaleString()} />
       </div>
 
       {/* Completed */}
@@ -329,16 +318,6 @@ function WeeklyReport() {
           </div>
         )}
       </section>
-
-      {/* Spending */}
-      {weekTransactions.length > 0 && (
-        <section>
-          <SH label="Spending" />
-          <p className="text-sm text-muted-foreground/70">
-            {weekTransactions.length} transactions — <span className="font-medium text-foreground">{totalSpent.toLocaleString()}</span> total
-          </p>
-        </section>
-      )}
 
       {/* Inbox status */}
       {inboxCount > 0 && (
