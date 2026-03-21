@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router'
 import { Plus, Target, Pencil, Trash2, ChevronLeft } from 'lucide-react'
+import { ViewToggle, getStoredView, storeView, type ViewMode } from '@/components/view-toggle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -34,6 +35,12 @@ export function GoalsPage() {
   const [editingGoal, setEditingGoal] = useState<Entity | null>(null)
   const [selectedGoal, setSelectedGoal] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>(() => getStoredView('goals'))
+
+  const handleViewChange = (mode: ViewMode) => {
+    setViewMode(mode)
+    storeView('goals', mode)
+  }
 
   // Auto-select goal from URL param ?id=goal-1
   useEffect(() => {
@@ -264,9 +271,12 @@ export function GoalsPage() {
             </SelectContent>
           </Select>
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> New Goal
-        </Button>
+        <div className="flex items-center gap-2">
+          <ViewToggle value={viewMode} onChange={handleViewChange} />
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> New Goal
+          </Button>
+        </div>
       </div>
 
       {/* Saved filters */}
@@ -285,63 +295,102 @@ export function GoalsPage() {
           actionLabel="New Goal"
           onAction={() => setDialogOpen(true)}
         />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {goals.map((goal) => {
-            const subGoals = getSubGoals(goal.id)
-            const progress = getProgress(goal)
-            return (
-              <Card
-                key={goal.id}
-                className="cursor-pointer hover:bg-accent/50 transition-colors"
-                onClick={() => setSelectedGoal(goal)}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-sm font-medium">{goal.title}</CardTitle>
-                    <div className="flex gap-1">
-                      <PriorityBadge priority={goal.priority} />
-                      <StatusBadge status={goal.status} />
+      ) : viewMode === 'grid' ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {goals.map((goal) => {
+              const subGoals = getSubGoals(goal.id)
+              const progress = getProgress(goal)
+              return (
+                <Card
+                  key={goal.id}
+                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => setSelectedGoal(goal)}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="text-sm font-medium">{goal.title}</CardTitle>
+                      <div className="flex gap-1">
+                        <PriorityBadge priority={goal.priority} />
+                        <StatusBadge status={goal.status} />
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {goal.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">
-                      {goal.description}
-                    </p>
-                  )}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Progress</span>
-                      <span className={progressColor(progress)}>{progress}%</span>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {goal.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {goal.description}
+                      </p>
+                    )}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Progress</span>
+                        <span className={progressColor(progress)}>{progress}%</span>
+                      </div>
+                      <Progress value={progress} className="h-2" />
                     </div>
-                    <Progress value={progress} className="h-2" />
+                    {subGoals.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {subGoals.length} sub-goal{subGoals.length > 1 ? 's' : ''}
+                      </p>
+                    )}
+                    {goal.dueDate && (
+                      <p className="text-xs text-muted-foreground">
+                        Due: {new Date(goal.dueDate).toLocaleDateString()}
+                      </p>
+                    )}
+                    {goal.tags.length > 0 && (
+                      <div className="flex gap-1 flex-wrap">
+                        {goal.tags.map((tag) => (
+                          <span key={tag} className="text-xs bg-secondary px-1.5 py-0.5 rounded">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="border rounded-lg divide-y">
+            {goals.map((goal) => {
+              const subGoals = getSubGoals(goal.id)
+              const progress = getProgress(goal)
+              return (
+                <div
+                  key={goal.id}
+                  className="flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => setSelectedGoal(goal)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium">{goal.title}</span>
+                    {goal.description && (
+                      <p className="text-xs text-muted-foreground truncate">{goal.description}</p>
+                    )}
                   </div>
                   {subGoals.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
                       {subGoals.length} sub-goal{subGoals.length > 1 ? 's' : ''}
-                    </p>
+                    </span>
                   )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Progress value={progress} className="w-20 h-1.5" />
+                    <span className="text-xs text-muted-foreground w-8 text-right">{progress}%</span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <PriorityBadge priority={goal.priority} />
+                    <StatusBadge status={goal.status} />
+                  </div>
                   {goal.dueDate && (
-                    <p className="text-xs text-muted-foreground">
-                      Due: {new Date(goal.dueDate).toLocaleDateString()}
-                    </p>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(goal.dueDate).toLocaleDateString()}
+                    </span>
                   )}
-                  {goal.tags.length > 0 && (
-                    <div className="flex gap-1 flex-wrap">
-                      {goal.tags.map((tag) => (
-                        <span key={tag} className="text-xs bg-secondary px-1.5 py-0.5 rounded">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+                </div>
+              )
+            })}
+          </div>
       )}
 
       {/* Create dialog */}

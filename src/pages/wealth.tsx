@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Wallet, TrendingUp, TrendingDown, Landmark, PieChart as PieChartIcon, Briefcase, HardDrive, ArrowLeftRight } from 'lucide-react'
+import { Plus, Wallet, TrendingUp, TrendingDown, Landmark, PieChart as PieChartIcon, Briefcase, HardDrive, ArrowLeftRight, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -13,6 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { EmptyState } from '@/core/components/empty-state'
+import { ViewToggle, getStoredView, storeView, type ViewMode } from '@/components/view-toggle'
+import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import {
@@ -59,6 +61,8 @@ export function WealthPage() {
   const currentUser = useAuthStore((s) => s.currentUser)
 
   const [tab, setTab] = useState('transactions')
+  const [viewMode, setViewMode] = useState<ViewMode>(() => getStoredView('wealth'))
+  const handleViewChange = (mode: ViewMode) => { setViewMode(mode); storeView('wealth', mode) }
   const [txTypeFilter, setTxTypeFilter] = useState<'all' | 'income' | 'expense'>('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [assetClassFilter, setAssetClassFilter] = useState('all')
@@ -644,7 +648,12 @@ export function WealthPage() {
             <TabsTrigger value="wallets">Wallets</TabsTrigger>
             <TabsTrigger value="crypto-txs">Crypto Txs</TabsTrigger>
           </TabsList>
-          {addButton}
+          <div className="flex items-center gap-2">
+            {(tab === 'budgets' || tab === 'accounts' || tab === 'portfolio') && (
+              <ViewToggle value={viewMode} onChange={handleViewChange} />
+            )}
+            {addButton}
+          </div>
         </div>
 
         {/* Transactions Tab */}
@@ -705,17 +714,48 @@ export function WealthPage() {
             />
           ) : (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {budgets.map((budget) => (
-                  <BudgetCard
-                    key={budget.id}
-                    budget={budget}
-                    spent={spentByCategory[budget.metadata.category as string] || 0}
-                    onEdit={setEditingBudget}
-                    onDelete={(b) => setDeleteTarget({ entity: b, type: 'budget' })}
-                  />
-                ))}
-              </div>
+              {viewMode === 'grid' ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {budgets.map((budget) => (
+                    <BudgetCard
+                      key={budget.id}
+                      budget={budget}
+                      spent={spentByCategory[budget.metadata.category as string] || 0}
+                      onEdit={setEditingBudget}
+                      onDelete={(b) => setDeleteTarget({ entity: b, type: 'budget' })}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-md border divide-y">
+                  {budgets.map((budget) => {
+                    const limit = budget.metadata.amount as number
+                    const spent = spentByCategory[budget.metadata.category as string] || 0
+                    const remaining = limit - spent
+                    return (
+                      <div key={budget.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <span className="font-medium truncate">{budget.title}</span>
+                          <Badge variant="outline" className="shrink-0">{(budget.metadata.category as string) || 'N/A'}</Badge>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm shrink-0">
+                          <span className="text-muted-foreground">Limit: {formatTHB(limit)}</span>
+                          <span className="text-muted-foreground">Spent: {formatTHB(spent)}</span>
+                          <span className={remaining >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            Remaining: {formatTHB(remaining)}
+                          </span>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingBudget(budget)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteTarget({ entity: budget, type: 'budget' })}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
               <SpendingChart data={chartData} />
             </>
           )}
@@ -736,7 +776,7 @@ export function WealthPage() {
               actionLabel="New Account"
               onAction={() => setAccountDialogOpen(true)}
             />
-          ) : (
+          ) : viewMode === 'grid' ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {accounts.map((account) => (
                 <AccountCard
@@ -745,6 +785,26 @@ export function WealthPage() {
                   onEdit={setEditingAccount}
                   onDelete={(a) => setDeleteTarget({ entity: a, type: 'account' })}
                 />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-md border divide-y">
+              {accounts.map((account) => (
+                <div key={account.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <span className="font-medium truncate">{account.title}</span>
+                    <Badge variant="outline" className="shrink-0">{(account.metadata.accountType as string) || 'N/A'}</Badge>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm shrink-0">
+                    <span className="font-medium">{formatTHB(account.metadata.balance as number)}</span>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingAccount(account)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteTarget({ entity: account, type: 'account' })}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -812,17 +872,50 @@ export function WealthPage() {
             />
           ) : (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredAssets.map((asset) => (
-                  <AssetCard
-                    key={asset.id}
-                    asset={asset}
-                    walletName={asset.metadata.walletId ? walletMap.get(asset.metadata.walletId as string) : undefined}
-                    onEdit={setEditingAsset}
-                    onDelete={(a) => setDeleteTarget({ entity: a, type: 'asset' })}
-                  />
-                ))}
-              </div>
+              {viewMode === 'grid' ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredAssets.map((asset) => (
+                    <AssetCard
+                      key={asset.id}
+                      asset={asset}
+                      walletName={asset.metadata.walletId ? walletMap.get(asset.metadata.walletId as string) : undefined}
+                      onEdit={setEditingAsset}
+                      onDelete={(a) => setDeleteTarget({ entity: a, type: 'asset' })}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-md border divide-y">
+                  {filteredAssets.map((asset) => {
+                    const value = getAssetValue(asset)
+                    const cost = getAssetCost(asset)
+                    const gain = formatGain(cost, value)
+                    const chain = asset.metadata.chain as string
+                    return (
+                      <div key={asset.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <span className="font-medium truncate">{asset.title}</span>
+                          <Badge variant="outline" className="shrink-0">{(asset.metadata.assetClass as string) || 'N/A'}</Badge>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm shrink-0">
+                          <span className="text-muted-foreground">Value: {formatTHB(value)}</span>
+                          <span className="text-muted-foreground">Cost: {formatTHB(cost)}</span>
+                          <span className={gain.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {gain.amount >= 0 ? '+' : ''}{formatTHB(gain.amount)} ({gain.pct >= 0 ? '+' : ''}{gain.pct.toFixed(1)}%)
+                          </span>
+                          {chain && <span className="text-muted-foreground">{chain}</span>}
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingAsset(asset)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteTarget({ entity: asset, type: 'asset' })}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
               <AllocationChart data={allocationData} />
             </>
           )}

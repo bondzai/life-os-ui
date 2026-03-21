@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Heart, Dumbbell, Moon, Activity, Scale } from 'lucide-react'
+import { Plus, Heart, Dumbbell, Moon, Activity, Scale, Pencil, Trash2, Clock, Flame, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -18,6 +18,9 @@ import { notify } from '@/lib/notify'
 import {
   BODY_METRIC_TYPES,
   WORKOUT_TYPES,
+  WORKOUT_COLORS,
+  MOOD_COLORS,
+  SLEEP_COLORS,
   type BodyMetricType,
   type WorkoutType,
   type MoodLevel,
@@ -27,6 +30,8 @@ import { BodyMetricDialog, type BodyMetricFormValues } from './health/body-metri
 import { WorkoutDialog, type WorkoutFormValues } from './health/workout-dialog'
 import { SleepMoodDialog, type SleepMoodFormValues } from './health/sleep-mood-dialog'
 import { BodyMetricTable } from './health/body-metric-table'
+import { ViewToggle, getStoredView, storeView, type ViewMode } from '@/components/view-toggle'
+import { Badge } from '@/components/ui/badge'
 import { WorkoutCard } from './health/workout-card'
 import { SleepMoodCard } from './health/sleep-mood-card'
 import { WeightChart } from './health/weight-chart'
@@ -43,6 +48,7 @@ export function HealthPage() {
   const currentUser = useAuthStore((s) => s.currentUser)
 
   const [tab, setTab] = useState('body')
+  const [viewMode, setViewMode] = useState<ViewMode>(() => getStoredView('health'))
   const [metricTypeFilter, setMetricTypeFilter] = useState('all')
   const [workoutTypeFilter, setWorkoutTypeFilter] = useState('all')
 
@@ -261,6 +267,11 @@ export function HealthPage() {
     setDeleteTarget(null)
   }
 
+  const handleViewChange = (mode: ViewMode) => {
+    setViewMode(mode)
+    storeView('health', mode)
+  }
+
   const addButton = (
     <Button
       size="sm"
@@ -328,7 +339,10 @@ export function HealthPage() {
             <TabsTrigger value="workouts">Workouts</TabsTrigger>
             <TabsTrigger value="sleep-mood">Sleep & Mood</TabsTrigger>
           </TabsList>
-          {addButton}
+          <div className="flex items-center gap-2">
+            {tab !== 'body' && <ViewToggle value={viewMode} onChange={handleViewChange} />}
+            {addButton}
+          </div>
         </div>
 
         {/* Body Metrics Tab */}
@@ -392,7 +406,7 @@ export function HealthPage() {
               actionLabel="Log Workout"
               onAction={() => setWorkoutDialogOpen(true)}
             />
-          ) : (
+          ) : viewMode === 'grid' ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredWorkouts.map((workout) => (
                 <WorkoutCard
@@ -402,6 +416,40 @@ export function HealthPage() {
                   onDelete={(w) => setDeleteTarget({ entity: w, type: 'workout' })}
                 />
               ))}
+            </div>
+          ) : (
+            <div className="rounded-md border divide-y">
+              {filteredWorkouts.map((workout) => {
+                const wType = workout.metadata.workoutType as WorkoutType
+                const typeLabel = wType === 'hiit' ? 'HIIT' : wType.charAt(0).toUpperCase() + wType.slice(1)
+                return (
+                  <div key={workout.id} className="flex items-center gap-4 px-4 py-3">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium">{workout.title}</span>
+                    </div>
+                    <Badge className={`text-xs shrink-0 ${WORKOUT_COLORS[wType] || ''}`}>{typeLabel}</Badge>
+                    <span className="flex items-center gap-1 text-sm text-muted-foreground shrink-0">
+                      <Clock className="h-3.5 w-3.5" />
+                      {workout.metadata.duration as number} min
+                    </span>
+                    {typeof workout.metadata.calories === 'number' && workout.metadata.calories > 0 && (
+                      <span className="flex items-center gap-1 text-sm text-muted-foreground shrink-0">
+                        <Flame className="h-3.5 w-3.5 text-orange-500" />
+                        {workout.metadata.calories} cal
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground shrink-0">{workout.metadata.date as string}</span>
+                    <div className="flex gap-1 shrink-0">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingWorkout(workout)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setDeleteTarget({ entity: workout, type: 'workout' })}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </TabsContent>
@@ -417,7 +465,7 @@ export function HealthPage() {
               actionLabel="Log Entry"
               onAction={() => setSleepMoodDialogOpen(true)}
             />
-          ) : (
+          ) : viewMode === 'grid' ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {sortedSleepMoods.map((entry) => (
                 <SleepMoodCard
@@ -427,6 +475,45 @@ export function HealthPage() {
                   onDelete={(e) => setDeleteTarget({ entity: e, type: 'sleep-mood' })}
                 />
               ))}
+            </div>
+          ) : (
+            <div className="rounded-md border divide-y">
+              {sortedSleepMoods.map((entry) => {
+                const sMood = entry.metadata.mood as MoodLevel | undefined
+                const sQuality = entry.metadata.sleepQuality as SleepQuality | undefined
+                return (
+                  <div key={entry.id} className="flex items-center gap-4 px-4 py-3">
+                    <span className="text-sm font-medium shrink-0">{entry.metadata.date as string}</span>
+                    {entry.metadata.sleepHours != null && (
+                      <span className="flex items-center gap-1 text-sm text-muted-foreground shrink-0">
+                        <Moon className="h-3.5 w-3.5 text-indigo-500" />
+                        {entry.metadata.sleepHours as number}h
+                      </span>
+                    )}
+                    {sMood && (
+                      <Badge className={`text-xs capitalize shrink-0 ${MOOD_COLORS[sMood]}`}>{sMood}</Badge>
+                    )}
+                    {sQuality && (
+                      <Badge className={`text-xs capitalize shrink-0 ${SLEEP_COLORS[sQuality]}`}>{sQuality}</Badge>
+                    )}
+                    {entry.metadata.energy != null && (
+                      <span className="flex items-center gap-1 text-sm text-muted-foreground shrink-0">
+                        <Zap className="h-3.5 w-3.5 text-yellow-500" />
+                        {entry.metadata.energy as number}/10
+                      </span>
+                    )}
+                    <div className="flex-1" />
+                    <div className="flex gap-1 shrink-0">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingSleepMood(entry)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setDeleteTarget({ entity: entry, type: 'sleep-mood' })}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </TabsContent>

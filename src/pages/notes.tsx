@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Plus, NotebookPen, Pencil, Trash2, Search, Pin } from 'lucide-react'
+import { ViewToggle, getStoredView, storeView, type ViewMode } from '@/components/view-toggle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -43,6 +44,12 @@ export function NotesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
 
   const [tagFilter, setTagFilter] = useState<string>('all')
+  const [viewMode, setViewMode] = useState<ViewMode>(() => getStoredView('notes'))
+
+  const handleViewChange = (mode: ViewMode) => {
+    setViewMode(mode)
+    storeView('notes', mode)
+  }
 
   // Collect all unique tags from notes
   const allTags = useMemo(() => {
@@ -194,15 +201,18 @@ export function NotesPage() {
                 />
               </div>
             </div>
-            <Button
-              size="sm"
-              onClick={() => {
-                setIsJournalCreate(false)
-                setDialogOpen(true)
-              }}
-            >
-              <Plus className="h-4 w-4 mr-1" /> New Note
-            </Button>
+            <div className="flex items-center gap-2">
+              <ViewToggle value={viewMode} onChange={handleViewChange} />
+              <Button
+                size="sm"
+                onClick={() => {
+                  setIsJournalCreate(false)
+                  setDialogOpen(true)
+                }}
+              >
+                <Plus className="h-4 w-4 mr-1" /> New Note
+              </Button>
+            </div>
           </div>
 
           {/* Note cards */}
@@ -218,31 +228,79 @@ export function NotesPage() {
               }}
             />
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {notes.map((note) => (
-                <Card key={note.id}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-sm font-medium flex items-center gap-1">
-                        {(note.metadata.isPinned as boolean) && <Pin className="h-3 w-3 text-primary shrink-0" />}
-                        {note.title}
-                      </CardTitle>
-                      <StatusBadge status={note.status} />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {typeof note.metadata.body === 'string' && note.metadata.body && (
-                      <div className="line-clamp-3">
-                        <Markdown content={note.metadata.body} className="text-xs text-muted-foreground" />
+            viewMode === 'grid' ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {notes.map((note) => (
+                  <Card key={note.id}>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-1">
+                          {(note.metadata.isPinned as boolean) && <Pin className="h-3 w-3 text-primary shrink-0" />}
+                          {note.title}
+                        </CardTitle>
+                        <StatusBadge status={note.status} />
                       </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {typeof note.metadata.body === 'string' && note.metadata.body && (
+                        <div className="line-clamp-3">
+                          <Markdown content={note.metadata.body} className="text-xs text-muted-foreground" />
+                        </div>
+                      )}
+                      {note.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {note.description}
+                        </p>
+                      )}
+                      {note.tags.length > 0 && (
+                        <div className="flex gap-1 flex-wrap">
+                          {note.tags.map((tag) => (
+                            <span key={tag} className="text-xs bg-secondary px-1.5 py-0.5 rounded">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-1 pt-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className={`h-7 px-2 ${note.metadata.isPinned ? 'text-primary' : ''}`}
+                          onClick={() =>
+                            update.mutate({
+                              id: note.id,
+                              updates: {
+                                metadata: { ...note.metadata, isPinned: !note.metadata.isPinned },
+                                updatedAt: new Date().toISOString(),
+                              },
+                            })
+                          }
+                        >
+                          <Pin className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingNote(note)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setDeleteTarget(note)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="border rounded-lg divide-y">
+                {notes.map((note) => (
+                  <div key={note.id} className="flex items-center gap-3 px-3 py-2">
+                    {(note.metadata.isPinned as boolean) && (
+                      <Pin className="h-3 w-3 text-primary shrink-0" />
                     )}
-                    {note.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {note.description}
-                      </p>
-                    )}
+                    <span className="text-sm font-medium truncate min-w-[120px] max-w-[200px]">
+                      {note.title}
+                    </span>
                     {note.tags.length > 0 && (
-                      <div className="flex gap-1 flex-wrap">
+                      <div className="flex gap-1 shrink-0">
                         {note.tags.map((tag) => (
                           <span key={tag} className="text-xs bg-secondary px-1.5 py-0.5 rounded">
                             {tag}
@@ -250,7 +308,13 @@ export function NotesPage() {
                         ))}
                       </div>
                     )}
-                    <div className="flex gap-1 pt-1">
+                    {typeof note.metadata.body === 'string' && note.metadata.body && (
+                      <span className="text-xs text-muted-foreground truncate max-w-[300px]">
+                        {note.metadata.body}
+                      </span>
+                    )}
+                    <div className="ml-auto flex items-center gap-2 shrink-0">
+                      <StatusBadge status={note.status} />
                       <Button
                         size="sm"
                         variant="ghost"
@@ -274,10 +338,10 @@ export function NotesPage() {
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
         </TabsContent>
 

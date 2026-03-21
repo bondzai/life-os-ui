@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { Plus, Repeat, Pencil, Trash2, Flame, Check, ListChecks } from 'lucide-react'
+import { ViewToggle, getStoredView, storeView, type ViewMode } from '@/components/view-toggle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -56,12 +57,18 @@ export function HabitsPage() {
   const { items: allTrackers, create: createTracker, update: updateTracker, remove: removeTracker } = useTrackers()
   const currentUser = useAuthStore((s) => s.currentUser)
 
+  const [viewMode, setViewMode] = useState<ViewMode>(() => getStoredView('habits'))
   const [statusFilter, setStatusFilter] = useState<EntityStatus | 'all'>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [protocolDialogOpen, setProtocolDialogOpen] = useState(false)
   const [editingHabit, setEditingHabit] = useState<Entity | null>(null)
   const [editingProtocol, setEditingProtocol] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
+
+  const handleViewChange = (mode: ViewMode) => {
+    setViewMode(mode)
+    storeView('habits', mode)
+  }
 
   const habits = useMemo(() => {
     let filtered = allHabits
@@ -285,25 +292,28 @@ export function HabitsPage() {
           </Select>
         </div>
 
-        {/* Add dropdown: Habit or Protocol */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-1" /> New
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setDialogOpen(true)}>
-              <Repeat className="h-4 w-4 mr-2" /> Habit
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setProtocolDialogOpen(true)}>
-              <ListChecks className="h-4 w-4 mr-2" /> Protocol
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2">
+          <ViewToggle value={viewMode} onChange={handleViewChange} />
+          {/* Add dropdown: Habit or Protocol */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" /> New
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setDialogOpen(true)}>
+                <Repeat className="h-4 w-4 mr-2" /> Habit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setProtocolDialogOpen(true)}>
+                <ListChecks className="h-4 w-4 mr-2" /> Protocol
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
-      {/* Cards grid */}
+      {/* Cards grid / list */}
       {habits.length === 0 ? (
         <EmptyState
           icon={Repeat}
@@ -312,7 +322,7 @@ export function HabitsPage() {
           actionLabel="New Habit"
           onAction={() => setDialogOpen(true)}
         />
-      ) : (
+      ) : viewMode === 'grid' ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {habits.map((habit) => {
             if (isProtocol(habit)) {
@@ -413,6 +423,86 @@ export function HabitsPage() {
                   </div>
                 </CardContent>
               </Card>
+            )
+          })}
+        </div>
+      ) : (
+        /* List view */
+        <div className="rounded-lg border divide-y">
+          {habits.map((habit) => {
+            if (isProtocol(habit)) {
+              const tracker = getTodayTracker(habit.id)
+              const completedSteps = getCompletedSteps(tracker?.note)
+              const steps = (habit.metadata.steps as ProtocolStep[]) || []
+              const totalSteps = steps.length
+              const doneCount = completedSteps.length
+              const streak = typeof habit.metadata.streak === 'number' ? habit.metadata.streak : 0
+
+              return (
+                <div key={habit.id} className="flex items-center gap-3 px-4 py-3 group">
+                  <ListChecks className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="text-sm font-medium flex-1 min-w-0 truncate">{habit.title}</span>
+                  <Badge variant="outline" className="text-xs shrink-0">{totalSteps} steps</Badge>
+                  <Badge variant={doneCount >= totalSteps ? 'default' : 'outline'} className="text-xs shrink-0">
+                    {doneCount}/{totalSteps} today
+                  </Badge>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Flame className="h-3.5 w-3.5 text-orange-500" />
+                    <span className="text-xs font-medium">{streak}</span>
+                  </div>
+                  <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingProtocol(habit)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setDeleteTarget(habit)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )
+            }
+
+            // Regular habit list row
+            const checked = !!getTodayTracker(habit.id)
+            const streak = typeof habit.metadata.streak === 'number' ? habit.metadata.streak : 0
+            const frequency = typeof habit.metadata.frequency === 'string' ? habit.metadata.frequency : 'daily'
+
+            const now = new Date()
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+            const monthStartISO = monthStart.toISOString()
+            const daysElapsed = now.getDate()
+            const monthCheckins = allTrackers.filter(
+              (t) => t.entityId === habit.id && t.timestamp >= monthStartISO,
+            ).length
+            const rate = daysElapsed > 0 ? Math.round((monthCheckins / daysElapsed) * 100) : 0
+
+            return (
+              <div key={habit.id} className="flex items-center gap-3 px-4 py-3 group">
+                <span className="text-sm font-medium flex-1 min-w-0 truncate">{habit.title}</span>
+                <Badge variant="outline" className="text-xs capitalize shrink-0">{frequency}</Badge>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Flame className="h-3.5 w-3.5 text-orange-500" />
+                  <span className="text-xs font-medium">{streak}</span>
+                </div>
+                <Badge variant="outline" className="text-xs shrink-0">{rate}%</Badge>
+                <Button
+                  size="sm"
+                  variant={checked ? 'default' : 'outline'}
+                  className="h-7 px-2 shrink-0"
+                  onClick={() => handleCheckIn(habit)}
+                >
+                  <Check className="h-3.5 w-3.5 mr-1" />
+                  {checked ? 'Done' : 'Check in'}
+                </Button>
+                <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingHabit(habit)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setDeleteTarget(habit)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
             )
           })}
         </div>

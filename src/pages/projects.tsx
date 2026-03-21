@@ -10,8 +10,6 @@ import {
   Target,
   CheckSquare,
   NotebookPen,
-  LayoutGrid,
-  List,
   Search,
   X,
   LinkIcon,
@@ -36,7 +34,7 @@ import {
 } from '@/components/ui/select'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ViewToggle } from '@/components/view-toggle'
 import { useEntities, useRelations } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
@@ -822,12 +820,7 @@ export function ProjectsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Tabs value={viewMode} onValueChange={(v) => handleViewChange(v as 'grid' | 'list')}>
-            <TabsList className="h-8">
-              <TabsTrigger value="grid" className="h-6 px-2"><LayoutGrid className="h-3.5 w-3.5" /></TabsTrigger>
-              <TabsTrigger value="list" className="h-6 px-2"><List className="h-3.5 w-3.5" /></TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <ViewToggle value={viewMode} onChange={handleViewChange} />
           <Button size="sm" className="h-8" onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-1" /> New Project
           </Button>
