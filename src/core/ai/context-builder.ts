@@ -6,6 +6,7 @@ export interface EntityContext {
   goals: Entity[]
   habits: Entity[]
   events: Entity[]
+  projects: Entity[]
   other: Entity[]
 }
 
@@ -18,20 +19,34 @@ export async function gatherContext(): Promise<EntityContext> {
   const goals = all.filter((e) => e.type === 'goal' && e.status !== 'archived').slice(0, 10)
   const habits = all.filter((e) => e.type === 'habit' && e.status === 'todo').slice(0, 10)
   const events = all.filter((e) => e.type === 'event' && e.status !== 'archived').slice(0, 10)
+  const projects = all.filter((e) => e.type === 'project' && e.status !== 'archived').slice(0, 10)
   const other = all
     .filter(
       (e) =>
-        !['task', 'goal', 'habit', 'event'].includes(e.type) && e.status !== 'archived',
+        !['task', 'goal', 'habit', 'event', 'project'].includes(e.type) && e.status !== 'archived',
     )
     .slice(0, 10)
 
-  return { tasks, goals, habits, events, other }
+  return { tasks, goals, habits, events, projects, other }
 }
 
 function formatEntity(e: Entity): string {
   const parts = [`- ${e.title} [${e.status}/${e.priority}]`]
   if (e.dueDate) parts.push(`due:${e.dueDate}`)
   if (e.description) parts.push(`"${e.description}"`)
+  return parts.join(' ')
+}
+
+function formatProject(e: Entity): string {
+  const parts = [`- ${e.title} [${e.status}]`]
+  const category = e.metadata?.category as string | undefined
+  const domain = e.metadata?.domain as string | undefined
+  const stack = e.metadata?.stack as string[] | undefined
+  const summary = e.metadata?.summary as string | undefined
+  if (category) parts.push(`(${category})`)
+  if (domain) parts.push(`[${domain}]`)
+  if (stack?.length) parts.push(`stack: ${stack.join(', ')}`)
+  if (summary) parts.push(`— ${summary}`)
   return parts.join(' ')
 }
 
@@ -42,9 +57,14 @@ function formatSection(label: string, entities: Entity[]): string {
 
 export function buildSystemPrompt(context: EntityContext): string {
   const today = new Date().toISOString().split('T')[0]
+  const projectSection = context.projects.length > 0
+    ? `## Active Projects\n${context.projects.map(formatProject).join('\n')}`
+    : ''
+
   const sections = [
     `You are a helpful life management assistant. Today is ${today}.`,
     'Here is the user\'s current data:',
+    projectSection,
     formatSection('Tasks', context.tasks),
     formatSection('Goals', context.goals),
     formatSection('Habits', context.habits),

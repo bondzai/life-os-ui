@@ -1,5 +1,6 @@
 export type EntityType =
   | 'goal'
+  | 'project'
   | 'task'
   | 'habit'
   | 'skill'

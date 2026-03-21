@@ -22,6 +22,7 @@ import {
   CheckSquare,
   ChevronsUp,
   ChevronRight,
+  FolderKanban,
   GripVertical,
   History,
   Link,
@@ -55,7 +56,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { Entity, EntityPriority, EntityStatus, Relation } from '@/core/types'
-import { useRelations } from '@/core/hooks'
+import { useEntities, useRelations } from '@/core/hooks'
 import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, subtaskStatus, subtaskDone, getRecurrence, RECURRENCE_OPTIONS, RECURRENCE_LABELS, type Subtask, type SubtaskStatus } from './task-helpers'
 
 export interface TaskDetailPanelProps {
@@ -425,6 +426,13 @@ export function TaskDetailPanel({
 }: TaskDetailPanelProps) {
   // -- Relations (blocks, supports, relates) --------------------------------
   const { items: allRelations, create: createRelation, remove: removeRelation } = useRelations(task?.id)
+
+  // -- Projects for project picker ------------------------------------------
+  const { items: allProjects } = useEntities('project')
+  const activeProjects = useMemo(
+    () => allProjects.filter((p) => p.status !== 'archived'),
+    [allProjects],
+  )
 
   // -- Local editing state --------------------------------------------------
 
@@ -1087,6 +1095,36 @@ export function TaskDetailPanel({
                   <SelectItem value="none">No workspace</SelectItem>
                   <SelectItem value="work">Work</SelectItem>
                   <SelectItem value="personal">Personal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Project */}
+            <div className="grid grid-cols-[120px_1fr] items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                <FolderKanban className="h-3 w-3" />
+                Project
+              </span>
+              <Select
+                value={(task.metadata.projectId as string) ?? 'none'}
+                onValueChange={(v) => {
+                  if (!task) return
+                  onUpdate(task.id, {
+                    metadata: {
+                      ...task.metadata,
+                      projectId: v === 'none' ? undefined : v,
+                    },
+                  })
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="No project" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No project</SelectItem>
+                  {activeProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

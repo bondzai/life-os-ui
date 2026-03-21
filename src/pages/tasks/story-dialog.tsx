@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Plus, Trash2, ListChecks } from 'lucide-react'
 import {
   Dialog,
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useEntities } from '@/core/hooks'
 import type { Subtask } from './task-helpers'
 
 interface StoryDialogProps {
@@ -31,16 +32,24 @@ interface StoryDialogProps {
     priority: string
     dueDate: string
     workspace: string
+    projectId: string
     subtasks: Subtask[]
   }) => void
 }
 
 export function StoryDialog({ open, onOpenChange, workspace, defaultSubtasks, onSubmit }: StoryDialogProps) {
+  const { items: allProjects } = useEntities('project')
+  const activeProjects = useMemo(
+    () => allProjects.filter((p) => p.status !== 'archived'),
+    [allProjects],
+  )
+
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('high')
   const [dueDate, setDueDate] = useState('')
   const [ws, setWs] = useState<string>(workspace || '')
+  const [projectId, setProjectId] = useState('')
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [stepInput, setStepInput] = useState('')
 
@@ -51,6 +60,7 @@ export function StoryDialog({ open, onOpenChange, workspace, defaultSubtasks, on
       setPriority('high')
       setDueDate(new Date().toISOString().split('T')[0])
       setWs(workspace || '')
+      setProjectId('')
       setSubtasks(defaultSubtasks || [])
       setStepInput('')
     }
@@ -83,6 +93,7 @@ export function StoryDialog({ open, onOpenChange, workspace, defaultSubtasks, on
       priority,
       dueDate,
       workspace: ws,
+      projectId,
       subtasks,
     })
     onOpenChange(false)
@@ -113,7 +124,7 @@ export function StoryDialog({ open, onOpenChange, workspace, defaultSubtasks, on
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <div>
               <Label>Priority</Label>
               <Select value={priority} onValueChange={setPriority}>
@@ -135,8 +146,20 @@ export function StoryDialog({ open, onOpenChange, workspace, defaultSubtasks, on
               <Select value={ws} onValueChange={setWs}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="work">🏢 Work</SelectItem>
-                  <SelectItem value="personal">🏠 Personal</SelectItem>
+                  <SelectItem value="work">Work</SelectItem>
+                  <SelectItem value="personal">Personal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Project</Label>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {activeProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -13,6 +13,7 @@ import {
   BarChart3,
   GitBranch,
   CalendarPlus,
+  FolderKanban,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -41,6 +42,7 @@ export const modules: ModuleConfig[] = [
 
   // Plan — strategic tools & review cycles
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Plan', entityTypes: ['task'] },
+  { id: 'projects', label: 'Projects', icon: FolderKanban, path: '/projects', group: 'Plan', entityTypes: ['project'] },
   {
     id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Plan', entityTypes: ['event'],
     children: [

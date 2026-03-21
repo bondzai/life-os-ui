@@ -600,7 +600,7 @@ export function TasksPage() {
   }
 
   const handleCreateStory = (values: {
-    title: string; description: string; priority: string; dueDate: string; workspace: string; subtasks: Array<{ id: string; title: string; done: boolean }>
+    title: string; description: string; priority: string; dueDate: string; workspace: string; projectId: string; subtasks: Array<{ id: string; title: string; done: boolean }>
   }) => {
     create.mutate({
       id: crypto.randomUUID(),
@@ -612,6 +612,7 @@ export function TasksPage() {
       tags: [],
       metadata: {
         workspace: values.workspace || undefined,
+        projectId: values.projectId || undefined,
         subtasks: values.subtasks,
         isStory: true,
       },
