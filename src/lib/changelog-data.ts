@@ -14,6 +14,34 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.65.0',
+    date: '2026-03-21',
+    phase: 'Projects & Strategic Command Center',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Projects page**: New entity type for tracking online & offline projects — software, business, creative, learning, lifestyle',
+          '**List/Grid toggle**: Switch between card grid and compact list view, persisted to localStorage',
+          '**Project create dialog**: Dedicated form with category, domain, tech stack, summary (AI context), and external links',
+          '**Inline metadata editor**: Edit category, domain, stack, summary, and links directly in project detail view',
+          '**Project picker on tasks**: Assign tasks to projects from task detail panel and story dialog',
+          '**Strategic Command Center**: Merged into Focus page right sidebar — goal cascade tree, system health indicators (green/yellow/red per life domain), highest leverage tasks',
+          '**Search filter**: Filter projects by title, description, stack, category, or tags',
+          '**Quick status change**: Change project status directly from list view without opening detail',
+          '**AI project awareness**: Active projects with stack and summary injected into AI context for smarter suggestions',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Focus page right sidebar**: Now includes schedule, leverage tasks, system health, and collapsible goal cascade',
+          '**Sidebar navigation**: Projects added under Plan group between Tasks and Goals',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.64.0',
     date: '2026-03-20',
     phase: 'Lyra Constellation Loader',
