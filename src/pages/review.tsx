@@ -16,6 +16,8 @@ import { StepStale } from './review/step-stale'
 import { StepHabits } from './review/step-habits'
 import { StepSpending } from './review/step-spending'
 import { StepReflection } from './review/step-reflection'
+import { StepSystemAudit } from './review/step-system-audit'
+import { useSystemAudit } from './review/use-system-audit'
 import {
   getWeekStart,
   isReviewDoneThisWeek,
@@ -254,7 +256,7 @@ function DailyReview() {
 
 // ─── Weekly Review (existing wizard) ───
 
-const STEPS = ['Accomplishments', 'Stale Items', 'Habits', 'Spending', 'Reflection']
+const STEPS = ['Accomplishments', 'Stale Items', 'Habits', 'Spending', 'System Audit', 'Reflection']
 
 function WeeklyReview() {
   const { items: allEntities, update, create } = useEntities()
@@ -263,6 +265,7 @@ function WeeklyReview() {
 
   const [step, setStep] = useState(0)
   const [reviewSaved, setReviewSaved] = useState(() => isReviewDoneThisWeek())
+  const { projectVelocity, riskDetection, lifeBalance, suggestedPriorities } = useSystemAudit()
 
   const weekStart = getWeekStart()
   const today = new Date().toISOString().split('T')[0]
@@ -355,7 +358,16 @@ function WeeklyReview() {
       {step === 1 && <StepStale items={staleItems} onArchive={handleArchive} />}
       {step === 2 && <StepHabits habits={habitSummaries} />}
       {step === 3 && <StepSpending transactions={weekTransactions} budgetTotal={monthlyBudget} />}
-      {step === 4 && <StepReflection onSave={handleReflectionSave} saved={reviewSaved} allEntities={allEntities} />}
+      {step === 4 && (
+        <StepSystemAudit
+          projectVelocity={projectVelocity}
+          riskDetection={riskDetection}
+          lifeBalance={lifeBalance}
+          suggestedPriorities={suggestedPriorities}
+          onArchive={handleArchive}
+        />
+      )}
+      {step === 5 && <StepReflection onSave={handleReflectionSave} saved={reviewSaved} allEntities={allEntities} />}
 
       <div className="flex justify-between pt-2">
         <Button variant="outline" size="sm" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>

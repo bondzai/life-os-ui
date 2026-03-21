@@ -14,6 +14,7 @@ import {
   GitBranch,
   CalendarPlus,
   FolderKanban,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -62,6 +63,7 @@ export const modules: ModuleConfig[] = [
     ],
   },
   { id: 'habits', label: 'Habits', icon: Repeat, path: '/habits', group: 'Plan', entityTypes: ['habit'] },
+  { id: 'skills', label: 'Skills', icon: Zap, path: '/skills', group: 'Plan', entityTypes: ['skill'] },
 
   // Life — domains you track
   { id: 'health', label: 'Health', icon: Heart, path: '/health', group: 'Life', entityTypes: ['body-metric', 'workout', 'sleep-mood'] },

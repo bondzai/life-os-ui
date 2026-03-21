@@ -23,6 +23,7 @@ import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import { SavedFilterBar } from '@/core/components/saved-filter-bar'
+import { VelocityPanel } from '@/pages/goals/velocity-panel'
 import type { Entity, EntityStatus } from '@/core/types'
 
 export function GoalsPage() {
@@ -188,6 +189,9 @@ export function GoalsPage() {
                 />
               )}
             </div>
+
+            {/* Velocity */}
+            <VelocityPanel entityId={fresh.id} entityType="goal" dueDate={fresh.dueDate} />
 
             {/* Sub-goals */}
             {subGoals.length > 0 && (

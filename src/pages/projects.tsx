@@ -44,6 +44,7 @@ import { PriorityBadge } from '@/core/components/priority-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
+import { VelocityPanel } from '@/pages/goals/velocity-panel'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 
 /* ─── Category config ─── */
@@ -668,6 +669,9 @@ export function ProjectsPage() {
                 {tasks.filter((t) => t.status === 'done').length}/{tasks.length} tasks completed
               </p>
             </div>
+
+            {/* Velocity */}
+            <VelocityPanel entityId={fresh.id} entityType="project" dueDate={fresh.dueDate} />
 
             {/* Tasks by status */}
             <div className="space-y-3">

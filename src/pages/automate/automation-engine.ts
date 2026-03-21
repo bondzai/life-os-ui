@@ -1,12 +1,40 @@
 import { notify } from '@/lib/notify'
 import type { Entity } from '@/core/types'
 import type { ActionType, Condition, ScheduleInterval } from './automate-helpers'
+// Rule template definitions are in automate-helpers.ts
 import { addRun } from './automation-runs'
 import type { AutomationEvent } from './automation-event-bus'
 
 const STORAGE_KEY = 'lyra:entities'
 const TRACKER_KEY = 'lyra:trackers'
 const ENGINE_LAST_RUN_KEY = 'lyra:automation-last-run'
+const RULE_TEMPLATES_KEY = 'lyra:automation-rules'
+
+/** Life domains and their associated entity tags/types for the domain-inactive rule */
+const LIFE_DOMAINS: Record<string, string[]> = {
+  Health: ['health', 'workout', 'body-metric', 'sleep-mood', 'water-intake'],
+  Wealth: ['wealth', 'finance', 'transaction', 'budget', 'account'],
+  Learning: ['learning', 'book', 'course', 'skill'],
+  Travel: ['travel', 'trip', 'place'],
+  Family: ['family', 'relationship'],
+}
+
+/** Read enabled rule template IDs from localStorage */
+export function getEnabledRuleTemplates(): Record<string, boolean> {
+  const raw = localStorage.getItem(RULE_TEMPLATES_KEY)
+  return raw ? (JSON.parse(raw) as Record<string, boolean>) : {}
+}
+
+/** Save enabled rule template states to localStorage */
+export function setEnabledRuleTemplates(state: Record<string, boolean>): void {
+  localStorage.setItem(RULE_TEMPLATES_KEY, JSON.stringify(state))
+}
+
+/** Check if a specific rule template is enabled */
+function isRuleEnabled(ruleId: string): boolean {
+  const state = getEnabledRuleTemplates()
+  return state[ruleId] === true
+}
 
 function readEntities(): Entity[] {
   const raw = localStorage.getItem(STORAGE_KEY)
@@ -275,10 +303,230 @@ export function runDueAutomations(ownerId: string): number {
     }
   }
 
+  // Run domain-inactive check (daily rule template)
+  checkDomainInactivity(ownerId)
+
   return count
 }
 
+/** Execute built-in rule templates based on events */
+function executeRuleTemplates(event: AutomationEvent, ownerId: string): void {
+  // task-done-update-project
+  if (
+    isRuleEnabled('task-done-update-project') &&
+    event.type === 'entity-status-change' &&
+    event.entityType === 'task' &&
+    event.newStatus === 'done' &&
+    event.projectId
+  ) {
+    const entities = readEntities()
+    const project = entities.find((e) => e.id === event.projectId)
+    const taskTitle = event.entityTitle || 'A task'
+    if (project) {
+      notify({
+        title: 'Project Progress',
+        message: `"${taskTitle}" completed for project "${project.title}"`,
+        type: 'info',
+      })
+      addRun({
+        id: crypto.randomUUID(),
+        automationId: 'task-done-update-project',
+        automationTitle: 'Task Done → Track Project',
+        timestamp: new Date().toISOString(),
+        result: 'success',
+        details: `Logged completion of "${taskTitle}" for project "${project.title}"`,
+      })
+    }
+  }
+
+  // habit-streak-break
+  if (
+    isRuleEnabled('habit-streak-break') &&
+    event.type === 'habit-streak-reset' &&
+    event.entityType === 'habit'
+  ) {
+    const habitName = event.entityTitle || 'Unknown habit'
+    const entities = readEntities()
+    const newTask: Entity = {
+      id: crypto.randomUUID(),
+      type: 'task',
+      title: `Restart "${habitName}" habit`,
+      description: `Your streak for "${habitName}" was reset. Time to get back on track!`,
+      status: 'todo',
+      priority: 'high',
+      tags: ['habit', 'restart'],
+      metadata: { ruleTemplateId: 'habit-streak-break' },
+      ownerId,
+      visibility: 'private',
+      dueDate: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    writeEntities([...entities, newTask])
+    notify({
+      title: 'Habit Streak Broken',
+      message: `Created reminder task: Restart "${habitName}" habit`,
+      type: 'warning',
+    })
+    addRun({
+      id: crypto.randomUUID(),
+      automationId: 'habit-streak-break',
+      automationTitle: 'Habit Streak Break → Reminder',
+      timestamp: new Date().toISOString(),
+      result: 'success',
+      details: `Created restart task for habit "${habitName}"`,
+    })
+  }
+
+  // goal-complete
+  if (
+    isRuleEnabled('goal-complete') &&
+    event.type === 'entity-status-change' &&
+    event.entityType === 'goal' &&
+    event.newStatus === 'done'
+  ) {
+    const entities = readEntities()
+    const goal = entities.find((e) => e.id === event.entityId)
+    const goalTitle = goal?.title || event.entityTitle || 'A goal'
+
+    // Archive the goal
+    const updatedEntities = entities.map((e) => {
+      if (e.id === event.entityId) {
+        return { ...e, status: 'archived' as const, updatedAt: new Date().toISOString() }
+      }
+      return e
+    })
+
+    // Create celebration note
+    const celebrationNote: Entity = {
+      id: crypto.randomUUID(),
+      type: 'note',
+      title: `Goal completed: ${goalTitle}`,
+      description: `Congratulations! You completed your goal "${goalTitle}" on ${new Date().toLocaleDateString()}.`,
+      status: 'done',
+      priority: 'low',
+      tags: ['celebration', 'milestone'],
+      metadata: { ruleTemplateId: 'goal-complete', goalId: event.entityId },
+      ownerId,
+      visibility: 'private',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    writeEntities([...updatedEntities, celebrationNote])
+    notify({
+      title: 'Goal Completed!',
+      message: `"${goalTitle}" has been archived and a celebration note was created.`,
+      type: 'success',
+    })
+    addRun({
+      id: crypto.randomUUID(),
+      automationId: 'goal-complete',
+      automationTitle: 'Goal Complete → Archive & Celebrate',
+      timestamp: new Date().toISOString(),
+      result: 'success',
+      details: `Archived goal "${goalTitle}" and created celebration note`,
+    })
+  }
+
+  // focus-session-log
+  if (
+    isRuleEnabled('focus-session-log') &&
+    event.type === 'focus-session-end' &&
+    event.projectId
+  ) {
+    const entities = readEntities()
+    const project = entities.find((e) => e.id === event.projectId)
+    const minutes = event.duration || 0
+    const projectTitle = project?.title || 'Unknown project'
+
+    if (project) {
+      // Update project metadata with logged time
+      const updatedEntities = entities.map((e) => {
+        if (e.id === event.projectId) {
+          const totalMinutes = ((e.metadata.totalFocusMinutes as number) || 0) + minutes
+          return {
+            ...e,
+            metadata: { ...e.metadata, totalFocusMinutes: totalMinutes },
+            updatedAt: new Date().toISOString(),
+          }
+        }
+        return e
+      })
+      writeEntities(updatedEntities)
+    }
+
+    notify({
+      title: 'Focus Session Logged',
+      message: `${minutes} minutes logged to project "${projectTitle}"`,
+      type: 'info',
+    })
+    addRun({
+      id: crypto.randomUUID(),
+      automationId: 'focus-session-log',
+      automationTitle: 'Focus Session → Log Time',
+      timestamp: new Date().toISOString(),
+      result: 'success',
+      details: `Logged ${minutes} min to project "${projectTitle}"`,
+    })
+  }
+}
+
+/** Run domain-inactive check (called from schedule runner) */
+export function checkDomainInactivity(_ownerId: string): void {
+  if (!isRuleEnabled('domain-inactive')) return
+
+  const entities = readEntities()
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const cutoff = sevenDaysAgo.toISOString()
+
+  const inactiveDomains: string[] = []
+
+  for (const [domain, keywords] of Object.entries(LIFE_DOMAINS)) {
+    const domainEntities = entities.filter((e) => {
+      const matchesTags = e.tags.some((t) => keywords.includes(t.toLowerCase()))
+      const matchesType = keywords.includes(e.type)
+      return matchesTags || matchesType
+    })
+
+    if (domainEntities.length === 0) {
+      // No entities in this domain at all — consider inactive
+      inactiveDomains.push(domain)
+      continue
+    }
+
+    const lastUpdate = domainEntities.reduce((latest, e) => {
+      return e.updatedAt > latest ? e.updatedAt : latest
+    }, '')
+
+    if (lastUpdate < cutoff) {
+      inactiveDomains.push(domain)
+    }
+  }
+
+  if (inactiveDomains.length > 0) {
+    notify({
+      title: 'Inactive Domains Alert',
+      message: `These life domains have been inactive for 7+ days: ${inactiveDomains.join(', ')}`,
+      type: 'warning',
+    })
+    addRun({
+      id: crypto.randomUUID(),
+      automationId: 'domain-inactive',
+      automationTitle: 'Domain Inactive → Alert',
+      timestamp: new Date().toISOString(),
+      result: 'success',
+      details: `Inactive domains: ${inactiveDomains.join(', ')}`,
+    })
+  }
+}
+
 export function handleAutomationEvent(event: AutomationEvent, ownerId: string): void {
+  // First, run built-in rule templates
+  executeRuleTemplates(event, ownerId)
+
+  // Then run user-created event automations
   const entities = readEntities()
   const automations = entities.filter(
     (e) =>

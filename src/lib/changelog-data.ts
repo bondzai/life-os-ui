@@ -14,6 +14,35 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '0.66.0',
+    date: '2026-03-21',
+    phase: 'The Chrollo Release — Strategic Arsenal',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Weekly System Audit**: Strategic review step with project velocity tracking (this week vs last), risk detection (habits at risk, stale goals/projects, overdue tasks), life balance radar, and AI-suggested priorities',
+          '**Automation Rules**: 5 rule templates with toggle switches — task completion updates project, habit streak break creates reminder, domain inactivity alerts, goal completion auto-archives, focus session logs time to project',
+          '**Skill & Knowledge Vault**: Full skills page with mastery levels (novice/competent/proficient/expert), domain tags, rusty skill detection (30+ days), linked projects, grid/list view, search and mastery filter',
+          '**Energy & Time Mapping**: AM/PM energy check-in widget on Focus page (1-5 scale), energy pattern tracking with peak time detection and 14-day history',
+          '**Decision Journal**: Decisions tab in Notes with full create/view/edit flow — reasoning, alternatives, linked project/goal, 30/90 day revisit prompts with validate/reverse status',
+          '**Scenario Planner**: Velocity panels on Goal and Project detail views — 4-week velocity bars, projected completion date, risk indicator (on-track/at-risk/will-miss)',
+          '**Switch component**: New shadcn-style toggle switch for automation rules',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Weekly Review**: System Audit added as step 5 before Reflection',
+          '**Focus page sidebar**: Energy check-in widget added before Today\'s Schedule',
+          '**Notes page**: Third tab "Decisions" with separate filtering from regular notes',
+          '**Automation page**: Templates split into Rule Templates (with toggles) and Schedule Templates',
+          '**Sidebar**: Skills page added under Plan group with Zap icon',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.65.0',
     date: '2026-03-21',
     phase: 'Projects & Strategic Command Center',

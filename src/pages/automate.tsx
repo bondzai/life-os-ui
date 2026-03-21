@@ -1,7 +1,9 @@
-import { useState, useMemo, useEffect } from 'react'
-import { Plus, Zap, Play, Clock, BookTemplate } from 'lucide-react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { Plus, Zap, Play, Clock, BookTemplate, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -29,7 +31,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { AutomationDialog, type AutomationFormValues } from './automate/automation-dialog'
 import { AutomationCard } from './automate/automation-card'
 import { AutomationHistory } from './automate/automation-history'
-import { runAutomation, runDueAutomations, handleAutomationEvent } from './automate/automation-engine'
+import { runAutomation, runDueAutomations, handleAutomationEvent, getEnabledRuleTemplates, setEnabledRuleTemplates } from './automate/automation-engine'
 import { subscribeAutomationEvents } from './automate/automation-event-bus'
 import type { Condition } from './automate/automate-helpers'
 import type { Entity } from '@/core/types'
@@ -271,6 +273,34 @@ export function AutomatePage() {
     [automations],
   )
 
+  // Rule templates state (stored in localStorage)
+  const [ruleTemplateState, setRuleTemplateState] = useState<Record<string, boolean>>(
+    () => getEnabledRuleTemplates(),
+  )
+
+  const ruleTemplates = useMemo(
+    () => AUTOMATION_TEMPLATES.filter((t) => t.isRuleTemplate),
+    [],
+  )
+
+  const scheduleTemplates = useMemo(
+    () => AUTOMATION_TEMPLATES.filter((t) => !t.isRuleTemplate),
+    [],
+  )
+
+  const handleToggleRule = useCallback((ruleId: string, enabled: boolean) => {
+    setRuleTemplateState((prev) => {
+      const next = { ...prev, [ruleId]: enabled }
+      setEnabledRuleTemplates(next)
+      return next
+    })
+    const rule = AUTOMATION_TEMPLATES.find((t) => t.id === ruleId)
+    notify({
+      title: enabled ? `Enabled "${rule?.name}"` : `Disabled "${rule?.name}"`,
+      type: 'info',
+    })
+  }, [])
+
   return (
     <div className="space-y-4">
       {/* Summary strip */}
@@ -383,44 +413,96 @@ export function AutomatePage() {
         </TabsContent>
 
         {/* Templates Tab */}
-        <TabsContent value="templates" className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {AUTOMATION_TEMPLATES.map((template) => {
-              const isActive = activatedTemplateIds.has(template.id)
-              return (
-                <Card key={template.id} className={isActive ? 'border-green-500/50' : ''}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-sm font-medium">{template.name}</CardTitle>
-                      <BookTemplate className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <p className="text-xs text-muted-foreground">{template.description}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="capitalize">{template.triggerType}</span>
-                      {template.scheduleInterval && (
-                        <>
-                          <span>&middot;</span>
-                          <span className="capitalize">{template.scheduleInterval}</span>
-                        </>
-                      )}
-                      <span>&middot;</span>
-                      <span>{ACTION_LABELS[template.actionType]}</span>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={isActive ? 'outline' : 'default'}
-                      className="w-full"
-                      disabled={isActive}
-                      onClick={() => handleActivateTemplate(template.id)}
-                    >
-                      {isActive ? 'Active' : 'Activate'}
-                    </Button>
-                  </CardContent>
-                </Card>
-              )
-            })}
+        <TabsContent value="templates" className="space-y-6">
+          {/* Rule Templates Section */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Rule Templates</h3>
+              <Badge variant="secondary" className="text-xs">
+                {Object.values(ruleTemplateState).filter(Boolean).length} active
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Built-in automation rules that react to events in your system. Toggle them on or off.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {ruleTemplates.map((rule) => {
+                const isEnabled = ruleTemplateState[rule.id] === true
+                return (
+                  <Card key={rule.id} className={isEnabled ? 'border-green-500/50' : ''}>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <CardTitle className="text-sm font-medium">{rule.name}</CardTitle>
+                        <Switch
+                          checked={isEnabled}
+                          onCheckedChange={(checked) => handleToggleRule(rule.id, !!checked)}
+                        />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <p className="text-xs text-muted-foreground">{rule.description}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {rule.triggerType}
+                        </Badge>
+                        <span>&middot;</span>
+                        <span>{ACTION_LABELS[rule.actionType]}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Schedule Templates Section */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <BookTemplate className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Schedule Templates</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Predefined scheduled automations. Activate to add them to your automations list.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {scheduleTemplates.map((template) => {
+                const isActive = activatedTemplateIds.has(template.id)
+                return (
+                  <Card key={template.id} className={isActive ? 'border-green-500/50' : ''}>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <CardTitle className="text-sm font-medium">{template.name}</CardTitle>
+                        <BookTemplate className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <p className="text-xs text-muted-foreground">{template.description}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="capitalize">{template.triggerType}</span>
+                        {template.scheduleInterval && (
+                          <>
+                            <span>&middot;</span>
+                            <span className="capitalize">{template.scheduleInterval}</span>
+                          </>
+                        )}
+                        <span>&middot;</span>
+                        <span>{ACTION_LABELS[template.actionType]}</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={isActive ? 'outline' : 'default'}
+                        className="w-full"
+                        disabled={isActive}
+                        onClick={() => handleActivateTemplate(template.id)}
+                      >
+                        {isActive ? 'Active' : 'Activate'}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
           </div>
         </TabsContent>
         {/* History Tab */}

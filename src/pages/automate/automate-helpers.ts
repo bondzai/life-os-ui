@@ -63,6 +63,10 @@ export interface AutomationTemplate {
   scheduleInterval?: ScheduleInterval
   actionType: ActionType
   actionConfig: Record<string, unknown>
+  /** If true, this is a built-in rule template (not just a schedule template) */
+  isRuleTemplate?: boolean
+  /** Event trigger config for event-driven rule templates */
+  eventConfig?: Record<string, unknown>
 }
 
 export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
@@ -110,5 +114,56 @@ export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
     scheduleInterval: 'weekly',
     actionType: 'create-entity',
     actionConfig: { entityType: 'task', title: 'Weekly grocery shopping', tags: ['shopping', 'errands'], priority: 'medium' },
+  },
+  // Rule Templates — event-driven automation rules
+  {
+    id: 'task-done-update-project',
+    name: 'Task Done → Track Project',
+    description: 'When a task with a projectId is marked done, log progress on the associated project.',
+    triggerType: 'event',
+    actionType: 'notify',
+    actionConfig: { notifyTitle: 'Project Progress', notifyMessage: 'A task was completed for your project.' },
+    isRuleTemplate: true,
+    eventConfig: { watchType: 'task', watchStatus: 'done' },
+  },
+  {
+    id: 'habit-streak-break',
+    name: 'Habit Streak Break → Reminder',
+    description: 'When a habit streak resets to 0, create a reminder task to restart the habit.',
+    triggerType: 'event',
+    actionType: 'create-entity',
+    actionConfig: { entityType: 'task', title: 'Restart habit', tags: ['habit', 'restart'], priority: 'high' },
+    isRuleTemplate: true,
+    eventConfig: { watchType: 'habit', watchEvent: 'habit-streak-reset' },
+  },
+  {
+    id: 'domain-inactive',
+    name: 'Domain Inactive → Alert',
+    description: 'When no entity in a life domain (Health, Wealth, Learning, Travel, Family) is updated for 7+ days, send a notification.',
+    triggerType: 'schedule',
+    scheduleInterval: 'daily',
+    actionType: 'notify',
+    actionConfig: { notifyTitle: 'Inactive Domain Alert', notifyMessage: 'One or more life domains have been inactive for 7+ days.' },
+    isRuleTemplate: true,
+  },
+  {
+    id: 'goal-complete',
+    name: 'Goal Complete → Archive & Celebrate',
+    description: 'When a goal reaches status "done", auto-archive it and create a celebration note.',
+    triggerType: 'event',
+    actionType: 'create-entity',
+    actionConfig: { entityType: 'note', title: 'Goal completed!', tags: ['celebration', 'milestone'], priority: 'low' },
+    isRuleTemplate: true,
+    eventConfig: { watchType: 'goal', watchStatus: 'done' },
+  },
+  {
+    id: 'focus-session-log',
+    name: 'Focus Session → Log Time',
+    description: 'When a focus session ends, log the time spent to the associated project (if the task has a projectId).',
+    triggerType: 'event',
+    actionType: 'notify',
+    actionConfig: { notifyTitle: 'Focus Session Logged', notifyMessage: 'Your focus session time has been recorded.' },
+    isRuleTemplate: true,
+    eventConfig: { watchEvent: 'focus-session-end' },
   },
 ]

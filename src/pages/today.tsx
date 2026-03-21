@@ -65,6 +65,7 @@ import {
   type CascadeNode,
   type DomainStatus,
 } from './command-center/use-command-center'
+import { EnergyCheckin } from './today/energy-checkin'
 import { PriorityBadge } from '@/core/components/priority-badge'
 import type { Entity } from '@/core/types'
 
@@ -933,6 +934,15 @@ export function TodayPage() {
 
         {/* ═══ RIGHT — Schedule + Command Center (5/12) ═══ */}
         <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-5 scrollbar-thin">
+          {/* Energy Check-in */}
+          <section>
+            <SH>
+              <Zap className="h-3 w-3 inline mr-1.5 -mt-px" />
+              Energy
+            </SH>
+            <EnergyCheckin />
+          </section>
+
           {/* Today's Schedule */}
           <section>
             <SH>

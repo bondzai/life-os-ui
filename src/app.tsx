@@ -33,6 +33,7 @@ const GoalMapPage = lazy(() => import('@/pages/goal-map').then((m) => ({ default
 const NoteMapPage = lazy(() => import('@/pages/note-map').then((m) => ({ default: m.NoteMapPage })))
 const EventsPage = lazy(() => import('@/pages/events').then((m) => ({ default: m.EventsPage })))
 const ProjectsPage = lazy(() => import('@/pages/projects').then((m) => ({ default: m.ProjectsPage })))
+const SkillsPage = lazy(() => import('@/pages/skills').then((m) => ({ default: m.SkillsPage })))
 const TestLoaderPage = lazy(() => import('@/pages/test-loader').then((m) => ({ default: m.TestLoaderPage })))
 
 const queryClient = new QueryClient({
@@ -66,6 +67,7 @@ export function App() {
                   <Route path="notes" element={<NotesPage />} />
                   <Route path="note-map" element={<NoteMapPage />} />
                   <Route path="habits" element={<HabitsPage />} />
+                  <Route path="skills" element={<SkillsPage />} />
                   <Route path="learning" element={<LearningPage />} />
                   <Route path="health" element={<HealthPage />} />
                   <Route path="wealth" element={<WealthPage />} />
