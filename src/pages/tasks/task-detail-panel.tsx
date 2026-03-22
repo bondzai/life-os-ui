@@ -57,6 +57,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { Entity, EntityPriority, EntityStatus, Relation } from '@/core/types'
 import { useEntities, useRelations } from '@/core/hooks'
+import { AIAction } from '@/components/ai-action'
 import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, subtaskStatus, subtaskDone, getRecurrence, RECURRENCE_OPTIONS, RECURRENCE_LABELS, type Subtask, type SubtaskStatus } from './task-helpers'
 
 export interface TaskDetailPanelProps {
@@ -916,6 +917,10 @@ export function TaskDetailPanel({
                 {task.title}
               </h2>
             )}
+          </div>
+
+          <div className="px-5 pb-2">
+            <AIAction tool="break-down" entityId={task.id} label="Break into steps" />
           </div>
 
           {/* Status workflow bar */}

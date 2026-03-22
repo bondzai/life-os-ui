@@ -35,6 +35,7 @@ const EventsPage = lazy(() => import('@/pages/events').then((m) => ({ default: m
 const ProjectsPage = lazy(() => import('@/pages/projects').then((m) => ({ default: m.ProjectsPage })))
 const SkillsPage = lazy(() => import('@/pages/skills').then((m) => ({ default: m.SkillsPage })))
 const TestLoaderPage = lazy(() => import('@/pages/test-loader').then((m) => ({ default: m.TestLoaderPage })))
+const LyraPage = lazy(() => import('@/pages/lyra').then((m) => ({ default: m.LyraPage })))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -81,6 +82,7 @@ export function App() {
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="today" element={<TodayPage />} />
                   <Route path="test-loader" element={<TestLoaderPage />} />
+                  <Route path="lyra" element={<LyraPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
               </Route>

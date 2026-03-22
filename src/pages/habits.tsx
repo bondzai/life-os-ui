@@ -25,6 +25,7 @@ import { PriorityBadge } from '@/core/components/priority-badge'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
+import { AIAction } from '@/components/ai-action'
 import { emitAutomationEvent } from './automate/automation-event-bus'
 import { HabitHeatmap } from './habits/habit-heatmap'
 import { ProtocolDialog, type ProtocolStep } from './habits/protocol-dialog'
@@ -420,6 +421,7 @@ export function HabitsPage() {
                     <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setDeleteTarget(habit)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
+                    <AIAction tool="coaching" entityId={habit.id} label="Coach me" compact />
                   </div>
                 </CardContent>
               </Card>

@@ -7,10 +7,7 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react'
-import { useAIHealth } from '@/hooks/use-ai-health'
-import { useAIStore } from '@/stores/ai-store'
-import { AIClient } from '@/core/ai/ai-client'
-import { buildBriefSummaryPrompt, gatherContext, buildSystemPrompt } from '@/core/ai/context-builder'
+import { useAI } from '@/hooks/use-ai'
 import { useMorningBrief } from '@/hooks/use-morning-brief'
 
 /* ─── Cache helpers ─── */
@@ -36,21 +33,9 @@ function cacheGreeting(content: string) {
 
 /* ─── Lyra AI Component ─── */
 
-const OLLAMA_FALLBACK = {
-  provider: 'ollama' as const,
-  endpoint: 'http://localhost:11434/v1',
-  model: 'llama3.2:3b',
-  apiKey: '',
-  contextWindow: 8192,
-}
-
 export function LyraAI() {
-  const storeConfig = useAIStore((s) => s.config)
-  const { status: aiStatus, modelName } = useAIHealth()
+  const { ask, run, status: aiStatus, isOnline, modelName } = useAI()
   const insights = useMorningBrief()
-
-  // Always resolve to a working config — never rely on stale localStorage
-  const config = storeConfig.endpoint && storeConfig.model ? storeConfig : OLLAMA_FALLBACK
 
   const [greeting, setGreeting] = useState<string | null>(getCachedGreeting)
   const [greetingLoading, setGreetingLoading] = useState(false)
@@ -60,21 +45,12 @@ export function LyraAI() {
   const autoTriggered = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const isOnline = aiStatus === 'online'
-
   // Generate AI greeting from insights
   const generateGreeting = useCallback(async () => {
     if (insights.length === 0) return
     setGreetingLoading(true)
     try {
-      const prompt = buildBriefSummaryPrompt(
-        insights.map((i) => ({ type: i.type, category: i.category, severity: i.severity, title: i.title, data: i.data })),
-      )
-      const client = new AIClient(config)
-      const response = await client.complete([
-        { role: 'system', content: prompt },
-        { role: 'user', content: 'Summarize my brief.' },
-      ])
+      const response = await run('suggest-focus')
       setGreeting(response)
       cacheGreeting(response)
     } catch {
@@ -82,7 +58,7 @@ export function LyraAI() {
     } finally {
       setGreetingLoading(false)
     }
-  }, [config, insights])
+  }, [run, insights.length])
 
   // Auto-generate greeting when AI comes online
   useEffect(() => {
@@ -98,26 +74,9 @@ export function LyraAI() {
     setAnswering(true)
     setAnswer('')
     try {
-      const context = await gatherContext()
-      const systemPrompt = buildSystemPrompt(context)
-      const client = new AIClient(config)
-
-      // Stream the response
       let full = ''
-      try {
-        for await (const chunk of client.stream([
-          { role: 'system', content: systemPrompt + '\n\nBe concise. Answer in 2-3 sentences max.' },
-          { role: 'user', content: question },
-        ])) {
-          full += chunk
-          setAnswer(full)
-        }
-      } catch {
-        // Fallback to non-streaming
-        full = await client.complete([
-          { role: 'system', content: systemPrompt + '\n\nBe concise. Answer in 2-3 sentences max.' },
-          { role: 'user', content: question },
-        ])
+      for await (const chunk of ask(question)) {
+        full += chunk
         setAnswer(full)
       }
       setQuestion('')
@@ -126,7 +85,7 @@ export function LyraAI() {
     } finally {
       setAnswering(false)
     }
-  }, [question, answering, config])
+  }, [question, answering, ask])
 
   // Algorithmic fallback greeting
   const fallbackGreeting = insights.length > 0
@@ -143,7 +102,7 @@ export function LyraAI() {
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50">
         <Sparkles className={`h-3.5 w-3.5 ${isOnline ? 'text-primary' : 'text-muted-foreground/40'}`} />
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Lyra AI
+          Lyra
         </span>
         <div className="flex-1" />
         <div className="flex items-center gap-1.5">
@@ -163,7 +122,7 @@ export function LyraAI() {
         {greetingLoading ? (
           <div className="flex items-center gap-2">
             <Loader2 className="h-3 w-3 animate-spin text-primary" />
-            <span className="text-xs text-muted-foreground italic">Analyzing your data...</span>
+            <span className="text-xs text-muted-foreground italic">Thinking...</span>
           </div>
         ) : greeting && isOnline ? (
           <div className="space-y-1">
@@ -191,7 +150,7 @@ export function LyraAI() {
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleAsk() }}
-              placeholder="Ask Lyra anything..."
+              placeholder="Ask me anything..."
               disabled={answering}
               className="flex-1 bg-transparent text-xs placeholder:text-muted-foreground/30 focus:outline-none disabled:opacity-50"
             />
@@ -221,7 +180,7 @@ export function LyraAI() {
       {!isOnline && aiStatus !== 'checking' && (
         <div className="px-3 pb-2.5">
           <p className="text-[10px] text-muted-foreground/30">
-            Start Ollama to enable AI features: <code className="text-[9px] bg-muted px-1 py-0.5 rounded">brew services start ollama</code>
+            I'm offline. Start Ollama to wake me up: <code className="text-[9px] bg-muted px-1 py-0.5 rounded">brew services start ollama</code>
           </p>
         </div>
       )}

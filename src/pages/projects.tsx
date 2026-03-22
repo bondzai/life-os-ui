@@ -45,6 +45,7 @@ import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import { VelocityPanel } from '@/pages/goals/velocity-panel'
+import { AIAction } from '@/components/ai-action'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 
 /* ─── Category config ─── */
@@ -672,6 +673,8 @@ export function ProjectsPage() {
 
             {/* Velocity */}
             <VelocityPanel entityId={fresh.id} entityType="project" dueDate={fresh.dueDate} />
+
+            <AIAction tool="analyze-risk" entityId={fresh.id} label="Risk Analysis" />
 
             {/* Tasks by status */}
             <div className="space-y-3">

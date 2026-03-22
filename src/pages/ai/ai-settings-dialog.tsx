@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -15,7 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAIStore } from '@/stores/ai-store'
+import { DEFAULT_SYSTEM_PROMPT } from '@/core/ai/sol'
 import type { AIProvider } from '@/core/types/ai'
 
 interface AISettingsDialogProps {
@@ -25,14 +28,17 @@ interface AISettingsDialogProps {
 
 export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) {
   const config = useAIStore((s) => s.config)
+  const customSystemPrompt = useAIStore((s) => s.customSystemPrompt)
   const setConfig = useAIStore((s) => s.setConfig)
   const switchProvider = useAIStore((s) => s.switchProvider)
+  const setCustomSystemPrompt = useAIStore((s) => s.setCustomSystemPrompt)
 
   const [provider, setProvider] = useState<AIProvider>(config.provider)
   const [endpoint, setEndpoint] = useState(config.endpoint)
   const [model, setModel] = useState(config.model)
   const [apiKey, setApiKey] = useState(config.apiKey)
   const [contextWindow, setContextWindow] = useState(config.contextWindow)
+  const [promptDraft, setPromptDraft] = useState(customSystemPrompt)
 
   useEffect(() => {
     setProvider(config.provider)
@@ -40,7 +46,8 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
     setModel(config.model)
     setApiKey(config.apiKey)
     setContextWindow(config.contextWindow)
-  }, [config, open])
+    setPromptDraft(customSystemPrompt)
+  }, [config, customSystemPrompt, open])
 
   const handleProviderChange = (value: string) => {
     const p = value as AIProvider
@@ -55,74 +62,127 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
 
   const handleSave = () => {
     setConfig({ provider, endpoint, model, apiKey, contextWindow })
+    setCustomSystemPrompt(promptDraft)
     onOpenChange(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>AI Settings</DialogTitle>
+          <DialogTitle>Lyra AI Settings</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Provider</Label>
-            <Select value={provider} onValueChange={handleProviderChange}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="openai">OpenAI</SelectItem>
-                <SelectItem value="claude">Claude (proxy)</SelectItem>
-                <SelectItem value="ollama">Ollama</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <Tabs defaultValue="connection">
+          <TabsList className="mb-4">
+            <TabsTrigger value="connection">Connection</TabsTrigger>
+            <TabsTrigger value="personality">Personality</TabsTrigger>
+          </TabsList>
 
-          <div className="space-y-2">
-            <Label>Endpoint</Label>
-            <Input
-              value={endpoint}
-              onChange={(e) => setEndpoint(e.target.value)}
-              placeholder="https://api.openai.com/v1"
-            />
-          </div>
+          <TabsContent value="connection" className="space-y-4">
+            <div className="space-y-2">
+              <Label>Provider</Label>
+              <Select value={provider} onValueChange={handleProviderChange}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="openai">OpenAI</SelectItem>
+                  <SelectItem value="claude">Claude (proxy)</SelectItem>
+                  <SelectItem value="ollama">Ollama</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <Label>Model</Label>
-            <Input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="gpt-4o-mini"
-            />
-          </div>
+            <div className="space-y-2">
+              <Label>Endpoint</Label>
+              <Input
+                value={endpoint}
+                onChange={(e) => setEndpoint(e.target.value)}
+                placeholder="https://api.openai.com/v1"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label>API Key</Label>
-            <Input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-..."
-            />
-          </div>
+            <div className="space-y-2">
+              <Label>Model</Label>
+              <Input
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="gpt-4o-mini"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label>Context Window</Label>
-            <Input
-              type="number"
-              value={contextWindow}
-              onChange={(e) => setContextWindow(Number(e.target.value))}
-            />
-          </div>
+            <div className="space-y-2">
+              <Label>API Key</Label>
+              <Input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="sk-..."
+              />
+            </div>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave}>Save</Button>
-          </div>
+            <div className="space-y-2">
+              <Label>Context Window</Label>
+              <Input
+                type="number"
+                value={contextWindow}
+                onChange={(e) => setContextWindow(Number(e.target.value))}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="personality" className="space-y-4">
+            <div className="space-y-2">
+              <Label>System Prompt</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Define who Lyra is. Leave empty to use the default personality.
+              </p>
+              <Textarea
+                value={promptDraft}
+                onChange={(e) => setPromptDraft(e.target.value)}
+                placeholder={DEFAULT_SYSTEM_PROMPT}
+                rows={12}
+                className="text-xs font-mono leading-relaxed"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => setPromptDraft(DEFAULT_SYSTEM_PROMPT)}
+              >
+                Load Default
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => setPromptDraft('')}
+              >
+                Reset to Default
+              </Button>
+            </div>
+
+            <div className="rounded-md bg-muted/50 p-3 space-y-1.5">
+              <p className="text-[11px] font-medium text-muted-foreground">How it works</p>
+              <ul className="text-[11px] text-muted-foreground space-y-0.5">
+                <li>This prompt is injected into every AI interaction across Lyra.</li>
+                <li>It defines Lyra's personality, tone, and behavior.</li>
+                <li>Leave empty = default INTJ mastermind personality.</li>
+                <li>Time-of-day awareness and word limits are always appended automatically.</li>
+              </ul>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave}>Save</Button>
         </div>
       </DialogContent>
     </Dialog>

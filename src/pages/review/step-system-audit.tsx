@@ -22,6 +22,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { AIAction } from '@/components/ai-action'
 import type { Entity } from '@/core/types'
 import type {
   ProjectVelocity,
@@ -73,6 +74,8 @@ export function StepSystemAudit({
 
   return (
     <div className="space-y-4">
+      <AIAction tool="weekly-summary" label="AI Weekly Summary" />
+
       {/* ── Project Velocity ── */}
       <Card>
         <CardHeader className="pb-2">

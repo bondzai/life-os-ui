@@ -1,4 +1,5 @@
 import { EntityRepository } from '@/core/repositories/entity-repository'
+import { getSolPrefix } from './sol'
 import type { Entity } from '@/core/types'
 
 export interface EntityContext {
@@ -62,8 +63,8 @@ export function buildSystemPrompt(context: EntityContext): string {
     : ''
 
   const sections = [
-    `You are a helpful life management assistant. Today is ${today}.`,
-    'Here is the user\'s current data:',
+    getSolPrefix(200),
+    `Today is ${today}. Here is the user's current data:`,
     projectSection,
     formatSection('Tasks', context.tasks),
     formatSection('Goals', context.goals),
@@ -97,19 +98,16 @@ export interface BriefInsight {
 }
 
 export function buildBriefSummaryPrompt(insights: BriefInsight[]): string {
-  const today = new Date().toISOString().split('T')[0]
   const insightLines = insights.map((i) => `- [${i.type}/${i.category}] ${i.title}`).join('\n')
 
   return [
-    `You are a concise personal assistant. Today is ${today}.`,
-    'The user\'s life OS has detected these signals:',
+    getSolPrefix(60),
+    '',
+    'These signals were detected:',
     '',
     insightLines,
     '',
-    'Write a brief 2-3 sentence summary in a direct, personal tone.',
-    'Address the user as "you". Prioritize the most critical items.',
-    'Be specific — mention names, numbers, and streaks.',
-    'Do NOT use bullet points. Write flowing prose.',
-    'Keep it under 60 words.',
+    'Write a 2-3 sentence summary. Flowing prose, no bullet points.',
+    'Prioritize the most critical items. Mention specific names and numbers.',
   ].join('\n')
 }

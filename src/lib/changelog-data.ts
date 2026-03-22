@@ -16,6 +16,48 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.1.0',
+    date: '2026-03-22',
+    phase: 'Lyra Command Interface & MCP-Style AI System',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Lyra page** (`/lyra`): Full strategic command interface — AI greeting, chat, tool arsenal, settings in one war room',
+          '**Strategic Dashboard**: Auto-generated focus suggestion, AI status, quick action chips for all tools',
+          '**Full Chat**: Conversation management (create/switch/delete), streaming responses, prompt template chips, auto-scroll',
+          '**Arsenal Panel**: All AI tools accessible with entity picker, run button, cached results, inline display',
+          '**MCP-style AI tool system**: Registry pattern — `registerTool()`, `getTool()`, `getAllTools()`, scope-aware entity filtering',
+          '**5 AI tools**: suggest-focus, break-down, analyze-risk, coaching, weekly-summary — each with modular context builders',
+          '**`useAI()` hook**: Single interface for all AI interactions — `ask()` (streaming), `run()` (tool execution), `status`, `isOnline`',
+          '**`<AIAction>` component**: DRY AI trigger + response UI — one component used across task detail, goal detail, project detail, habits, weekly review',
+          '**Sol personality system**: INTJ mastermind personality with time-of-day awareness, configurable via settings',
+          '**Custom system prompt**: Users can override Lyra personality in AI Settings → Personality tab',
+          '**`sol.md`**: Lyra soul document — voice principles, tone map, time-of-day behavior, fallback rules',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Lyra is someone, not a feature**: Header says "Lyra" not "Lyra AI", speaks in first person, has opinions',
+          '**AI Settings dialog**: Split into Connection + Personality tabs, custom system prompt textarea',
+          '**LyraAI widget refactored**: Uses `useAI()` hook instead of direct AIClient — same interface as all other AI',
+          '**All AI prompts use Sol**: Consistent personality across greeting, tools, chat, brief summary',
+          '**Sidebar**: Lyra page added to Daily group with Sparkles icon',
+          '**Context builders modularized**: task, goal, project, habit, global — reusable across tools',
+        ],
+      },
+      {
+        title: 'Architecture',
+        items: [
+          '**Tool → Context → Sol → Client pipeline**: Every AI interaction follows the same path. Adding a new tool = 1 file.',
+          '**Provider-agnostic**: Ollama, OpenAI, Claude, custom — swap with one config change',
+          '**Graceful degradation**: AI offline = tools hidden, algorithmic brief stays, no errors',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.0.0',
     date: '2026-03-22',
     phase: 'Lyra AI',

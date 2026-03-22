@@ -24,6 +24,7 @@ import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import { SavedFilterBar } from '@/core/components/saved-filter-bar'
 import { VelocityPanel } from '@/pages/goals/velocity-panel'
+import { AIAction } from '@/components/ai-action'
 import type { Entity, EntityStatus } from '@/core/types'
 
 export function GoalsPage() {
@@ -192,6 +193,8 @@ export function GoalsPage() {
 
             {/* Velocity */}
             <VelocityPanel entityId={fresh.id} entityType="goal" dueDate={fresh.dueDate} />
+
+            <AIAction tool="analyze-risk" entityId={fresh.id} label="Risk Analysis" />
 
             {/* Sub-goals */}
             {subGoals.length > 0 && (
