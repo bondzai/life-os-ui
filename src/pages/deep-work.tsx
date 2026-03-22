@@ -23,6 +23,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { useFocusStore } from '@/stores/focus-store'
 import { TaskDetailPanel } from '@/pages/tasks/task-detail-panel'
 import { InboxCapture } from '@/components/inbox-capture'
+import { LyraCoach } from '@/pages/deep-work/lyra-coach'
 import { useUiStore } from '@/stores/ui-store'
 import type { Entity, Tracker } from '@/core/types'
 
@@ -1193,6 +1194,13 @@ export function DeepWorkPage() {
         allTasks={allEntities}
       />
       <InboxCapture />
+      {sessionId && (
+        <LyraCoach
+          phase={phase}
+          completedSessions={completedSessions}
+          entityIds={emperorEntityIds}
+        />
+      )}
     </div>
   )
 }

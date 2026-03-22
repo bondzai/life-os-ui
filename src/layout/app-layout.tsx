@@ -12,6 +12,9 @@ import { InboxCapture } from '@/components/inbox-capture'
 import { useUiStore } from '@/stores/ui-store'
 import { useFocusStore } from '@/stores/focus-store'
 import { LyraPageLoader } from '@/components/lyra-loader'
+import { useLyraPulse } from '@/hooks/use-lyra-pulse'
+import { useSessionSummary } from '@/hooks/use-session-summary'
+import { useCelebrations } from '@/hooks/use-celebrations'
 
 function getPageTitle(pathname: string): string {
   const mod = modules.find((m) => m.path === pathname)
@@ -28,6 +31,9 @@ function useClock() {
 }
 
 export function AppLayout() {
+  useLyraPulse() // Lyra background heartbeat
+  useSessionSummary()
+  useCelebrations()
   const location = useLocation()
   const title = getPageTitle(location.pathname)
   const setCommandBarOpen = useUiStore((s) => s.setCommandBarOpen)

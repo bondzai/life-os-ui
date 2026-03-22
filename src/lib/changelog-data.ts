@@ -16,6 +16,30 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.3.0',
+    date: '2026-03-22',
+    phase: 'Proactive Lyra',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Lyra Pulse**: Background heartbeat runs signal detectors every 10 minutes — fires toast notifications for critical insights on any page, not just Focus',
+          '**Deep Work Coach**: Collapsible Lyra panel during focus sessions — streak alerts with hours remaining, session progress with subtask counts, "Next up" task suggestion',
+          '**Session End Summary**: Toast notification when pomodoro work phase ends — session count, current tasks, streak reminders',
+          '**Real-time Celebrations**: Instant toasts on achievements — task completion, goal completion, habit streak milestones (7/30/90/180/365 days)',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**AppLayout**: Now runs 3 global hooks — Lyra Pulse, Session Summary, Celebrations — Lyra is alive on every page',
+          '**Deep Work page**: Coach panel appears during active sessions, collapsed by default, non-intrusive',
+          '**Lyra behavior**: Shifted from 85% reactive to proactive — background monitoring, real-time feedback, contextual coaching during focus',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.2.0',
     date: '2026-03-22',
     phase: 'Dynamic Dashboard',
