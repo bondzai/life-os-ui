@@ -48,6 +48,12 @@ export const promptTemplates: PromptTemplate[] = [
       'Look at my habits and their streaks. Which habits am I doing well on? Which need attention? Give me one specific suggestion to improve my consistency.',
   },
   {
+    id: 'web-search',
+    label: 'Web Search',
+    description: 'Search the web for information',
+    prompt: '/search ',
+  },
+  {
     id: 'life-balance',
     label: 'Life Balance Check',
     description: 'Are you neglecting any life domain?',

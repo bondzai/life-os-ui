@@ -7,6 +7,7 @@ import { trackerRoutes } from './routes/trackers.js'
 import { scheduleRoutes } from './routes/schedules.js'
 import { relationRoutes } from './routes/relations.js'
 import { gcalRoutes } from './routes/gcal.js'
+import { searchRoutes } from './routes/search.js'
 import { client } from './db/index.js'
 
 const app = new Hono()
@@ -48,6 +49,7 @@ app.route('/api/trackers', trackerRoutes)
 app.route('/api/schedules', scheduleRoutes)
 app.route('/api/relations', relationRoutes)
 app.route('/api/gcal', gcalRoutes)
+app.route('/api/search', searchRoutes)
 
 const port = Number(process.env.PORT) || 3001
 

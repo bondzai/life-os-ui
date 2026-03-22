@@ -1,13 +1,17 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { Plus, MessageSquare, Trash2, Sparkles } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAIChat } from '@/core/hooks/use-ai-chat'
 import { useChatStore } from '@/stores/chat-store'
+import { useAIStore } from '@/stores/ai-store'
 import { promptTemplates } from '@/core/ai/prompt-templates'
 import { ChatInput } from '@/pages/ai/chat-input'
 import { Markdown } from '@/core/components/markdown'
+import { webSearch, formatSearchResults } from '@/core/ai/web-search'
+import { AIClient } from '@/core/ai/ai-client'
+import { getSolPrefix } from '@/core/ai/sol'
 
 export function LyraChat() {
   const { activeConversation, isLoading, sendMessage } = useAIChat()
@@ -30,7 +34,75 @@ export function LyraChat() {
     })
   }, [messages.length, lastContent])
 
+  const storeConfig = useAIStore((s) => s.config)
+  const FALLBACK = { provider: 'ollama' as const, endpoint: 'http://localhost:11434/v1', model: 'llama3.2:3b', apiKey: '', contextWindow: 8192 }
+  const config = storeConfig.endpoint && storeConfig.model ? storeConfig : FALLBACK
+
+  const handleWebSearch = useCallback(async (query: string) => {
+    // Ensure conversation exists
+    let convId = activeConversationId
+    if (!convId) convId = createConversation()
+
+    // Add user message
+    const addMsg = useChatStore.getState().addMessage
+    const updateMsg = useChatStore.getState().updateMessage
+    addMsg(convId!, { id: crypto.randomUUID(), role: 'user', content: `/search ${query}`, timestamp: new Date().toISOString() })
+
+    // Add placeholder for search status
+    const searchMsgId = crypto.randomUUID()
+    addMsg(convId!, { id: searchMsgId, role: 'assistant', content: '', timestamp: new Date().toISOString() })
+    updateMsg(convId!, searchMsgId, 'Searching the web...')
+
+    // Search
+    const results = await webSearch(query)
+    const searchContext = formatSearchResults(results)
+
+    // Build prompt with search results
+    const messages = [
+      {
+        role: 'system' as const,
+        content: [
+          getSolPrefix(300),
+          '',
+          'The user asked a question that requires web knowledge.',
+          'Web search results are provided below. Answer based on these results.',
+          'Cite sources with [1], [2], etc. Be concise and factual.',
+          'If results are insufficient, say so.',
+          '',
+          '## Web Results:',
+          searchContext,
+        ].join('\n'),
+      },
+      { role: 'user' as const, content: query },
+    ]
+
+    // Stream response
+    const client = new AIClient(config)
+    try {
+      let full = ''
+      for await (const chunk of client.stream(messages)) {
+        full += chunk
+        updateMsg(convId!, searchMsgId, full)
+      }
+    } catch {
+      try {
+        const response = await client.complete(messages)
+        updateMsg(convId!, searchMsgId, response)
+      } catch {
+        updateMsg(convId!, searchMsgId, 'Search failed — is the API server running? (`cd api && npm run dev`)')
+      }
+    }
+  }, [config, activeConversationId, createConversation])
+
   const handleSend = (content: string) => {
+    // Intercept /search command
+    if (content.toLowerCase().startsWith('/search ')) {
+      const query = content.slice(8).trim()
+      if (query) {
+        handleWebSearch(query)
+        return
+      }
+    }
     sendMessage(content)
   }
 
