@@ -12,26 +12,23 @@ import type { ChatCompletionMessage } from '@/core/types/ai'
 function needsDataContext(message: string): boolean {
   const lower = message.toLowerCase().trim()
 
-  // Short casual messages — no data needed
-  if (lower.length < 15) {
-    const casual = ['hi', 'hey', 'hello', 'sup', 'yo', 'thanks', 'thank you', 'ok', 'okay',
-      'cool', 'nice', 'great', 'good', 'bye', 'see you', 'gm', 'gn', 'who are you',
-      'what are you', 'how are you', 'what can you do', 'help']
-    if (casual.some((c) => lower === c || lower.startsWith(c + ' ') || lower.startsWith(c + '?') || lower.startsWith(c + '!'))) {
-      return false
-    }
-  }
-
-  // Keywords that signal data-aware questions
-  const dataKeywords = [
-    'task', 'goal', 'project', 'habit', 'streak', 'budget', 'spend', 'health', 'sleep',
-    'focus', 'priority', 'overdue', 'deadline', 'velocity', 'progress', 'plan', 'review',
-    'suggest', 'recommend', 'analyze', 'what should', 'what to', 'how am i', 'how is',
-    'status', 'summary', 'brief', 'strategy', 'schedule', 'calendar', 'event',
-    'decision', 'skill', 'note', 'idea', 'stale', 'blocked',
+  // Only inject data when user EXPLICITLY asks about their life OS data
+  // using phrases that clearly reference the system
+  const dataPatterns = [
+    /my (tasks?|goals?|projects?|habits?|streaks?|budgets?|skills?|notes?|events?)/,
+    /what should i (focus|do|work|prioritize)/,
+    /what('s| is) (overdue|stale|blocked|due|pending)/,
+    /how (am i|are my|is my)/,
+    /(show|list|check|review) my/,
+    /weekly (review|summary|report)/,
+    /daily (brief|summary|report)/,
+    /suggest (priorities|focus|tasks)/,
+    /analyze (my|the)/,
+    /what('s| is) my (progress|velocity|status)/,
+    /strategic (moves?|plan|board)/,
   ]
 
-  return dataKeywords.some((kw) => lower.includes(kw))
+  return dataPatterns.some((p) => p.test(lower))
 }
 
 export function useAIChat() {

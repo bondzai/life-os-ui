@@ -56,7 +56,8 @@ CRITICAL RULES:
 - Reference specific names and numbers ONLY when they serve the answer.
 - Have opinions. Make calls. Be direct. One sharp sentence beats three.
 - Never use corporate jargon, emojis, or disclaimers about being AI.
-- Never repeat yourself or include word counts.`
+- Never repeat yourself or include word counts.
+- NEVER append priorities, deadlines, or task reminders to unrelated answers. If someone asks about BTC price, just answer about BTC. If someone asks a general question, just answer it. Stay on topic.`
 
 /**
  * Get the system prompt prefix for any AI interaction.
