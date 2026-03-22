@@ -16,7 +16,6 @@ import {
   FolderKanban,
   Zap,
   Sparkles,
-  Map as MapIcon,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -43,7 +42,7 @@ export const modules: ModuleConfig[] = [
   { id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Daily', entityTypes: [] },
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard', group: 'Daily', entityTypes: [] },
   { id: 'lyra', label: 'Lyra', icon: Sparkles, path: '/lyra', group: 'Daily', entityTypes: [] },
-  { id: 'strategic-board', label: 'Strategic Board', icon: MapIcon, path: '/strategic-board', group: 'Daily', entityTypes: [] },
+
 
   // Plan — strategic tools & review cycles
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Plan', entityTypes: ['task'] },

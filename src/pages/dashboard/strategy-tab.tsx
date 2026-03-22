@@ -175,9 +175,9 @@ function TrendArrow({ current, previous }: { current: number; previous: number }
   return <Minus className="h-3 w-3 text-muted-foreground inline-block ml-1" />
 }
 
-/* ─── Main Page ─── */
+/* ─── Strategy Tab Component ─── */
 
-export function StrategicBoardPage() {
+export function StrategyTab() {
   const { run, isOnline } = useAI()
   const { items: entities } = useEntities()
   const { items: trackers } = useTrackers()
@@ -342,11 +342,10 @@ export function StrategicBoardPage() {
   }, [entities, trackers])
 
   return (
-    <div className="h-[calc(100vh-5rem)] flex flex-col overflow-y-auto p-6 space-y-6">
-      {/* Header */}
+    <div className="space-y-6">
+      {/* Scope selector */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">Strategic Board</h1>
           {isOnline ? (
             <Wifi className="h-4 w-4 text-emerald-500" />
           ) : (
