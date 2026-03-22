@@ -16,6 +16,31 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.5.0',
+    date: '2026-03-22',
+    phase: 'Smart Capture',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**AI Smart Capture**: Type natural language in Quick Capture — Lyra parses entity type, title, priority, due date, project, and subtasks automatically',
+          '**Auto-link**: Lyra matches project and goal names mentioned in capture text to existing entities',
+          '**Subtask suggestion**: Complex tasks get 2-4 AI-suggested subtasks, created as stories',
+          '**Duplicate detection**: Warns if a similar entity already exists before creating',
+          '**parse-capture AI tool**: Structured JSON output from natural language (8 tools total)',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Quick Capture dialog**: AI preview card shows between input and type picker — type badge, priority, due date, linked project, subtask count',
+          '**Prefix fast path preserved**: `!` `?` `*` `@` `#` and `/commands` bypass AI entirely for instant capture',
+          '**Graceful fallback**: AI offline = existing prefix-based capture works unchanged',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.4.0',
     date: '2026-03-22',
     phase: 'AI Co-Pilot',

@@ -6,6 +6,7 @@ import './coaching'
 import './weekly-summary'
 import './suggest-priorities'
 import './plan-session'
+import './parse-capture'
 
 // Re-export registry API
 export { getTool, getAllTools, getToolsForScope, registerTool } from './registry'

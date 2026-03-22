@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Plus,
   CalendarIcon,
   X,
+  Sparkles,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,12 +20,28 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { Badge } from '@/components/ui/badge'
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { useUiStore } from '@/stores/ui-store'
+import { useAIStore } from '@/stores/ai-store'
 import { notify } from '@/lib/notify'
 import { CAPTURE_RULES, parseCapture, type CaptureRule } from '@/core/config/capture-protocol'
+import { AIClient } from '@/core/ai/ai-client'
+import { getTool } from '@/core/ai/tools'
+import { useAI } from '@/hooks/use-ai'
 import type { EntityType, EntityStatus, EntityPriority } from '@/core/types'
+
+interface AIParsedCapture {
+  type: string
+  title: string
+  priority: string
+  dueDate: string | null
+  projectId: string | null
+  goalId: string | null
+  tags: string[]
+  subtasks: string[]
+}
 
 // Default note rule for when no prefix matches
 function buildEntity(
@@ -69,6 +87,12 @@ export function InboxCapture() {
 
   const { create, items } = useEntities()
   const currentUser = useAuthStore((s) => s.currentUser)
+  const { isOnline } = useAI()
+  const config = useAIStore((s) => s.config)
+
+  const [aiParsed, setAiParsed] = useState<AIParsedCapture | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const inboxCount = items.filter(
     (e) => e.metadata.isInbox === true && e.status === 'todo',
@@ -94,6 +118,7 @@ export function InboxCapture() {
       setTagsInput('')
       setDueDate('')
       setShowDueDate(false)
+      setAiParsed(null)
       setTimeout(() => textareaRef.current?.focus(), 50)
     }
   }, [open])
@@ -106,6 +131,74 @@ export function InboxCapture() {
     }
   }, [text])
 
+  // AI parsing: debounce natural language input
+  useEffect(() => {
+    if (!isOnline || text.length < 10) {
+      setAiParsed(null)
+      return
+    }
+
+    const { rule } = parseCapture(text)
+    // If prefix matched, skip AI (fast path)
+    if (rule.prefix) {
+      setAiParsed(null)
+      return
+    }
+
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      setAiLoading(true)
+      try {
+        const parseTool = getTool('parse-capture')
+        if (!parseTool) return
+        const messages = parseTool.buildPrompt({ entities: items, trackers: [] })
+        // Replace placeholder user message with actual text
+        messages[messages.length - 1] = { role: 'user', content: text }
+
+        const fallbackConfig = {
+          provider: 'ollama' as const,
+          endpoint: 'http://localhost:11434/v1',
+          model: 'llama3.2:3b',
+          apiKey: '',
+          contextWindow: 8192,
+        }
+        const resolvedConfig = config.endpoint && config.model ? config : fallbackConfig
+        const client = new AIClient(resolvedConfig)
+        const response = await client.complete(messages)
+
+        // Parse JSON from response
+        const jsonMatch = response.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]) as AIParsedCapture
+          setAiParsed(parsed)
+          // Auto-update active rule based on parsed type
+          const matchedRule = CAPTURE_RULES.find((r) => r.entityType === parsed.type)
+          if (matchedRule) setActiveRule(matchedRule)
+          if (parsed.dueDate) setDueDate(parsed.dueDate)
+          if (parsed.tags?.length) setTagsInput(parsed.tags.join(', '))
+        }
+      } catch {
+        /* silent */
+      } finally {
+        setAiLoading(false)
+      }
+    }, 800)
+
+    return () => clearTimeout(debounceRef.current)
+  }, [text, isOnline, items, config])
+
+  // Duplicate detection
+  const duplicate = useMemo(() => {
+    if (!aiParsed) return null
+    const title = aiParsed.title.toLowerCase()
+    return items.find(
+      (e) =>
+        e.status !== 'archived' &&
+        (e.title.toLowerCase().includes(title.slice(0, 20)) ||
+          title.includes(e.title.toLowerCase().slice(0, 20))),
+    ) ?? null
+  }, [aiParsed, items])
+
   const handleSave = useCallback(() => {
     if (!text.trim()) return
 
@@ -114,15 +207,46 @@ export function InboxCapture() {
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean)
-    const tags = [...new Set(['inbox', ...userTags])]
-    const due = dueDate || undefined
+    const tags = [...new Set(['inbox', ...userTags, ...(aiParsed?.tags ?? [])])]
+    const due = dueDate || aiParsed?.dueDate || undefined
 
-    const entity = buildEntity(cleanText || text.trim(), activeRule, tags, due, currentUser?.id ?? '')
+    const entity = buildEntity(
+      aiParsed?.title || cleanText || text.trim(),
+      activeRule,
+      tags,
+      due,
+      currentUser?.id ?? '',
+    )
+
+    // Add AI-parsed metadata
+    if (aiParsed) {
+      entity.metadata = {
+        ...entity.metadata,
+        ...(aiParsed.projectId ? { projectId: aiParsed.projectId } : {}),
+        ...(aiParsed.goalId ? { goalId: aiParsed.goalId } : {}),
+        ...(aiParsed.subtasks.length > 0
+          ? {
+              isStory: true,
+              subtasks: aiParsed.subtasks.map((s) => ({
+                id: crypto.randomUUID(),
+                title: s,
+                done: false,
+                status: 'todo' as const,
+              })),
+            }
+          : {}),
+      }
+      if (aiParsed.priority) {
+        entity.priority = aiParsed.priority as EntityPriority
+      }
+    }
+
     create.mutate(entity)
 
     setOpen(false)
+    setAiParsed(null)
     notify({ title: `Captured! (${activeRule.label})`, type: 'success' })
-  }, [text, activeRule, tagsInput, dueDate, create, currentUser])
+  }, [text, activeRule, tagsInput, dueDate, create, currentUser, aiParsed])
 
   // Enter to save, Shift+Enter for newline
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -171,6 +295,57 @@ export function InboxCapture() {
               autoFocus
             />
           </div>
+
+          {/* AI Parse Preview */}
+          {aiLoading && (
+            <div className="px-4 py-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              Lyra is parsing...
+            </div>
+          )}
+
+          {aiParsed && !aiLoading && (
+            <div className="mx-4 mb-2 p-2.5 rounded-md bg-primary/5 border border-primary/10 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3 text-primary" />
+                <span className="text-[10px] font-medium text-primary">Lyra understood</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <Badge variant="secondary" className="text-[10px]">
+                  {aiParsed.type}
+                </Badge>
+                {aiParsed.priority !== 'medium' && (
+                  <Badge
+                    variant={aiParsed.priority === 'urgent' ? 'destructive' : 'default'}
+                    className="text-[10px]"
+                  >
+                    {aiParsed.priority}
+                  </Badge>
+                )}
+                {aiParsed.dueDate && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Due: {aiParsed.dueDate}
+                  </Badge>
+                )}
+                {aiParsed.projectId && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Project: {items.find((e) => e.id === aiParsed.projectId)?.title ?? 'linked'}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs font-medium">{aiParsed.title}</p>
+              {aiParsed.subtasks.length > 0 && (
+                <div className="text-[10px] text-muted-foreground">
+                  {aiParsed.subtasks.length} subtasks suggested
+                </div>
+              )}
+              {duplicate && (
+                <div className="text-[10px] text-amber-500">
+                  Similar item exists: &quot;{duplicate.title}&quot;
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Protocol hint */}
           <div className="px-4 py-1">
