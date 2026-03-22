@@ -29,9 +29,11 @@ interface AISettingsDialogProps {
 export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) {
   const config = useAIStore((s) => s.config)
   const customSystemPrompt = useAIStore((s) => s.customSystemPrompt)
+  const vision = useAIStore((s) => s.vision)
   const setConfig = useAIStore((s) => s.setConfig)
   const switchProvider = useAIStore((s) => s.switchProvider)
   const setCustomSystemPrompt = useAIStore((s) => s.setCustomSystemPrompt)
+  const setVision = useAIStore((s) => s.setVision)
 
   const [provider, setProvider] = useState<AIProvider>(config.provider)
   const [endpoint, setEndpoint] = useState(config.endpoint)
@@ -39,6 +41,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
   const [apiKey, setApiKey] = useState(config.apiKey)
   const [contextWindow, setContextWindow] = useState(config.contextWindow)
   const [promptDraft, setPromptDraft] = useState(customSystemPrompt)
+  const [visionDraft, setVisionDraft] = useState(vision)
 
   useEffect(() => {
     setProvider(config.provider)
@@ -47,7 +50,8 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
     setApiKey(config.apiKey)
     setContextWindow(config.contextWindow)
     setPromptDraft(customSystemPrompt)
-  }, [config, customSystemPrompt, open])
+    setVisionDraft(vision)
+  }, [config, customSystemPrompt, vision, open])
 
   const handleProviderChange = (value: string) => {
     const p = value as AIProvider
@@ -63,6 +67,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
   const handleSave = () => {
     setConfig({ provider, endpoint, model, apiKey, contextWindow })
     setCustomSystemPrompt(promptDraft)
+    setVision(visionDraft)
     onOpenChange(false)
   }
 
@@ -133,6 +138,20 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
           </TabsContent>
 
           <TabsContent value="personality" className="space-y-4">
+            <div className="space-y-2">
+              <Label>Your Vision</Label>
+              <p className="text-[11px] text-muted-foreground">
+                What are you building toward? Lyra considers this in every strategic recommendation.
+              </p>
+              <Textarea
+                value={visionDraft}
+                onChange={(e) => setVisionDraft(e.target.value)}
+                placeholder="e.g. Build a profitable SaaS by 2027 while maintaining health and deep technical skills. Achieve financial independence through software and smart investing."
+                rows={3}
+                className="text-xs"
+              />
+            </div>
+
             <div className="space-y-2">
               <Label>System Prompt</Label>
               <p className="text-[11px] text-muted-foreground">

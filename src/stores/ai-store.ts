@@ -38,9 +38,12 @@ interface AIState {
   isConfigured: boolean
   /** User-customizable system prompt. Empty = use default Lyra personality. */
   customSystemPrompt: string
+  /** User's long-term vision. Lyra considers this in strategic recommendations. */
+  vision: string
   setConfig: (config: AIConfig) => void
   switchProvider: (provider: AIProvider) => void
   setCustomSystemPrompt: (prompt: string) => void
+  setVision: (vision: string) => void
   resetConfig: () => void
 }
 
@@ -50,6 +53,7 @@ export const useAIStore = create<AIState>()(
       config: DEFAULT_CONFIGS.ollama,
       isConfigured: false,
       customSystemPrompt: '',
+      vision: '',
       setConfig: (config) =>
         set({ config, isConfigured: !!config.endpoint && !!config.model }),
       switchProvider: (provider) => {
@@ -57,7 +61,8 @@ export const useAIStore = create<AIState>()(
         set({ config, isConfigured: !!config.endpoint && !!config.model })
       },
       setCustomSystemPrompt: (prompt) => set({ customSystemPrompt: prompt }),
-      resetConfig: () => set({ config: DEFAULT_CONFIGS.ollama, isConfigured: false, customSystemPrompt: '' }),
+      setVision: (vision) => set({ vision }),
+      resetConfig: () => set({ config: DEFAULT_CONFIGS.ollama, isConfigured: false, customSystemPrompt: '', vision: '' }),
     }),
     { name: 'lyra:ai' },
   ),

@@ -8,6 +8,7 @@ export interface StrategicMove {
   impact: 'high' | 'medium'
   effort: 'low' | 'medium' | 'high'
   timeframe: string
+  tags: string[]
   status: 'suggested' | 'accepted' | 'passed' | 'completed'
   createdAt: string
 }

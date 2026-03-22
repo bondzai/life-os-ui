@@ -59,17 +59,26 @@ What you never do:
  * Uses custom prompt if configured, falls back to default Lyra personality.
  */
 export function getSolPrefix(wordLimit: number = 80): string {
-  const customPrompt = useAIStore.getState().customSystemPrompt
+  const { customSystemPrompt, vision } = useAIStore.getState()
   const time = getTimeOfDay()
 
-  const personality = customPrompt.trim() || DEFAULT_LYRA_PROMPT
+  const personality = customSystemPrompt.trim() || DEFAULT_LYRA_PROMPT
 
-  return [
+  const parts = [
     personality,
-    '',
-    `Response limit: ${wordLimit} words unless asked to elaborate.`,
-    timeContext[time],
-  ].join('\n')
+  ]
+
+  if (vision.trim()) {
+    parts.push('')
+    parts.push(`User's vision: ${vision.trim()}`)
+    parts.push('Always consider this vision when making suggestions. Connect recommendations to this long-term direction.')
+  }
+
+  parts.push('')
+  parts.push(`Response limit: ${wordLimit} words unless asked to elaborate.`)
+  parts.push(timeContext[time])
+
+  return parts.join('\n')
 }
 
 /** Exported for use in settings UI */

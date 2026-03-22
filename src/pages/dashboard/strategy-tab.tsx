@@ -9,6 +9,11 @@ import { Markdown } from '@/core/components/markdown'
 import { useAI } from '@/hooks/use-ai'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useStrategicMoves, type StrategicMove } from '@/hooks/use-strategic-moves'
+import { webSearch, formatSearchResults } from '@/core/ai/web-search'
+import { AIClient } from '@/core/ai/ai-client'
+import { useAIStore } from '@/stores/ai-store'
+import { getSolPrefix } from '@/core/ai/sol'
+import { buildGlobalContext } from '@/core/ai/context'
 
 /* ─── Constants ─── */
 
@@ -53,6 +58,10 @@ function parseMoves(raw: string): StrategicMove[] {
     const effortMatch = block.match(/Effort:\s*(low|medium|high)/i)
     const timeframeMatch = block.match(/Timeframe:\s*(.+?)(\n|$)/i)
 
+    // Extract tags from "Tags: #tag1 #tag2" line
+    const tagMatch = block.match(/Tags:\s*((?:#\w+\s*)+)/i)
+    const tags = tagMatch ? tagMatch[1].match(/#\w+/g)?.map(t => t.slice(1)) ?? [] : []
+
     // Everything after the metadata line is reasoning
     const metaEnd = block.indexOf('\n', block.indexOf(impactMatch?.[0] ?? title) + 1)
     const reasoning = block
@@ -74,6 +83,7 @@ function parseMoves(raw: string): StrategicMove[] {
       impact: (impactMatch?.[1]?.toLowerCase() as 'high' | 'medium') ?? 'medium',
       effort: (effortMatch?.[1]?.toLowerCase() as 'low' | 'medium' | 'high') ?? 'medium',
       timeframe: timeframeMatch?.[1]?.trim() ?? 'this week',
+      tags,
       status: 'suggested',
       createdAt: new Date().toISOString(),
     })
@@ -82,22 +92,22 @@ function parseMoves(raw: string): StrategicMove[] {
   return moves.slice(0, 3)
 }
 
-function getCachedForToday(): StrategicMove[] | null {
+function getCachedForToday(): { moves: StrategicMove[]; webContext?: string } | null {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY)
     if (!raw) return null
-    const { date, moves } = JSON.parse(raw)
-    if (date === new Date().toISOString().split('T')[0]) return moves
+    const { date, moves, webContext } = JSON.parse(raw)
+    if (date === new Date().toISOString().split('T')[0]) return { moves, webContext }
     return null
   } catch {
     return null
   }
 }
 
-function cacheForToday(moves: StrategicMove[]) {
+function cacheForToday(moves: StrategicMove[], webContext?: string) {
   sessionStorage.setItem(
     SESSION_KEY,
-    JSON.stringify({ date: new Date().toISOString().split('T')[0], moves }),
+    JSON.stringify({ date: new Date().toISOString().split('T')[0], moves, webContext }),
   )
 }
 
@@ -147,6 +157,15 @@ function MoveCard({
         </Badge>
         <span className="text-[10px] text-muted-foreground ml-auto">{move.timeframe}</span>
       </div>
+      {move.tags && move.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {move.tags.map(tag => (
+            <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium">
+              #{tag}
+            </span>
+          ))}
+        </div>
+      )}
       <p className="text-sm font-semibold">{move.title}</p>
       <div className="text-xs text-muted-foreground">
         <Markdown content={move.reasoning} className="text-xs" />
@@ -178,36 +197,143 @@ function TrendArrow({ current, previous }: { current: number; previous: number }
 /* ─── Strategy Tab Component ─── */
 
 export function StrategyTab() {
-  const { run, isOnline } = useAI()
+  const { isOnline } = useAI()
   const { items: entities } = useEntities()
   const { items: trackers } = useTrackers()
   const { suggested, setMoves, acceptMove, passMove } = useStrategicMoves()
   const [loading, setLoading] = useState(false)
   const [scope, setScope] = useState<(typeof SCOPES)[number]>('Week')
+  const [externalSignals, setExternalSignals] = useState<string | null>(null)
 
   // Initialize from cache
   const [initialized, setInitialized] = useState(false)
   if (!initialized) {
     const cached = getCachedForToday()
-    if (cached && suggested.length === 0) setMoves(cached)
+    if (cached && suggested.length === 0) {
+      setMoves(cached.moves)
+      if (cached.webContext) setExternalSignals(cached.webContext)
+    }
     setInitialized(true)
   }
+
+  const today = useMemo(() => new Date().toISOString().split('T')[0], [])
 
   const generateMoves = useCallback(async () => {
     setLoading(true)
     try {
-      const result = await run('strategic-moves')
-      const parsed = parseMoves(result)
-      if (parsed.length > 0) {
-        setMoves(parsed)
-        cacheForToday(parsed)
+      // 1. Extract search keywords from projects/goals
+      const projects = entities.filter(e => e.type === 'project' && e.status === 'in-progress')
+      const goals = entities.filter(e => e.type === 'goal' && e.status !== 'done' && e.status !== 'archived')
+
+      const searchTerms: string[] = []
+      for (const p of projects.slice(0, 3)) {
+        const stack = Array.isArray(p.metadata?.stack) ? (p.metadata.stack as string[]) : []
+        if (stack.length > 0) searchTerms.push(`${stack[0]} trends 2026`)
+        else searchTerms.push(`${p.title} latest developments`)
       }
+      for (const g of goals.slice(0, 2)) {
+        searchTerms.push(`${g.title} best practices`)
+      }
+
+      // 2. Search web for each term (parallel, limit to 3 searches)
+      let webContext = ''
+      try {
+        const searchPromises = searchTerms.slice(0, 3).map(q => webSearch(q))
+        const allResults = await Promise.all(searchPromises)
+        webContext = allResults.map((results, i) => {
+          if (results.length === 0) return ''
+          return `### Search: "${searchTerms[i]}"\n${formatSearchResults(results.slice(0, 3))}`
+        }).filter(Boolean).join('\n\n')
+      } catch {
+        // Web search failed — continue with internal data only
+      }
+
+      // 3. Get vision from store
+      const vision = useAIStore.getState().vision
+
+      // 4. Build global context
+      const globalCtx = buildGlobalContext(entities, trackers)
+
+      // 5. Build knowledge signals inline
+      const notes = entities.filter(e => e.type === 'note' && !e.metadata?.isInbox && e.status !== 'archived')
+      const ideas = notes.filter(n => n.tags.some(t => ['idea', 'spark'].includes(t)))
+      const unactioned = ideas.filter(i => i.status === 'todo')
+      const questions = notes.filter(n => n.tags.includes('question') && n.status !== 'done')
+      const tagCounts: Record<string, number> = {}
+      for (const n of notes) for (const t of n.tags) tagCounts[t] = (tagCounts[t] || 0) + 1
+      const topTags = Object.entries(tagCounts).sort(([,a],[,b]) => b - a).slice(0, 10)
+
+      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+      const projectSummaries = projects.map(p => {
+        const tasks = entities.filter(e => e.type === 'task' && e.metadata?.projectId === p.id && e.status !== 'archived')
+        const doneThisWeek = tasks.filter(t => t.status === 'done' && t.updatedAt >= weekAgo).length
+        const remaining = tasks.filter(t => t.status !== 'done').length
+        return `- ${p.title} [${p.status}]: ${doneThisWeek}/wk, ${remaining} remaining`
+      }).join('\n')
+
+      // 6. Build full prompt
+      const messages = [
+        {
+          role: 'system' as const,
+          content: [
+            getSolPrefix(500),
+            '',
+            vision ? `\nUser's Vision: ${vision}\nAlign all recommendations with this vision.\n` : '',
+            'You are performing a strategic analysis with access to BOTH internal data AND web intelligence.',
+            'Generate exactly 3 high-impact strategic moves.',
+            '',
+            'Move types: COMMIT, PIVOT, PARK, DOUBLE-DOWN, EXPLORE, CONNECT, DECIDE',
+            '',
+            'IMPORTANT: Each move MUST include 1-3 tags prefixed with #.',
+            'Tags should be strategic categories like: #growth, #focus, #technical, #health, #wealth, #learning, #efficiency, #risk, #innovation, #momentum',
+            '',
+            'Format each move as:',
+            '### [TYPE] Title',
+            'Tags: #tag1 #tag2',
+            'Impact: high/medium | Effort: low/medium/high | Timeframe: this week/month/quarter',
+            'Reasoning with specific data references. If using web intelligence, cite [source].',
+            '',
+            '## Internal Data:',
+            globalCtx,
+            '',
+            `Top themes: ${topTags.map(([t,c]) => `${t}(${c})`).join(', ')}`,
+            `Unactioned ideas: ${unactioned.length}`,
+            `Open questions: ${questions.length}`,
+            '',
+            '## Projects:',
+            projectSummaries,
+            '',
+            '## Goals:',
+            goals.map(g => `- ${g.title} [${g.priority}] ${typeof g.metadata?.progress === 'number' ? g.metadata.progress : 0}%${g.dueDate ? ` due:${g.dueDate}` : ''}`).join('\n'),
+            '',
+            webContext ? `## Web Intelligence:\n${webContext}` : '',
+          ].filter(Boolean).join('\n'),
+        },
+        { role: 'user' as const, content: 'What are my 3 highest-impact strategic moves right now? Consider both internal data and external trends.' },
+      ]
+
+      // 7. Call AI
+      const FALLBACK = { provider: 'ollama' as const, endpoint: 'http://localhost:11434/v1', model: 'llama3.2:3b', apiKey: '', contextWindow: 8192 }
+      const storeConfig = useAIStore.getState().config
+      const config = storeConfig.endpoint && storeConfig.model ? storeConfig : FALLBACK
+      const client = new AIClient(config)
+      const response = await client.complete(messages)
+
+      // 8. Parse and store
+      const moves = parseMoves(response)
+      if (moves.length > 0) {
+        setMoves(moves)
+        cacheForToday(moves, webContext || undefined)
+      }
+
+      // Store web context for display
+      setExternalSignals(webContext || null)
     } catch (err) {
-      console.error('Failed to generate strategic moves:', err)
+      console.error('Strategy generation failed:', err)
     } finally {
       setLoading(false)
     }
-  }, [run, setMoves])
+  }, [entities, trackers, setMoves, today, isOnline])
 
   /* ─── Knowledge Pulse data ─── */
 
@@ -447,6 +573,20 @@ export function StrategyTab() {
           </p>
         </div>
       </section>
+
+      {externalSignals && (
+        <>
+          <Separator />
+
+          {/* Section 2.5: External Signals */}
+          <section>
+            <SectionHeader>External Signals</SectionHeader>
+            <div className="rounded-lg border bg-card/50 p-3">
+              <Markdown content={externalSignals} className="text-xs" />
+            </div>
+          </section>
+        </>
+      )}
 
       <Separator />
 
