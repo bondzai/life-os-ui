@@ -93,7 +93,13 @@ function ModelSelector({
       <Input
         value={model}
         onChange={(e) => onModelChange(e.target.value)}
-        placeholder={provider === 'ollama' ? 'qwen3:4b' : 'gpt-4o-mini'}
+        placeholder={
+          provider === 'ollama' ? 'qwen3:4b' :
+          provider === 'grok' ? 'grok-3-mini' :
+          provider === 'groq' ? 'llama-3.3-70b-versatile' :
+          provider === 'gemini' ? 'gemini-2.0-flash' :
+          'gpt-4o-mini'
+        }
       />
       {provider === 'ollama' && !loading && models.length === 0 && (
         <p className="text-[10px] text-muted-foreground/50">
@@ -169,9 +175,12 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="ollama">Ollama (local)</SelectItem>
+                  <SelectItem value="grok">Grok (xAI)</SelectItem>
+                  <SelectItem value="groq">Groq (free tier)</SelectItem>
+                  <SelectItem value="gemini">Gemini (Google)</SelectItem>
                   <SelectItem value="openai">OpenAI</SelectItem>
                   <SelectItem value="claude">Claude (proxy)</SelectItem>
-                  <SelectItem value="ollama">Ollama</SelectItem>
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>

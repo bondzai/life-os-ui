@@ -24,6 +24,27 @@ const DEFAULT_CONFIGS: Record<AIProvider, AIConfig> = {
     apiKey: '',
     contextWindow: 32768,
   },
+  grok: {
+    provider: 'grok',
+    endpoint: 'https://api.x.ai/v1',
+    model: 'grok-3-mini',
+    apiKey: '',
+    contextWindow: 131072,
+  },
+  groq: {
+    provider: 'groq',
+    endpoint: 'https://api.groq.com/openai/v1',
+    model: 'llama-3.3-70b-versatile',
+    apiKey: '',
+    contextWindow: 128000,
+  },
+  gemini: {
+    provider: 'gemini',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    model: 'gemini-2.0-flash',
+    apiKey: '',
+    contextWindow: 1048576,
+  },
   custom: {
     provider: 'custom',
     endpoint: '',

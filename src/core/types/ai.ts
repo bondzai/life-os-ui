@@ -1,4 +1,4 @@
-export type AIProvider = 'openai' | 'claude' | 'ollama' | 'custom'
+export type AIProvider = 'openai' | 'claude' | 'ollama' | 'grok' | 'groq' | 'gemini' | 'custom'
 
 export interface AIConfig {
   provider: AIProvider
