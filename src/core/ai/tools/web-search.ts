@@ -1,5 +1,5 @@
 import { registerTool, type AITool } from './registry'
-import { getSolPrefix } from '../sol'
+import { getSolPrefix } from '../soul'
 
 /**
  * Web Search tool — searches the web and answers with citations.

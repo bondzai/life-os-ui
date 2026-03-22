@@ -12,7 +12,7 @@ import { ChatInput } from '@/pages/ai/chat-input'
 import { Markdown } from '@/core/components/markdown'
 import { webSearch, formatSearchResults } from '@/core/ai/web-search'
 import { AIClient } from '@/core/ai/ai-client'
-import { getSolPrefix } from '@/core/ai/sol'
+import { getSolPrefix } from '@/core/ai/soul'
 
 export function LyraChat() {
   const { activeConversation, isLoading, sendMessage } = useAIChat()

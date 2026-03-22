@@ -1,6 +1,6 @@
 import { registerTool, type AITool } from './registry'
 import { buildGlobalContext } from '../context'
-import { getSolPrefix } from '../sol'
+import { getSolPrefix } from '../soul'
 
 const tool: AITool = {
   id: 'plan-session',

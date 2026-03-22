@@ -75,7 +75,7 @@ export class AIClient {
     const decoder = new TextDecoder()
     let buffer = ''
     let inThinkTag = false
-    let accumulated = ''
+    let thinkBuffer = ''
 
     while (true) {
       const { done, value } = await reader.read()
@@ -90,39 +90,44 @@ export class AIClient {
         if (!trimmed || !trimmed.startsWith('data:')) continue
 
         const data = trimmed.slice(5).trim()
-        if (data === '[DONE]') {
-          // Yield any remaining content after stripping think tags
-          if (accumulated) {
-            const cleaned = stripThinking(accumulated)
-            if (cleaned) yield cleaned
-          }
-          return
-        }
+        if (data === '[DONE]') return
 
         try {
           const chunk: ChatCompletionChunk = JSON.parse(data)
           const content = chunk.choices[0]?.delta?.content
-          if (content) {
-            accumulated += content
+          if (!content) continue
 
-            // Track <think> tags for streaming — don't yield thinking content
-            if (accumulated.includes('<think>') && !accumulated.includes('</think>')) {
-              inThinkTag = true
-              continue
-            }
-            if (inThinkTag && accumulated.includes('</think>')) {
+          // Handle <think> tags — buffer thinking content, don't yield it
+          if (inThinkTag) {
+            thinkBuffer += content
+            if (thinkBuffer.includes('</think>')) {
+              // Think block ended — extract any content after </think>
+              const afterThink = thinkBuffer.split('</think>').pop() ?? ''
               inThinkTag = false
-              // Strip the think block and yield the clean remainder
-              const cleaned = stripThinking(accumulated)
-              accumulated = ''
-              if (cleaned) yield cleaned
-              continue
+              thinkBuffer = ''
+              if (afterThink.trim()) yield afterThink
             }
-
-            if (!inThinkTag) {
-              yield content
-            }
+            continue
           }
+
+          // Check if this chunk starts a think tag
+          if (content.includes('<think>')) {
+            const beforeThink = content.split('<think>')[0]
+            if (beforeThink.trim()) yield beforeThink
+            inThinkTag = true
+            thinkBuffer = content.split('<think>').slice(1).join('<think>')
+            // Check if think ends in same chunk
+            if (thinkBuffer.includes('</think>')) {
+              const afterThink = thinkBuffer.split('</think>').pop() ?? ''
+              inThinkTag = false
+              thinkBuffer = ''
+              if (afterThink.trim()) yield afterThink
+            }
+            continue
+          }
+
+          // Normal content — yield directly
+          yield content
         } catch {
           // skip malformed chunks
         }

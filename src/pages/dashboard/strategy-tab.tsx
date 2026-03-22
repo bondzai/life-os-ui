@@ -13,7 +13,7 @@ import { useStrategicMoves, type StrategicMove } from '@/hooks/use-strategic-mov
 import { webSearch, formatSearchResults } from '@/core/ai/web-search'
 import { AIClient } from '@/core/ai/ai-client'
 import { useAIStore } from '@/stores/ai-store'
-import { getSolPrefix } from '@/core/ai/sol'
+import { getSolPrefix } from '@/core/ai/soul'
 import { buildGlobalContext } from '@/core/ai/context'
 
 /* ─── Constants ─── */

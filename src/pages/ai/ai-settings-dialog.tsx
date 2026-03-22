@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAIStore } from '@/stores/ai-store'
-import { DEFAULT_SYSTEM_PROMPT } from '@/core/ai/sol'
+import { DEFAULT_SYSTEM_PROMPT } from '@/core/ai/soul'
 import type { AIProvider } from '@/core/types/ai'
 
 interface AISettingsDialogProps {

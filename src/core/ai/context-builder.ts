@@ -1,5 +1,5 @@
 import { EntityRepository } from '@/core/repositories/entity-repository'
-import { getSolPrefix } from './sol'
+import { getSolPrefix } from './soul'
 import type { Entity } from '@/core/types'
 
 export interface EntityContext {
@@ -71,7 +71,7 @@ export function buildSystemPrompt(context: EntityContext): string {
     formatSection('Habits', context.habits),
     formatSection('Events', context.events),
     formatSection('Other Items', context.other),
-    'Use this context to provide relevant, actionable advice. Be concise.',
+    'This context is available for reference. Only use it when relevant to the user\'s question. Do NOT summarize this data unless asked.',
   ].filter(Boolean)
 
   return sections.join('\n\n')

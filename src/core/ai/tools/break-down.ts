@@ -1,7 +1,7 @@
 import { registerTool, type AITool } from './registry'
 import { buildTaskContext } from '../context/task-context'
 import { buildGoalContext } from '../context/goal-context'
-import { getSolPrefix } from '../sol'
+import { getSolPrefix } from '../soul'
 
 const tool: AITool = {
   id: 'break-down',

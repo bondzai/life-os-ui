@@ -1,5 +1,5 @@
 import { registerTool, type AITool } from './registry'
-import { getSolPrefix } from '../sol'
+import { getSolPrefix } from '../soul'
 
 const tool: AITool = {
   id: 'parse-capture',

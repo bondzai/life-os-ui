@@ -1,7 +1,7 @@
 import { registerTool, type AITool } from './registry'
 import { buildGoalContext } from '../context/goal-context'
 import { buildProjectContext } from '../context/project-context'
-import { getSolPrefix } from '../sol'
+import { getSolPrefix } from '../soul'
 
 const tool: AITool = {
   id: 'analyze-risk',

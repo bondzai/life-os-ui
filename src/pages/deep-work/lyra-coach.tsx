@@ -4,7 +4,7 @@ import { LyraLoader } from '@/components/lyra-loader'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useAI } from '@/hooks/use-ai'
 import { buildTaskContext } from '@/core/ai/context/task-context'
-import { getSolPrefix } from '@/core/ai/sol'
+import { getSolPrefix } from '@/core/ai/soul'
 import type { Entity } from '@/core/types'
 
 interface LyraCoachProps {
