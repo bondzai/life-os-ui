@@ -16,6 +16,33 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '2.1.0',
+    date: '2026-03-22',
+    phase: 'Lyra Memory',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Persistent Memory**: Lyra remembers key facts, preferences, patterns, decisions, and context across all conversations',
+          '**Auto-extraction**: After each chat, Lyra silently extracts 0-3 memories worth keeping (background, non-blocking)',
+          '**Memory injection**: Every conversation starts with relevant memories from past interactions — "Last time you mentioned X"',
+          '**Memory UI**: View, search, filter, and delete memories on the Lyra page (Chat / Event Log / Memory tabs)',
+          '**5 memory categories**: fact, preference, pattern, decision, context — each with colored badges',
+          '**Duplicate prevention**: Memories with identical titles are not re-created',
+          '**extract-memories AI tool**: 11 tools total',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Lyra page**: 3 tabs — Chat, Event Log, Memory',
+          '**Soul prompt**: Lyra references memories naturally when relevant, never forces them',
+          '**Chat context**: Memories always injected (lightweight), entity data only when asked',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.0.0',
     date: '2026-03-22',
     phase: 'Strategic Intelligence',

@@ -4,6 +4,7 @@ import { StrategicDashboard } from './strategic-dashboard'
 import { LyraChat } from './lyra-chat'
 import { ToolsPanel } from './tools-panel'
 import { LyraLog } from './lyra-log'
+import { LyraMemories } from './lyra-memories'
 
 export function LyraPage() {
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -23,10 +24,11 @@ export function LyraPage() {
               <TabsList className="h-7">
                 <TabsTrigger value="chat" className="text-[11px] h-5 px-2">Chat</TabsTrigger>
                 <TabsTrigger value="log" className="text-[11px] h-5 px-2">Event Log</TabsTrigger>
+                <TabsTrigger value="memory" className="text-[11px] h-5 px-2">Memory</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
-          {chatTab === 'chat' ? <LyraChat /> : <LyraLog />}
+          {chatTab === 'chat' ? <LyraChat /> : chatTab === 'log' ? <LyraLog /> : <LyraMemories />}
         </div>
         <ToolsPanel
           settingsOpen={settingsOpen}

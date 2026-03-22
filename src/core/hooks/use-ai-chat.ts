@@ -3,7 +3,9 @@ import { AIClient, gatherContext, buildSystemPrompt } from '@/core/ai'
 import { getSolPrefix } from '@/core/ai/soul'
 import { useAIStore } from '@/stores/ai-store'
 import { useChatStore } from '@/stores/chat-store'
+import { entityRepository } from '@/core/repositories'
 import type { ChatCompletionMessage } from '@/core/types/ai'
+import type { AIConfig } from '@/core/types/ai'
 
 /**
  * Detect if a message needs app data context.
@@ -29,6 +31,63 @@ function needsDataContext(message: string): boolean {
   ]
 
   return dataPatterns.some((p) => p.test(lower))
+}
+
+async function extractMemoriesBackground(convText: string, config: AIConfig) {
+  try {
+    const client = new AIClient(config)
+
+    const response = await client.complete([
+      {
+        role: 'system',
+        content: [
+          'Extract 0-3 key facts worth remembering from this conversation.',
+          'Categories: fact, preference, pattern, decision, context',
+          'Respond ONLY with a JSON array: [{"title":"...","category":"...","detail":"..."}]',
+          'If nothing worth remembering, return [].',
+          'Do NOT extract greetings or trivial exchanges.',
+        ].join('\n'),
+      },
+      { role: 'user', content: convText },
+    ])
+
+    // Parse JSON
+    const match = response.match(/\[[\s\S]*\]/)
+    if (!match) return
+
+    const memories = JSON.parse(match[0]) as Array<{
+      title: string
+      category: string
+      detail?: string
+    }>
+    if (!Array.isArray(memories) || memories.length === 0) return
+
+    // Save memories as entities
+    const existing = await entityRepository.getAll()
+    const existingTitles = new Set(
+      existing.filter((e) => e.type === 'memory').map((e) => e.title.toLowerCase()),
+    )
+
+    for (const mem of memories) {
+      if (!mem.title || existingTitles.has(mem.title.toLowerCase())) continue
+      await entityRepository.create({
+        id: crypto.randomUUID(),
+        type: 'memory',
+        title: mem.title,
+        description: mem.detail ?? undefined,
+        status: 'todo',
+        priority: 'medium',
+        tags: [mem.category ?? 'fact'],
+        metadata: { category: mem.category ?? 'fact', source: 'chat', confidence: 0.7 },
+        ownerId: '',
+        visibility: 'private',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+    }
+  } catch {
+    // Silent — memory extraction is best-effort
+  }
 }
 
 export function useAIChat() {
@@ -79,6 +138,28 @@ export function useAIChat() {
           systemPrompt = getSolPrefix(100)
         }
 
+        // Inject persistent memories
+        try {
+          const allEnts = await entityRepository.getAll()
+          const memoryEntities = allEnts.filter(
+            (e) => e.type === 'memory' && e.status !== 'archived',
+          )
+          if (memoryEntities.length > 0) {
+            systemPrompt +=
+              "\n\n## Lyra's Memory:\n" +
+              memoryEntities
+                .slice(0, 10)
+                .map(
+                  (m) =>
+                    `- [${m.metadata?.category ?? 'fact'}] ${m.title}${m.description ? ': ' + m.description : ''}`,
+                )
+                .join('\n') +
+              "\n\nReference these naturally when relevant. Don't force them."
+          }
+        } catch {
+          // Memory injection is best-effort
+        }
+
         // Build messages array for API
         const currentConv = useChatStore.getState().conversations.find((c) => c.id === convId)
         const apiMessages: ChatCompletionMessage[] = [
@@ -102,16 +183,25 @@ export function useAIChat() {
 
         // Try streaming first, fall back to non-streaming
         const client = new AIClient(config)
+        let finalResponse = ''
         try {
           let accumulated = ''
           for await (const chunk of client.stream(apiMessages)) {
             accumulated += chunk
             updateMessage(convId, assistantMsgId, accumulated)
           }
+          finalResponse = accumulated
         } catch {
           // Fallback to non-streaming
           const response = await client.complete(apiMessages)
           updateMessage(convId, assistantMsgId, response)
+          finalResponse = response
+        }
+
+        // Background: extract memories (don't await)
+        if (content.trim().length > 20 && finalResponse.length > 20) {
+          const convText = `User: ${content.trim()}\nLyra: ${finalResponse}`
+          extractMemoriesBackground(convText, config).catch(() => {})
         }
       } catch (error) {
         // Add error as assistant message

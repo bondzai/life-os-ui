@@ -9,6 +9,7 @@ import './plan-session'
 import './parse-capture'
 import './web-search'
 import './strategic-moves'
+import './extract-memories'
 
 // Re-export registry API
 export { getTool, getAllTools, getToolsForScope, registerTool } from './registry'
