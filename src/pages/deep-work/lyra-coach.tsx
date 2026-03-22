@@ -1,6 +1,9 @@
-import { useState, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Flame, Sparkles } from 'lucide-react'
+import { useState, useMemo, useCallback } from 'react'
+import { ChevronLeft, ChevronRight, Flame, Loader2, Send, Sparkles } from 'lucide-react'
 import { useEntities, useTrackers } from '@/core/hooks'
+import { useAI } from '@/hooks/use-ai'
+import { buildTaskContext } from '@/core/ai/context/task-context'
+import { getSolPrefix } from '@/core/ai/sol'
 import type { Entity } from '@/core/types'
 
 interface LyraCoachProps {
@@ -19,8 +22,34 @@ const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, medium: 2, 
 
 export function LyraCoach({ phase, completedSessions, entityIds }: LyraCoachProps) {
   const [collapsed, setCollapsed] = useState(true)
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState('')
+  const [asking, setAsking] = useState(false)
   const { items: allEntities } = useEntities()
   const { items: allTrackers } = useTrackers()
+  const { ask, isOnline } = useAI()
+
+  const handleAsk = useCallback(async () => {
+    if (!question.trim() || asking) return
+    setAsking(true)
+    setAnswer('')
+    try {
+      const focusEntity = allEntities.find((e) => entityIds.includes(e.id))
+      const taskContext = focusEntity ? buildTaskContext(focusEntity, allEntities) : ''
+      const systemPrompt = getSolPrefix(80) + '\n\nCurrent focus:\n' + taskContext
+
+      let full = ''
+      for await (const chunk of ask(question, systemPrompt)) {
+        full += chunk
+        setAnswer(full)
+      }
+      setQuestion('')
+    } catch {
+      setAnswer('Could not connect.')
+    } finally {
+      setAsking(false)
+    }
+  }, [question, asking, ask, entityIds, allEntities])
 
   // --- Streak alerts: habits with streak >= 3 not checked today ---
   const streakAlerts = useMemo(() => {
@@ -164,6 +193,33 @@ export function LyraCoach({ phase, completedSessions, entityIds }: LyraCoachProp
                 Next:{' '}
                 <span className="text-zinc-500">{nextUp.title}</span>
               </div>
+            </div>
+          )}
+
+          {/* Ask AI */}
+          {isOnline && (
+            <div className="border-t border-border/30 pt-2 mt-2">
+              <div className="flex items-center gap-1 rounded-md border border-border/50 bg-muted/30 px-1.5 py-1">
+                <input
+                  type="text"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAsk() }}
+                  placeholder="Ask about this task..."
+                  disabled={asking}
+                  className="flex-1 bg-transparent text-[11px] placeholder:text-muted-foreground/30 focus:outline-none"
+                />
+                <button
+                  onClick={handleAsk}
+                  disabled={!question.trim() || asking}
+                  className="shrink-0 text-muted-foreground hover:text-primary disabled:opacity-30"
+                >
+                  {asking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                </button>
+              </div>
+              {answer && (
+                <p className="text-[11px] leading-relaxed text-foreground/70 mt-1.5 px-0.5">{answer}</p>
+              )}
             </div>
           )}
         </div>

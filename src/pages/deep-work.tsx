@@ -24,6 +24,8 @@ import { useFocusStore } from '@/stores/focus-store'
 import { TaskDetailPanel } from '@/pages/tasks/task-detail-panel'
 import { InboxCapture } from '@/components/inbox-capture'
 import { LyraCoach } from '@/pages/deep-work/lyra-coach'
+import { SessionPlanner } from '@/pages/deep-work/session-planner'
+import { SessionReflection } from '@/pages/deep-work/session-reflection'
 import { useUiStore } from '@/stores/ui-store'
 import type { Entity, Tracker } from '@/core/types'
 
@@ -617,10 +619,14 @@ export function DeepWorkPage() {
     endDeepWork,
     setPhase,
     setPreset,
+    startEmperorTime,
   } = useFocusStore()
   const { items: allEntities, update, remove: removeEntity } = useEntities()
   const { items: allTrackers, create: createTracker, update: updateTracker, remove: removeTracker } = useTrackers()
   const currentUser = useAuthStore((s) => s.currentUser)
+
+  // Session planner state
+  const [plannerSkipped, setPlannerSkipped] = useState(false)
 
   // Task detail drawer state
   const [detailTask, setDetailTask] = useState<Entity | null>(null)
@@ -653,6 +659,21 @@ export function DeepWorkPage() {
         : [],
     [entity],
   )
+
+  // Post-session reflection
+  const [showReflection, setShowReflection] = useState(false)
+  const prevPhaseRef = useRef(phase)
+
+  useEffect(() => {
+    if (
+      prevPhaseRef.current !== 'idle' &&
+      phase === 'idle' &&
+      completedSessions > 0
+    ) {
+      setShowReflection(true)
+    }
+    prevPhaseRef.current = phase
+  }, [phase, completedSessions])
 
   const phaseRef = useRef(phase)
   phaseRef.current = phase
@@ -950,18 +971,27 @@ export function DeepWorkPage() {
   const phaseLabel = phase === 'work' ? 'Focus' : phase === 'break' ? 'Break' : phase === 'long-break' ? 'Long Break' : 'Ready'
   const style = PHASE_STYLES[phase]
 
-  // No focus tasks
+  // No focus tasks — show Session Planner or manual fallback
   if (emperorEntities.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f]">
-        <div className="text-center space-y-4">
-          <Crown className="h-10 w-10 mx-auto text-amber-500/30" />
-          <h2 className="text-lg font-semibold text-zinc-200">No focus tasks set</h2>
-          <p className="text-sm text-zinc-500">Pick your focus for today first, then enter Emperor Time.</p>
-          <Button variant="outline" onClick={() => navigate('/')} className="border-zinc-800 text-zinc-300 hover:bg-zinc-900">
-            Back to Today
-          </Button>
-        </div>
+        {!plannerSkipped ? (
+          <SessionPlanner
+            onStartSession={(entityIds) => {
+              startEmperorTime(entityIds)
+            }}
+            onSkip={() => setPlannerSkipped(true)}
+          />
+        ) : (
+          <div className="text-center space-y-4">
+            <Crown className="h-10 w-10 mx-auto text-amber-500/30" />
+            <h2 className="text-lg font-semibold text-zinc-200">No focus tasks set</h2>
+            <p className="text-sm text-zinc-500">Pick your focus for today first, then enter Emperor Time.</p>
+            <Button variant="outline" onClick={() => navigate('/')} className="border-zinc-800 text-zinc-300 hover:bg-zinc-900">
+              Back to Today
+            </Button>
+          </div>
+        )}
       </div>
     )
   }
@@ -1200,6 +1230,9 @@ export function DeepWorkPage() {
           completedSessions={completedSessions}
           entityIds={emperorEntityIds}
         />
+      )}
+      {showReflection && (
+        <SessionReflection onDismiss={() => setShowReflection(false)} />
       )}
     </div>
   )

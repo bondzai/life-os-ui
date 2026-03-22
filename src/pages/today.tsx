@@ -40,6 +40,7 @@ import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useFocusStore } from '@/stores/focus-store'
 import { PriorityPicker } from './today/priority-picker'
+import { SmartPriority } from './today/smart-priority'
 import { getRecurrence, buildRecurringNext } from './tasks/task-helpers'
 import { getTodayPriorities, setTodayPriorities } from './today/today-helpers'
 import {
@@ -314,6 +315,7 @@ export function TodayPage() {
   const [favoriteIds, setFavoriteIds] = useState<string[]>(() => getFocusFavorites())
   const [editingFavs, setEditingFavs] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
+  const [showManualPicker, setShowManualPicker] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
   const todayStart = useMemo(() => {
@@ -806,10 +808,16 @@ export function TodayPage() {
                 )}
                 </CollapsibleContent>
               </Collapsible>
-            ) : (
+            ) : showManualPicker ? (
               <PriorityPicker
                 candidates={priorityCandidates}
                 onSave={handleSavePriorities}
+              />
+            ) : (
+              <SmartPriority
+                onAccept={handleSavePriorities}
+                candidates={priorityCandidates}
+                onManual={() => setShowManualPicker(true)}
               />
             )}
           </section>

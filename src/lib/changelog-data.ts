@@ -16,6 +16,32 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.4.0',
+    date: '2026-03-22',
+    phase: 'AI Co-Pilot',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Smart Priority Suggestion**: Lyra analyzes deadlines, leverage, energy, and momentum to suggest 3 daily priorities — one-click accept or pick manually',
+          '**Session Planner**: Before starting deep work, Lyra plans optimal task order with estimated timing based on energy patterns and task complexity',
+          '**Deep Work AI Assistant**: Ask Lyra about your current task during focus sessions — context-aware streaming responses with task, project, and goal awareness',
+          '**Post-Session Reflection**: Rate sessions (Focused/Okay/Struggled), optional notes — Lyra learns your patterns and suggests optimal times after 5+ sessions',
+          '**Session Patterns Hook**: Analyzes quality data by time of day, day of week, and recent trends — surfaces insights like "You focus best Tuesday mornings"',
+          '**2 new AI tools**: suggest-priorities (daily focus), plan-session (deep work planning)',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Focus page**: Empty priority state now shows AI suggestions first, manual picker as fallback',
+          '**Deep Work page**: Session planner shown when idle, AI ask input in coach panel, reflection overlay on session end',
+          '**AI tool count**: 7 registered tools total (suggest-focus, suggest-priorities, plan-session, break-down, analyze-risk, coaching, weekly-summary)',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.3.0',
     date: '2026-03-22',
     phase: 'Proactive Lyra',

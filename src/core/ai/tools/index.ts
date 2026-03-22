@@ -4,6 +4,8 @@ import './break-down'
 import './analyze-risk'
 import './coaching'
 import './weekly-summary'
+import './suggest-priorities'
+import './plan-session'
 
 // Re-export registry API
 export { getTool, getAllTools, getToolsForScope, registerTool } from './registry'
