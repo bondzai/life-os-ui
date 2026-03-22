@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
-import { Sparkles, Loader2, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
+import { Sparkles, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
 import { useAI } from '@/hooks/use-ai'
+import { LyraLoader } from '@/components/lyra-loader'
 
 const CACHE_PREFIX = 'lyra:ai-action:'
 
@@ -102,7 +103,7 @@ export function AIAction({ tool, entityId, label, compact }: AIActionProps) {
         title={label ?? 'Ask Lyra'}
       >
         {loading ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+          <LyraLoader size={20} />
         ) : (
           <Sparkles className="h-3.5 w-3.5" />
         )}
@@ -117,11 +118,13 @@ export function AIAction({ tool, entityId, label, compact }: AIActionProps) {
       className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
     >
       {loading ? (
-        <Loader2 className="h-3 w-3 animate-spin text-primary" />
+        <LyraLoader size={20} label="Thinking..." />
       ) : (
-        <Sparkles className="h-3 w-3" />
+        <>
+          <Sparkles className="h-3 w-3" />
+          {label ?? 'Ask Lyra'}
+        </>
       )}
-      {loading ? 'Thinking...' : label ?? 'Ask Lyra'}
     </button>
   )
 }

@@ -1,4 +1,5 @@
 import { Sparkles } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import type { ChatMessage as ChatMessageType } from '@/core/types/ai'
 import { Markdown } from '@/core/components/markdown'
 import { cn } from '@/lib/utils'
@@ -33,7 +34,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
               {message.content ? (
                 <Markdown content={message.content} className="text-sm" />
               ) : (
-                <span className="text-xs text-muted-foreground animate-pulse">Thinking...</span>
+                <LyraLoader size={20} />
               )}
             </div>
           </div>

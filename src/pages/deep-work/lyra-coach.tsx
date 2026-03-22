@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Flame, Loader2, Send, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Flame, Send, Sparkles } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useAI } from '@/hooks/use-ai'
 import { buildTaskContext } from '@/core/ai/context/task-context'
@@ -214,7 +215,7 @@ export function LyraCoach({ phase, completedSessions, entityIds }: LyraCoachProp
                   disabled={!question.trim() || asking}
                   className="shrink-0 text-muted-foreground hover:text-primary disabled:opacity-30"
                 >
-                  {asking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                  {asking ? <LyraLoader size={14} /> : <Send className="h-3 w-3" />}
                 </button>
               </div>
               {answer && (

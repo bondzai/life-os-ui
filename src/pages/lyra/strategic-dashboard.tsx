@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Sparkles, Wifi, WifiOff, Loader2, RefreshCw } from 'lucide-react'
+import { Sparkles, Wifi, WifiOff, RefreshCw } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAI } from '@/hooks/use-ai'
@@ -124,10 +125,7 @@ export function StrategicDashboard() {
           </div>
           <p className="text-sm text-foreground/80 truncate">
             {greetingLoading ? (
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Thinking...
-              </span>
+              <LyraLoader size={20} label="Thinking..." />
             ) : (
               greeting ?? getAlgorithmicGreeting()
             )}
@@ -150,7 +148,7 @@ export function StrategicDashboard() {
                 onClick={() => handleToolClick(tool.id, tool.scope)}
               >
                 {toolRunning === tool.id ? (
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                  <LyraLoader size={20} />
                 ) : null}
                 {tool.name}
                 {tool.scope !== 'global' && (
@@ -182,10 +180,7 @@ export function StrategicDashboard() {
           </div>
           <div className="rounded-md bg-primary/5 border border-primary/10 px-2.5 py-1.5">
             {focusLoading ? (
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Analyzing...
-              </span>
+              <LyraLoader size={20} label="Analyzing..." />
             ) : (
               <p className="text-xs text-foreground/80 line-clamp-3">
                 {focus ?? 'Connect AI to get focus suggestions.'}

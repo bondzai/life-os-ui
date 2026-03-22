@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import { toast } from 'sonner'
 import { useTrackers } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
@@ -142,7 +143,7 @@ export function SessionReflection({ onDismiss }: SessionReflectionProps) {
             <p className="text-sm text-zinc-400 mb-3">Session logged</p>
 
             {loadingInsight && (
-              <p className="text-xs text-zinc-500 animate-pulse">Lyra is thinking...</p>
+              <LyraLoader size={20} label="Thinking..." />
             )}
 
             {insight && (

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Sparkles, Loader2 } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAI } from '@/hooks/use-ai'
@@ -135,11 +136,7 @@ export function SmartPriority({
     return (
       <Card className="border-dashed">
         <CardContent className="py-8 flex flex-col items-center gap-3">
-          <Sparkles className="h-5 w-5 text-purple-500 animate-pulse" />
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Lyra is thinking...
-          </div>
+          <LyraLoader size={28} label="Lyra is analyzing..." />
         </CardContent>
       </Card>
     )

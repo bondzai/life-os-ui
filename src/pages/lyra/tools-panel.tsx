@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
-import { Sparkles, Loader2, ChevronDown, ChevronRight, Settings, Zap } from 'lucide-react'
+import { Sparkles, ChevronDown, ChevronRight, Settings, Zap } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -168,7 +169,7 @@ export function ToolsPanel({ settingsOpen, onSettingsOpenChange }: ToolsPanelPro
                 onClick={() => handleRun(tool.id, isGlobal ? undefined : selectedEntity)}
               >
                 {result?.loading ? (
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                  <LyraLoader size={20} />
                 ) : (
                   <Sparkles className="h-3 w-3 mr-1" />
                 )}

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { Plus, MessageSquare, Trash2, Sparkles } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -196,7 +197,7 @@ export function LyraChat() {
                         {msg.content ? (
                           <Markdown content={msg.content} className="text-sm" />
                         ) : (
-                          <span className="text-xs text-muted-foreground animate-pulse">Thinking...</span>
+                          <LyraLoader size={20} />
                         )}
                       </div>
                     </div>
@@ -221,9 +222,7 @@ export function LyraChat() {
           {isLoading && (
             <div className="flex justify-start">
               <div className="bg-muted rounded-lg px-3 py-2">
-                <span className="text-xs text-muted-foreground animate-pulse">
-                  Lyra is thinking...
-                </span>
+                <LyraLoader size={24} label="Thinking..." />
               </div>
             </div>
           )}

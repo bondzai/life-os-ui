@@ -1,13 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Sparkles,
-  Loader2,
   Send,
   RefreshCw,
   Wifi,
   WifiOff,
 } from 'lucide-react'
 import { useAI } from '@/hooks/use-ai'
+import { LyraLoader } from '@/components/lyra-loader'
 import { useMorningBrief } from '@/hooks/use-morning-brief'
 
 /* ─── Cache helpers ─── */
@@ -120,10 +120,7 @@ export function LyraAI() {
       {/* Greeting — AI or fallback */}
       <div className="px-3 py-2.5">
         {greetingLoading ? (
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-3 w-3 animate-spin text-primary" />
-            <span className="text-xs text-muted-foreground italic">Thinking...</span>
-          </div>
+          <LyraLoader size={20} label="Thinking..." />
         ) : greeting && isOnline ? (
           <div className="space-y-1">
             <p className="text-xs leading-relaxed text-foreground/90">{greeting}</p>
@@ -160,7 +157,7 @@ export function LyraAI() {
               className="shrink-0 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30"
             >
               {answering ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <LyraLoader size={16} />
               ) : (
                 <Send className="h-3.5 w-3.5" />
               )}

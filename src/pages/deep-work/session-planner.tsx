@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Sparkles, Loader2, Play } from 'lucide-react'
+import { Sparkles, Play } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import { Button } from '@/components/ui/button'
 import { useAI } from '@/hooks/use-ai'
 
@@ -65,8 +66,7 @@ export function SessionPlanner({ onStartSession, onSkip }: SessionPlannerProps) 
   if (loading) {
     return (
       <div className="w-full max-w-md mx-auto text-center space-y-4 py-8">
-        <Loader2 className="h-6 w-6 mx-auto text-primary/50 animate-spin" />
-        <p className="text-sm text-zinc-500">Planning your session...</p>
+        <LyraLoader size={28} label="Planning session..." />
       </div>
     )
   }

@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
-import { Loader2, Sparkles, TrendingUp, TrendingDown, Minus, Wifi, WifiOff } from 'lucide-react'
+import { Sparkles, TrendingUp, TrendingDown, Minus, Wifi, WifiOff } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -499,8 +500,7 @@ export function StrategyTab() {
           <Button size="sm" onClick={generateMoves} disabled={loading || !isOnline}>
             {loading ? (
               <>
-                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                Thinking...
+                <LyraLoader size={20} label="Generating strategic moves..." />
               </>
             ) : (
               <>
@@ -519,7 +519,7 @@ export function StrategyTab() {
 
         {loading && suggested.length === 0 && (
           <Card className="rounded-lg border bg-card/50 p-8 flex items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <LyraLoader size={32} label="Generating strategic moves..." />
           </Card>
         )}
 

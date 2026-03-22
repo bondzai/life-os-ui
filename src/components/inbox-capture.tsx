@@ -4,8 +4,8 @@ import {
   CalendarIcon,
   X,
   Sparkles,
-  Loader2,
 } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -298,9 +298,8 @@ export function InboxCapture() {
 
           {/* AI Parse Preview */}
           {aiLoading && (
-            <div className="px-4 py-2 flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin text-primary" />
-              Lyra is parsing...
+            <div className="px-4 py-2">
+              <LyraLoader size={16} label="Parsing..." />
             </div>
           )}
 

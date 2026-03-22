@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { Sparkles, Loader2 } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
+import { LyraLoader } from '@/components/lyra-loader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useEntities } from '@/core/hooks'
@@ -118,10 +119,7 @@ export function DailyBriefWidget() {
             disabled={loading}
           >
             {loading ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                Generating...
-              </>
+              <LyraLoader size={24} label="Generating..." />
             ) : (
               <>
                 <Sparkles className="h-3.5 w-3.5 mr-1.5" />
