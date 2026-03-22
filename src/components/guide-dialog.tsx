@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import {
+  BarChart3,
+  Bell,
   BookOpen,
   ChevronDown,
   ChevronRight,
   Command,
   Crown,
   Eye,
+  FolderKanban,
   Keyboard,
   LayoutDashboard,
   ListChecks,
+  Sparkles,
   Target,
   Zap,
 } from 'lucide-react'
@@ -46,6 +50,19 @@ const GUIDE_SECTIONS: GuideSection[] = [
       { label: 'Report', detail: 'Add Report as a Focus tab — Daily mode renders the full present/briefing view inline with workspace filter and copy. Weekly tab shows completions, goals, habits.' },
       { label: 'Review', detail: 'Add Review as a Focus tab — Daily tab: evening debrief. Weekly tab: 5-step wizard (accomplishments, stale items, habits, spending, reflection).' },
       { label: 'Command palette', detail: 'Press `Cmd+K` from any page to search everything — tasks, goals, notes, habits, and navigation.' },
+    ],
+  },
+  {
+    id: 'lyra-ai',
+    icon: <Sparkles className="h-4 w-4" />,
+    title: 'Lyra AI',
+    items: [
+      { label: 'Lyra page', detail: 'Navigate to `/lyra` for the full strategic command interface — AI chat, tool arsenal, and dashboard in one war room.' },
+      { label: 'AI status', detail: 'Green wifi icon = Lyra AI is online (Ollama running). Gray = offline. When offline, all features gracefully fall back to algorithmic mode.' },
+      { label: 'Ask Lyra', detail: 'Type any question in the Lyra widget on Focus page or the full chat on the Lyra page. Responses stream in real-time.' },
+      { label: 'AI tools', detail: 'Sparkle (✨) buttons on tasks, goals, projects, and habits. Click to run AI analysis: **Break Down** (subtasks), **Risk Analysis** (deadlines), **Coach Me** (habits), **Weekly Summary**.' },
+      { label: 'Personality', detail: 'Lyra speaks like an INTJ strategist — direct, specific, no fluff. Customize her personality in AI Settings → Personality tab.' },
+      { label: 'Ollama setup', detail: 'Run `brew services start ollama` to enable AI. Uses llama3.2:3b locally — your data never leaves your machine.' },
     ],
   },
   {
@@ -107,12 +124,46 @@ const GUIDE_SECTIONS: GuideSection[] = [
     ],
   },
   {
+    id: 'proactive',
+    icon: <Bell className="h-4 w-4" />,
+    title: 'Proactive Features',
+    items: [
+      { label: 'Lyra Pulse', detail: 'Background monitoring every 10 minutes — fires toast notifications for critical signals (streak risk, budget warnings, stale projects) on any page.' },
+      { label: 'Deep Work Coach', detail: 'During focus sessions, a collapsible coach panel shows at-risk streaks, session progress, and next task suggestions. Collapsed by default — expand with the chevron button.' },
+      { label: 'Session Summary', detail: 'When a pomodoro work phase ends, Lyra shows a toast with your session count, tasks worked on, and any pending streak check-ins.' },
+      { label: 'Celebrations', detail: 'Lyra toasts real-time achievements: task completions, goal completions, and habit streak milestones (7, 30, 90, 180, 365 days).' },
+      { label: 'Morning Brief', detail: 'Right sidebar on Focus page — algorithmic signals from 8 detectors: streak risk, stale projects, budget warnings, sleep drops, energy patterns, decision reviews, achievements, velocity changes.' },
+    ],
+  },
+  {
+    id: 'projects',
+    icon: <FolderKanban className="h-4 w-4" />,
+    title: 'Projects',
+    items: [
+      { label: 'What are projects?', detail: 'A project is anything you\'re building — software, business, creative, learning, or lifestyle. Online or offline. It lives longer than a single task.' },
+      { label: 'Create a project', detail: 'Go to Projects → New Project. Set category, domain, tech stack, summary (for AI context), and external links.' },
+      { label: 'Link tasks', detail: 'In any task detail panel, select a project from the Project dropdown. Linked tasks appear in the project detail view grouped by status.' },
+      { label: 'Velocity panel', detail: 'Project and goal detail views show a velocity panel: 4-week task completion bars, projected completion date, and risk indicator (on-track/at-risk/will-miss).' },
+    ],
+  },
+  {
+    id: 'dashboard',
+    icon: <BarChart3 className="h-4 w-4" />,
+    title: 'Dynamic Dashboard',
+    items: [
+      { label: 'Signal-driven widgets', detail: '12 widgets auto-selected by relevance: streak tracker, overdue tasks, project velocity, budget meter, sleep trend, goal progress, focus hours, energy pattern, stale projects, upcoming events, decision review, weekly velocity.' },
+      { label: 'Rules / Lyra mode', detail: 'Toggle between algorithmic widget selection (Rules) and AI-curated dashboard (Lyra). Lyra mode generates a focus summary.' },
+      { label: 'Pin & hide', detail: 'Hover any widget to pin (always show) or hide (never show). Pinned widgets get a primary border accent.' },
+      { label: 'Shuffle', detail: 'Re-roll widget selection in Rules mode, or regenerate AI summary in Lyra mode.' },
+    ],
+  },
+  {
     id: 'modules',
     icon: <LayoutDashboard className="h-4 w-4" />,
     title: 'Modules Overview',
     items: [
-      { label: 'Daily', detail: '**Focus** (daily priorities, protocols, favorite tabs), **Dashboard** (overview with workspace filter).' },
-      { label: 'Plan', detail: '**Tasks** (Jira-style board + list), **Calendar** (schedule + Google Calendar feeds), **Notes** (freeform + journal), **Goals** (strategic direction, milestones), **Habits** (daily streaks, protocols).' },
+      { label: 'Daily', detail: '**Focus** (daily priorities, protocols, AI brief), **Dashboard** (dynamic widgets, life radar), **Lyra** (AI command interface).' },
+      { label: 'Plan', detail: '**Tasks** (Jira-style board + list), **Projects** (online/offline projects with velocity), **Calendar** (schedule + Google Calendar feeds), **Notes** (freeform + journal + decisions), **Goals** (strategic direction, velocity), **Habits** (daily streaks, protocols), **Skills** (mastery levels, learning vault).' },
       { label: 'Life', detail: '**Health** (body metrics, workouts), **Wealth** (transactions, budgets), **Learning** (skills, reading lists), **Travel** (trips, places), **Family** (chores, shared tasks).' },
     ],
   },

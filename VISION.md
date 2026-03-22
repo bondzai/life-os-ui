@@ -1,8 +1,8 @@
-# Life-OS
+# Lyra — Life OS
 
-A private, self-hosted life management system for families.
+A private, self-hosted life management system for families, powered by proactive AI intelligence.
 
-One interface to plan, track, and automate everything — goals, health, wealth, skills, home infrastructure — powered by AI and running on your own hardware.
+One interface to plan, track, and automate everything — goals, health, wealth, skills, home infrastructure — with a local AI assistant that monitors your data and surfaces insights before you ask.
 
 ---
 
@@ -14,20 +14,21 @@ One interface to plan, track, and automate everything — goals, health, wealth,
 4. [Architecture](#architecture)
 5. [Core Engine](#core-engine)
 6. [Modules](#modules)
-7. [Integrations](#integrations)
-8. [AI Layer](#ai-layer)
-9. [Automation Engine](#automation-engine)
-10. [Tech Stack](#tech-stack)
-11. [Roadmap](#roadmap)
-12. [Future Projections](#future-projections)
+7. [Lyra AI](#lyra-ai)
+8. [Proactive Intelligence](#proactive-intelligence)
+9. [Integrations](#integrations)
+10. [Automation Engine](#automation-engine)
+11. [Tech Stack](#tech-stack)
+12. [Roadmap](#roadmap)
+13. [Future Projections](#future-projections)
 
 ---
 
 ## Overview
 
-Life-OS is a long-term personal project — a unified web application that replaces scattered tools (Google Sheets for budgets, random apps for habits, browser tabs for server monitoring) with a single, clean dashboard.
+Lyra (formerly Life-OS) is a long-term personal project — a unified web application that replaces scattered tools (Google Sheets for budgets, random apps for habits, browser tabs for server monitoring) with a single, clean dashboard.
 
-It runs on a local home server, serves a household of two (expandable), and integrates with external services through a plugin-based connector system. AI acts as a personal assistant with full context of your data.
+It runs on a local home server, serves a household of two (expandable), and integrates with external services through a plugin-based connector system. The Lyra AI assistant — powered by a local LLM via Ollama — acts as a proactive co-pilot with full context of your data, surfacing insights and coaching without being asked.
 
 **This is not a product. It is infrastructure for life.**
 
@@ -40,7 +41,8 @@ It runs on a local home server, serves a household of two (expandable), and inte
 | **Own your data** | Everything runs locally. No third-party SaaS owns your life data. External services are optional connectors. |
 | **DRY core, thin modules** | One entity system, one tracker, one automation engine. Modules are configuration over code. |
 | **Two users, not two thousand** | Optimize for simplicity and personal utility, not scale. No need for complex multi-tenancy. |
-| **AI as co-pilot** | AI reads your data, surfaces insights, and takes actions — but you stay in control. |
+| **AI as co-pilot** | AI reads your data, surfaces insights, and takes actions — but you stay in control. Local-first via Ollama. |
+| **Proactive over reactive** | The system should tell you what needs attention before you ask. Pulse detectors, morning briefs, celebrations. |
 | **Incremental growth** | Ship one module at a time. Each phase must be independently useful. |
 | **Boring technology** | Pick stable, well-documented tools. Avoid hype-driven choices. |
 
@@ -66,23 +68,26 @@ Authentication is lightweight — PIN or local password. No OAuth complexity nee
 └──────────────────┬──────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────┐
-│              LIFE-OS UI                     │
+│              LYRA UI                        │
 │                                             │
 │  Layout ─── Pages ─── Modules ─── Widgets   │
 │                   │                         │
 │              Core Engine                    │
 │   Entities / Trackers / Scheduler / Auth    │
 │                   │                         │
+│            Lyra AI Layer                    │
+│   Sol Personality / Tools / Pulse / Brief   │
+│                   │                         │
 │           Connector Layer                   │
-│   Google / GitHub / HomeAssistant / AI      │
+│   Ollama / Google / GitHub / HomeAssistant  │
 └──────────────────┬──────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────┐
 │            LOCAL API SERVER                  │
-│       REST or tRPC — runs on home server    │
+│       Hono — runs on home server            │
 │                   │                         │
 │              Database                       │
-│         SQLite / PostgreSQL                 │
+│         SQLite via Drizzle ORM              │
 └─────────────────────────────────────────────┘
 ```
 
@@ -90,15 +95,27 @@ Authentication is lightweight — PIN or local password. No OAuth complexity nee
 
 - **UI** — Presentation, interaction, client state. Knows nothing about databases.
 - **API Server** — Business logic, persistence, connector orchestration. Knows nothing about UI.
+- **AI Layer** — Sol personality, MCP-style tools, Pulse detectors, context builders. Runs across all modules.
 - **Connectors** — Isolated plugins that bridge external services to the core data model.
 
-The UI and API server are developed as separate projects. The UI starts with local/mock data and connects to the real API server when it is ready.
+```
+src/
+  core/           # Entity types, repositories, hooks, AI system
+    ai/           # AI client, tools registry, context builders, Sol personality
+    hooks/        # useEntities, useTrackers, useRelations, useAIChat
+  pages/          # Feature pages (lazy-loaded)
+  hooks/          # App hooks: useAI, useMorningBrief, useLyraPulse, useCelebrations
+  components/     # Shared UI: AIAction, ViewToggle, view-toggle
+  stores/         # Zustand stores: auth, focus, chat, ai, ui
+  layout/         # AppLayout, sidebar, top bar
+api/              # Hono backend with SQLite
+```
 
 ---
 
 ## Core Engine
 
-Everything in Life-OS is built on four primitives. This is the foundation that makes the system DRY — every module reuses the same data structures, CRUD operations, and UI components.
+Everything in Lyra is built on four primitives. This is the foundation that makes the system DRY — every module reuses the same data structures, CRUD operations, and UI components.
 
 ### Entity
 
@@ -107,7 +124,7 @@ The universal record. Every item in the system — a goal, a task, a transaction
 ```
 Entity
 ├── id              unique identifier
-├── type            "goal" | "task" | "habit" | "transaction" | ...
+├── type            "goal" | "task" | "habit" | "transaction" | "project" | ...
 ├── title           display name
 ├── description     optional detail (markdown)
 ├── status          "active" | "completed" | "archived" | "paused"
@@ -122,7 +139,7 @@ Entity
 └── updatedAt       timestamp
 ```
 
-The `metadata` field is intentionally flexible. A transaction entity stores `{ amount, currency, category }` in metadata. A workout stores `{ exercise, sets, reps, weight }`. This avoids a separate table per module while keeping the core schema stable.
+The `metadata` field is intentionally flexible. A transaction entity stores `{ amount, currency, category }` in metadata. A workout stores `{ exercise, sets, reps, weight }`. A project stores `{ stack, velocity, repoUrl }`. This avoids a separate table per module while keeping the core schema stable.
 
 ### Tracker
 
@@ -138,8 +155,6 @@ Tracker
 ├── timestamp       when this was recorded
 └── ownerId
 ```
-
-Examples: body weight over time, daily spending, hours practiced on a skill, mood score, server CPU usage.
 
 ### Schedule
 
@@ -166,191 +181,227 @@ Relation
 └── type            "parent" | "blocks" | "relates" | "supports"
 ```
 
-Examples: a goal is supported by three habits, a project blocks another project, a skill relates to a course.
-
 ---
 
 ## Modules
 
-Each module is a thin layer on top of the core engine. It defines:
-- Which entity types it manages
-- Module-specific UI views (dashboard widgets, detail pages)
-- Module-specific metadata fields
-- Module-specific computed values (streak count, net worth, etc.)
+Each module is a thin layer on top of the core engine. 30+ entity types are currently supported.
 
-### Plan
+### Plan *(complete)*
 
 Manage objectives and daily work.
 
-| Feature | Description |
-|---|---|
-| Goals & OKRs | Hierarchical goals with measurable key results and progress tracking |
-| Projects | Multi-step initiatives with milestones, linked to goals |
-| Tasks | Daily/weekly todos — list view, kanban board, priority sorting |
-| Calendar | Unified calendar merging internal events + Google Calendar |
+| Feature | Description | Status |
+|---|---|---|
+| Goals & OKRs | Hierarchical goals with progress tracking and deadline velocity | Done |
+| Projects | Online/offline projects with tech stack, velocity, links | Done |
+| Tasks | Stories with subtasks, kanban board, list/log views, recurrence | Done |
+| Calendar | Unified calendar merging internal events + Google Calendar | Done |
 
-### Capture
+### Capture *(complete)*
 
 Free-form writing and daily reflection.
 
-| Feature | Description |
-|---|---|
-| Notes | Free-form notes with tags, search, and status tracking |
-| Journal | Daily journal entries with mood tracking, date-grouped |
+| Feature | Description | Status |
+|---|---|---|
+| Notes | Free-form notes with tags, search, pin/favorite | Done |
+| Journal | Daily journal entries with mood tracking | Done |
+| Decision Journal | Structured decisions with revisit prompts and outcome tracking | Done |
 
-### Grow
+### Grow *(complete)*
 
 Track learning and personal development.
 
-| Feature | Description |
-|---|---|
-| Skills | Skill inventory with proficiency levels (beginner → expert), practice logging |
-| Reading | Book list with status (want / reading / done), notes, ratings |
-| Courses | Online courses and certifications with progress tracking |
-| Habits | Daily/weekly habit checkins with streak counting and visualizations |
+| Feature | Description | Status |
+|---|---|---|
+| Skills | Mastery levels (novice → expert), rusty detection, practice logging | Done |
+| Reading | Book list with status, notes, ratings, reading challenge | Done |
+| Habits | Daily streaks, protocols (multi-step checklists), heatmaps | Done |
 
-### Explore
+### Explore *(complete)*
 
 Discover and plan places and trips.
 
-| Feature | Description |
-|---|---|
-| Places | Saved locations on an interactive Leaflet/OpenStreetMap map |
-| Travel | Trip planner linking saved places with map routes and polylines |
+| Feature | Description | Status |
+|---|---|---|
+| Places | Saved locations on interactive Leaflet map with map picker | Done |
+| Travel | Trip planner with itinerary timeline and trip budget | Done |
 
-### Health
+### Health *(complete)*
 
 Monitor physical and mental well-being.
 
-| Feature | Description |
-|---|---|
-| Body Metrics | Weight, body fat, measurements — charted over time |
-| Workouts | Exercise log with routines, volume tracking, personal records |
-| Nutrition | Meal logging, calorie and macro tracking (manual or simple presets) |
-| Sleep | Duration and quality logging, trend analysis |
-| Mental | Mood tracking, stress levels, linked to journal entries |
+| Feature | Description | Status |
+|---|---|---|
+| Body Metrics | Weight, body fat, measurements — charted over time | Done |
+| Workouts | Exercise log with heatmap and volume tracking | Done |
+| Sleep & Mood | Duration/quality log, mood, energy tracking, trend charts | Done |
 
-### Wealth
+### Wealth *(complete)*
 
 Manage household finances.
 
-| Feature | Description |
-|---|---|
-| Budget | Monthly income vs. expense budgets by category |
-| Transactions | Manual transaction log (bank sync is a future connector) |
-| Net Worth | Track accounts, assets, liabilities — one dashboard |
-| Bills | Recurring payment tracking with due date alerts |
-| Financial Goals | Savings targets, debt payoff plans with progress |
+| Feature | Description | Status |
+|---|---|---|
+| Budget | Monthly budgets by category with alerts at 80%+ | Done |
+| Transactions | Manual log with recurring transactions | Done |
+| Net Worth | Account balances, assets, trend chart | Done |
+| Portfolio | Crypto, DeFi, stocks, funds — with wallets and ledger | Done |
 
-### Home
+### Home *(complete)*
 
 Control and monitor home infrastructure.
 
-| Feature | Description |
-|---|---|
-| Server Dashboard | Docker container status, restart controls, resource usage |
-| Services | Uptime monitoring for self-hosted apps (Plex, Nextcloud, etc.) |
-| IoT | Device control via Home Assistant — lights, AC, sensors, cameras |
-| Network | Connected devices, bandwidth, DNS (Pi-hole) stats |
-| Storage | NAS disk usage, backup status, download queue |
+| Feature | Description | Status |
+|---|---|---|
+| Devices | Server, desktop, laptop, phone, tablet, router, IoT | Done |
+| Services | Status tracking (running/stopped/error) linked to devices | Done |
 
-### Family
+### Family *(complete)*
 
 Shared space for household coordination.
 
-| Feature | Description |
+| Feature | Description | Status |
+|---|---|---|
+| Chores | Rotating assignments with completion history | Done |
+| Activity Feed | Timeline of shared entities | Done |
+| Posts | Household feed with reactions, threads, media | Done |
+| Shared Goals | Family objectives with progress bars | Done |
+
+---
+
+## Lyra AI
+
+Lyra AI is the intelligence layer that runs across all modules. It is built around three pillars: the Sol personality, MCP-style tools, and proactive detectors.
+
+### Sol — The AI Personality
+
+Sol is an INTJ strategist personality that adapts to time of day and context. Sol is direct, analytical, and focused on helping you execute your strategy.
+
+- **Time-of-day awareness** — morning briefs are energetic and forward-looking; evening reflections are calmer
+- **Customizable traits** — adjust directness, verbosity, and coaching style
+- **Context-aware** — Sol has access to your entities, trackers, goals, and recent activity
+
+### MCP-Style Tool System
+
+Five registered tools that Sol can invoke:
+
+| Tool | Purpose |
 |---|---|
-| Shared Goals | Family objectives both users contribute to |
-| Events | Shared calendar — birthdays, trips, appointments |
-| Activity Feed | Timeline of completed tasks, achievements, milestones |
-| Posts | Household activity feed with inline compose and visibility controls |
-| Chores | Rotating household task assignments |
+| **suggest-focus** | Analyze priorities and suggest what to work on next |
+| **break-down** | Decompose a goal or project into actionable subtasks |
+| **analyze-risk** | Identify risks to goals, deadlines, or streaks |
+| **coaching** | Provide strategic coaching on decisions or direction |
+| **weekly-summary** | Generate a comprehensive weekly review |
+
+### Lyra Page
+
+Full command interface for interacting with Sol:
+- **Chat** — conversational interface with full data context
+- **Tool Arsenal** — browse and invoke all registered tools
+- **Settings** — provider config, personality tuning, context preferences
+
+### Provider-Agnostic
+
+Works with any OpenAI-compatible API:
+- **Ollama** (default) — fully local, llama3.2:3b, data never leaves your machine
+- **OpenAI** — GPT-4o or similar
+- **Claude** — via API
+- **Custom** — any endpoint that speaks the OpenAI chat format
+
+### Graceful Degradation
+
+When the AI provider is offline or unavailable:
+- Algorithmic fallbacks generate insights from rules and heuristics
+- No broken states — the app remains fully functional
+- Reconnects automatically when the provider comes back
+
+---
+
+## Proactive Intelligence
+
+The system that makes Lyra feel alive. Instead of waiting for you to ask, Lyra watches your data and speaks up when something matters.
+
+### Lyra Pulse
+
+Background detector cycle running every 10 minutes:
+- Scans 8 signal detectors across all modules
+- Surfaces insights as toast notifications
+- Non-intrusive — only alerts on meaningful signals
+
+### Signal Detectors
+
+| Detector | What it watches |
+|---|---|
+| **Streak Risk** | Habits at risk of breaking their streak today |
+| **Stale Projects** | Projects with no activity in 7+ days |
+| **Budget Alert** | Categories approaching or exceeding budget |
+| **Sleep Quality** | Below-average sleep patterns |
+| **Energy Trend** | Declining energy levels |
+| **Decision Review** | Decisions due for revisit |
+| **Achievements** | Milestones reached (streak records, goal completions) |
+| **Velocity** | Task/goal completion velocity changes |
+
+### Morning Brief
+
+Daily briefing that aggregates all 8 detectors into an actionable summary. Generated once per day, cached for the session.
+
+### Deep Work Coach
+
+Active during focus sessions (Pomodoro timer):
+- Streak alerts when approaching personal records
+- Progress updates on current task
+- Next-task suggestions when current task completes
+
+### Session Summary
+
+Toast notification on pomodoro completion:
+- Tasks completed during the session
+- Time spent breakdown
+- Suggested next action
+
+### Real-time Celebrations
+
+Instant recognition when you achieve something:
+- Streak milestones (7, 30, 90, 365 days)
+- Goal completions
+- Project milestones
+
+### Dynamic Dashboard
+
+12 signal-driven widgets that appear based on what matters right now:
+- **Rules mode** — automation-driven, deterministic widget selection
+- **Lyra mode** — AI-driven, Sol decides what to surface
 
 ---
 
 ## Integrations
 
-Connectors follow a standard interface. Adding a new integration means implementing one plugin — the core handles scheduling, error handling, and UI discovery.
+Connectors follow a standard interface. Adding a new integration means implementing one plugin.
 
-```
-Connector Interface
-├── id, name, icon
-├── auth config          how to authenticate (OAuth, API key, local)
-├── sync()               pull external data → entities
-├── push()               push entities → external service
-├── health()             connection status check
-├── widgets[]            optional dashboard widgets
-└── actions[]            optional command bar actions
-```
+### Active Connectors
+
+| Connector | Direction | Status |
+|---|---|---|
+| **Google Calendar** | Pull (iCal) | Done |
+| **Ollama** | Bidirectional | Done |
 
 ### Planned Connectors
 
 | Connector | Direction | Purpose |
 |---|---|---|
-| **Google Calendar** | Bidirectional | Sync events and deadlines |
-| **Google Tasks** | Bidirectional | Sync todos |
-| **GitHub** | Pull | Track commits, PRs, contributions → skill/project progress |
+| **GitHub** | Pull | Track commits, PRs, contributions |
 | **Home Assistant** | Bidirectional | IoT device control and sensor data |
 | **Docker API** | Pull + Actions | Container status, restart, logs |
-| **AI Provider** | Push context, pull responses | Chat, insights, briefs (see AI Layer) |
 | **Notion** | Pull | Import notes and databases |
-| **Email (IMAP)** | Pull | Surface action items and reminders |
-| **Bank API** | Pull | Auto-import transactions (future, region-dependent) |
+| **Bank API** | Pull | Auto-import transactions (future) |
 | **Fitbit / Apple Health** | Pull | Auto-import health metrics (future) |
-
----
-
-## AI Layer
-
-AI is not a separate module — it is a layer that runs across all modules. Any AI provider that supports the OpenAI-compatible chat API works: OpenAI, Claude (via API), Ollama (fully local), or others.
-
-### Features
-
-**Chat Panel**
-A persistent sidebar available on every page. The AI has access to your entities, trackers, and recent activity. Ask it anything about your own data.
-
-- "What did I spend the most on last month?"
-- "How is my reading goal progressing?"
-- "Summarize my week."
-
-**Command Bar** (`Cmd+K`)
-Natural language input that routes to the correct module action.
-
-- "Add a goal to run 5K by June" → creates a goal entity
-- "Log 72kg" → adds a body weight tracker entry
-- "Turn off bedroom lights" → sends command to Home Assistant
-- "Show my budget" → navigates to wealth module
-
-**Daily Brief**
-Auto-generated each morning. Summarizes: today's calendar, top priorities, streak status, anomalies (overspending, missed habits), and suggested focus.
-
-**Weekly Review**
-AI drafts a weekly reflection: what was accomplished, what slipped, trends in health/wealth/habits, and suggested adjustments.
-
-**Insights**
-Passive analysis that surfaces observations:
-- "Your sleep quality drops on days you skip exercise."
-- "You've been under budget for 3 months — consider increasing your investment allocation."
-- "Your TypeScript skill has been inactive for 30 days."
-
-### AI Provider Config
-
-```
-AI Config
-├── provider         "openai" | "claude" | "ollama" | "custom"
-├── endpoint         API URL (default or custom)
-├── model            model identifier
-├── apiKey           stored locally, never transmitted elsewhere
-└── contextWindow    max tokens for context building
-```
-
-Switching providers requires changing one config. All AI features continue to work because they use the same prompt templates and context-building logic.
 
 ---
 
 ## Automation Engine
 
-Event-driven rules that connect triggers to actions. This is what makes Life-OS feel alive — things happen automatically.
+Event-driven rules that connect triggers to actions.
 
 ### Structure
 
@@ -363,22 +414,19 @@ Automation
 └── isActive         on/off toggle
 ```
 
-### Example Automations
+### Rule Templates (5 built-in)
 
 | Name | Trigger | Action |
 |---|---|---|
-| Bill reminder | Bill due in 3 days | Send notification + add calendar event |
-| Streak alert | Habit not checked in today by 9pm | Push reminder notification |
-| Overspend warning | Monthly category spend > budget | Alert + AI spending breakdown |
-| Server down | Container health check fails | Notification + attempt auto-restart |
-| Morning brief | Cron: 7:00 AM daily | Generate AI daily brief |
-| Weekly review | Cron: Sunday 8:00 PM | Generate AI weekly review draft |
-| Goal deadline | Goal due date in 7 days, progress < 80% | AI suggests action plan |
-| Achievement | Goal/habit milestone reached | Post to family activity feed |
+| Streak alert | Habit not checked in by evening | Push reminder notification |
+| Overspend warning | Category spend > budget | Alert + flag on dashboard |
+| Stale project | No project activity in 7 days | Surface on dashboard |
+| Goal deadline | Goal due soon, progress < 80% | Suggest action plan |
+| Weekly review | Sunday evening | Generate review prompt |
 
 ### User-Created Automations
 
-A simple "When → Then" builder in the UI. No code required. Select trigger type, set conditions, pick actions from a list.
+"When / Then" builder in the UI with conditional logic (AND-based conditions), event-driven triggers, dry-run preview, and execution history.
 
 ---
 
@@ -386,176 +434,72 @@ A simple "When → Then" builder in the UI. No code required. Select trigger typ
 
 | Layer | Technology | Rationale |
 |---|---|---|
-| Language | TypeScript | Type safety across UI and API, single language |
+| Language | TypeScript 5.9 | Type safety across UI and API, single language |
 | UI Framework | React 19 | Stable, massive ecosystem, long-term support |
-| Build Tool | Vite | Fast dev server, minimal config, modern defaults |
-| Routing | React Router | Battle-tested, supports nested layouts |
-| State | Zustand | Minimal boilerplate, scales well, easy to test |
-| Styling | Tailwind CSS | Utility-first, consistent design, fast iteration |
-| Components | shadcn/ui | Accessible, customizable, not a dependency — you own the code |
-| Forms | React Hook Form + Zod | Schema-driven validation, DRY form logic |
+| Build Tool | Vite 7 | Fast dev server, minimal config, modern defaults |
+| Styling | Tailwind CSS 4 | Utility-first, consistent design, fast iteration |
+| Components | Radix / shadcn/ui | Accessible, customizable, you own the code |
+| State | Zustand | Minimal boilerplate, scales well |
+| API Client | TanStack React Query | Caching, sync, optimistic updates |
+| API Server | Hono | Lightweight, TypeScript-native |
+| Database | SQLite via Drizzle ORM | Zero-config, file-based, perfect for home server |
+| AI | Ollama (local) | Provider-agnostic, OpenAI-compatible API |
 | Charts | Recharts | Composable, React-native, good for time-series |
-| API Client | TanStack Query | Caching, sync, optimistic updates |
-| API Server | Node.js (Hono or Fastify) | Lightweight, TypeScript-native (separate project) |
-| Database | SQLite (via Drizzle ORM) | Zero-config, file-based, perfect for home server |
-| AI | OpenAI-compatible API | Swappable — works with OpenAI, Claude API, Ollama |
-| Auth | Simple JWT | Lightweight, sufficient for local network |
-| Deployment | Docker Compose | Single command to run on home server |
+| Auth | JWT | Lightweight, sufficient for local network |
+| PWA | vite-plugin-pwa | Installable, offline support |
 
 ---
 
 ## Roadmap
 
-Each phase delivers a working, independently useful increment.
+### Completed Phases
 
-### Phase 1 — Foundation
+| Phase | Version | Status |
+|---|---|---|
+| 1 — Foundation | v0.1.0 | Done |
+| 2 — Plan (Goals, Tasks, Calendar) | v0.2.0 | Done |
+| 3 — AI Layer | v0.3.0 | Done |
+| 4 — Grow (Skills, Habits, Reading) | v0.4.0 | Done |
+| 4.5 — Capture, Social & Explore | v0.4.5 | Done |
+| 5 — Wealth | v0.5.0 | Done |
+| 6 — Health | v0.6.0 | Done |
+| 7 — Home | v0.7.0 | Done |
+| 8 — Family | v0.8.0 | Done |
+| 9 — Automate | v0.9.0 | Done |
+| 10 — Polish (PWA, Code Splitting) | v0.10.0 | Done |
+| 10.5 — Memories | v0.10.5 | Done |
+| 11 — Productivity (Today, Inbox, Review) | v0.11.0 | Done |
+| 12 — Dashboard v2 & Polish | v0.12.0 | Done |
+| 13 — Charts, Agenda, Pomodoro | v0.13.0 | Done |
+| 14 — Larger Features | v0.14.0–0.15.0 | Done |
+| Projects & Command Center | v0.65.0 | Done |
+| Tomahawk — Strategic Arsenal | v0.66.0 | Done |
+| Trident — Lyra AI | v1.0.0 | Done |
+| Lyra Command Interface | v1.1.0 | Done |
+| Dynamic Dashboard | v1.2.0 | Done |
+| Proactive Lyra | v1.3.0 | Done |
 
-Scaffold the project, core engine, layout shell, and authentication.
+### Next
 
-- Project setup (Vite + React + TypeScript + Tailwind + shadcn/ui)
-- Layout: sidebar navigation, top bar, responsive shell
-- Auth: login screen, user context, route protection
-- Core: Entity types, generic CRUD hooks, generic list/detail components
-- Dashboard: empty shell with widget slots
-- Mock data layer (swap for real API later)
-
-**Outcome:** App runs, users can log in, navigate, and see an empty dashboard.
-
-### Phase 2 — Plan
-
-Goals, tasks, and calendar — the daily driver features.
-
-- Goals: create, edit, track progress, hierarchy (goal → sub-goals)
-- Tasks: list view, kanban board, priority, due dates, completion
-- Calendar: monthly/weekly/daily views, internal events
-- Google Calendar connector (read-only sync first, then bidirectional)
-- Dashboard widgets: today's tasks, upcoming events, goal progress
-
-**Outcome:** Replace Google Tasks / Todoist. Daily planning happens in Life-OS.
-
-### Phase 3 — AI
-
-Chat, command bar, and daily briefs.
-
-- AI provider config and swappable provider system
-- Chat sidebar: context-aware conversation with your data
-- Command bar (`Cmd+K`): natural language → entity creation / navigation
-- Daily brief: auto-generated morning summary
-- Prompt templates and context builder
-
-**Outcome:** AI becomes the primary way to interact with Life-OS.
-
-### Phase 4 — Grow *(complete)*
-
-Skills, habits, and learning.
-
-- Skills: inventory, proficiency levels, practice logging, charts
-- Habits: daily checkin, streak tracking, calendar heatmap
-- Reading: book list, status, notes
-- GitHub connector: pull contributions into skill tracking
-- Dashboard widgets: streak counter, skill progress
-
-**Outcome:** Track personal development in one place.
-
-### Phase 4.5 — Capture, Social & Explore
-
-Notes, posts, notifications, places, and travel.
-
-- Notes: free-form notes + daily journal with mood tracking
-- Posts: household activity feed with inline compose
-- Notification system: sonner toasts, bell icon, history page
-- Places: saved locations on interactive Leaflet map
-- Travel: trip planner linking places with map routes
-
-**Outcome:** Capture ideas, share updates, explore and plan trips — all from Life-OS.
-
-### Phase 5 — Wealth
-
-Household budget and financial tracking.
-
-- Transactions: manual log, categorization, search/filter
-- Budget: monthly budgets by category, progress bars
-- Net worth: account balances, assets, liabilities, trend chart
-- Bills: recurring payment tracker, due date alerts
-- Dashboard widgets: monthly spend, budget health, net worth
-
-**Outcome:** Replace spreadsheet-based budgeting.
-
-### Phase 6 — Health
-
-Body, exercise, sleep, and mental health.
-
-- Body metrics: weight and measurement logging, trend charts
-- Workouts: exercise log, routine templates, personal records
-- Sleep: duration/quality log, trend chart
-- Mood: daily mood logging, correlation with other metrics
-- Dashboard widgets: weight trend, workout streak, sleep average
-
-**Outcome:** Unified health tracking without third-party apps.
-
-### Phase 7 — Home
-
-Server and smart home control.
-
-- Docker connector: container list, status, restart, logs viewer
-- Service monitor: uptime checks, response time, status page
-- Home Assistant connector: device list, toggle controls, sensor readings
-- Network: device list, bandwidth (if router API available)
-- Dashboard widgets: server status, active devices
-
-**Outcome:** Manage home infrastructure from Life-OS instead of SSH + browser tabs.
-
-### Phase 8 — Family
-
-Multi-user features and shared space.
-
-- Shared entities: visibility toggle (private/shared)
-- Family dashboard: combined activity feed, shared goals
-- Events: shared family calendar
-- Chore rotation: assignment and tracking
-- User preferences: per-user dashboard layout, theme
-
-**Outcome:** Both users actively use Life-OS as a household tool.
-
-### Phase 9 — Automate
-
-Automation engine and notifications.
-
-- Trigger/action system with rule storage
-- Built-in triggers: schedule (cron), entity events, threshold alerts
-- Built-in actions: notification, entity creation, AI generation, connector calls
-- UI rule builder: "When X → Do Y" visual editor
-- Push notifications (PWA or Telegram bot)
-
-**Outcome:** Life-OS works proactively, not just reactively.
-
-### Phase 10 — Polish
-
-Production readiness for daily family use.
-
-- PWA: installable on phone, offline support
-- Responsive design: mobile-optimized layouts
-- Performance: lazy loading, code splitting, query optimization
-- Onboarding: first-run setup wizard
-- Data export: JSON/CSV backup, migration tools
-- Documentation: self-hosted user guide
-
-**Outcome:** Stable, polished, daily-driver quality.
+- Multi-device sync and conflict resolution
+- Mobile-optimized layouts and gestures
+- Plugin system for custom modules
+- Voice input via local Whisper
+- Life analytics — cross-module correlations
 
 ---
 
 ## Future Projections
 
-Features beyond the initial roadmap — not planned, but designed to be possible.
+Features beyond the current roadmap — not planned, but designed to be possible.
 
 ### Near-Term Possibilities
 
 | Feature | Description |
 |---|---|
 | **Mobile App** | React Native or Capacitor wrapper for native mobile experience |
-| **Voice Input** | "Hey Life-OS" — voice commands via Web Speech API or local Whisper |
+| **Voice Input** | "Hey Lyra" — voice commands via Web Speech API or local Whisper |
 | **Telegram Bot** | Quick-add entities, receive notifications, check status from Telegram |
-| **Shared with Extended Family** | Invite parents/siblings with limited access roles |
 | **Recipe & Meal Planning** | Weekly meal plans linked to nutrition tracking and shopping lists |
 
 ### Mid-Term Possibilities
@@ -563,28 +507,24 @@ Features beyond the initial roadmap — not planned, but designed to be possible
 | Feature | Description |
 |---|---|
 | **Wearable Sync** | Auto-import from Fitbit, Garmin, Apple Watch — steps, heart rate, sleep |
-| **Bank Sync** | Auto-import transactions via open banking APIs (region-dependent) |
-| **Document Vault** | Encrypted storage for important documents (IDs, contracts, warranties) |
-| **Vehicle Maintenance** | Service log, mileage tracking, insurance/tax reminders |
+| **Bank Sync** | Auto-import transactions via open banking APIs |
+| **Document Vault** | Encrypted storage for important documents |
 | **Learning Flashcards** | Spaced repetition system linked to skill/course modules |
-| **Habit Scoring** | Composite daily score based on completed habits, mood, and sleep |
 
 ### Long-Term Vision
 
 | Feature | Description |
 |---|---|
-| **Local AI Agent** | Fully local LLM (Ollama) that can execute automations, not just suggest |
+| **Agentic AI** | Sol can execute automations autonomously, not just suggest |
 | **Life Analytics** | Cross-module correlations: "You're most productive on days you exercise and sleep 7+ hours" |
-| **Family Dashboard TV Mode** | Ambient display for a wall-mounted screen — calendar, weather, chores, quotes |
-| **Plugin Marketplace** | Share custom modules/connectors with other Life-OS users (if open-sourced) |
-| **Multi-Household** | Separate Life-OS instances that can share selected data between households |
+| **Family Dashboard TV Mode** | Ambient display for a wall-mounted screen |
 | **Offline-First Sync** | Full offline functionality with conflict-free sync when back online |
 
 ---
 
 ## Project Boundaries
 
-What Life-OS is **not**:
+What Lyra is **not**:
 
 - Not a social network — it is private, family-only
 - Not a SaaS product — it is self-hosted, no subscription
@@ -593,55 +533,4 @@ What Life-OS is **not**:
 
 ---
 
-## File Structure (Planned)
-
-```
-life-os-ui/
-├── public/
-├── src/
-│   ├── core/
-│   │   ├── components/       # EntityList, EntityCard, EntityForm, DataTable,
-│   │   │                     # Chart, Modal, EmptyState, StatusBadge
-│   │   ├── hooks/            # useEntities, useTrackers, useSchedules,
-│   │   │                     # useAuth, useConnector, useCommandBar
-│   │   ├── stores/           # authStore, entityStore, uiStore
-│   │   ├── types/            # Entity, Tracker, Schedule, Relation,
-│   │   │                     # User, Connector, Automation
-│   │   ├── utils/            # date, format, validation, cn
-│   │   └── config/           # module registry, connector registry
-│   │
-│   ├── modules/
-│   │   ├── goals/
-│   │   ├── tasks/
-│   │   ├── calendar/
-│   │   ├── skills/
-│   │   ├── habits/
-│   │   ├── health/
-│   │   ├── wealth/
-│   │   ├── home/
-│   │   ├── family/
-│   │   ├── ai/
-│   │   └── automations/
-│   │
-│   ├── connectors/
-│   │   ├── google-calendar/
-│   │   ├── github/
-│   │   ├── home-assistant/
-│   │   ├── docker/
-│   │   └── ai-provider/
-│   │
-│   ├── layout/               # Shell, Sidebar, TopBar, MobileNav
-│   ├── pages/                # Route-level page components
-│   └── app.tsx
-│
-├── VISION.md                 # This document
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-├── tailwind.config.ts
-└── docker-compose.yml        # For deployment on home server
-```
-
----
-
-*This is a living document. Update it as decisions are made and priorities shift.*
+*This is a living document. Updated for v1.3.0 — Proactive Lyra.*

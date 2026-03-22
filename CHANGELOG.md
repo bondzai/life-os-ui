@@ -1,6 +1,84 @@
 # Changelog
 
-All notable changes to Life-OS UI are documented here.
+All notable changes to Lyra (Life-OS UI) are documented here.
+
+---
+
+## [1.3.0] — 2026-03-22
+
+### Proactive Lyra
+
+#### Added
+- **Lyra Pulse** — background 10-minute detector cycle with toast notifications for proactive insights
+- **Deep Work Coach** — streak alerts, progress tracking, and next-task suggestions during focus sessions
+- **Session Summary** — toast notification on pomodoro completion with task progress recap
+- **Real-time Celebrations** — instant toasts on achievements (streaks, goals, milestones)
+- **Proactive intelligence pipeline** — Pulse detectors feed insights without user prompting
+
+---
+
+## [1.2.0] — 2026-03-20
+
+### Dynamic Dashboard
+
+#### Added
+- **Dynamic Dashboard** — 12 signal-driven widgets that surface what matters right now
+- **Rules/Lyra mode toggle** — switch between automation-driven and AI-driven dashboard layouts
+- **Signal-driven widgets** — widgets appear/disappear based on real-time data signals (streak risk, budget alerts, stale projects, etc.)
+
+---
+
+## [1.1.0] — 2026-03-18
+
+### Lyra Command Interface
+
+#### Added
+- **MCP-style tool system** — 5 registered tools: suggest-focus, break-down, analyze-risk, coaching, weekly-summary
+- **Sol personality** — INTJ strategist persona with time-of-day awareness, customizable traits
+- **Lyra page** — full command interface with chat, tool arsenal, and settings panel
+- **Tool arsenal UI** — browse, invoke, and view results from all registered AI tools
+- **Graceful degradation** — AI offline triggers algorithmic fallback, no broken states
+
+---
+
+## [1.0.0] — 2026-03-16
+
+### Codename: Trident — Lyra AI
+
+#### Added
+- **Ollama integration** — local LLM (llama3.2) for fully private AI, data never leaves the machine
+- **Signal detectors** — 8 background detectors: streak risk, stale projects, budget, sleep, energy, decisions, achievements, velocity
+- **Morning Brief** — daily briefing aggregating all 8 signal detectors into actionable summary
+- **Provider-agnostic AI client** — works with Ollama, OpenAI, Claude, or any OpenAI-compatible endpoint
+- **AI context builders** — automatic context assembly from entities, trackers, and relations
+
+---
+
+## [0.66.0] — 2026-03-14
+
+### Codename: Tomahawk — Strategic Arsenal
+
+#### Added
+- **System Audit** — weekly review step 6 with health checks across all modules
+- **Automation Rules** — 5 rule templates with toggle switches for proactive task management
+- **Skills mastery system** — novice/beginner/intermediate/advanced/expert levels with rusty detection
+- **Energy tracking** — daily energy level logging with trend analysis
+- **Decision journal** — structured decision entries with revisit prompts and outcome tracking
+- **Velocity tracking** — task/goal completion velocity with trend indicators
+- **Focus Score** — daily priority completion percentage
+
+---
+
+## [0.65.0] — 2026-03-12
+
+### Projects & Command Center
+
+#### Added
+- **Projects page** — online & offline project tracking with tech stack, velocity, links, and status
+- **Command Center** — centralized command palette enhancements for power-user navigation
+- **Task-project linking** — associate tasks with projects, view project task boards
+- **List/grid view toggle** — switchable layouts on projects and other entity pages
+- **Deep Work timer** — Pomodoro modes (classic 25m / deep 50m / sprint 15m), Emperor Time
 
 ---
 

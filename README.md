@@ -1,73 +1,95 @@
-# React + TypeScript + Vite
+# Lyra
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A self-hosted life operating system with AI-powered strategic intelligence.
 
-Currently, two official plugins are available:
+> Navigate your life by the stars.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## What is Lyra?
 
-## React Compiler
+Lyra is a full-stack personal life management system that tracks everything — goals, tasks, projects, habits, health, wealth, learning, travel, and family — in one unified interface. It features a local AI assistant (powered by Ollama) that proactively monitors your data and surfaces insights.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Features
 
-## Expanding the ESLint configuration
+### Core System
+- **Entity-based architecture** — 30+ entity types, one unified data model
+- **Projects** — track online & offline projects with velocity, stack, links
+- **Goals** — hierarchical with sub-goals, progress tracking, deadline velocity
+- **Tasks** — stories with subtasks, kanban board, list/log views, recurrence
+- **Habits** — daily streaks, protocols (multi-step checklists), heatmaps
+- **Skills** — mastery levels (novice → expert), rusty detection, learning paths
+- **Notes** — freeform, journal, decision journal with revisit prompts
+- **Health** — body metrics, workouts, sleep/mood tracking
+- **Wealth** — transactions, budgets, accounts, portfolio, crypto
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Lyra AI
+- **Local LLM** via Ollama (llama3.2) — data never leaves your machine
+- **MCP-style tool system** — 5 registered tools: suggest-focus, break-down, analyze-risk, coaching, weekly-summary
+- **Sol personality** — INTJ strategist with time-of-day awareness, customizable
+- **Lyra page** — full command interface: chat, tool arsenal, settings
+- **Graceful degradation** — AI offline = algorithmic fallback, no broken states
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Proactive Intelligence
+- **Lyra Pulse** — background 10-min detector cycle, toast notifications
+- **Deep Work Coach** — streak alerts, progress, next task during focus sessions
+- **Session Summary** — toast on pomodoro end with task progress
+- **Real-time Celebrations** — instant toasts on achievements
+- **Morning Brief** — 8 signal detectors: streak risk, stale projects, budget, sleep, energy, decisions, achievements, velocity
+- **Dynamic Dashboard** — 12 signal-driven widgets, Rules/Lyra mode toggle
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Focus & Productivity
+- **Deep Work** — Pomodoro timer (classic/deep/sprint), Emperor Time
+- **Focus Score** — daily priority completion percentage
+- **Weekly Review** — 6-step wizard with System Audit
+- **Automation Rules** — 5 rule templates with toggle switches
+- **Command Palette** — `Cmd+K` to search and navigate everywhere
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Tech Stack
+
+- **Frontend**: React 19, TypeScript 5.9, Vite 7, Tailwind CSS 4, Radix/shadcn UI
+- **State**: Zustand, TanStack React Query
+- **Backend**: Hono, SQLite via Drizzle ORM, JWT auth
+- **AI**: Ollama (local), OpenAI-compatible API, provider-agnostic
+- **Charts**: Recharts
+- **PWA**: Offline support via vite-plugin-pwa
+
+## Quick Start
+
+```bash
+npm install
+npm run dev:safe    # Vite + TypeScript watch
+
+# Enable AI (optional)
+brew install ollama
+brew services start ollama
+ollama pull llama3.2:3b
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Release History
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| Version | Codename | Phase |
+|---------|----------|-------|
+| v1.3.0 | | Proactive Lyra |
+| v1.2.0 | | Dynamic Dashboard |
+| v1.1.0 | | Lyra Command Interface |
+| v1.0.0 | Trident | Lyra AI |
+| v0.66.0 | Tomahawk | Strategic Arsenal |
+| v0.65.0 | | Projects & Command Center |
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Architecture
+
 ```
+src/
+  core/           # Entity types, repositories, hooks, AI system
+    ai/           # AI client, tools registry, context builders, Sol personality
+    hooks/        # useEntities, useTrackers, useRelations, useAIChat
+  pages/          # Feature pages (lazy-loaded)
+  hooks/          # App hooks: useAI, useMorningBrief, useLyraPulse, useCelebrations
+  components/     # Shared UI: AIAction, ViewToggle, view-toggle
+  stores/         # Zustand stores: auth, focus, chat, ai, ui
+  layout/         # AppLayout, sidebar, top bar
+api/              # Hono backend with SQLite
+```
+
+## License
+
+Private — personal use.
