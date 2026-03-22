@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import {
   BarChart3,
   Briefcase,
@@ -17,6 +17,8 @@ import {
   Zap,
   Crown,
   ChevronDown,
+  Sparkles,
+  Shuffle,
 } from 'lucide-react'
 import {
   RadarChart,
@@ -29,11 +31,17 @@ import {
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useEntities, useTrackers } from '@/core/hooks'
+import { useAI } from '@/hooks/use-ai'
 import { calcFocusStats, formatMinutes as fmtMin } from '@/lib/focus-stats'
 import { loadHealthProfile, calcBMI, getBMICategory } from '@/lib/health-calc'
 import { FocusLog } from './dashboard/focus-log'
+import { useDashboardLayout } from './dashboard/use-dashboard-layout'
+import { DynamicGrid } from './dashboard/dynamic-grid'
+import './dashboard/widgets' // triggers widget registration
 import type { Entity, Tracker } from '@/core/types'
 
 /* ─── Date helpers ─── */
@@ -143,6 +151,43 @@ export function DashboardPage() {
   const { items: allTrackers } = useTrackers()
   const [focusLogOpen, setFocusLogOpen] = useState(true)
   const [workspace, setWorkspace] = useState<'all' | 'work' | 'personal'>('all')
+
+  // Dynamic widget layout
+  const layout = useDashboardLayout()
+
+  // Dashboard mode: rules (algorithmic) or lyra (AI-curated)
+  const [dashMode, setDashMode] = useState<'rules' | 'lyra'>(() => {
+    try { return (localStorage.getItem('lyra:dashboard-mode') as 'rules' | 'lyra') ?? 'rules' } catch { return 'rules' }
+  })
+  const handleModeChange = (mode: 'rules' | 'lyra') => {
+    setDashMode(mode)
+    try { localStorage.setItem('lyra:dashboard-mode', mode) } catch { /* noop */ }
+    if (mode === 'lyra' && isOnline) generateAILayout()
+  }
+
+  // AI summary + AI layout
+  const { run, isOnline } = useAI()
+  const [aiDashSummary, setAiDashSummary] = useState<string | null>(null)
+  const aiSummaryFetched = useRef(false)
+
+  // AI-curated layout: ask Lyra for dashboard summary
+  const generateAILayout = useCallback(async () => {
+    if (!isOnline) return
+    try {
+      const response = await run('suggest-focus')
+      setAiDashSummary(response)
+    } catch { /* silent */ }
+  }, [isOnline, run])
+
+  useEffect(() => {
+    if (!isOnline || aiSummaryFetched.current) return
+    aiSummaryFetched.current = true
+    run('suggest-focus')
+      .then((result) => setAiDashSummary(result))
+      .catch(() => {
+        // fall back to algorithmic summary below
+      })
+  }, [isOnline, run])
 
   // Filter entities by workspace
   const filteredEntities = useMemo(() => {
@@ -349,6 +394,74 @@ export function DashboardPage() {
           </Tabs>
         </div>
       </header>
+
+      {/* ── Dynamic Widget Grid ── */}
+      {layout.selectedWidgets.length > 0 && (
+        <div className="shrink-0 pb-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary/70" />
+              Lyra&apos;s Dashboard
+            </h2>
+            <div className="flex items-center gap-2">
+              {/* Mode toggle */}
+              <div className="inline-flex items-center rounded-lg bg-muted p-0.5">
+                <button
+                  onClick={() => handleModeChange('rules')}
+                  className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    dashMode === 'rules' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Zap className="h-3 w-3" />
+                  Rules
+                </button>
+                <button
+                  onClick={() => handleModeChange('lyra')}
+                  className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    dashMode === 'lyra'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : isOnline
+                        ? 'text-muted-foreground hover:text-foreground'
+                        : 'text-muted-foreground/30 cursor-not-allowed'
+                  }`}
+                  disabled={!isOnline}
+                  title={!isOnline ? 'Lyra is offline — start Ollama' : 'AI-curated dashboard'}
+                >
+                  <Brain className="h-3 w-3" />
+                  Lyra
+                </button>
+              </div>
+              <Button variant="outline" size="sm" onClick={dashMode === 'lyra' ? generateAILayout : layout.shuffle} className="gap-1.5">
+                <Shuffle className="h-3.5 w-3.5" />
+                {dashMode === 'lyra' ? 'Regenerate' : 'Shuffle'}
+              </Button>
+            </div>
+          </div>
+          {dashMode === 'lyra' && aiDashSummary ? (
+            <p className="text-sm text-foreground/80 leading-relaxed line-clamp-2 bg-primary/5 rounded-md px-3 py-2 border border-primary/10">
+              <Sparkles className="h-3 w-3 text-primary inline mr-1.5 -mt-0.5" />
+              {aiDashSummary}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {dashMode === 'rules' ? 'Rules mode' : 'Lyra mode'} · {layout.selectedWidgets.length} widgets active
+            </p>
+          )}
+          <DynamicGrid
+            widgets={layout.selectedWidgets}
+            entities={allEntities}
+            trackers={allTrackers}
+            onPin={(id) =>
+              layout.pinnedIds.includes(id)
+                ? layout.unpinWidget(id)
+                : layout.pinWidget(id)
+            }
+            onHide={layout.hideWidget}
+            pinnedIds={layout.pinnedIds}
+          />
+          <Separator className="mt-4" />
+        </div>
+      )}
 
       <div className="space-y-6 pb-8">
 

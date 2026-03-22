@@ -16,6 +16,31 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.2.0',
+    date: '2026-03-22',
+    phase: 'Dynamic Dashboard',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Dynamic dashboard**: 12 signal-driven widgets auto-selected by relevance — streak tracker, overdue tasks, project velocity, budget meter, sleep trend, goal progress, focus hours, energy pattern, stale projects, upcoming events, decision review, weekly velocity',
+          '**Widget registry**: MCP-style pattern — `registerWidget()` with relevance scoring, any widget self-registers at import',
+          '**Rules / Lyra mode toggle**: Switch between algorithmic widget selection (rules-based) and AI-curated dashboard (Lyra mode)',
+          '**Pin & hide widgets**: Pin widgets to always show, hide to never show, persisted to localStorage',
+          '**Shuffle button**: Re-roll widget selection in rules mode, regenerate AI summary in Lyra mode',
+          '**AI dashboard summary**: Lyra generates a one-line focus suggestion when in Lyra mode',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Dashboard page**: Dynamic grid added ABOVE existing radar chart and trend cards — all original content preserved',
+          '**Lyra mode auto-fallback**: When AI is offline, Lyra mode button is disabled with tooltip, falls back to rules mode',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.1.0',
     date: '2026-03-22',
     phase: 'Lyra Command Interface & MCP-Style AI System',
