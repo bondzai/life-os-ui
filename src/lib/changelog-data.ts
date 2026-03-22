@@ -16,6 +16,44 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '2.0.0',
+    date: '2026-03-22',
+    phase: 'Strategic Intelligence',
+    codename: 'Aegis',
+    tag: 'aegis',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Strategic Board** (`/strategic-board`): Full strategic command page — Next Moves, Knowledge Pulse, Scoreboard with project/goal velocity',
+          '**Knowledge Profile hook**: Aggregates ALL notes, decisions, ideas, journal, skills, projects into a structured intelligence profile — top themes, unactioned ideas, open questions, recurring concerns, knowledge gaps, thinking velocity',
+          '**Strategic Moves AI tool**: Lyra reads everything (knowledge + data) and generates 3 high-impact moves: commit, pivot, park, double-down, explore, connect, decide',
+          '**Move lifecycle**: Accept/pass/complete moves with localStorage persistence and 30-move history',
+          '**Knowledge Context builder**: Formats knowledge profile into AI-consumable context for any tool',
+          '**Scoreboard hook**: Quantitative metrics — task velocity, focus hours, habit rate, sleep, goal progress with risk, project velocity, budget health, streaks',
+          '**Web Search**: `/search` command in Lyra chat — DuckDuckGo proxy via API backend, results injected into Ollama context with source citations',
+          '**web-search AI tool**: 10 tools total',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Lyra reads everything**: Notes, decisions, ideas, journal, projects, goals, skills, health, wealth — full knowledge awareness',
+          '**Sidebar**: Strategic Board added to Daily group with Map icon',
+          '**AI context**: Knowledge profile injected alongside global context for richer analysis',
+        ],
+      },
+      {
+        title: 'Architecture',
+        items: [
+          '**Agent-ready data layer**: KnowledgeProfile, Scoreboard, StrategicMove interfaces designed for future multi-agent consumption',
+          '**Modular context builders**: knowledge-context.ts composable with other contexts for any AI agent',
+          '**Move types taxonomy**: commit/pivot/park/double-down/explore/connect/decide — strategic vocabulary for AI recommendations',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.5.0',
     date: '2026-03-22',
     phase: 'Smart Capture',
