@@ -20,9 +20,9 @@ const DEFAULT_CONFIGS: Record<AIProvider, AIConfig> = {
   ollama: {
     provider: 'ollama',
     endpoint: 'http://localhost:11434/v1',
-    model: 'llama3.2:3b',
+    model: 'qwen3:4b',
     apiKey: '',
-    contextWindow: 8192,
+    contextWindow: 32768,
   },
   custom: {
     provider: 'custom',

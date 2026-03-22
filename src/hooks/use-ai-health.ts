@@ -25,7 +25,7 @@ export function useAIHealth() {
 
       if (res.ok) {
         setStatus('online')
-        setModelName(config.model || 'llama3.2:3b')
+        setModelName(config.model || 'qwen3:4b')
         return true
       }
       setStatus('offline')

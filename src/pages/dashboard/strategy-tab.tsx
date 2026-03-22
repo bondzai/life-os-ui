@@ -314,7 +314,7 @@ export function StrategyTab() {
       ]
 
       // 7. Call AI
-      const FALLBACK = { provider: 'ollama' as const, endpoint: 'http://localhost:11434/v1', model: 'llama3.2:3b', apiKey: '', contextWindow: 8192 }
+      const FALLBACK = { provider: 'ollama' as const, endpoint: 'http://localhost:11434/v1', model: 'qwen3:4b', apiKey: '', contextWindow: 8192 }
       const storeConfig = useAIStore.getState().config
       const config = storeConfig.endpoint && storeConfig.model ? storeConfig : FALLBACK
       const client = new AIClient(config)

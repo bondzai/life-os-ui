@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import FrappeGantt from 'frappe-gantt'
-import 'frappe-gantt/dist/frappe-gantt.css'
+import '@/styles/frappe-gantt.css'
 import { GanttChart as GanttIcon } from 'lucide-react'
 import {
   Select,

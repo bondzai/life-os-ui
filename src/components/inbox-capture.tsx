@@ -158,7 +158,7 @@ export function InboxCapture() {
         const fallbackConfig = {
           provider: 'ollama' as const,
           endpoint: 'http://localhost:11434/v1',
-          model: 'llama3.2:3b',
+          model: 'qwen3:4b',
           apiKey: '',
           contextWindow: 8192,
         }
