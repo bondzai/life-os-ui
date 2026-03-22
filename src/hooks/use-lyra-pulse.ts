@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useMorningBrief } from './use-morning-brief'
+import { lyraLog } from '@/stores/lyra-log-store'
 
 const PULSE_INTERVAL = 10 * 60 * 1000 // 10 minutes
 
@@ -22,6 +23,7 @@ export function useLyraPulse() {
       for (const insight of insights) {
         if (insight.severity >= 2 && !shownIds.current.has(insight.id)) {
           shownIds.current.add(insight.id)
+          lyraLog({ level: 'action', source: 'pulse', message: insight.title, detail: insight.detail })
           toast(insight.title, {
             description: insight.detail,
             action: insight.actionPath

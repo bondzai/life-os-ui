@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useEntities, useTrackers } from '@/core/hooks'
+import { lyraLog } from '@/stores/lyra-log-store'
 
 const MILESTONES = [7, 30, 90, 180, 365]
 
@@ -37,6 +38,7 @@ export function useCelebrations() {
         prevStatus !== 'done' &&
         entity.status === 'done'
       ) {
+        lyraLog({ level: 'celebration', source: 'celebration', message: `Task "${entity.title}" completed`, entityId: entity.id })
         toast(`"${entity.title}" — done.`, { duration: 4000 })
       }
 
@@ -51,6 +53,7 @@ export function useCelebrations() {
           typeof entity.metadata?.progress === 'number'
             ? entity.metadata.progress
             : 100
+        lyraLog({ level: 'celebration', source: 'celebration', message: `Goal "${entity.title}" complete at ${progress}%`, entityId: entity.id })
         toast(`Goal "${entity.title}" complete. ${progress}%.`, {
           duration: 6000,
         })
@@ -68,6 +71,7 @@ export function useCelebrations() {
         ).length
 
         if (currentCount > prevCount && MILESTONES.includes(streak)) {
+          lyraLog({ level: 'celebration', source: 'celebration', message: `"${entity.title}" hit ${streak}-day streak`, entityId: entity.id })
           toast(`"${entity.title}" — ${streak}-day streak. That's real.`, {
             duration: 6000,
           })
