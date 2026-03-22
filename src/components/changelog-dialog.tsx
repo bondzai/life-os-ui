@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Sparkles, Plus, Pencil, FileCode2, ChevronDown, ChevronRight, Tag } from 'lucide-react'
+import { Sparkles, Plus, Pencil, FileCode2, ChevronDown, ChevronRight, Tag, Rocket, Wrench } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -20,12 +20,14 @@ interface ChangelogDialogProps {
 const sectionIcon: Record<string, React.ReactNode> = {
   Added: <Plus className="h-3.5 w-3.5" />,
   Changed: <Pencil className="h-3.5 w-3.5" />,
+  Architecture: <Wrench className="h-3.5 w-3.5" />,
   'New Files': <FileCode2 className="h-3.5 w-3.5" />,
 }
 
 const sectionColor: Record<string, string> = {
   Added: 'text-green-500',
   Changed: 'text-blue-500',
+  Architecture: 'text-amber-500',
   'New Files': 'text-purple-500',
 }
 
@@ -69,6 +71,12 @@ export function ChangelogDialog({ open, onOpenChange }: ChangelogDialogProps) {
               <Tag className="h-3 w-3" />
               v{APP_VERSION}
             </Badge>
+            {CHANGELOG[0]?.codename && (
+              <Badge variant="secondary" className="text-xs px-2 py-0.5 gap-1">
+                <Rocket className="h-3 w-3" />
+                {CHANGELOG[0].codename}
+              </Badge>
+            )}
             <span className="text-xs text-muted-foreground">
               {CHANGELOG[0]?.phase}
             </span>
@@ -111,11 +119,22 @@ export function ChangelogDialog({ open, onOpenChange }: ChangelogDialogProps) {
                             Latest
                           </Badge>
                         )}
+                        {release.codename && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 gap-0.5">
+                            <Rocket className="h-2.5 w-2.5" />
+                            {release.codename}
+                          </Badge>
+                        )}
                         <span className="text-xs text-muted-foreground ml-auto shrink-0">
                           {formatDate(release.date)}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{release.phase}</p>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {release.phase}
+                        {release.tag && (
+                          <span className="text-muted-foreground/40 ml-1.5 font-mono">#{release.tag}</span>
+                        )}
+                      </p>
                     </div>
                   </button>
 

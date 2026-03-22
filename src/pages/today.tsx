@@ -873,7 +873,7 @@ export function TodayPage() {
 
         {/* ═══ RIGHT — Schedule + Command Center (5/12) ═══ */}
         <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-5 scrollbar-thin">
-          {/* Lyra AI — JARVIS interface */}
+          {/* Lyra AI */}
           <LyraAI />
 
           {/* Morning Brief + Goal Cascade */}

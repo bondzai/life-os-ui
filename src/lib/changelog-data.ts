@@ -9,6 +9,8 @@ interface ChangelogRelease {
   version: string
   date: string
   phase: string
+  codename?: string
+  tag?: string
   sections: ChangelogSection[]
 }
 
@@ -16,12 +18,14 @@ export const CHANGELOG: ChangelogRelease[] = [
   {
     version: '1.0.0',
     date: '2026-03-22',
-    phase: 'Lyra AI — JARVIS',
+    phase: 'Lyra AI',
+    codename: 'Trident',
+    tag: 'trident',
     sections: [
       {
         title: 'Added',
         items: [
-          '**Lyra AI panel**: JARVIS-like AI interface on Focus page — auto-generates greeting from your data, shows AI status (online/offline), quick ask input with streaming responses',
+          '**Lyra AI panel**: AI interface on Focus page — auto-generates greeting from your data, shows AI status (online/offline), quick ask input with streaming responses',
           '**Morning Brief**: Algorithmic signal detection engine with 8 detectors — streak risk, stale projects, budget warnings, sleep drops, energy patterns, decision reviews, achievements, velocity changes',
           '**10 signal detectors**: Modular pure-function architecture (src/hooks/brief-detectors/) — each detector returns typed Insight[] for both UI rendering and future AI context',
           '**AI health monitoring**: Real-time Ollama connectivity check with 30s polling, graceful online/offline transitions',
@@ -55,7 +59,9 @@ export const CHANGELOG: ChangelogRelease[] = [
   {
     version: '0.66.0',
     date: '2026-03-21',
-    phase: 'The Chrollo Release — Strategic Arsenal',
+    phase: 'Strategic Arsenal',
+    codename: 'Tomahawk',
+    tag: 'tomahawk',
     sections: [
       {
         title: 'Added',
