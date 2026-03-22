@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react'
-import { Plus, MessageSquare, Trash2 } from 'lucide-react'
+import { Plus, MessageSquare, Trash2, Sparkles } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -7,6 +7,7 @@ import { useAIChat } from '@/core/hooks/use-ai-chat'
 import { useChatStore } from '@/stores/chat-store'
 import { promptTemplates } from '@/core/ai/prompt-templates'
 import { ChatInput } from '@/pages/ai/chat-input'
+import { Markdown } from '@/core/components/markdown'
 
 export function LyraChat() {
   const { activeConversation, isLoading, sendMessage } = useAIChat()
@@ -20,11 +21,14 @@ export function LyraChat() {
   const messages = activeConversation?.messages ?? []
 
   // Auto-scroll to bottom on new messages
+  const lastContent = messages[messages.length - 1]?.content
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [messages.length, messages[messages.length - 1]?.content])
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      }
+    })
+  }, [messages.length, lastContent])
 
   const handleSend = (content: string) => {
     sendMessage(content)
@@ -99,19 +103,32 @@ export function LyraChat() {
               </p>
             </div>
           ) : (
-            messages.map((msg) => (
+            messages.filter((msg) => msg.role !== 'system').map((msg) => (
               <div
                 key={msg.id}
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
+                  className={`max-w-[80%] rounded-lg px-3 py-2 ${
                     msg.role === 'user'
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-foreground'
                   }`}
                 >
-                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                  {msg.role === 'user' ? (
+                    <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-primary shrink-0 mt-1" />
+                      <div className="min-w-0 flex-1">
+                        {msg.content ? (
+                          <Markdown content={msg.content} className="text-sm" />
+                        ) : (
+                          <span className="text-xs text-muted-foreground animate-pulse">Thinking...</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <p
                     className={`text-[10px] mt-1 ${
                       msg.role === 'user'

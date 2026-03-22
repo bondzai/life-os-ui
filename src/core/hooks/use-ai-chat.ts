@@ -6,8 +6,10 @@ import type { ChatCompletionMessage } from '@/core/types/ai'
 
 export function useAIChat() {
   const [isLoading, setIsLoading] = useState(false)
-  const config = useAIStore((s) => s.config)
-  const isConfigured = useAIStore((s) => s.isConfigured)
+  const storeConfig = useAIStore((s) => s.config)
+  const OLLAMA_FALLBACK = { provider: 'ollama' as const, endpoint: 'http://localhost:11434/v1', model: 'llama3.2:3b', apiKey: '', contextWindow: 8192 }
+  const config = storeConfig.endpoint && storeConfig.model ? storeConfig : OLLAMA_FALLBACK
+  const isConfigured = !!(config.endpoint && config.model)
 
   const conversations = useChatStore((s) => s.conversations)
   const activeConversationId = useChatStore((s) => s.activeConversationId)
