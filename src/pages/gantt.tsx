@@ -1,7 +1,8 @@
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router'
-import { GanttChart } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Gantt, ViewMode, type Task } from 'gantt-task-react'
+import 'gantt-task-react/dist/index.css'
+import { GanttChart as GanttIcon } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -11,60 +12,21 @@ import {
 } from '@/components/ui/select'
 import { EmptyState } from '@/core/components/empty-state'
 import { useEntities, useRelations } from '@/core/hooks'
-import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
+import type { Entity } from '@/core/types'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+/* ─── Types ─── */
 
-type ZoomLevel = 'day' | 'week' | 'month'
 type GroupBy = 'project' | 'goal' | 'none'
 
-interface GanttRow {
-  id: string
-  label: string
-  type: 'project' | 'goal' | 'task'
-  indent: number
-  startDate: string
-  endDate: string
-  status: EntityStatus
-  priority: EntityPriority
-  progress: number
-  dependencies: string[]
-}
+const VIEW_MODES: { label: string; value: ViewMode }[] = [
+  { label: 'Day', value: ViewMode.Day },
+  { label: 'Week', value: ViewMode.Week },
+  { label: 'Month', value: ViewMode.Month },
+]
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+/* ─── Status → color ─── */
 
-function daysBetween(a: string, b: string): number {
-  const msPerDay = 86_400_000
-  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / msPerDay)
-}
-
-function dateToX(date: string, startDate: string, dayWidth: number): number {
-  return daysBetween(startDate, date) * dayWidth
-}
-
-function addDays(date: string, days: number): string {
-  const d = new Date(date)
-  d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
-}
-
-function startOfDay(iso: string): string {
-  return new Date(iso).toISOString().slice(0, 10)
-}
-
-function getWeekNumber(d: Date): number {
-  const target = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-  const dayNr = (target.getUTCDay() + 6) % 7
-  target.setUTCDate(target.getUTCDate() - dayNr + 3)
-  const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4))
-  return 1 + Math.round((target.getTime() - firstThursday.getTime()) / 604_800_000)
-}
-
-const STATUS_COLORS: Record<EntityStatus, string> = {
+const statusColor: Record<string, string> = {
   todo: '#3b82f6',
   'in-progress': '#f59e0b',
   done: '#10b981',
@@ -72,593 +34,269 @@ const STATUS_COLORS: Record<EntityStatus, string> = {
   archived: '#6b7280',
 }
 
-const ZOOM_CONFIG: Record<ZoomLevel, { dayWidth: number }> = {
-  day: { dayWidth: 40 },
-  week: { dayWidth: 20 },
-  month: { dayWidth: 6 },
+const statusProgress: Record<string, number> = {
+  todo: 0,
+  'in-progress': 50,
+  done: 100,
+  backlog: 0,
+  archived: 100,
 }
 
-const ROW_HEIGHT = 36
-const BAR_HEIGHT = 20
-const HEADER_BAR_HEIGHT = 24
-const LEFT_PANEL_WIDTH = 220
-const HEADER_HEIGHT = 48
+/* ─── Helpers ─── */
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+function safeDate(dateStr: string | undefined, fallback: Date): Date {
+  if (!dateStr) return fallback
+  const d = new Date(dateStr)
+  return isNaN(d.getTime()) ? fallback : d
+}
+
+function endOfDay(d: Date): Date {
+  const r = new Date(d)
+  r.setHours(23, 59, 59, 999)
+  return r
+}
+
+function addDays(d: Date, n: number): Date {
+  const r = new Date(d)
+  r.setDate(r.getDate() + n)
+  return r
+}
+
+/* ─── Page ─── */
 
 export function GanttPage() {
+  const { items: entities } = useEntities()
+  const { items: relations } = useRelations()
   const navigate = useNavigate()
-  const { items: allEntities, isLoading } = useEntities()
-  const { items: allRelations } = useRelations()
 
-  const [zoom, setZoom] = useState<ZoomLevel>('week')
+  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week)
   const [groupBy, setGroupBy] = useState<GroupBy>('project')
-  const [tooltip, setTooltip] = useState<{
-    row: GanttRow
-    x: number
-    y: number
-  } | null>(null)
 
-  const timelineRef = useRef<HTMLDivElement>(null)
+  const tasks = useMemo((): Task[] => {
+    const now = new Date()
+    const result: Task[] = []
 
-  // Build entities maps
-  const { projects, goals, tasks } = useMemo(() => {
-    const projects: Entity[] = []
-    const goals: Entity[] = []
-    const tasks: Entity[] = []
-    for (const e of allEntities) {
-      if (e.type === 'project') projects.push(e)
-      else if (e.type === 'goal') goals.push(e)
-      else if (e.type === 'task') tasks.push(e)
+    const allTasks = entities.filter(
+      (e) => e.type === 'task' && e.status !== 'archived',
+    )
+    const allProjects = entities.filter(
+      (e) => e.type === 'project' && e.status !== 'archived',
+    )
+    const allGoals = entities.filter(
+      (e) => e.type === 'goal' && e.status !== 'archived',
+    )
+
+    // Build dependency map from 'blocks' relations
+    const deps = new Map<string, string[]>()
+    for (const r of relations) {
+      if (r.type === 'blocks') {
+        const existing = deps.get(r.toId) ?? []
+        existing.push(r.fromId)
+        deps.set(r.toId, existing)
+      }
     }
-    return { projects, goals, tasks }
-  }, [allEntities])
 
-  // Blocking relations
-  const blockingRelations = useMemo(
-    () => allRelations.filter((r) => r.type === 'blocks'),
-    [allRelations],
-  )
+    function entityToTask(e: Entity, project?: string): Task {
+      const start = safeDate(e.createdAt, now)
+      const end = e.dueDate ? endOfDay(safeDate(e.dueDate, addDays(start, 7))) : endOfDay(addDays(start, 7))
+      // Ensure end > start
+      const safeEnd = end.getTime() <= start.getTime() ? endOfDay(addDays(start, 1)) : end
 
-  // Build GanttRows
-  const rows = useMemo((): GanttRow[] => {
-    const result: GanttRow[] = []
+      return {
+        id: e.id,
+        name: e.title,
+        start,
+        end: safeEnd,
+        progress: statusProgress[e.status] ?? 0,
+        type: 'task',
+        project,
+        dependencies: deps.get(e.id) ?? [],
+        styles: {
+          backgroundColor: statusColor[e.status] ?? '#3b82f6',
+          backgroundSelectedColor: statusColor[e.status] ?? '#3b82f6',
+          progressColor: '#ffffff40',
+          progressSelectedColor: '#ffffff60',
+        },
+      }
+    }
 
-    const taskDeps = (taskId: string): string[] =>
-      blockingRelations.filter((r) => r.toId === taskId).map((r) => r.fromId)
+    function groupToTask(e: Entity, type: 'project'): Task {
+      // Find date range from children
+      const children = allTasks.filter((t) =>
+        type === 'project' ? t.metadata?.projectId === e.id : t.metadata?.goalId === e.id,
+      )
+      const start = safeDate(e.createdAt, now)
+      const childEnds = children
+        .map((c) => (c.dueDate ? safeDate(c.dueDate, start) : addDays(start, 14)))
+        .filter((d) => !isNaN(d.getTime()))
+      const end = childEnds.length > 0
+        ? endOfDay(new Date(Math.max(...childEnds.map((d) => d.getTime()))))
+        : endOfDay(addDays(start, 30))
+      const safeEnd = end.getTime() <= start.getTime() ? endOfDay(addDays(start, 7)) : end
 
-    const toRow = (e: Entity, type: GanttRow['type'], indent: number): GanttRow => ({
-      id: e.id,
-      label: e.title,
-      type,
-      indent,
-      startDate: startOfDay(e.createdAt),
-      endDate: e.dueDate ? startOfDay(e.dueDate) : startOfDay(e.updatedAt),
-      status: e.status,
-      priority: e.priority,
-      progress:
-        e.status === 'done'
-          ? 100
-          : e.status === 'in-progress'
-            ? typeof e.metadata.progress === 'number'
-              ? (e.metadata.progress as number)
-              : 50
-            : 0,
-      dependencies: taskDeps(e.id),
-    })
+      const doneCount = children.filter((c) => c.status === 'done').length
+      const progress = children.length > 0 ? Math.round((doneCount / children.length) * 100) : 0
+
+      return {
+        id: e.id,
+        name: e.title,
+        start,
+        end: safeEnd,
+        progress,
+        type: 'project',
+        hideChildren: false,
+        styles: {
+          backgroundColor: statusColor[e.status] ?? '#6366f1',
+          backgroundSelectedColor: statusColor[e.status] ?? '#6366f1',
+          progressColor: '#ffffff40',
+          progressSelectedColor: '#ffffff60',
+        },
+      }
+    }
 
     if (groupBy === 'project') {
-      // Group tasks by project
-      const projectTaskMap = new Map<string, Entity[]>()
-      const ungrouped: Entity[] = []
-      for (const t of tasks) {
-        const pid = t.metadata.projectId as string | undefined
-        if (pid) {
-          const list = projectTaskMap.get(pid) ?? []
-          list.push(t)
-          projectTaskMap.set(pid, list)
-        } else {
-          ungrouped.push(t)
+      for (const project of allProjects) {
+        result.push(groupToTask(project, 'project'))
+        const projectTasks = allTasks.filter((t) => t.metadata?.projectId === project.id)
+        for (const t of projectTasks) {
+          result.push(entityToTask(t, project.id))
         }
       }
-
-      for (const p of projects) {
-        result.push(toRow(p, 'project', 0))
-        const pTasks = projectTaskMap.get(p.id) ?? []
-        pTasks.sort(
-          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-        )
-        for (const t of pTasks) {
-          result.push(toRow(t, 'task', 1))
-        }
-      }
-
-      // Ungrouped tasks with dates
-      for (const t of ungrouped) {
-        if (t.dueDate || t.createdAt) {
-          result.push(toRow(t, 'task', 0))
+      // Orphan tasks (no project)
+      const orphans = allTasks.filter(
+        (t) => !t.metadata?.projectId || !allProjects.some((p) => p.id === t.metadata?.projectId),
+      )
+      if (orphans.length > 0) {
+        result.push({
+          id: '__orphan__',
+          name: 'Ungrouped',
+          start: now,
+          end: endOfDay(addDays(now, 30)),
+          progress: 0,
+          type: 'project',
+          hideChildren: false,
+          styles: { backgroundColor: '#6b7280', backgroundSelectedColor: '#6b7280' },
+        })
+        for (const t of orphans) {
+          result.push(entityToTask(t, '__orphan__'))
         }
       }
     } else if (groupBy === 'goal') {
-      const goalTaskMap = new Map<string, Entity[]>()
-      const ungrouped: Entity[] = []
-      for (const t of tasks) {
-        const gid = t.metadata.goalId as string | undefined
-        if (gid) {
-          const list = goalTaskMap.get(gid) ?? []
-          list.push(t)
-          goalTaskMap.set(gid, list)
-        } else {
-          ungrouped.push(t)
+      for (const goal of allGoals) {
+        result.push(groupToTask(goal, 'project'))
+        const goalTasks = allTasks.filter((t) => t.metadata?.goalId === goal.id)
+        for (const t of goalTasks) {
+          result.push(entityToTask(t, goal.id))
         }
       }
-
-      for (const g of goals) {
-        if (g.parentId) continue // skip sub-goals as top-level
-        result.push(toRow(g, 'goal', 0))
-        const gTasks = goalTaskMap.get(g.id) ?? []
-        gTasks.sort(
-          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-        )
-        for (const t of gTasks) {
-          result.push(toRow(t, 'task', 1))
-        }
-      }
-
-      for (const t of ungrouped) {
-        if (t.dueDate || t.createdAt) {
-          result.push(toRow(t, 'task', 0))
+      const orphans = allTasks.filter(
+        (t) => !t.metadata?.goalId || !allGoals.some((g) => g.id === t.metadata?.goalId),
+      )
+      if (orphans.length > 0) {
+        result.push({
+          id: '__orphan__',
+          name: 'Ungrouped',
+          start: now,
+          end: endOfDay(addDays(now, 30)),
+          progress: 0,
+          type: 'project',
+          hideChildren: false,
+          styles: { backgroundColor: '#6b7280', backgroundSelectedColor: '#6b7280' },
+        })
+        for (const t of orphans) {
+          result.push(entityToTask(t, '__orphan__'))
         }
       }
     } else {
-      // Flat list
-      const allTasks = [...tasks].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      )
-      for (const t of allTasks) {
-        if (t.dueDate || t.createdAt) {
-          result.push(toRow(t, 'task', 0))
-        }
+      // Flat: all tasks sorted by date
+      const sorted = [...allTasks].sort((a, b) => {
+        const da = a.dueDate ?? a.createdAt
+        const db = b.dueDate ?? b.createdAt
+        return da.localeCompare(db)
+      })
+      for (const t of sorted) {
+        result.push(entityToTask(t))
       }
     }
 
     return result
-  }, [tasks, projects, goals, blockingRelations, groupBy])
+  }, [entities, relations, groupBy])
 
-  // Time range
-  const { timelineStart, totalDays } = useMemo(() => {
-    if (rows.length === 0)
-      return { timelineStart: startOfDay(new Date().toISOString()), timelineEnd: addDays(new Date().toISOString(), 30), totalDays: 30 }
-
-    let earliest = rows[0].startDate
-    let latest = rows[0].endDate
-    for (const r of rows) {
-      if (r.startDate < earliest) earliest = r.startDate
-      if (r.endDate > latest) latest = r.endDate
-    }
-    // Add buffer
-    earliest = addDays(earliest, -7)
-    latest = addDays(latest, 14)
-
-    const today = startOfDay(new Date().toISOString())
-    if (today > latest) latest = addDays(today, 14)
-    if (today < earliest) earliest = addDays(today, -7)
-
-    return {
-      timelineStart: earliest,
-      timelineEnd: latest,
-      totalDays: Math.max(daysBetween(earliest, latest), 30),
-    }
-  }, [rows])
-
-  const { dayWidth } = ZOOM_CONFIG[zoom]
-  const timelineWidth = totalDays * dayWidth
-
-  // Build row position map for dependency arrows
-  const rowIndexMap = useMemo(() => {
-    const map = new Map<string, number>()
-    rows.forEach((r, i) => map.set(r.id, i))
-    return map
-  }, [rows])
-
-  // Grid lines & labels
-  const gridLines = useMemo(() => {
-    const lines: { x: number; label: string; isMajor: boolean }[] = []
-    const start = new Date(timelineStart)
-
-    if (zoom === 'day') {
-      for (let d = 0; d <= totalDays; d++) {
-        const current = new Date(start)
-        current.setDate(current.getDate() + d)
-        const x = d * dayWidth
-        const isMajor = current.getDay() === 1 // Monday
-        const label = current.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        lines.push({ x, label: isMajor || d % 2 === 0 ? label : '', isMajor })
-      }
-    } else if (zoom === 'week') {
-      for (let d = 0; d <= totalDays; d++) {
-        const current = new Date(start)
-        current.setDate(current.getDate() + d)
-        if (current.getDay() === 1 || d === 0) {
-          const x = d * dayWidth
-          const wk = getWeekNumber(current)
-          const label = `${current.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-          lines.push({ x, label: `W${wk} ${label}`, isMajor: current.getDate() <= 7 })
-        }
-      }
-    } else {
-      // month
-      for (let d = 0; d <= totalDays; d++) {
-        const current = new Date(start)
-        current.setDate(current.getDate() + d)
-        if (current.getDate() === 1 || d === 0) {
-          const x = d * dayWidth
-          const label = current.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-          lines.push({ x, label, isMajor: true })
-        }
-      }
-    }
-
-    return lines
-  }, [timelineStart, totalDays, dayWidth, zoom])
-
-  // Today x position
-  const todayX = useMemo(
-    () => dateToX(startOfDay(new Date().toISOString()), timelineStart, dayWidth),
-    [timelineStart, dayWidth],
-  )
-
-  // Navigation
-  const handleRowClick = useCallback(
-    (row: GanttRow) => {
-      if (row.type === 'task') navigate(`/tasks?id=${row.id}`)
-      else if (row.type === 'goal') navigate(`/goals?id=${row.id}`)
-      else if (row.type === 'project') navigate(`/projects?id=${row.id}`)
-    },
-    [navigate],
-  )
-
-  // Tooltip handlers
-  const handleBarMouseEnter = useCallback(
-    (row: GanttRow, e: React.MouseEvent) => {
-      const rect = timelineRef.current?.getBoundingClientRect()
-      if (!rect) return
-      setTooltip({
-        row,
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      })
-    },
-    [],
-  )
-
-  const handleBarMouseLeave = useCallback(() => {
-    setTooltip(null)
-  }, [])
-
-  if (isLoading) {
-    return <div className="p-4 text-muted-foreground">Loading...</div>
+  const handleClick = (task: Task) => {
+    if (task.id === '__orphan__') return
+    const entity = entities.find((e) => e.id === task.id)
+    if (!entity) return
+    if (entity.type === 'project') navigate(`/projects?id=${entity.id}`)
+    else if (entity.type === 'goal') navigate(`/goals?id=${entity.id}`)
+    else navigate(`/tasks?id=${entity.id}`)
   }
 
-  if (rows.length === 0) {
+  if (tasks.length === 0) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold">Gantt Chart</h1>
-        </div>
+      <div className="p-8">
         <EmptyState
-          icon={GanttChart}
+          icon={GanttIcon}
           title="No timeline data"
-          description="Create projects, goals, or tasks with dates to see them on the timeline."
+          description="Create tasks with due dates to see your timeline."
         />
       </div>
     )
   }
 
-  const contentHeight = rows.length * ROW_HEIGHT
-
   return (
-    <div className="space-y-4">
-      {/* Header controls */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-lg font-semibold">Gantt Chart</h1>
+    <div className="h-[calc(100vh-5rem)] flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
+          <GanttIcon className="h-5 w-5 text-muted-foreground" />
+          Timeline
+        </h1>
         <div className="flex items-center gap-2">
-          {/* Zoom controls */}
-          <div className="flex items-center rounded-md border">
-            {(['day', 'week', 'month'] as ZoomLevel[]).map((level) => (
-              <Button
-                key={level}
-                size="sm"
-                variant={zoom === level ? 'default' : 'ghost'}
-                className="h-7 px-3 text-xs capitalize rounded-none first:rounded-l-md last:rounded-r-md"
-                onClick={() => setZoom(level)}
+          {/* View mode */}
+          <div className="inline-flex items-center rounded-lg bg-muted p-0.5">
+            {VIEW_MODES.map((vm) => (
+              <button
+                key={vm.value}
+                onClick={() => setViewMode(vm.value)}
+                className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  viewMode === vm.value
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
-                {level}
-              </Button>
+                {vm.label}
+              </button>
             ))}
           </div>
-
           {/* Group by */}
           <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
-            <SelectTrigger className="w-[140px] h-8">
-              <SelectValue placeholder="Group by" />
+            <SelectTrigger className="w-[130px] h-8 text-xs">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="project">Project</SelectItem>
-              <SelectItem value="goal">Goal</SelectItem>
-              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="project">By Project</SelectItem>
+              <SelectItem value="goal">By Goal</SelectItem>
+              <SelectItem value="none">Flat</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
       {/* Gantt chart */}
-      <div className="border rounded-lg overflow-hidden bg-card">
-        <div className="flex">
-          {/* Left panel */}
-          <div
-            className="shrink-0 border-r bg-muted/30"
-            style={{ width: LEFT_PANEL_WIDTH }}
-          >
-            {/* Left header */}
-            <div
-              className="border-b px-3 flex items-center text-xs font-medium text-muted-foreground"
-              style={{ height: HEADER_HEIGHT }}
-            >
-              Name
-            </div>
-            {/* Left rows */}
-            <div className="overflow-y-auto" style={{ maxHeight: `calc(100vh - 200px)` }}>
-              {rows.map((row) => (
-                <div
-                  key={row.id}
-                  className="flex items-center border-b border-border/20 px-3 cursor-pointer hover:bg-accent/50 transition-colors"
-                  style={{ height: ROW_HEIGHT, paddingLeft: 12 + row.indent * 16 }}
-                  onClick={() => handleRowClick(row)}
-                >
-                  <span
-                    className={`text-xs truncate ${
-                      row.type !== 'task'
-                        ? 'font-semibold text-foreground'
-                        : 'text-muted-foreground'
-                    }`}
-                  >
-                    {row.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Right panel: timeline */}
-          <div
-            ref={timelineRef}
-            className="flex-1 overflow-x-auto overflow-y-auto relative"
-            style={{ maxHeight: `calc(100vh - 200px)` }}
-          >
-            {/* Timeline header */}
-            <div
-              className="sticky top-0 z-10 bg-muted/60 backdrop-blur border-b"
-              style={{ height: HEADER_HEIGHT, width: timelineWidth }}
-            >
-              <svg width={timelineWidth} height={HEADER_HEIGHT}>
-                {gridLines.map((line, i) =>
-                  line.label ? (
-                    <text
-                      key={i}
-                      x={line.x + 4}
-                      y={32}
-                      className={`text-[10px] ${
-                        line.isMajor
-                          ? 'fill-foreground font-medium'
-                          : 'fill-muted-foreground'
-                      }`}
-                    >
-                      {line.label}
-                    </text>
-                  ) : null,
-                )}
-              </svg>
-            </div>
-
-            {/* Timeline body */}
-            <div style={{ width: timelineWidth, height: contentHeight }} className="relative">
-              <svg width={timelineWidth} height={contentHeight} className="absolute inset-0">
-                {/* Grid lines */}
-                {gridLines.map((line, i) => (
-                  <line
-                    key={`gl-${i}`}
-                    x1={line.x}
-                    y1={0}
-                    x2={line.x}
-                    y2={contentHeight}
-                    className={
-                      line.isMajor
-                        ? 'stroke-border/40'
-                        : 'stroke-border/20'
-                    }
-                    strokeWidth={1}
-                  />
-                ))}
-
-                {/* Row backgrounds (alternating) */}
-                {rows.map((_, i) =>
-                  i % 2 === 1 ? (
-                    <rect
-                      key={`rb-${i}`}
-                      x={0}
-                      y={i * ROW_HEIGHT}
-                      width={timelineWidth}
-                      height={ROW_HEIGHT}
-                      className="fill-muted/20"
-                    />
-                  ) : null,
-                )}
-
-                {/* Today line */}
-                {todayX > 0 && todayX < timelineWidth && (
-                  <line
-                    x1={todayX}
-                    y1={0}
-                    x2={todayX}
-                    y2={contentHeight}
-                    stroke="#ef4444"
-                    strokeWidth={1.5}
-                    strokeDasharray="6 4"
-                  />
-                )}
-
-                {/* Dependency arrows */}
-                {rows.map((row) =>
-                  row.dependencies.map((depId) => {
-                    const fromIdx = rowIndexMap.get(depId)
-                    const toIdx = rowIndexMap.get(row.id)
-                    if (fromIdx === undefined || toIdx === undefined) return null
-                    const fromRow = rows[fromIdx]
-
-                    const fromX = dateToX(fromRow.endDate, timelineStart, dayWidth)
-                    const fromY = fromIdx * ROW_HEIGHT + ROW_HEIGHT / 2
-                    const toX = dateToX(row.startDate, timelineStart, dayWidth)
-                    const toY = toIdx * ROW_HEIGHT + ROW_HEIGHT / 2
-
-                    // Draw an L-shaped or curved path
-                    const midX = fromX + 10
-                    const path = `M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${toY} L ${toX} ${toY}`
-
-                    return (
-                      <g key={`dep-${depId}-${row.id}`}>
-                        <path
-                          d={path}
-                          fill="none"
-                          className="stroke-muted-foreground/50"
-                          strokeWidth={1.5}
-                        />
-                        {/* Arrow head */}
-                        <polygon
-                          points={`${toX},${toY} ${toX - 5},${toY - 3} ${toX - 5},${toY + 3}`}
-                          className="fill-muted-foreground/50"
-                        />
-                      </g>
-                    )
-                  }),
-                )}
-
-                {/* Bars */}
-                {rows.map((row, i) => {
-                  const x = dateToX(row.startDate, timelineStart, dayWidth)
-                  const barWidth = Math.max(
-                    dateToX(row.endDate, timelineStart, dayWidth) - x,
-                    dayWidth * 0.5,
-                  )
-                  const isHeader = row.type !== 'task'
-                  const barH = isHeader ? HEADER_BAR_HEIGHT : BAR_HEIGHT
-                  const y = i * ROW_HEIGHT + (ROW_HEIGHT - barH) / 2
-                  const color = STATUS_COLORS[row.status]
-
-                  return (
-                    <g
-                      key={`bar-${row.id}`}
-                      className="cursor-pointer"
-                      onClick={() => handleRowClick(row)}
-                      onMouseEnter={(e) => handleBarMouseEnter(row, e)}
-                      onMouseLeave={handleBarMouseLeave}
-                    >
-                      {/* Background bar */}
-                      <rect
-                        x={x}
-                        y={y}
-                        width={barWidth}
-                        height={barH}
-                        rx={4}
-                        fill={color}
-                        opacity={isHeader ? 0.35 : 0.25}
-                      />
-                      {/* Progress fill */}
-                      {row.progress > 0 && (
-                        <rect
-                          x={x}
-                          y={y}
-                          width={barWidth * (row.progress / 100)}
-                          height={barH}
-                          rx={4}
-                          fill={color}
-                          opacity={isHeader ? 0.6 : 0.85}
-                        />
-                      )}
-                      {/* Border */}
-                      <rect
-                        x={x}
-                        y={y}
-                        width={barWidth}
-                        height={barH}
-                        rx={4}
-                        fill="none"
-                        stroke={color}
-                        strokeWidth={1}
-                        opacity={0.6}
-                      />
-                      {/* Label on bar if wide enough */}
-                      {barWidth > 60 && (
-                        <text
-                          x={x + 6}
-                          y={y + barH / 2 + 4}
-                          className="fill-foreground text-[10px] pointer-events-none"
-                        >
-                          {row.label.length > barWidth / 7
-                            ? row.label.slice(0, Math.floor(barWidth / 7)) + '...'
-                            : row.label}
-                        </text>
-                      )}
-                    </g>
-                  )
-                })}
-
-                {/* Today label */}
-                {todayX > 0 && todayX < timelineWidth && (
-                  <text x={todayX + 4} y={14} className="fill-red-500 text-[10px] font-medium">
-                    today
-                  </text>
-                )}
-              </svg>
-
-              {/* Tooltip */}
-              {tooltip && (
-                <div
-                  className="absolute z-20 pointer-events-none bg-popover border rounded-md shadow-md px-3 py-2 text-xs space-y-1"
-                  style={{
-                    left: Math.min(tooltip.x + 12, timelineWidth - 200),
-                    top: tooltip.y - 60,
-                  }}
-                >
-                  <div className="font-medium text-foreground">{tooltip.row.label}</div>
-                  <div className="text-muted-foreground capitalize">
-                    Status:{' '}
-                    <span
-                      className="font-medium"
-                      style={{ color: STATUS_COLORS[tooltip.row.status] }}
-                    >
-                      {tooltip.row.status}
-                    </span>
-                  </div>
-                  <div className="text-muted-foreground capitalize">
-                    Priority: {tooltip.row.priority}
-                  </div>
-                  <div className="text-muted-foreground">
-                    {new Date(tooltip.row.startDate).toLocaleDateString()} &mdash;{' '}
-                    {new Date(tooltip.row.endDate).toLocaleDateString()}
-                  </div>
-                  {tooltip.row.progress > 0 && (
-                    <div className="text-muted-foreground">
-                      Progress: {tooltip.row.progress}%
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      <div className="flex-1 overflow-auto">
+        <Gantt
+          tasks={tasks}
+          viewMode={viewMode}
+          onClick={handleClick}
+          listCellWidth=""
+          columnWidth={viewMode === ViewMode.Day ? 60 : viewMode === ViewMode.Week ? 150 : 300}
+          barCornerRadius={4}
+          barFill={60}
+          fontSize="12"
+          rowHeight={40}
+          headerHeight={50}
+          todayColor="rgba(239, 68, 68, 0.08)"
+        />
       </div>
     </div>
   )
