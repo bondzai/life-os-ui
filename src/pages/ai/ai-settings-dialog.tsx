@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,84 @@ import type { AIProvider } from '@/core/types/ai'
 interface AISettingsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+}
+
+/* ─── Model Selector ─── */
+
+function ModelSelector({
+  provider,
+  endpoint,
+  model,
+  onModelChange,
+}: {
+  provider: string
+  endpoint: string
+  model: string
+  onModelChange: (model: string) => void
+}) {
+  const [models, setModels] = useState<string[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const fetchModels = useCallback(async () => {
+    if (provider !== 'ollama') {
+      setModels([])
+      return
+    }
+    setLoading(true)
+    try {
+      const baseUrl = (endpoint || 'http://localhost:11434/v1').replace(/\/v1$/, '')
+      const res = await fetch(`${baseUrl}/api/tags`, { signal: AbortSignal.timeout(3000) })
+      if (res.ok) {
+        const data = await res.json()
+        const names = (data.models as Array<{ name: string }>)?.map((m) => m.name) ?? []
+        setModels(names)
+      }
+    } catch { /* silent */ }
+    finally { setLoading(false) }
+  }, [provider, endpoint])
+
+  useEffect(() => { fetchModels() }, [fetchModels])
+
+  // Ollama with models available — show dropdown
+  if (provider === 'ollama' && models.length > 0) {
+    return (
+      <div className="space-y-2">
+        <Label>Model</Label>
+        <Select value={model} onValueChange={onModelChange}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select model" />
+          </SelectTrigger>
+          <SelectContent>
+            {models.map((m) => (
+              <SelectItem key={m} value={m}>{m}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[10px] text-muted-foreground">
+          {models.length} model{models.length !== 1 ? 's' : ''} installed
+          {' · '}
+          <button onClick={fetchModels} className="text-primary hover:underline">refresh</button>
+        </p>
+      </div>
+    )
+  }
+
+  // Other providers or Ollama offline — text input
+  return (
+    <div className="space-y-2">
+      <Label>Model</Label>
+      <Input
+        value={model}
+        onChange={(e) => onModelChange(e.target.value)}
+        placeholder={provider === 'ollama' ? 'qwen3:4b' : 'gpt-4o-mini'}
+      />
+      {provider === 'ollama' && !loading && models.length === 0 && (
+        <p className="text-[10px] text-muted-foreground/50">
+          Ollama offline — type model name manually or start Ollama
+        </p>
+      )}
+    </div>
+  )
 }
 
 export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) {
@@ -108,14 +186,12 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Model</Label>
-              <Input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="gpt-4o-mini"
-              />
-            </div>
+            <ModelSelector
+              provider={provider}
+              endpoint={endpoint}
+              model={model}
+              onModelChange={setModel}
+            />
 
             <div className="space-y-2">
               <Label>API Key</Label>
