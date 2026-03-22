@@ -16,6 +16,31 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '2.2.0',
+    date: '2026-03-22',
+    phase: 'Lyra Foresight',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Threat Radar**: Predictive intelligence — budget overspend projection, streak break probability, deadline miss forecast, sleep crash prediction',
+          '**Connection Engine**: AI finds non-obvious links across knowledge, skills, and problems — "Your rate limiting notes solve the API task"',
+          '**Scenario Simulator**: 3 timelines per project/goal — optimistic, realistic, pessimistic with projected dates and risk levels',
+          '**Foresight tab**: Dashboard tab combining Threats + Connections + Scenarios in one predictive view',
+          '**find-connections AI tool**: 12 tools total',
+          '**detect-threats detector**: 9 detectors total',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Dashboard**: 4 tabs — Overview, Strategy, Foresight, Focus Log',
+          '**Morning Brief**: Now includes predictive threat insights alongside reactive signals',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.1.0',
     date: '2026-03-22',
     phase: 'Lyra Memory',

@@ -40,6 +40,7 @@ import { calcFocusStats, formatMinutes as fmtMin } from '@/lib/focus-stats'
 import { loadHealthProfile, calcBMI, getBMICategory } from '@/lib/health-calc'
 import { FocusLog } from './dashboard/focus-log'
 import { StrategyTab } from './dashboard/strategy-tab'
+import { ForesightTab } from './dashboard/foresight-tab'
 import { useDashboardLayout } from './dashboard/use-dashboard-layout'
 import { DynamicGrid } from './dashboard/dynamic-grid'
 import './dashboard/widgets' // triggers widget registration
@@ -384,6 +385,7 @@ export function DashboardPage() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="strategy">Strategy</TabsTrigger>
             <TabsTrigger value="focus">Focus Log</TabsTrigger>
+            <TabsTrigger value="foresight">Foresight</TabsTrigger>
           </TabsList>
         </Tabs>
       </header>
@@ -797,6 +799,10 @@ export function DashboardPage() {
           </button>
           {focusLogOpen && <FocusLog />}
         </div>
+      </TabsContent>
+
+      <TabsContent value="foresight" className="mt-0 pb-8">
+        <ForesightTab />
       </TabsContent>
 
       </Tabs>

@@ -9,6 +9,7 @@ import {
   detectDecisionReview,
   detectAchievements,
   detectVelocity,
+  detectThreats,
   type Insight,
   type DetectorContext,
 } from './brief-detectors'
@@ -23,6 +24,7 @@ const DETECTORS = [
   detectDecisionReview,  // decisions
   detectAchievements,    // milestones
   detectVelocity,        // project velocity changes
+  detectThreats,         // future threat predictions
 ]
 
 export function useMorningBrief(): Insight[] {
