@@ -14,6 +14,45 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '1.0.0',
+    date: '2026-03-22',
+    phase: 'Lyra AI — JARVIS',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Lyra AI panel**: JARVIS-like AI interface on Focus page — auto-generates greeting from your data, shows AI status (online/offline), quick ask input with streaming responses',
+          '**Morning Brief**: Algorithmic signal detection engine with 8 detectors — streak risk, stale projects, budget warnings, sleep drops, energy patterns, decision reviews, achievements, velocity changes',
+          '**10 signal detectors**: Modular pure-function architecture (src/hooks/brief-detectors/) — each detector returns typed Insight[] for both UI rendering and future AI context',
+          '**AI health monitoring**: Real-time Ollama connectivity check with 30s polling, graceful online/offline transitions',
+          '**AI Brief Summary**: Auto-generates natural language summary from algorithmic insights via local Ollama (Llama 3.2)',
+          '**Quick Ask**: Type questions directly on Focus page, get streaming AI responses with full app context',
+          '**4 new prompt templates**: What to Focus On, Project Health Check, Habit Coach, Life Balance Check',
+          '**Ollama integration**: Local LLM (llama3.2:3b) as default provider — zero cloud dependency, data stays private',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Focus page right sidebar**: Redesigned — Lyra AI panel at top, algorithmic Brief below, Goal Cascade, then Schedule',
+          '**Brief deduplication**: Removed overdue tasks and goal risk from Brief (already visible in Focus picker). Brief now shows only cross-domain signals (habits, projects, wealth, health, decisions)',
+          '**Removed duplicate sections**: Energy check-in, Highest Leverage, System Health removed from sidebar — replaced by Brief detectors and AI summary',
+          '**Default AI model**: Updated from llama3 to llama3.2:3b',
+          '**AI health check**: No longer depends on isConfigured flag — always attempts Ollama connection with fallback defaults',
+          '**Graceful degradation**: AI offline = algorithmic fallback with status hint. No broken states, no errors.',
+        ],
+      },
+      {
+        title: 'Architecture',
+        items: [
+          '**Signal → Formatter → Renderer pipeline**: Detectors produce Insight[], same data feeds both bullet UI and AI summary. Future AI just receives pre-computed signals.',
+          '**AI-ready data contract**: Insight type with severity, category, data payload — designed for LLM context injection',
+          '**Provider-agnostic**: Swap Ollama for OpenAI/Claude/Groq by changing one config. Same AIClient, same prompts.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.66.0',
     date: '2026-03-21',
     phase: 'The Chrollo Release — Strategic Arsenal',

@@ -85,3 +85,31 @@ export function buildDailyBriefPrompt(context: EntityContext): string {
     'and one motivational note. Keep it under 200 words.'
   )
 }
+
+/* ─── Insight-aware prompts (for Morning Brief AI summary) ─── */
+
+export interface BriefInsight {
+  type: string
+  category: string
+  severity: number
+  title: string
+  data: Record<string, unknown>
+}
+
+export function buildBriefSummaryPrompt(insights: BriefInsight[]): string {
+  const today = new Date().toISOString().split('T')[0]
+  const insightLines = insights.map((i) => `- [${i.type}/${i.category}] ${i.title}`).join('\n')
+
+  return [
+    `You are a concise personal assistant. Today is ${today}.`,
+    'The user\'s life OS has detected these signals:',
+    '',
+    insightLines,
+    '',
+    'Write a brief 2-3 sentence summary in a direct, personal tone.',
+    'Address the user as "you". Prioritize the most critical items.',
+    'Be specific — mention names, numbers, and streaks.',
+    'Do NOT use bullet points. Write flowing prose.',
+    'Keep it under 60 words.',
+  ].join('\n')
+}

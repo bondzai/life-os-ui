@@ -28,22 +28,11 @@ import {
   ArrowDown,
   Minus,
   Calendar,
-  Zap,
-  Activity,
-  Lock,
-  AlertTriangle,
-  Heart,
-  Wallet,
-  GraduationCap,
-  MapPin,
-  Users,
-  type LucideIcon,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Badge } from '@/components/ui/badge'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useICalEvents } from '@/hooks/use-ical-events'
 import { useAuthStore } from '@/stores/auth-store'
@@ -60,13 +49,9 @@ import {
   FocusTabBar,
   FavoriteTabContent,
 } from './today/focus-favorites'
-import {
-  useCommandCenter,
-  type CascadeNode,
-  type DomainStatus,
-} from './command-center/use-command-center'
-import { EnergyCheckin } from './today/energy-checkin'
-import { PriorityBadge } from '@/core/components/priority-badge'
+import { useCommandCenter } from './command-center/use-command-center'
+import { MorningBrief } from './today/morning-brief'
+import { LyraAI } from './today/lyra-ai'
 import type { Entity } from '@/core/types'
 
 function isProtocol(habit: Entity): boolean {
@@ -311,52 +296,6 @@ const FocusStory = memo(function FocusStory({
   )
 })
 
-/* ─── Command Center components ─── */
-
-const domainIcons: Record<string, LucideIcon> = {
-  health: Heart, wealth: Wallet, learning: GraduationCap, travel: MapPin, family: Users,
-}
-const statusDot: Record<DomainStatus, string> = {
-  green: 'bg-emerald-500', yellow: 'bg-amber-500', red: 'bg-red-500',
-}
-
-function CascadeRow({ node, topBlockedId, depth = 0 }: { node: CascadeNode; topBlockedId: string | null; depth?: number }) {
-  const [open, setOpen] = useState(depth < 1)
-  const navigate = useNavigate()
-  const hasKids = node.subGoals.length > 0 || node.linkedTasks.length > 0
-  const isTop = node.goal.id === topBlockedId
-  return (
-    <div className={depth > 0 ? 'ml-4 border-l border-border/40 pl-3' : ''}>
-      <div className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-sm hover:bg-muted/40 transition-colors ${isTop ? 'bg-red-500/5' : ''}`}>
-        <button onClick={() => setOpen(!open)} className="shrink-0 text-muted-foreground/50">
-          {hasKids ? (open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />) : <span className="inline-block h-3 w-3" />}
-        </button>
-        <button onClick={() => navigate(`/goals?id=${node.goal.id}`)} className="truncate flex-1 text-left hover:underline text-xs">
-          {node.goal.title}
-        </button>
-        {isTop && <Badge variant="destructive" className="text-[8px] px-1 py-0 leading-tight">BOTTLENECK</Badge>}
-        {node.isBlocked && <Lock className="h-3 w-3 text-red-500 shrink-0" />}
-        {node.isStale && <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />}
-        <Progress value={node.progress} className="h-1 w-12 shrink-0" />
-        <span className="text-[10px] tabular-nums text-muted-foreground w-6 text-right shrink-0">{node.progress}%</span>
-      </div>
-      {open && (
-        <>
-          {node.subGoals.map((sg) => <CascadeRow key={sg.goal.id} node={sg} topBlockedId={topBlockedId} depth={depth + 1} />)}
-          {node.linkedTasks.map((t) => (
-            <div key={t.id} className="ml-4 border-l border-border/30 pl-3">
-              <button onClick={() => navigate(`/tasks?id=${t.id}`)} className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors w-full text-left">
-                <span className="h-1 w-1 rounded-full bg-blue-500/60 shrink-0" />
-                <span className="truncate">{t.title}</span>
-              </button>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  )
-}
-
 export function TodayPage() {
   const { items: allEntities, update, create } = useEntities()
   const { items: allTrackers, create: createTracker, update: updateTracker } = useTrackers()
@@ -365,7 +304,7 @@ export function TodayPage() {
   const navigate = useNavigate()
   const displayName = currentUser?.name?.split(' ')[0] ?? 'there'
 
-  const { cascadeTree, domainHealth, topLeverageTasks, fallbackTasks, topBlockedGoal, stats } = useCommandCenter()
+  const { cascadeTree, topBlockedGoal, stats } = useCommandCenter()
 
   const hasActiveSession = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)
   const focusSecondsLeft = useFocusStore((s) => s.secondsLeft)
@@ -934,14 +873,11 @@ export function TodayPage() {
 
         {/* ═══ RIGHT — Schedule + Command Center (5/12) ═══ */}
         <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-5 scrollbar-thin">
-          {/* Energy Check-in */}
-          <section>
-            <SH>
-              <Zap className="h-3 w-3 inline mr-1.5 -mt-px" />
-              Energy
-            </SH>
-            <EnergyCheckin />
-          </section>
+          {/* Lyra AI — JARVIS interface */}
+          <LyraAI />
+
+          {/* Morning Brief + Goal Cascade */}
+          <MorningBrief cascadeTree={cascadeTree} topBlockedGoal={topBlockedGoal} stats={stats} />
 
           {/* Today's Schedule */}
           <section>
@@ -966,101 +902,6 @@ export function TodayPage() {
             )}
           </section>
 
-          {/* ─── Highest Leverage ─── */}
-          <section>
-            <SH>
-              <Zap className="h-3 w-3 inline mr-1.5 -mt-px" />
-              {topLeverageTasks.length > 0 ? 'Highest Leverage' : 'Top Priority'}
-            </SH>
-            {(topLeverageTasks.length > 0 ? topLeverageTasks : fallbackTasks).length === 0 ? (
-              <p className="text-xs text-muted-foreground/30">No tasks to prioritize.</p>
-            ) : topLeverageTasks.length > 0 ? (
-              <div className="space-y-1">
-                {topLeverageTasks.map((lt, i) => (
-                  <button
-                    key={lt.task.id}
-                    onClick={() => navigate(`/tasks?id=${lt.task.id}`)}
-                    className={`flex items-start gap-2 w-full rounded-md px-2 py-1.5 text-left hover:bg-muted/40 transition-colors ${i === 0 ? 'bg-amber-500/5' : ''}`}
-                  >
-                    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold mt-0.5 ${i === 0 ? 'bg-amber-500 text-white' : 'bg-muted text-muted-foreground'}`}>
-                      {i + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium truncate">{lt.task.title}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        Unblocks {lt.score} item{lt.score !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                    <PriorityBadge priority={lt.task.priority} />
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {fallbackTasks.map((task, i) => (
-                  <button
-                    key={task.id}
-                    onClick={() => navigate(`/tasks?id=${task.id}`)}
-                    className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-left hover:bg-muted/40 transition-colors"
-                  >
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-bold text-muted-foreground">{i + 1}</span>
-                    <span className="text-xs flex-1 truncate">{task.title}</span>
-                    <PriorityBadge priority={task.priority} />
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* ─── System Health ─── */}
-          <section>
-            <SH>
-              <Activity className="h-3 w-3 inline mr-1.5 -mt-px" />
-              System Health
-            </SH>
-            <div className="grid grid-cols-2 gap-1.5">
-              {domainHealth.map((d) => {
-                const Icon = domainIcons[d.id] ?? Activity
-                return (
-                  <button
-                    key={d.id}
-                    onClick={() => navigate(d.path)}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/40 transition-colors text-left"
-                  >
-                    <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <span className="text-xs flex-1 truncate">{d.label}</span>
-                    <span className={`h-2 w-2 rounded-full shrink-0 ${statusDot[d.status]}`} />
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-
-          {/* ─── Goal Cascade ─── */}
-          {cascadeTree.length > 0 && (
-            <section>
-              <Collapsible>
-                <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer mb-2">
-                  <ChevronRight className="h-3 w-3 transition-transform [[data-state=open]>&]:rotate-90" />
-                  <Target className="h-3 w-3 inline -mt-px" />
-                  Goal Cascade
-                  {stats.blockedGoals > 0 && (
-                    <span className="text-red-500 font-normal normal-case tracking-normal ml-1">{stats.blockedGoals} blocked</span>
-                  )}
-                  {stats.staleGoals > 0 && (
-                    <span className="text-amber-500 font-normal normal-case tracking-normal ml-1">{stats.staleGoals} stale</span>
-                  )}
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="space-y-0.5">
-                    {cascadeTree.map((node) => (
-                      <CascadeRow key={node.goal.id} node={node} topBlockedId={topBlockedGoal?.goal.id ?? null} />
-                    ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            </section>
-          )}
 
           <div className="pb-6" />
         </aside>
