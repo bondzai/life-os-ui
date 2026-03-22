@@ -14,6 +14,7 @@ import {
   GitBranch,
   CalendarPlus,
   FolderKanban,
+  GanttChart,
   Zap,
   Sparkles,
   type LucideIcon,
@@ -47,6 +48,7 @@ export const modules: ModuleConfig[] = [
   // Plan — strategic tools & review cycles
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Plan', entityTypes: ['task'] },
   { id: 'projects', label: 'Projects', icon: FolderKanban, path: '/projects', group: 'Plan', entityTypes: ['project'] },
+  { id: 'gantt', label: 'Timeline', icon: GanttChart, path: '/gantt', group: 'Plan', entityTypes: [] },
   {
     id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Plan', entityTypes: ['event'],
     children: [

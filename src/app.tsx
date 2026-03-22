@@ -34,6 +34,7 @@ const NoteMapPage = lazy(() => import('@/pages/note-map').then((m) => ({ default
 const EventsPage = lazy(() => import('@/pages/events').then((m) => ({ default: m.EventsPage })))
 const ProjectsPage = lazy(() => import('@/pages/projects').then((m) => ({ default: m.ProjectsPage })))
 const SkillsPage = lazy(() => import('@/pages/skills').then((m) => ({ default: m.SkillsPage })))
+const GanttPage = lazy(() => import('@/pages/gantt').then((m) => ({ default: m.GanttPage })))
 const TestLoaderPage = lazy(() => import('@/pages/test-loader').then((m) => ({ default: m.TestLoaderPage })))
 const LyraPage = lazy(() => import('@/pages/lyra').then((m) => ({ default: m.LyraPage })))
 
@@ -61,6 +62,7 @@ export function App() {
                 <Route element={<AppLayout />}>
                   <Route index element={<TodayPage />} />
                   <Route path="projects" element={<ProjectsPage />} />
+                  <Route path="gantt" element={<GanttPage />} />
                   <Route path="goals" element={<GoalsPage />} />
                   <Route path="goal-map" element={<GoalMapPage />} />
                   <Route path="tasks" element={<TasksPage />} />
