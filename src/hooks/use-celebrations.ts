@@ -2,17 +2,21 @@ import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { lyraLog } from '@/stores/lyra-log-store'
+import { useAIStore } from '@/stores/ai-store'
 
 const MILESTONES = [7, 30, 90, 180, 365]
 
 export function useCelebrations() {
   const { items: entities } = useEntities()
   const { items: trackers } = useTrackers()
+  const notificationLevel = useAIStore((s) => s.notificationLevel)
   const prevEntities = useRef(new Map<string, string>()) // id → status
   const prevTrackerCount = useRef(new Map<string, number>()) // entityId → count
   const initialized = useRef(false)
 
   useEffect(() => {
+    if (notificationLevel === 'off') return
+
     // Skip first render (don't toast on page load)
     if (!initialized.current) {
       // Initialize snapshots
@@ -81,5 +85,5 @@ export function useCelebrations() {
 
       prevEntities.current.set(entity.id, entity.status)
     }
-  }, [entities, trackers])
+  }, [entities, trackers, notificationLevel])
 }

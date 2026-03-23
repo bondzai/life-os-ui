@@ -54,6 +54,8 @@ const DEFAULT_CONFIGS: Record<AIProvider, AIConfig> = {
   },
 }
 
+export type NotificationLevel = 'full' | 'minimal' | 'off'
+
 interface AIState {
   config: AIConfig
   isConfigured: boolean
@@ -61,10 +63,13 @@ interface AIState {
   customSystemPrompt: string
   /** User's long-term vision. Lyra considers this in strategic recommendations. */
   vision: string
+  /** Controls proactive notifications: full = all, minimal = critical only, off = silent */
+  notificationLevel: NotificationLevel
   setConfig: (config: AIConfig) => void
   switchProvider: (provider: AIProvider) => void
   setCustomSystemPrompt: (prompt: string) => void
   setVision: (vision: string) => void
+  setNotificationLevel: (level: NotificationLevel) => void
   resetConfig: () => void
 }
 
@@ -75,6 +80,7 @@ export const useAIStore = create<AIState>()(
       isConfigured: false,
       customSystemPrompt: '',
       vision: '',
+      notificationLevel: 'full',
       setConfig: (config) =>
         set({ config, isConfigured: !!config.endpoint && !!config.model }),
       switchProvider: (provider) => {
@@ -83,7 +89,8 @@ export const useAIStore = create<AIState>()(
       },
       setCustomSystemPrompt: (prompt) => set({ customSystemPrompt: prompt }),
       setVision: (vision) => set({ vision }),
-      resetConfig: () => set({ config: DEFAULT_CONFIGS.ollama, isConfigured: false, customSystemPrompt: '', vision: '' }),
+      setNotificationLevel: (level) => set({ notificationLevel: level }),
+      resetConfig: () => set({ config: DEFAULT_CONFIGS.ollama, isConfigured: false, customSystemPrompt: '', vision: '', notificationLevel: 'full' }),
     }),
     { name: 'lyra:ai' },
   ),

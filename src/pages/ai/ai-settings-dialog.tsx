@@ -114,10 +114,12 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
   const config = useAIStore((s) => s.config)
   const customSystemPrompt = useAIStore((s) => s.customSystemPrompt)
   const vision = useAIStore((s) => s.vision)
+  const notificationLevel = useAIStore((s) => s.notificationLevel)
   const setConfig = useAIStore((s) => s.setConfig)
   const switchProvider = useAIStore((s) => s.switchProvider)
   const setCustomSystemPrompt = useAIStore((s) => s.setCustomSystemPrompt)
   const setVision = useAIStore((s) => s.setVision)
+  const setNotificationLevel = useAIStore((s) => s.setNotificationLevel)
 
   const [provider, setProvider] = useState<AIProvider>(config.provider)
   const [endpoint, setEndpoint] = useState(config.endpoint)
@@ -126,6 +128,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
   const [contextWindow, setContextWindow] = useState(config.contextWindow)
   const [promptDraft, setPromptDraft] = useState(customSystemPrompt)
   const [visionDraft, setVisionDraft] = useState(vision)
+  const [notifDraft, setNotifDraft] = useState(notificationLevel)
 
   useEffect(() => {
     setProvider(config.provider)
@@ -135,7 +138,8 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
     setContextWindow(config.contextWindow)
     setPromptDraft(customSystemPrompt)
     setVisionDraft(vision)
-  }, [config, customSystemPrompt, vision, open])
+    setNotifDraft(notificationLevel)
+  }, [config, customSystemPrompt, vision, notificationLevel, open])
 
   const handleProviderChange = (value: string) => {
     const p = value as AIProvider
@@ -152,6 +156,7 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
     setConfig({ provider, endpoint, model, apiKey, contextWindow })
     setCustomSystemPrompt(promptDraft)
     setVision(visionDraft)
+    setNotificationLevel(notifDraft)
     onOpenChange(false)
   }
 
@@ -219,6 +224,23 @@ export function AISettingsDialog({ open, onOpenChange }: AISettingsDialogProps) 
                 value={contextWindow}
                 onChange={(e) => setContextWindow(Number(e.target.value))}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Proactive Notifications</Label>
+              <Select value={notifDraft} onValueChange={(v) => setNotifDraft(v as typeof notifDraft)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="full">Full — all insights, celebrations, session summaries</SelectItem>
+                  <SelectItem value="minimal">Minimal — critical alerts only</SelectItem>
+                  <SelectItem value="off">Off — no proactive notifications</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Controls Lyra Pulse, celebrations, and session toasts. Chat and tools are always available.
+              </p>
             </div>
           </TabsContent>
 

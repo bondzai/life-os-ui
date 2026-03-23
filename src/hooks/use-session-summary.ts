@@ -2,8 +2,10 @@ import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useFocusStore } from '@/stores/focus-store'
 import { useEntities, useTrackers } from '@/core/hooks'
+import { useAIStore } from '@/stores/ai-store'
 
 export function useSessionSummary() {
+  const notificationLevel = useAIStore((s) => s.notificationLevel)
   const phase = useFocusStore((s) => s.phase)
   const completedSessions = useFocusStore((s) => s.completedSessions)
   const entityIds = useFocusStore((s) => s.emperorEntityIds)
@@ -14,6 +16,7 @@ export function useSessionSummary() {
   useEffect(() => {
     // Detect work → break transition
     if (
+      notificationLevel !== 'off' &&
       prevPhase.current === 'work' &&
       (phase === 'break' || phase === 'long-break')
     ) {
@@ -68,5 +71,5 @@ export function useSessionSummary() {
       toast(parts.join(' '), { duration: 6000 })
     }
     prevPhase.current = phase
-  }, [phase, completedSessions, entityIds, entities, trackers])
+  }, [phase, completedSessions, entityIds, entities, trackers, notificationLevel])
 }
