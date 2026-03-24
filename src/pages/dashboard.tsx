@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
+import { useMemo, useState } from 'react'
 import {
   BarChart3,
   Briefcase,
@@ -17,7 +17,6 @@ import {
   Zap,
   Crown,
   ChevronDown,
-  Sparkles,
   Shuffle,
 } from 'lucide-react'
 import {
@@ -29,18 +28,15 @@ import {
   Tooltip,
 } from 'recharts'
 import { Card } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useEntities, useTrackers } from '@/core/hooks'
-import { useAI } from '@/hooks/use-ai'
 import { calcFocusStats, formatMinutes as fmtMin } from '@/lib/focus-stats'
 import { loadHealthProfile, calcBMI, getBMICategory } from '@/lib/health-calc'
 import { FocusLog } from './dashboard/focus-log'
 import { StrategyTab } from './dashboard/strategy-tab'
-import { ForesightTab } from './dashboard/foresight-tab'
 import { useDashboardLayout } from './dashboard/use-dashboard-layout'
 import { DynamicGrid } from './dashboard/dynamic-grid'
 import './dashboard/widgets' // triggers widget registration
@@ -158,39 +154,6 @@ export function DashboardPage() {
   // Dynamic widget layout
   const layout = useDashboardLayout()
 
-  // Dashboard mode: rules (algorithmic) or lyra (AI-curated)
-  const [dashMode, setDashMode] = useState<'rules' | 'lyra'>(() => {
-    try { return (localStorage.getItem('lyra:dashboard-mode') as 'rules' | 'lyra') ?? 'rules' } catch { return 'rules' }
-  })
-  const handleModeChange = (mode: 'rules' | 'lyra') => {
-    setDashMode(mode)
-    try { localStorage.setItem('lyra:dashboard-mode', mode) } catch { /* noop */ }
-    if (mode === 'lyra' && isOnline) generateAILayout()
-  }
-
-  // AI summary + AI layout
-  const { run, isOnline } = useAI()
-  const [aiDashSummary, setAiDashSummary] = useState<string | null>(null)
-  const aiSummaryFetched = useRef(false)
-
-  // AI-curated layout: ask Lyra for dashboard summary
-  const generateAILayout = useCallback(async () => {
-    if (!isOnline) return
-    try {
-      const response = await run('suggest-focus')
-      setAiDashSummary(response)
-    } catch { /* silent */ }
-  }, [isOnline, run])
-
-  useEffect(() => {
-    if (!isOnline || aiSummaryFetched.current) return
-    aiSummaryFetched.current = true
-    run('suggest-focus')
-      .then((result) => setAiDashSummary(result))
-      .catch(() => {
-        // fall back to algorithmic summary below
-      })
-  }, [isOnline, run])
 
   // Filter entities by workspace
   const filteredEntities = useMemo(() => {
@@ -213,8 +176,7 @@ export function DashboardPage() {
 
   // ─── Filtered entities by type ───
   const tasks = useMemo(() => filteredEntities.filter((e) => e.type === 'task'), [filteredEntities])
-  const habits = useMemo(() => filteredEntities.filter((e) => e.type === 'habit' && e.status === 'todo' && !e.metadata.isProtocol), [filteredEntities])
-  const protocols = useMemo(() => filteredEntities.filter((e) => e.type === 'habit' && e.status === 'todo' && e.metadata.isProtocol === true), [filteredEntities])
+  const habits = useMemo(() => filteredEntities.filter((e) => e.type === 'habit' && e.status === 'todo'), [filteredEntities])
   const goals = useMemo(() => filteredEntities.filter((e) => e.type === 'goal' && e.status === 'todo'), [filteredEntities])
   const sleepEntities = useMemo(() => filteredEntities.filter((e) => e.type === 'sleep-mood'), [filteredEntities])
   const workouts = useMemo(() => filteredEntities.filter((e) => e.type === 'workout'), [filteredEntities])
@@ -224,7 +186,6 @@ export function DashboardPage() {
   const tasksLastWeek = useMemo(() => tasks.filter((t) => t.status === 'done' && t.updatedAt >= lastWeekISO && t.updatedAt < thisWeekISO).length, [tasks, lastWeekISO, thisWeekISO])
   const habitRate = useMemo(() => computeCheckInRate(habits, filteredTrackers, thisWeekStart, now), [habits, filteredTrackers, thisWeekStart, now])
   const habitRateLast = useMemo(() => computeCheckInRate(habits, filteredTrackers, lastWeekStart, thisWeekStart), [habits, filteredTrackers, lastWeekStart, thisWeekStart])
-  const protocolRate = useMemo(() => computeCheckInRate(protocols, filteredTrackers, thisWeekStart, now), [protocols, filteredTrackers, thisWeekStart, now])
   const avgSleepThisWeek = useMemo(() => computeAvgSleep(sleepEntities, thisWeekISO), [sleepEntities, thisWeekISO])
   const avgSleepLastWeek = useMemo(() => computeAvgSleep(sleepEntities, lastWeekISO, thisWeekISO), [sleepEntities, lastWeekISO, thisWeekISO])
   const activeMinThisWeek = useMemo(() => computeActiveMinutes(workouts, thisWeekISO), [workouts, thisWeekISO])
@@ -313,20 +274,14 @@ export function DashboardPage() {
     ]
   }, [tasksThisWeek, tasksLastWeek, habitRate, focusScoreRaw, goalProgressAvg, avgSleepThisWeek, activeMinThisWeek, now, thisWeekStart])
 
-  // ─── Protocol streaks ───
-  const protocolStreaks = useMemo(
-    () => protocols.map((p) => ({ id: p.id, name: p.title, streak: typeof p.metadata.streak === 'number' ? (p.metadata.streak as number) : 0 })).sort((a, b) => b.streak - a.streak),
-    [protocols],
-  )
-
   // ─── Activity heatmap ───
   const heatmapDays = useMemo(() => getLast90Days(), [])
   const heatmapData = useMemo(() => {
-    const allHabitIds = new Set([...habits.map((h) => h.id), ...protocols.map((p) => p.id)])
+    const allHabitIds = new Set(habits.map((h) => h.id))
     const m = new Map<string, number>()
     for (const t of filteredTrackers) { if (allHabitIds.has(t.entityId)) { const d = t.timestamp.split('T')[0]; m.set(d, (m.get(d) ?? 0) + 1) } }
     return m
-  }, [habits, protocols, filteredTrackers])
+  }, [habits, filteredTrackers])
   const maxHeatmapValue = useMemo(() => { let max = 1; for (const v of heatmapData.values()) { if (v > max) max = v }; return max }, [heatmapData])
   const totalCheckIns = useMemo(() => Array.from(heatmapData.values()).reduce((a, b) => a + b, 0), [heatmapData])
 
@@ -348,14 +303,13 @@ export function DashboardPage() {
     const taskDiff = tasksThisWeek - tasksLastWeek
     parts.push(`${tasksThisWeek} tasks done${tasksLastWeek > 0 ? ` (${taskDiff >= 0 ? '+' : ''}${taskDiff})` : ''}.`)
     parts.push(`Habits: ${habitRate}%. Focus: ${fmtMin(focusStats.thisWeekMinutes)} (${focusStats.streak}d streak).`)
-    if (protocolRate > 0) parts.push(`Protocols: ${protocolRate}%.`)
     if (avgSleepThisWeek > 0) parts.push(`Sleep: ${avgSleepThisWeek}h avg.`)
     if (activeMinThisWeek > 0) parts.push(`Active: ${activeMinThisWeek}min.`)
     if (bmiInfo) parts.push(`BMI: ${bmiInfo.bmi} (${bmiInfo.category}).`)
     if (goalProgressAvg > 0) parts.push(`Goals: ${goalProgressAvg}%.`)
     parts.push(`Score: ${lifeScore}/100.`)
     return parts.join(' ')
-  }, [tasksThisWeek, tasksLastWeek, habitRate, protocolRate, avgSleepThisWeek, activeMinThisWeek, bmiInfo, goalProgressAvg, lifeScore, focusStats])
+  }, [tasksThisWeek, tasksLastWeek, habitRate, avgSleepThisWeek, activeMinThisWeek, bmiInfo, goalProgressAvg, lifeScore, focusStats])
 
   // ─── Trend cards ───
   const trendCards = [
@@ -385,7 +339,6 @@ export function DashboardPage() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="strategy">Strategy</TabsTrigger>
             <TabsTrigger value="focus">Focus Log</TabsTrigger>
-            <TabsTrigger value="foresight">Foresight</TabsTrigger>
           </TabsList>
         </Tabs>
       </header>
@@ -419,53 +372,14 @@ export function DashboardPage() {
         <div className="shrink-0 pb-4 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary/70" />
-              Lyra&apos;s Dashboard
+              <Zap className="h-4 w-4 text-primary/70" />
+              Signals
             </h2>
-            <div className="flex items-center gap-2">
-              {/* Mode toggle */}
-              <div className="inline-flex items-center rounded-lg bg-muted p-0.5">
-                <button
-                  onClick={() => handleModeChange('rules')}
-                  className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                    dashMode === 'rules' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <Zap className="h-3 w-3" />
-                  Rules
-                </button>
-                <button
-                  onClick={() => handleModeChange('lyra')}
-                  className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                    dashMode === 'lyra'
-                      ? 'bg-background text-foreground shadow-sm'
-                      : isOnline
-                        ? 'text-muted-foreground hover:text-foreground'
-                        : 'text-muted-foreground/30 cursor-not-allowed'
-                  }`}
-                  disabled={!isOnline}
-                  title={!isOnline ? 'Lyra is offline — start Ollama' : 'AI-curated dashboard'}
-                >
-                  <Brain className="h-3 w-3" />
-                  Lyra
-                </button>
-              </div>
-              <Button variant="outline" size="sm" onClick={dashMode === 'lyra' ? generateAILayout : layout.shuffle} className="gap-1.5">
-                <Shuffle className="h-3.5 w-3.5" />
-                {dashMode === 'lyra' ? 'Regenerate' : 'Shuffle'}
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" onClick={layout.shuffle} className="gap-1.5">
+              <Shuffle className="h-3.5 w-3.5" />
+              Shuffle
+            </Button>
           </div>
-          {dashMode === 'lyra' && aiDashSummary ? (
-            <p className="text-sm text-foreground/80 leading-relaxed line-clamp-2 bg-primary/5 rounded-md px-3 py-2 border border-primary/10">
-              <Sparkles className="h-3 w-3 text-primary inline mr-1.5 -mt-0.5" />
-              {aiDashSummary}
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              {dashMode === 'rules' ? 'Rules mode' : 'Lyra mode'} · {layout.selectedWidgets.length} widgets active
-            </p>
-          )}
           <DynamicGrid
             widgets={layout.selectedWidgets}
             entities={allEntities}
@@ -712,24 +626,6 @@ export function DashboardPage() {
           </Card>
         </div>
 
-        {/* ── Row 6: Protocol Streaks ── */}
-        {protocolStreaks.length > 0 && (
-          <div>
-            <SH>Protocol Streaks</SH>
-            <Card className="p-4 space-y-3">
-              {protocolStreaks.map((p) => (
-                <div key={p.id} className="flex items-center gap-3">
-                  <span className="text-sm w-36 shrink-0 truncate">{p.name}</span>
-                  <div className="flex-1">
-                    <Progress value={Math.min((p.streak / 30) * 100, 100)} className="h-2" />
-                  </div>
-                  <span className="text-sm font-medium tabular-nums w-12 text-right">{p.streak}d</span>
-                </div>
-              ))}
-            </Card>
-          </div>
-        )}
-
         {/* ── Row 6: Activity Heatmap ── */}
         <div>
           <SH>Activity Heatmap — 90 Days</SH>
@@ -801,9 +697,6 @@ export function DashboardPage() {
         </div>
       </TabsContent>
 
-      <TabsContent value="foresight" className="mt-0 pb-8">
-        <ForesightTab />
-      </TabsContent>
 
       </Tabs>
     </div>

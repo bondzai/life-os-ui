@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { Sparkles, TrendingUp, TrendingDown, Minus, Wifi, WifiOff } from 'lucide-react'
+import { AlertTriangle, Sparkles, TrendingUp, TrendingDown, Minus, Wifi, WifiOff } from 'lucide-react'
 import { LyraLoader } from '@/components/lyra-loader'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -10,11 +10,13 @@ import { Markdown } from '@/core/components/markdown'
 import { useAI } from '@/hooks/use-ai'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useStrategicMoves, type StrategicMove } from '@/hooks/use-strategic-moves'
+import { useMorningBrief } from '@/hooks/use-morning-brief'
 import { webSearch, formatSearchResults } from '@/core/ai/web-search'
 import { AIClient } from '@/core/ai/ai-client'
 import { useAIStore } from '@/stores/ai-store'
 import { getSolPrefix } from '@/core/ai/soul'
 import { buildGlobalContext } from '@/core/ai/context'
+import { buildKnowledgeSignals } from '@/core/ai/tools/tool-helpers'
 
 /* ─── Constants ─── */
 
@@ -202,6 +204,8 @@ export function StrategyTab() {
   const { items: entities } = useEntities()
   const { items: trackers } = useTrackers()
   const { suggested, setMoves, acceptMove, passMove } = useStrategicMoves()
+  const insights = useMorningBrief()
+  const threats = useMemo(() => insights.filter((i) => i.id.startsWith('threat-')), [insights])
   const [loading, setLoading] = useState(false)
   const [scope, setScope] = useState<(typeof SCOPES)[number]>('Week')
   const [externalSignals, setExternalSignals] = useState<string | null>(null)
@@ -255,22 +259,8 @@ export function StrategyTab() {
       // 4. Build global context
       const globalCtx = buildGlobalContext(entities, trackers)
 
-      // 5. Build knowledge signals inline
-      const notes = entities.filter(e => e.type === 'note' && !e.metadata?.isInbox && e.status !== 'archived')
-      const ideas = notes.filter(n => n.tags.some(t => ['idea', 'spark'].includes(t)))
-      const unactioned = ideas.filter(i => i.status === 'todo')
-      const questions = notes.filter(n => n.tags.includes('question') && n.status !== 'done')
-      const tagCounts: Record<string, number> = {}
-      for (const n of notes) for (const t of n.tags) tagCounts[t] = (tagCounts[t] || 0) + 1
-      const topTags = Object.entries(tagCounts).sort(([,a],[,b]) => b - a).slice(0, 10)
-
-      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
-      const projectSummaries = projects.map(p => {
-        const tasks = entities.filter(e => e.type === 'task' && e.metadata?.projectId === p.id && e.status !== 'archived')
-        const doneThisWeek = tasks.filter(t => t.status === 'done' && t.updatedAt >= weekAgo).length
-        const remaining = tasks.filter(t => t.status !== 'done').length
-        return `- ${p.title} [${p.status}]: ${doneThisWeek}/wk, ${remaining} remaining`
-      }).join('\n')
+      // 5. Build knowledge signals using shared helper
+      const knowledgeSection = buildKnowledgeSignals(entities)
 
       // 6. Build full prompt
       const messages = [
@@ -296,16 +286,7 @@ export function StrategyTab() {
             '',
             '## Internal Data:',
             globalCtx,
-            '',
-            `Top themes: ${topTags.map(([t,c]) => `${t}(${c})`).join(', ')}`,
-            `Unactioned ideas: ${unactioned.length}`,
-            `Open questions: ${questions.length}`,
-            '',
-            '## Projects:',
-            projectSummaries,
-            '',
-            '## Goals:',
-            goals.map(g => `- ${g.title} [${g.priority}] ${typeof g.metadata?.progress === 'number' ? g.metadata.progress : 0}%${g.dueDate ? ` due:${g.dueDate}` : ''}`).join('\n'),
+            knowledgeSection,
             '',
             webContext ? `## Web Intelligence:\n${webContext}` : '',
           ].filter(Boolean).join('\n'),
@@ -314,7 +295,7 @@ export function StrategyTab() {
       ]
 
       // 7. Call AI
-      const FALLBACK = { provider: 'ollama' as const, endpoint: 'http://localhost:11434/v1', model: 'qwen3:4b', apiKey: '', contextWindow: 8192 }
+      const FALLBACK = { provider: 'ollama' as const, endpoint: 'http://localhost:11434/v1', model: 'llama3.2:1b', apiKey: '', contextWindow: 8192 }
       const storeConfig = useAIStore.getState().config
       const config = storeConfig.endpoint && storeConfig.model ? storeConfig : FALLBACK
       const client = new AIClient(config)
@@ -492,6 +473,44 @@ export function StrategyTab() {
           ))}
         </div>
       </div>
+
+      {/* Threats */}
+      {threats.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <SectionHeader>Threats</SectionHeader>
+            <Badge variant="secondary" className="text-[10px]">{threats.length}</Badge>
+          </div>
+          <div className="space-y-2">
+            {threats.map((threat) => (
+              <Card
+                key={threat.id}
+                className={`p-3 border ${threat.severity >= 3 ? 'border-red-500/40 bg-red-500/5' : threat.severity >= 2 ? 'border-amber-500/40 bg-amber-500/5' : 'border-border'}`}
+              >
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={threat.severity >= 3 ? 'destructive' : 'secondary'}
+                    className={`text-[10px] ${threat.severity >= 2 && threat.severity < 3 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30' : ''}`}
+                  >
+                    {threat.severity >= 3 ? 'Critical' : threat.severity >= 2 ? 'Important' : 'Info'}
+                  </Badge>
+                  <span className="text-sm font-medium">{threat.title}</span>
+                  {threat.actionLabel && threat.actionPath && (
+                    <Button variant="ghost" size="sm" className="shrink-0 text-xs ml-auto" asChild>
+                      <a href={threat.actionPath}>{threat.actionLabel}</a>
+                    </Button>
+                  )}
+                </div>
+                {threat.detail && (
+                  <p className="text-xs text-muted-foreground mt-1">{threat.detail}</p>
+                )}
+              </Card>
+            ))}
+          </div>
+          <Separator className="mt-6" />
+        </section>
+      )}
 
       {/* Section 1: Next Moves */}
       <section>

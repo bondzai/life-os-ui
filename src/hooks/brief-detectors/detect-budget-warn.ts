@@ -1,4 +1,5 @@
 import type { Detector, Insight } from './types'
+import { getMonthlySpending } from './utils'
 
 export const detectBudgetWarn: Detector = ({ entities, today }) => {
   const insights: Insight[] = []
@@ -6,26 +7,7 @@ export const detectBudgetWarn: Detector = ({ entities, today }) => {
   const budgets = entities.filter((e) => e.type === 'budget' && e.status !== 'archived')
   if (budgets.length === 0) return insights
 
-  // Current month transactions
-  const monthStart = today.slice(0, 7) + '-01'
-  const transactions = entities.filter(
-    (e) =>
-      e.type === 'transaction' &&
-      e.metadata.txType === 'expense' &&
-      ((e.metadata.date as string) || '') >= monthStart,
-  )
-
-  // Spent by category
-  const spentByCategory: Record<string, number> = {}
-  for (const tx of transactions) {
-    const cat = (tx.metadata.category as string) || 'other'
-    spentByCategory[cat] = (spentByCategory[cat] || 0) + ((tx.metadata.amount as number) || 0)
-  }
-
-  // Days remaining in month
-  const todayDate = new Date(today)
-  const daysInMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0).getDate()
-  const daysRemaining = daysInMonth - todayDate.getDate()
+  const { spentByCategory, daysLeft } = getMonthlySpending(entities, today)
 
   for (const budget of budgets) {
     const limit = (budget.metadata.amount as number) || 0
@@ -39,10 +21,10 @@ export const detectBudgetWarn: Detector = ({ entities, today }) => {
         type: 'warning',
         category: 'wealth',
         severity: pct >= 100 ? 3 : 2,
-        title: `"${budget.title}" budget at ${pct}% (${daysRemaining}d left)`,
+        title: `"${budget.title}" budget at ${pct}% (${daysLeft}d left)`,
         actionLabel: 'View',
         actionPath: '/wealth',
-        data: { budgetId: budget.id, pct, spent, limit, daysRemaining, category: cat },
+        data: { budgetId: budget.id, pct, spent, limit, daysRemaining: daysLeft, category: cat },
       })
     }
   }

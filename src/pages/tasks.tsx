@@ -702,8 +702,8 @@ export function TasksPage() {
           >
             <CheckSquare className="h-4 w-4 mr-1" /> Select
           </Button>
-          <Button size="sm" variant="outline" onClick={() => navigate('/report')}>
-            <ClipboardList className="h-4 w-4 mr-1" /> Report
+          <Button size="sm" variant="outline" onClick={() => navigate('/review')}>
+            <ClipboardList className="h-4 w-4 mr-1" /> Review
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

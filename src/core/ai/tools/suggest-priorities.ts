@@ -1,6 +1,7 @@
 import { registerTool, type AITool } from './registry'
 import { buildGlobalContext } from '../context'
 import { getSolPrefix } from '../soul'
+import { buildCandidateList } from './tool-helpers'
 
 const tool: AITool = {
   id: 'suggest-priorities',
@@ -10,20 +11,7 @@ const tool: AITool = {
   buildPrompt: ({ entities, trackers }) => {
     const today = new Date().toISOString().split('T')[0]
     const context = buildGlobalContext(entities, trackers)
-
-    // List available tasks/goals for selection
-    const candidates = entities
-      .filter(
-        (e) =>
-          (e.type === 'task' || e.type === 'goal') &&
-          (e.status === 'todo' || e.status === 'in-progress'),
-      )
-      .slice(0, 30)
-      .map(
-        (e) =>
-          `- [${e.id}] "${e.title}" [${e.type}/${e.priority}]${e.dueDate ? ` due:${e.dueDate}` : ''}`,
-      )
-      .join('\n')
+    const candidates = buildCandidateList(entities)
 
     return [
       {

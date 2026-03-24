@@ -12,11 +12,11 @@ function StaleProjects({ entities }: WidgetProps) {
     (e) => e.type === 'project' && e.status === 'in-progress',
   )
   const tasks = entities.filter(
-    (e) => e.type === 'task' && e.parentId,
+    (e) => e.type === 'task' && e.metadata?.projectId,
   )
 
   const stale = projects.filter((p) => {
-    const linked = tasks.filter((t) => t.parentId === p.id)
+    const linked = tasks.filter((t) => t.metadata?.projectId === p.id)
     if (linked.length === 0) return true
     const latest = Math.max(...linked.map((t) => new Date(t.updatedAt).getTime()))
     return latest < cutoff
@@ -58,9 +58,9 @@ registerWidget(
       const projects = entities.filter(
         (e) => e.type === 'project' && e.status === 'in-progress',
       )
-      const tasks = entities.filter((e) => e.type === 'task' && e.parentId)
+      const tasks = entities.filter((e) => e.type === 'task' && e.metadata?.projectId)
       const hasStale = projects.some((p) => {
-        const linked = tasks.filter((t) => t.parentId === p.id)
+        const linked = tasks.filter((t) => t.metadata?.projectId === p.id)
         if (linked.length === 0) return true
         const latest = Math.max(...linked.map((t) => new Date(t.updatedAt).getTime()))
         return latest < cutoff

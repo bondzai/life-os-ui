@@ -21,7 +21,7 @@ function ProjectVelocity({ entities }: WidgetProps) {
   const tasks = entities.filter((e) => e.type === 'task' && e.status === 'done')
 
   const projectData = projects.map((p) => {
-    const linked = tasks.filter((t) => t.parentId === p.id)
+    const linked = tasks.filter((t) => t.metadata?.projectId === p.id)
     const thisWeek = linked.filter(
       (t) => new Date(t.updatedAt) >= thisWeekStart,
     ).length
@@ -83,7 +83,7 @@ registerWidget(
       if (projects.length === 0) return null
       const tasks = entities.filter((e) => e.type === 'task' && e.status === 'done')
       const droppedToZero = projects.some((p) => {
-        const linked = tasks.filter((t) => t.parentId === p.id)
+        const linked = tasks.filter((t) => t.metadata?.projectId === p.id)
         return linked.filter((t) => new Date(t.updatedAt) >= thisWeekStart).length === 0
       })
       return droppedToZero ? 3 : 2

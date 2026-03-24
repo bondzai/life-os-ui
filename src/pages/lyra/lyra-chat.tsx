@@ -36,7 +36,7 @@ export function LyraChat() {
   }, [messages.length, lastContent])
 
   const storeConfig = useAIStore((s) => s.config)
-  const FALLBACK = { provider: 'ollama' as const, endpoint: 'http://localhost:11434/v1', model: 'qwen3:4b', apiKey: '', contextWindow: 8192 }
+  const FALLBACK = { provider: 'ollama' as const, endpoint: 'http://localhost:11434/v1', model: 'llama3.2:1b', apiKey: '', contextWindow: 8192 }
   const config = storeConfig.endpoint && storeConfig.model ? storeConfig : FALLBACK
 
   const handleWebSearch = useCallback(async (query: string) => {

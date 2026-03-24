@@ -21,7 +21,6 @@ const TravelPage = lazy(() => import('@/pages/places').then((m) => ({ default: m
 const WealthPage = lazy(() => import('@/pages/wealth').then((m) => ({ default: m.WealthPage })))
 const HealthPage = lazy(() => import('@/pages/health').then((m) => ({ default: m.HealthPage })))
 const FamilyPage = lazy(() => import('@/pages/family').then((m) => ({ default: m.FamilyPage })))
-const ReportPage = lazy(() => import('@/pages/report').then((m) => ({ default: m.ReportPage })))
 const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m.ReviewPage })))
 const DashboardPage = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.DashboardPage })))
 const NotificationsPage = lazy(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationsPage })))
@@ -76,7 +75,6 @@ export function App() {
                   <Route path="wealth" element={<WealthPage />} />
                   <Route path="travel" element={<TravelPage />} />
                   <Route path="family" element={<FamilyPage />} />
-                  <Route path="report" element={<ReportPage />} />
                   <Route path="review" element={<ReviewPage />} />
                   <Route path="sessions" element={<SessionsPage />} />
                   <Route path="inbox" element={<InboxPage />} />

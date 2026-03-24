@@ -1,6 +1,7 @@
 import { registerTool, type AITool } from './registry'
 import { getSolPrefix } from '../soul'
 import { buildGlobalContext } from '../context'
+import { buildKnowledgeSignals } from './tool-helpers'
 
 const tool: AITool = {
   id: 'strategic-moves',
@@ -9,69 +10,7 @@ const tool: AITool = {
   scope: 'global',
   buildPrompt: ({ entities, trackers }) => {
     const globalContext = buildGlobalContext(entities, trackers)
-
-    // Extract key knowledge signals from entities
-    const notes = entities.filter(
-      (e) => e.type === 'note' && !e.metadata?.isInbox && e.status !== 'archived',
-    )
-    const ideas = notes.filter((n) => n.tags.some((t) => ['idea', 'spark'].includes(t)))
-    const decisions = notes.filter((n) => n.metadata?.isDecision)
-    const questions = notes.filter((n) => n.tags.includes('question') && n.status !== 'done')
-    const projects = entities.filter((e) => e.type === 'project' && e.status !== 'archived')
-    const goals = entities.filter(
-      (e) => e.type === 'goal' && e.status !== 'done' && e.status !== 'archived',
-    )
-    const skills = entities.filter((e) => e.type === 'skill' && e.status !== 'archived')
-
-    // Unactioned ideas
-    const unactioned = ideas.filter((i) => i.status === 'todo')
-
-    // Tags frequency
-    const tagCounts: Record<string, number> = {}
-    for (const n of notes) for (const t of n.tags) tagCounts[t] = (tagCounts[t] || 0) + 1
-    const topTags = Object.entries(tagCounts)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-
-    // Project velocity
-    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
-    const projectSummaries = projects
-      .map((p) => {
-        const tasks = entities.filter(
-          (e) =>
-            e.type === 'task' && e.metadata?.projectId === p.id && e.status !== 'archived',
-        )
-        const doneThisWeek = tasks.filter(
-          (t) => t.status === 'done' && t.updatedAt >= weekAgo,
-        ).length
-        const remaining = tasks.filter((t) => t.status !== 'done').length
-        const projectNotes = notes.filter((n) =>
-          n.tags.some((t) => t.toLowerCase() === p.title.toLowerCase()),
-        )
-        return `- ${p.title} [${p.status}]: ${doneThisWeek}/wk velocity, ${remaining} remaining, ${projectNotes.length} notes`
-      })
-      .join('\n')
-
-    const knowledgeSection = [
-      `\n## Knowledge Signals:`,
-      `Top themes: ${topTags.map(([t, c]) => `${t}(${c})`).join(', ')}`,
-      `Unactioned ideas: ${unactioned.length} (${unactioned
-        .slice(0, 3)
-        .map((i) => `"${i.title}"`)
-        .join(', ')})`,
-      `Open questions: ${questions.length}`,
-      `Pending decisions: ${decisions.filter((d) => d.status !== 'done').length}`,
-      `Active skills: ${skills.map((s) => `${s.title}[${s.metadata?.mastery ?? 'novice'}]`).join(', ') || 'none tracked'}`,
-      `\n## Projects:`,
-      projectSummaries,
-      `\n## Goals:`,
-      goals
-        .map((g) => {
-          const progress = typeof g.metadata?.progress === 'number' ? g.metadata.progress : 0
-          return `- ${g.title} [${g.priority}] ${progress}%${g.dueDate ? ` due:${g.dueDate}` : ''}`
-        })
-        .join('\n'),
-    ].join('\n')
+    const knowledgeSection = buildKnowledgeSignals(entities)
 
     return [
       {

@@ -52,29 +52,7 @@ import {
 } from './today/focus-favorites'
 import { useCommandCenter } from './command-center/use-command-center'
 import { MorningBrief } from './today/morning-brief'
-import { LyraAI } from './today/lyra-ai'
 import type { Entity } from '@/core/types'
-
-function isProtocol(habit: Entity): boolean {
-  return habit.metadata.isProtocol === true && Array.isArray(habit.metadata.steps)
-}
-
-function getCompletedSteps(trackerNote: string | undefined | null): string[] {
-  if (!trackerNote) return []
-  try {
-    const parsed = JSON.parse(trackerNote)
-    if (Array.isArray(parsed)) return parsed
-  } catch {
-    // Not JSON
-  }
-  return []
-}
-
-interface ProtocolStep {
-  id: string
-  label: string
-  order: number
-}
 
 function getGreeting(): string {
   const h = new Date().getHours()
@@ -299,7 +277,7 @@ const FocusStory = memo(function FocusStory({
 
 export function TodayPage() {
   const { items: allEntities, update, create } = useEntities()
-  const { items: allTrackers, create: createTracker, update: updateTracker } = useTrackers()
+  const { items: allTrackers } = useTrackers()
   const { events: icalEvents } = useICalEvents()
   const currentUser = useAuthStore((s) => s.currentUser)
   const navigate = useNavigate()
@@ -371,14 +349,8 @@ export function TodayPage() {
     [allEntities],
   )
 
-  const protocols = useMemo(
-    () => activeHabits.filter(isProtocol),
-    [activeHabits],
-  )
-
   const habits = useMemo(
     () => activeHabits
-      .filter((e) => !isProtocol(e))
       .map((habit) => ({
         habit,
         checkedToday: allTrackers.some((t) => t.entityId === habit.id && t.timestamp >= todayStart),
@@ -387,25 +359,6 @@ export function TodayPage() {
     [activeHabits, allTrackers, todayStart],
   )
 
-  const getTodayTracker = useCallback(
-    (habitId: string) =>
-      allTrackers.find(
-        (t) => t.entityId === habitId && t.timestamp >= todayStart,
-      ),
-    [allTrackers, todayStart],
-  )
-
-  const protocolsData = useMemo(
-    () => protocols.map((habit) => {
-      const tracker = getTodayTracker(habit.id)
-      const completedSteps = getCompletedSteps(tracker?.note)
-      const steps = Array.isArray(habit.metadata.steps)
-        ? (habit.metadata.steps as ProtocolStep[]).sort((a, b) => a.order - b.order)
-        : []
-      return { habit, steps, completedSteps, totalSteps: steps.length }
-    }),
-    [protocols, getTodayTracker],
-  )
 
   // Active Projects — for quick nav count
   // ─── Metrics ───
@@ -535,62 +488,6 @@ export function TodayPage() {
     [update, create],
   )
 
-  const handleToggleStep = useCallback(
-    (habit: Entity, stepId: string, completed: boolean) => {
-      const existing = getTodayTracker(habit.id)
-      const currentSteps = getCompletedSteps(existing?.note)
-      const steps = (habit.metadata.steps as ProtocolStep[]) || []
-      const totalSteps = steps.length
-
-      let newSteps: string[]
-      if (completed) {
-        newSteps = [...new Set([...currentSteps, stepId])]
-      } else {
-        newSteps = currentSteps.filter((s) => s !== stepId)
-      }
-
-      const allDone = newSteps.length >= totalSteps
-      const wasDone = currentSteps.length >= totalSteps
-
-      if (existing) {
-        updateTracker.mutate({
-          id: existing.id,
-          updates: { note: JSON.stringify(newSteps) },
-        })
-      } else {
-        createTracker.mutate({
-          id: crypto.randomUUID(),
-          entityId: habit.id,
-          value: 1,
-          unit: 'done',
-          note: JSON.stringify(newSteps),
-          timestamp: new Date().toISOString(),
-          ownerId: currentUser?.id ?? '',
-        })
-      }
-
-      if (allDone && !wasDone) {
-        const streak = typeof habit.metadata.streak === 'number' ? (habit.metadata.streak as number) : 0
-        update.mutate({
-          id: habit.id,
-          updates: {
-            metadata: { ...habit.metadata, streak: streak + 1 },
-            updatedAt: new Date().toISOString(),
-          },
-        })
-      } else if (!allDone && wasDone) {
-        const streak = typeof habit.metadata.streak === 'number' ? (habit.metadata.streak as number) : 0
-        update.mutate({
-          id: habit.id,
-          updates: {
-            metadata: { ...habit.metadata, streak: Math.max(0, streak - 1) },
-            updatedAt: new Date().toISOString(),
-          },
-        })
-      }
-    },
-    [getTodayTracker, createTracker, updateTracker, update, currentUser],
-  )
 
   const dateStr = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -822,68 +719,12 @@ export function TodayPage() {
             )}
           </section>
 
-          {/* Today's Protocols */}
-          {protocolsData.length > 0 && (
-            <section>
-              <SH>
-                <ListChecks className="h-3 w-3 inline mr-1.5 -mt-px" />
-                Today&apos;s Protocols
-              </SH>
-              <div className="space-y-3">
-                {protocolsData.map(({ habit, steps, completedSteps, totalSteps }) => {
-                  const pct = totalSteps > 0 ? Math.round((completedSteps.length / totalSteps) * 100) : 0
-                  const allDone = totalSteps > 0 && completedSteps.length >= totalSteps
-                  return (
-                    <div
-                      key={habit.id}
-                      className={`rounded-lg border p-3 space-y-2 transition-colors ${
-                        allDone ? 'border-green-500/50 bg-green-50/30 dark:bg-green-950/10' : 'bg-card/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium truncate">{habit.title}</span>
-                        <span className={`text-xs tabular-nums shrink-0 ${
-                          allDone ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
-                        }`}>
-                          {completedSteps.length}/{totalSteps}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1">
-                        {steps.map((step) => {
-                          const isDone = completedSteps.includes(step.id)
-                          return (
-                            <label
-                              key={step.id}
-                              className="flex items-center gap-1.5 py-0.5 cursor-pointer"
-                            >
-                              <Checkbox
-                                checked={isDone}
-                                onCheckedChange={(checked) => handleToggleStep(habit, step.id, !!checked)}
-                                className="h-3.5 w-3.5 shrink-0"
-                              />
-                              <span className={`text-xs ${isDone ? 'line-through text-muted-foreground' : ''}`}>
-                                {step.label}
-                              </span>
-                            </label>
-                          )
-                        })}
-                      </div>
-                      <Progress value={pct} className="h-1" />
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          )}
 
           <div className="pb-6" />
         </div>
 
         {/* ═══ RIGHT — Schedule + Command Center (5/12) ═══ */}
         <aside className="lg:col-span-5 min-h-0 overflow-y-auto space-y-5 scrollbar-thin">
-          {/* Lyra AI */}
-          <LyraAI />
-
           {/* Morning Brief + Goal Cascade */}
           <MorningBrief cascadeTree={cascadeTree} topBlockedGoal={topBlockedGoal} stats={stats} />
 

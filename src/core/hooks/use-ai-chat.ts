@@ -93,7 +93,7 @@ async function extractMemoriesBackground(convText: string, config: AIConfig) {
 export function useAIChat() {
   const [isLoading, setIsLoading] = useState(false)
   const storeConfig = useAIStore((s) => s.config)
-  const OLLAMA_FALLBACK = { provider: 'ollama' as const, endpoint: 'http://localhost:11434/v1', model: 'qwen3:4b', apiKey: '', contextWindow: 8192 }
+  const OLLAMA_FALLBACK = { provider: 'ollama' as const, endpoint: 'http://localhost:11434/v1', model: 'llama3.2:1b', apiKey: '', contextWindow: 8192 }
   const config = storeConfig.endpoint && storeConfig.model ? storeConfig : OLLAMA_FALLBACK
   const isConfigured = !!(config.endpoint && config.model)
 

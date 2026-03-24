@@ -5,7 +5,6 @@ import {
   Repeat,
   Target,
   NotebookPen,
-  FileText,
   ClipboardCheck,
   LayoutDashboard,
   Settings2,
@@ -17,7 +16,6 @@ import { CalendarPage } from '@/pages/calendar'
 import { HabitsPage } from '@/pages/habits'
 import { GoalsPage } from '@/pages/goals'
 import { NotesPage } from '@/pages/notes'
-import { ReportPage } from '@/pages/report'
 import { ReviewPage } from '@/pages/review'
 import type { Entity } from '@/core/types'
 
@@ -39,7 +37,6 @@ export const AVAILABLE_FAVORITES: FavoriteConfig[] = [
   { id: 'habits', label: 'Habits', icon: Repeat, path: '/habits' },
   { id: 'goals', label: 'Goals', icon: Target, path: '/goals' },
   { id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes' },
-  { id: 'report', label: 'Report', icon: FileText, path: '/report' },
   { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review' },
 ]
 
@@ -111,7 +108,7 @@ export function getTabBadge(id: string, allEntities: Entity[], today: string): n
     case 'calendar':
       return allEntities.filter((e) => e.type === 'event' && e.status === 'todo' && e.dueDate === today).length
     case 'habits':
-      return allEntities.filter((e) => e.type === 'habit' && e.status === 'todo' && e.metadata.isProtocol !== true).length
+      return allEntities.filter((e) => e.type === 'habit' && e.status === 'todo').length
     case 'goals':
       return allEntities.filter((e) => e.type === 'goal' && (e.status === 'todo' || e.status === 'in-progress')).length
     case 'notes':
@@ -203,7 +200,6 @@ export function FavoriteTabContent({ id }: { id: string }) {
     case 'habits': return <HabitsPage />
     case 'goals': return <GoalsPage />
     case 'notes': return <NotesPage />
-    case 'report': return <ReportPage embedded />
     case 'review': return <ReviewPage embedded />
     default: return null
   }

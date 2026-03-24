@@ -6,7 +6,7 @@ import type {
   ChatCompletionChunk,
 } from '@/core/types/ai'
 
-/** Strip <think>...</think> tags from thinking models like Qwen3 */
+/** Strip <think>...</think> tags from thinking models */
 function stripThinking(text: string): string {
   return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
 }

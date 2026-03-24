@@ -94,7 +94,7 @@ function ModelSelector({
         value={model}
         onChange={(e) => onModelChange(e.target.value)}
         placeholder={
-          provider === 'ollama' ? 'qwen3:1.7b' :
+          provider === 'ollama' ? 'llama3.2:1b' :
           provider === 'grok' ? 'grok-3-mini' :
           provider === 'groq' ? 'llama-3.3-70b-versatile' :
           provider === 'gemini' ? 'gemini-2.0-flash' :

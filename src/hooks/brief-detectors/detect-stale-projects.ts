@@ -1,7 +1,7 @@
 import type { Detector, Insight } from './types'
+import { MS_PER_DAY } from './utils'
 
 const STALE_DAYS = 14
-const MS_PER_DAY = 86_400_000
 
 export const detectStaleProjects: Detector = ({ entities, now }) => {
   const insights: Insight[] = []
@@ -14,7 +14,6 @@ export const detectStaleProjects: Detector = ({ entities, now }) => {
       (e) => e.type === 'task' && e.status !== 'archived' && e.metadata?.projectId === project.id,
     )
 
-    // Most recent task activity
     let latestMs = new Date(project.updatedAt ?? project.createdAt).getTime()
     for (const t of tasks) {
       const tMs = new Date(t.updatedAt ?? t.createdAt).getTime()
