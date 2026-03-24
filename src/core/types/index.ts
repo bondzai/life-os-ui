@@ -23,5 +23,4 @@ export type {
   ChatCompletionRequest,
   ChatCompletionResponse,
   ChatCompletionChunk,
-  CommandAction,
 } from './ai'

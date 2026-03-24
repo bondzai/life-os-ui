@@ -1,5 +1,4 @@
 export { AIClient } from './ai-client'
-export { gatherContext, buildSystemPrompt, buildDailyBriefPrompt, buildBriefSummaryPrompt } from './context-builder'
+export { gatherContext, buildSystemPrompt, buildDailyBriefPrompt } from './context-builder'
 export { promptTemplates } from './prompt-templates'
 export type { PromptTemplate } from './prompt-templates'
-export type { EntityContext } from './context-builder'

@@ -17,7 +17,6 @@ import { EntityDialog } from '@/core/components/entity-dialog'
 import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
-import { emitAutomationEvent } from './automate/automation-event-bus'
 import { TaskCard } from './tasks/task-card'
 import { KanbanBoard } from './tasks/kanban-board'
 import { StoryDialog } from './tasks/story-dialog'
@@ -391,13 +390,6 @@ export function TasksPage() {
         updatedAt: new Date().toISOString(),
       },
     })
-    emitAutomationEvent({
-      type: 'entity-status-change',
-      entityId: task.id,
-      entityType: 'task',
-      oldStatus: task.status,
-      newStatus,
-    })
     // Spawn next occurrence for recurring tasks
     if (newStatus === 'done' && getRecurrence(task.metadata) !== 'none') {
       const now = new Date().toISOString()
@@ -530,13 +522,6 @@ export function TasksPage() {
     update.mutate({
       id: task.id,
       updates: { status: newStatus, updatedAt: new Date().toISOString() },
-    })
-    emitAutomationEvent({
-      type: 'entity-status-change',
-      entityId: task.id,
-      entityType: 'task',
-      oldStatus: task.status,
-      newStatus,
     })
     // Spawn next occurrence for recurring tasks
     if (newStatus === 'done' && task.status !== 'done' && getRecurrence(task.metadata) !== 'none') {

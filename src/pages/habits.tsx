@@ -26,7 +26,6 @@ import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import { AIAction } from '@/components/ai-action'
-import { emitAutomationEvent } from './automate/automation-event-bus'
 import { HabitHeatmap } from './habits/habit-heatmap'
 import { ProtocolDialog, type ProtocolStep } from './habits/protocol-dialog'
 import { ProtocolCard } from './habits/protocol-card'
@@ -124,7 +123,6 @@ export function HabitsPage() {
           updatedAt: new Date().toISOString(),
         },
       })
-      emitAutomationEvent({ type: 'tracker-created', entityId: habit.id, entityType: 'habit' })
     }
   }
 
@@ -174,7 +172,6 @@ export function HabitsPage() {
           updatedAt: new Date().toISOString(),
         },
       })
-      emitAutomationEvent({ type: 'tracker-created', entityId: habit.id, entityType: 'habit' })
     } else if (!allDone && wasDone) {
       const streak = typeof habit.metadata.streak === 'number' ? habit.metadata.streak : 0
       update.mutate({

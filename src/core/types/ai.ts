@@ -46,11 +46,3 @@ export interface ChatCompletionChunk {
   id: string
   choices: { index: number; delta: { content?: string }; finish_reason: string | null }[]
 }
-
-export interface CommandAction {
-  id: string
-  label: string
-  description: string
-  category: string
-  handler: () => void
-}

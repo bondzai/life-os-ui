@@ -87,27 +87,3 @@ export function buildDailyBriefPrompt(context: EntityContext): string {
   )
 }
 
-/* ─── Insight-aware prompts (for Morning Brief AI summary) ─── */
-
-export interface BriefInsight {
-  type: string
-  category: string
-  severity: number
-  title: string
-  data: Record<string, unknown>
-}
-
-export function buildBriefSummaryPrompt(insights: BriefInsight[]): string {
-  const insightLines = insights.map((i) => `- [${i.type}/${i.category}] ${i.title}`).join('\n')
-
-  return [
-    getSolPrefix(60),
-    '',
-    'These signals were detected:',
-    '',
-    insightLines,
-    '',
-    'Write a 2-3 sentence summary. Flowing prose, no bullet points.',
-    'Prioritize the most critical items. Mention specific names and numbers.',
-  ].join('\n')
-}
