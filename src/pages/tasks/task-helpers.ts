@@ -122,3 +122,14 @@ export function formatShortDate(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
+
+/** Get last workday (Friday if Monday, yesterday otherwise) */
+export function getLastWorkday(): Date {
+  const now = new Date()
+  const day = now.getDay()
+  const daysBack = day === 1 ? 3 : day === 0 ? 2 : 1
+  const d = new Date(now)
+  d.setDate(d.getDate() - daysBack)
+  d.setHours(0, 0, 0, 0)
+  return d
+}

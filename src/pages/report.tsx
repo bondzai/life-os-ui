@@ -9,24 +9,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { notify } from '@/lib/notify'
-import { getSubtasks, subtaskDone } from './tasks/task-helpers'
+import { getSubtasks, subtaskDone, getLastWorkday } from './tasks/task-helpers'
 import { getTodayPriorities } from './today/today-helpers'
 import { getWeekStart } from './review/review-helpers'
 import { BriefingPage } from './tasks/standup-report'
 import { CaptureBar } from './today/capture-bar'
 import type { EntityPriority } from '@/core/types'
-
-// ─── Shared helpers ───
-
-function getLastWorkday(): Date {
-  const now = new Date()
-  const day = now.getDay()
-  const daysBack = day === 1 ? 3 : day === 0 ? 2 : 1
-  const d = new Date(now)
-  d.setDate(d.getDate() - daysBack)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
 
 const pChar = (p: EntityPriority) => p === 'urgent' ? '⬆⬆' : p === 'high' ? '⬆' : p === 'medium' ? '—' : '⬇'
 

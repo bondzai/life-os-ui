@@ -162,6 +162,3 @@ export const useFocusStore = create<FocusState>()(
     { name: 'lyra:focus' },
   ),
 )
-
-export { PRESETS }
-export type { TimerPreset, TimerPhase, FocusSettings }

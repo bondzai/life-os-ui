@@ -17,7 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { notify } from '@/lib/notify'
 import { useEntities } from '@/core/hooks'
-import { getSubtasks, subtaskDone, subtaskStatus } from './task-helpers'
+import { getSubtasks, subtaskDone, subtaskStatus, getLastWorkday } from './task-helpers'
 import { getTodayPriorities } from '@/pages/today/today-helpers'
 import { CaptureBar } from '@/pages/today/capture-bar'
 import { filterNoteTemplates, type NoteTemplate } from '@/core/config/capture-protocol'
@@ -53,16 +53,6 @@ function getRecentSubtaskNotes(task: Entity, since: Date): { subtaskTitle: strin
 }
 
 type StandupWorkspace = 'all' | 'work' | 'personal'
-
-function getLastWorkday(): Date {
-  const now = new Date()
-  const day = now.getDay()
-  const daysBack = day === 1 ? 3 : day === 0 ? 2 : 1
-  const d = new Date(now)
-  d.setDate(d.getDate() - daysBack)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
 
 // ---------------------------------------------------------------------------
 // Jira-style priority icon
