@@ -1,4 +1,4 @@
-import { lazy } from 'react'
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
@@ -55,8 +55,8 @@ export function App() {
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route element={<ProtectedRoute />}>
-                <Route path="deep-work" element={<DeepWorkPage />} />
-                <Route path="briefing" element={<BriefingPage />} />
+                <Route path="deep-work" element={<Suspense fallback={null}><DeepWorkPage /></Suspense>} />
+                <Route path="briefing" element={<Suspense fallback={null}><BriefingPage /></Suspense>} />
                 <Route element={<AppLayout />}>
                   <Route index element={<TodayPage />} />
                   <Route path="projects" element={<ProjectsPage />} />
