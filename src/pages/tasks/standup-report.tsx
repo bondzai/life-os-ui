@@ -22,6 +22,7 @@ import { getTodayPriorities } from '@/pages/today/today-helpers'
 import { CaptureBar } from '@/pages/today/capture-bar'
 import { filterNoteTemplates, type NoteTemplate } from '@/core/config/capture-protocol'
 import type { Entity, EntityPriority } from '@/core/types'
+import { isTask } from '@/core/types'
 
 // ---------------------------------------------------------------------------
 // Types & helpers
@@ -640,7 +641,7 @@ export function BriefingPage({ embedded }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const [ws, setWs] = useState<StandupWorkspace>('all')
   const { items: allEntities, update } = useEntities()
-  const tasks = useMemo(() => allEntities.filter((e: Entity) => e.type === 'task' || e.type === 'chore'), [allEntities])
+  const tasks = useMemo(() => allEntities.filter((e: Entity) => isTask(e)), [allEntities])
 
   const todayPriorityIds = useMemo(() => getTodayPriorities(), [])
 

@@ -1,4 +1,5 @@
 import type { Entity } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 export function buildGoalContext(goal: Entity, entities: Entity[]): string {
   const lines: string[] = [`Goal: "${goal.title}" [${goal.status}/${goal.priority}]`]
@@ -10,7 +11,7 @@ export function buildGoalContext(goal: Entity, entities: Entity[]): string {
   lines.push(`Progress: ${progress}%`)
 
   // Sub-goals
-  const subGoals = entities.filter((e) => e.type === 'goal' && e.parentId === goal.id && e.status !== 'archived')
+  const subGoals = entities.filter((e) => isGoal(e) && e.parentId === goal.id && e.status !== 'archived')
   if (subGoals.length > 0) {
     lines.push(`Sub-goals (${subGoals.length}):`)
     subGoals.forEach((sg) => {
@@ -20,7 +21,7 @@ export function buildGoalContext(goal: Entity, entities: Entity[]): string {
   }
 
   // Linked tasks
-  const tasks = entities.filter((e) => e.type === 'task' && e.status !== 'archived' && e.metadata?.goalId === goal.id)
+  const tasks = entities.filter((e) => isTask(e) && e.status !== 'archived' && e.metadata?.goalId === goal.id)
   if (tasks.length > 0) {
     const done = tasks.filter((t) => t.status === 'done').length
     lines.push(`Linked tasks: ${done}/${tasks.length} done`)

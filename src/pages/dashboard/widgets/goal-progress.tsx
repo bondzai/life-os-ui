@@ -2,10 +2,11 @@ import { Target } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { registerWidget, type WidgetProps } from './registry'
+import { isGoal } from '@/core/types'
 
 function GoalProgress({ entities }: WidgetProps) {
   const goals = entities.filter(
-    (e) => e.type === 'goal' && e.status !== 'done' && e.status !== 'archived',
+    (e) => isGoal(e) && e.status !== 'done' && e.status !== 'archived',
   )
 
   if (goals.length === 0)
@@ -56,7 +57,7 @@ registerWidget(
     relevance: ({ entities }) => {
       const today = new Date()
       const goals = entities.filter(
-        (e) => e.type === 'goal' && e.status !== 'done' && e.status !== 'archived',
+        (e) => isGoal(e) && e.status !== 'done' && e.status !== 'archived',
       )
       if (goals.length === 0) return null
       const atRisk = goals.some((g) => {

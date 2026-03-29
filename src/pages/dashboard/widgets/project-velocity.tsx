@@ -1,5 +1,6 @@
 import { TrendingDown, TrendingUp, Minus } from 'lucide-react'
 import { registerWidget, type WidgetProps } from './registry'
+import { isGoal, isTask } from '@/core/types'
 
 function startOfWeek(d: Date): Date {
   const r = new Date(d)
@@ -16,9 +17,9 @@ function ProjectVelocity({ entities }: WidgetProps) {
   lastWeekStart.setDate(lastWeekStart.getDate() - 7)
 
   const projects = entities.filter(
-    (e) => e.type === 'project' && e.status === 'in-progress',
+    (e) => isGoal(e) && e.status === 'in-progress',
   )
-  const tasks = entities.filter((e) => e.type === 'task' && e.status === 'done')
+  const tasks = entities.filter((e) => isTask(e) && e.status === 'done')
 
   const projectData = projects.map((p) => {
     const linked = tasks.filter((t) => t.metadata?.projectId === p.id)
@@ -78,10 +79,10 @@ registerWidget(
       const now = new Date()
       const thisWeekStart = startOfWeek(now)
       const projects = entities.filter(
-        (e) => e.type === 'project' && e.status === 'in-progress',
+        (e) => isGoal(e) && e.status === 'in-progress',
       )
       if (projects.length === 0) return null
-      const tasks = entities.filter((e) => e.type === 'task' && e.status === 'done')
+      const tasks = entities.filter((e) => isTask(e) && e.status === 'done')
       const droppedToZero = projects.some((p) => {
         const linked = tasks.filter((t) => t.metadata?.projectId === p.id)
         return linked.filter((t) => new Date(t.updatedAt) >= thisWeekStart).length === 0

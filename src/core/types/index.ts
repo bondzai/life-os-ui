@@ -6,6 +6,8 @@ export type {
   EntityVisibility,
 } from './entity'
 
+export { isGoal, isTask } from './entity'
+
 export type { Tracker } from './tracker'
 
 export type { Schedule } from './schedule'

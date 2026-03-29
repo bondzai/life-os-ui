@@ -1,23 +1,24 @@
 import type { Entity } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 import type { Tracker } from '@/core/types/tracker'
 
 export function buildGlobalContext(entities: Entity[], trackers: Tracker[]): string {
   const today = new Date().toISOString().split('T')[0]
   const lines: string[] = [`Date: ${today}`]
 
-  // Projects
-  const projects = entities.filter((e) => e.type === 'project' && e.status === 'in-progress')
+  // Projects / Goals
+  const projects = entities.filter((e) => isGoal(e) && e.status === 'in-progress')
   if (projects.length > 0) {
-    lines.push(`\nActive Projects (${projects.length}):`)
+    lines.push(`\nActive Goals (${projects.length}):`)
     projects.forEach((p) => {
-      const tasks = entities.filter((e) => e.type === 'task' && e.metadata?.projectId === p.id && e.status !== 'archived')
+      const tasks = entities.filter((e) => isTask(e) && e.metadata?.projectId === p.id && e.status !== 'archived')
       const done = tasks.filter((t) => t.status === 'done').length
       lines.push(`  - ${p.title} [${done}/${tasks.length} tasks]`)
     })
   }
 
   // Goals
-  const goals = entities.filter((e) => e.type === 'goal' && e.status !== 'done' && e.status !== 'archived')
+  const goals = entities.filter((e) => isGoal(e) && e.status !== 'done' && e.status !== 'archived')
   if (goals.length > 0) {
     lines.push(`\nActive Goals (${goals.length}):`)
     goals.slice(0, 10).forEach((g) => {
@@ -27,7 +28,7 @@ export function buildGlobalContext(entities: Entity[], trackers: Tracker[]): str
   }
 
   // Tasks summary
-  const tasks = entities.filter((e) => e.type === 'task' && e.status !== 'archived')
+  const tasks = entities.filter((e) => isTask(e) && e.status !== 'archived')
   const overdue = tasks.filter((t) => t.status !== 'done' && t.dueDate && t.dueDate < today)
   const inProgress = tasks.filter((t) => t.status === 'in-progress')
   lines.push(`\nTasks: ${tasks.length} total, ${inProgress.length} in-progress, ${overdue.length} overdue`)

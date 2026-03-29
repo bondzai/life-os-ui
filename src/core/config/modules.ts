@@ -13,7 +13,6 @@ import {
   BarChart3,
   GitBranch,
   CalendarPlus,
-  FolderKanban,
   GanttChart,
   Zap,
   Sparkles,
@@ -46,8 +45,7 @@ export const modules: ModuleConfig[] = [
 
 
   // Plan — strategic tools & review cycles
-  { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Plan', entityTypes: ['task'] },
-  { id: 'projects', label: 'Projects', icon: FolderKanban, path: '/projects', group: 'Plan', entityTypes: ['project'] },
+  { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Plan', entityTypes: ['task', 'chore'] },
   { id: 'gantt', label: 'Timeline', icon: GanttChart, path: '/gantt', group: 'Plan', entityTypes: [] },
   {
     id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Plan', entityTypes: ['event'],
@@ -62,7 +60,7 @@ export const modules: ModuleConfig[] = [
     ],
   },
   {
-    id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Plan', entityTypes: ['goal'],
+    id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Plan', entityTypes: ['goal', 'project'],
     children: [
       { id: 'goal-map', label: 'Goal Map', icon: GitBranch, path: '/goal-map' },
     ],
@@ -75,7 +73,7 @@ export const modules: ModuleConfig[] = [
   { id: 'wealth', label: 'Wealth', icon: Wallet, path: '/wealth', group: 'Life', entityTypes: ['transaction', 'budget', 'account', 'asset', 'wallet', 'crypto-tx'] },
   { id: 'learning', label: 'Learning', icon: GraduationCap, path: '/learning', group: 'Life', entityTypes: ['book', 'course', 'skill'] },
   { id: 'travel', label: 'Travel', icon: MapPin, path: '/travel', group: 'Life', entityTypes: ['place', 'location', 'trip'] },
-  { id: 'family', label: 'Family', icon: Users, path: '/family', group: 'Life', entityTypes: ['chore'] },
+  { id: 'family', label: 'Family', icon: Users, path: '/family', group: 'Life', entityTypes: [] },
 ]
 
 export function getModuleGroups(): { group: string; modules: ModuleConfig[] }[] {

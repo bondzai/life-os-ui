@@ -17,6 +17,7 @@ import { useAIStore } from '@/stores/ai-store'
 import { getSolPrefix } from '@/core/ai/soul'
 import { buildGlobalContext } from '@/core/ai/context'
 import { buildKnowledgeSignals } from '@/core/ai/tools/tool-helpers'
+import { isGoal, isTask } from '@/core/types'
 
 /* ─── Constants ─── */
 
@@ -227,8 +228,8 @@ export function StrategyTab() {
     setLoading(true)
     try {
       // 1. Extract search keywords from projects/goals
-      const projects = entities.filter(e => e.type === 'project' && e.status === 'in-progress')
-      const goals = entities.filter(e => e.type === 'goal' && e.status !== 'done' && e.status !== 'archived')
+      const projects = entities.filter(e => isGoal(e) && e.status === 'in-progress')
+      const goals = entities.filter(e => isGoal(e) && e.status !== 'done' && e.status !== 'archived')
 
       const searchTerms: string[] = []
       for (const p of projects.slice(0, 3)) {
@@ -367,7 +368,7 @@ export function StrategyTab() {
     const todayStart = todayStr + 'T00:00:00'
 
     // Task velocity
-    const tasks = entities.filter((e) => e.type === 'task' && e.status !== 'archived')
+    const tasks = entities.filter((e) => isTask(e) && e.status !== 'archived')
     const doneThisWeek = tasks.filter(
       (t) => t.status === 'done' && t.updatedAt >= weekStart,
     ).length
@@ -383,7 +384,7 @@ export function StrategyTab() {
 
     // Goals progress
     const goals = entities.filter(
-      (e) => e.type === 'goal' && e.status !== 'done' && e.status !== 'archived',
+      (e) => isGoal(e) && e.status !== 'done' && e.status !== 'archived',
     )
     const avgGoalProgress =
       goals.length > 0
@@ -398,7 +399,7 @@ export function StrategyTab() {
 
     // Projects with velocity
     const projects = entities.filter(
-      (e) => e.type === 'project' && e.status === 'in-progress',
+      (e) => isGoal(e) && e.status === 'in-progress',
     )
     const projectVelocities = projects.map((p) => {
       const pTasks = tasks.filter((t) => t.metadata?.projectId === p.id)

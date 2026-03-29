@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useEntities, useTrackers } from '@/core/hooks'
+import { isGoal, isTask } from '@/core/types'
 import { lyraLog } from '@/stores/lyra-log-store'
 import { useAIStore } from '@/stores/ai-store'
 
@@ -37,7 +38,7 @@ export function useCelebrations() {
 
       // Task completed
       if (
-        entity.type === 'task' &&
+        isTask(entity) &&
         prevStatus &&
         prevStatus !== 'done' &&
         entity.status === 'done'
@@ -48,7 +49,7 @@ export function useCelebrations() {
 
       // Goal completed
       if (
-        entity.type === 'goal' &&
+        isGoal(entity) &&
         prevStatus &&
         prevStatus !== 'done' &&
         entity.status === 'done'

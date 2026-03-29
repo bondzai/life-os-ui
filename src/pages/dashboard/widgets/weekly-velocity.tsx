@@ -1,5 +1,6 @@
 import { TrendingUp, TrendingDown, Minus, CheckCircle2 } from 'lucide-react'
 import { registerWidget, type WidgetProps } from './registry'
+import { isTask } from '@/core/types'
 
 function startOfWeek(d: Date): Date {
   const r = new Date(d)
@@ -16,7 +17,7 @@ function WeeklyVelocity({ entities }: WidgetProps) {
   lastWeekStart.setDate(lastWeekStart.getDate() - 7)
 
   const doneTasks = entities.filter(
-    (e) => e.type === 'task' && e.status === 'done',
+    (e) => isTask(e) && e.status === 'done',
   )
 
   const thisWeek = doneTasks.filter(

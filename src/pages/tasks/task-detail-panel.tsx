@@ -56,6 +56,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { Entity, EntityPriority, EntityStatus, Relation } from '@/core/types'
+import { isGoal } from '@/core/types'
 import { useEntities, useRelations } from '@/core/hooks'
 import { AIAction } from '@/components/ai-action'
 import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, subtaskStatus, subtaskDone, getRecurrence, RECURRENCE_OPTIONS, RECURRENCE_LABELS, type Subtask, type SubtaskStatus } from './task-helpers'
@@ -428,11 +429,11 @@ export function TaskDetailPanel({
   // -- Relations (blocks, supports, relates) --------------------------------
   const { items: allRelations, create: createRelation, remove: removeRelation } = useRelations(task?.id)
 
-  // -- Projects for project picker ------------------------------------------
-  const { items: allProjects } = useEntities('project')
+  // -- Goals for goal picker (covers old 'project' entities too) ─────────────
+  const { items: allEntitiesForPicker } = useEntities()
   const activeProjects = useMemo(
-    () => allProjects.filter((p) => p.status !== 'archived'),
-    [allProjects],
+    () => allEntitiesForPicker.filter((p) => isGoal(p) && p.status !== 'archived'),
+    [allEntitiesForPicker],
   )
 
   // -- Local editing state --------------------------------------------------
@@ -1104,11 +1105,11 @@ export function TaskDetailPanel({
               </Select>
             </div>
 
-            {/* Project */}
+            {/* Goal */}
             <div className="grid grid-cols-[120px_1fr] items-center gap-2">
               <span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
                 <FolderKanban className="h-3 w-3" />
-                Project
+                Goal
               </span>
               <Select
                 value={(task.metadata.projectId as string) ?? 'none'}
@@ -1123,10 +1124,10 @@ export function TaskDetailPanel({
                 }}
               >
                 <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="No project" />
+                  <SelectValue placeholder="No goal" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No project</SelectItem>
+                  <SelectItem value="none">No goal</SelectItem>
                   {activeProjects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
                   ))}

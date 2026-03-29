@@ -26,6 +26,7 @@ import { useEntities } from '@/core/hooks'
 import { useWeeklyPlan, type WeeklyOutcome } from '@/hooks/use-weekly-plan'
 import { useICalEvents } from '@/hooks/use-ical-events'
 import type { Entity } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 // ─── Priority styling ───
 
@@ -99,7 +100,7 @@ export function StepWeeklyPlan() {
 
   const openTasks = useMemo(
     () => entities.filter((e) =>
-      (e.type === 'task' || e.type === 'chore') &&
+      isTask(e) &&
       e.status !== 'done' && e.status !== 'archived',
     ),
     [entities],
@@ -120,8 +121,8 @@ export function StepWeeklyPlan() {
   }, [openTasks, currentMonday])
 
   const velocityGaps = useMemo(() => {
-    const projects = entities.filter((e) => e.type === 'project' && e.status === 'in-progress')
-    const tasks = entities.filter((e) => e.type === 'task')
+    const projects = entities.filter((e) => isGoal(e) && e.status === 'in-progress')
+    const tasks = entities.filter((e) => isTask(e))
     const now = Date.now()
     const weekStart = new Date(now - 7 * 86400000).toISOString()
     const twoWeeksAgo = new Date(now - 14 * 86400000).toISOString()

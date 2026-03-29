@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import type { Entity } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 interface StepReflectionProps {
   onSave: (text: string) => void
@@ -25,7 +26,7 @@ export function StepReflection({ onSave, saved, allEntities }: StepReflectionPro
     return allEntities
       .filter(
         (e) =>
-          (e.type === 'task' || e.type === 'goal') &&
+          (isTask(e) || isGoal(e)) &&
           e.status === 'todo' &&
           e.dueDate &&
           e.dueDate >= today &&

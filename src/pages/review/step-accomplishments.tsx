@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useWeeklyPlan } from '@/hooks/use-weekly-plan'
 import type { Entity } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 interface StepAccomplishmentsProps {
   items: Entity[]
@@ -25,7 +26,7 @@ export function StepAccomplishments({ items, allEntities }: StepAccomplishmentsP
 
     return allEntities.filter(
       (e) =>
-        (e.type === 'task' || e.type === 'goal') &&
+        (isTask(e) || isGoal(e)) &&
         e.status === 'done' &&
         e.updatedAt.split('T')[0] >= lwStart &&
         e.updatedAt.split('T')[0] < lwEnd,

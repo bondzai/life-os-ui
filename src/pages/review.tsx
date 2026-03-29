@@ -34,6 +34,7 @@ import {
   daysAgo,
 } from './review/review-helpers'
 import type { Entity } from '@/core/types'
+import { isTask, isGoal } from '@/core/types'
 
 type ReviewTab = 'plan' | 'standup' | 'daily' | 'weekly'
 
@@ -80,7 +81,7 @@ const pChar = (p: EntityPriority) => p === 'urgent' ? '⬆⬆' : p === 'high' ? 
 function StandupReport() {
   const { items: allEntities } = useEntities()
   const navigate = useNavigate()
-  const tasks = useMemo(() => allEntities.filter((e) => e.type === 'task' || e.type === 'chore'), [allEntities])
+  const tasks = useMemo(() => allEntities.filter((e) => isTask(e)), [allEntities])
 
   const todayPriorityIds = useMemo(() => getTodayPriorities(), [])
   const lastWorkday = useMemo(() => getLastWorkday(), [])
@@ -237,7 +238,7 @@ function DailyReview() {
   // Today's completed tasks
   const completedToday = useMemo(
     () => allEntities.filter((e) =>
-      (e.type === 'task' || e.type === 'chore') &&
+      isTask(e) &&
       e.status === 'done' &&
       e.updatedAt.split('T')[0] === today,
     ),
@@ -247,7 +248,7 @@ function DailyReview() {
   // Still open (planned but not done)
   const stillOpen = useMemo(
     () => allEntities.filter((e) =>
-      (e.type === 'task' || e.type === 'chore') &&
+      isTask(e) &&
       e.status !== 'done' && e.status !== 'archived' &&
       e.dueDate === today,
     ),
@@ -444,7 +445,7 @@ function WeeklyReview() {
   const today = new Date().toISOString().split('T')[0]
 
   const staleItems = useMemo(
-    () => allEntities.filter((e) => (e.type === 'task' || e.type === 'goal') && e.status === 'todo' && daysAgo(e.updatedAt) >= 14),
+    () => allEntities.filter((e) => (isTask(e) || isGoal(e)) && e.status === 'todo' && daysAgo(e.updatedAt) >= 14),
     [allEntities],
   )
 

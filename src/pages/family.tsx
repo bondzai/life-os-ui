@@ -26,6 +26,7 @@ import { ChoreDialog, type ChoreFormValues } from './family/chore-dialog'
 import { ChoreCard } from './family/chore-card'
 import { ActivityFeed } from './family/activity-feed'
 import type { Entity } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 export function FamilyPage() {
   const { items: chores, create: createChore, update: updateChore, remove: removeChore } = useEntities('chore')
@@ -62,7 +63,7 @@ export function FamilyPage() {
     [chores, currentUser],
   )
   const sharedTasks = useMemo(
-    () => allEntities.filter((e) => e.type === 'task' && e.visibility === 'shared' && e.status === 'todo').length,
+    () => allEntities.filter((e) => isTask(e) && e.visibility === 'shared' && e.status === 'todo').length,
     [allEntities],
   )
 
@@ -295,7 +296,7 @@ export function FamilyPage() {
         <TabsContent value="goals" className="space-y-4">
           {(() => {
             const sharedGoals = allEntities.filter(
-              (e) => e.type === 'goal' && e.visibility === 'shared' && e.status === 'todo',
+              (e) => isGoal(e) && e.visibility === 'shared' && e.status === 'todo',
             )
             if (sharedGoals.length === 0) {
               return (

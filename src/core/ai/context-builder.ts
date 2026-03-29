@@ -1,6 +1,7 @@
 import { EntityRepository } from '@/core/repositories/entity-repository'
 import { getSolPrefix } from './soul'
 import type { Entity } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 export interface EntityContext {
   tasks: Entity[]
@@ -16,15 +17,15 @@ const entityRepository = new EntityRepository()
 export async function gatherContext(): Promise<EntityContext> {
   const all = await entityRepository.getAll()
 
-  const tasks = all.filter((e) => e.type === 'task' && e.status !== 'archived').slice(0, 20)
-  const goals = all.filter((e) => e.type === 'goal' && e.status !== 'archived').slice(0, 10)
+  const tasks = all.filter((e) => isTask(e) && e.status !== 'archived').slice(0, 20)
+  const goals = all.filter((e) => isGoal(e) && e.status !== 'archived').slice(0, 10)
   const habits = all.filter((e) => e.type === 'habit' && e.status === 'todo').slice(0, 10)
   const events = all.filter((e) => e.type === 'event' && e.status !== 'archived').slice(0, 10)
-  const projects = all.filter((e) => e.type === 'project' && e.status !== 'archived').slice(0, 10)
+  const projects = all.filter((e) => isGoal(e) && e.status !== 'archived').slice(0, 10)
   const other = all
     .filter(
       (e) =>
-        !['task', 'goal', 'habit', 'event', 'project'].includes(e.type) && e.status !== 'archived',
+        !isTask(e) && !isGoal(e) && !['habit', 'event'].includes(e.type) && e.status !== 'archived',
     )
     .slice(0, 10)
 

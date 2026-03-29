@@ -47,6 +47,7 @@ import { notify } from '@/lib/notify'
 import { VelocityPanel } from '@/pages/goals/velocity-panel'
 import { AIAction } from '@/components/ai-action'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 /* ─── Category config ─── */
 
@@ -468,7 +469,7 @@ export function ProjectsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
 
   const allProjects = useMemo(
-    () => allEntities.filter((e) => e.type === 'project'),
+    () => allEntities.filter((e) => isGoal(e)),
     [allEntities],
   )
 
@@ -513,7 +514,7 @@ export function ProjectsPage() {
   const getLinkedTasks = useCallback(
     (projectId: string) =>
       allEntities.filter(
-        (e) => e.type === 'task' && e.status !== 'archived' && e.metadata?.projectId === projectId,
+        (e) => isTask(e) && e.status !== 'archived' && e.metadata?.projectId === projectId,
       ),
     [allEntities],
   )
@@ -524,7 +525,7 @@ export function ProjectsPage() {
       const goalIds = allRelations
         .filter((r) => (r.fromId === projectId || r.toId === projectId) && (r.type === 'supports' || r.type === 'relates'))
         .map((r) => (r.fromId === projectId ? r.toId : r.fromId))
-      return allEntities.filter((e) => e.type === 'goal' && goalIds.includes(e.id))
+      return allEntities.filter((e) => isGoal(e) && goalIds.includes(e.id))
     },
     [allEntities, allRelations],
   )
@@ -672,7 +673,7 @@ export function ProjectsPage() {
             </div>
 
             {/* Velocity */}
-            <VelocityPanel entityId={fresh.id} entityType="project" dueDate={fresh.dueDate} />
+            <VelocityPanel entityId={fresh.id} entityType="goal" dueDate={fresh.dueDate} />
 
             <AIAction tool="analyze-risk" entityId={fresh.id} label="Risk Analysis" />
 

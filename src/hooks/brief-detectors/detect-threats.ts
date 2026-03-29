@@ -1,5 +1,6 @@
 import type { Detector, Insight } from './types'
 import { MS_PER_DAY, getMonthlySpending, getSleepTrend } from './utils'
+import { isGoal, isTask } from '@/core/types'
 
 export const detectThreats: Detector = ({ entities, trackers, today, now }) => {
   const insights: Insight[] = []
@@ -70,12 +71,11 @@ export const detectThreats: Detector = ({ entities, trackers, today, now }) => {
   }
 
   // 3. Deadline miss projection — velocity vs remaining
-  const goals = entities.filter(e => e.type === 'goal' && e.status !== 'done' && e.status !== 'archived' && e.dueDate)
-  const projects = entities.filter(e => e.type === 'project' && e.status === 'in-progress' && e.dueDate)
+  const deadlineGoals = entities.filter(e => isGoal(e) && e.status !== 'done' && e.status !== 'archived' && e.dueDate)
 
-  for (const entity of [...goals, ...projects]) {
+  for (const entity of deadlineGoals) {
     const tasks = entities.filter(e =>
-      e.type === 'task' && e.status !== 'archived' &&
+      isTask(e) && e.status !== 'archived' &&
       (e.metadata?.goalId === entity.id || e.metadata?.projectId === entity.id)
     )
     const remaining = tasks.filter(t => t.status !== 'done').length
@@ -95,11 +95,11 @@ export const detectThreats: Detector = ({ entities, trackers, today, now }) => {
       insights.push({
         id: `threat-deadline-${entity.id}`,
         type: 'risk',
-        category: entity.type === 'goal' ? 'goals' : 'projects',
+        category: 'goals',
         severity: missBy > 14 ? 3 : 2,
         title: `"${entity.title}" will miss deadline by ~${missBy} days`,
         detail: `${remaining} tasks left at ${weeklyVelocity.toFixed(1)}/week. Due: ${entity.dueDate}`,
-        actionPath: entity.type === 'goal' ? `/goals?id=${entity.id}` : `/projects?id=${entity.id}`,
+        actionPath: `/goals?id=${entity.id}`,
         actionLabel: 'View',
         data: { entityId: entity.id, remaining, weeklyVelocity, missBy, dueDate: entity.dueDate },
       })

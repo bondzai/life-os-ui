@@ -2,6 +2,7 @@ import { registerTool, type AITool } from './registry'
 import { buildTaskContext } from '../context/task-context'
 import { buildGoalContext } from '../context/goal-context'
 import { getSolPrefix } from '../soul'
+import { isGoal } from '@/core/types'
 
 const tool: AITool = {
   id: 'break-down',
@@ -12,7 +13,7 @@ const tool: AITool = {
     const entity = entities.find((e) => e.id === entityId)
     if (!entity) return [{ role: 'user', content: 'Entity not found.' }]
 
-    const context = entity.type === 'goal'
+    const context = isGoal(entity)
       ? buildGoalContext(entity, entities)
       : buildTaskContext(entity, entities)
 

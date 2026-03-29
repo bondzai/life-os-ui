@@ -1,4 +1,5 @@
 import type { Entity } from '@/core/types'
+import { isTask } from '@/core/types'
 
 export const MS_PER_DAY = 86_400_000
 export const MS_PER_WEEK = 7 * MS_PER_DAY
@@ -78,7 +79,7 @@ export function getProjectVelocity(
   const lastWeekStart = new Date(now - 2 * MS_PER_WEEK).toISOString()
 
   const tasks = entities.filter(
-    (e) => e.type === 'task' && e.metadata?.projectId === projectId,
+    (e) => isTask(e) && e.metadata?.projectId === projectId,
   )
 
   const thisWeek = tasks.filter(

@@ -26,9 +26,11 @@ import { SavedFilterBar } from '@/core/components/saved-filter-bar'
 import { VelocityPanel } from '@/pages/goals/velocity-panel'
 import { AIAction } from '@/components/ai-action'
 import type { Entity, EntityStatus } from '@/core/types'
+import { isGoal } from '@/core/types'
 
 export function GoalsPage() {
-  const { items: allGoals, isLoading, create, update, remove } = useEntities('goal')
+  const { items: allItems, isLoading, create, update, remove } = useEntities()
+  const allGoals = useMemo(() => allItems.filter(isGoal), [allItems])
   const currentUser = useAuthStore((s) => s.currentUser)
   const [searchParams, setSearchParams] = useSearchParams()
 

@@ -51,3 +51,8 @@ export interface Entity {
   createdAt: string
   updatedAt: string
 }
+
+// ─── Simplified type helpers ───
+// Project is now Goal. Chore is now Task. Old data still works.
+export const isGoal = (e: Entity) => e.type === 'goal' || e.type === 'project'
+export const isTask = (e: Entity) => e.type === 'task' || e.type === 'chore'

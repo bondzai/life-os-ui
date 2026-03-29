@@ -1,4 +1,5 @@
 import type { Entity } from '@/core/types'
+import { isTask } from '@/core/types'
 
 export function buildProjectContext(project: Entity, entities: Entity[]): string {
   const lines: string[] = [`Project: "${project.title}" [${project.status}]`]
@@ -17,7 +18,7 @@ export function buildProjectContext(project: Entity, entities: Entity[]): string
   if (summary) lines.push(`Summary: ${summary}`)
 
   // Tasks
-  const tasks = entities.filter((e) => e.type === 'task' && e.status !== 'archived' && e.metadata?.projectId === project.id)
+  const tasks = entities.filter((e) => isTask(e) && e.status !== 'archived' && e.metadata?.projectId === project.id)
   const done = tasks.filter((t) => t.status === 'done').length
   const inProgress = tasks.filter((t) => t.status === 'in-progress').length
   lines.push(`Tasks: ${done} done, ${inProgress} in-progress, ${tasks.length - done - inProgress} remaining`)

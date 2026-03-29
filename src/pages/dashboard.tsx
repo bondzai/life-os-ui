@@ -41,6 +41,7 @@ import { useDashboardLayout } from './dashboard/use-dashboard-layout'
 import { DynamicGrid } from './dashboard/dynamic-grid'
 import './dashboard/widgets' // triggers widget registration
 import type { Entity, Tracker } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 /* ─── Date helpers ─── */
 
@@ -175,9 +176,9 @@ export function DashboardPage() {
   const lastWeekISO = useMemo(() => lastWeekStart.toISOString(), [lastWeekStart])
 
   // ─── Filtered entities by type ───
-  const tasks = useMemo(() => filteredEntities.filter((e) => e.type === 'task'), [filteredEntities])
+  const tasks = useMemo(() => filteredEntities.filter((e) => isTask(e)), [filteredEntities])
   const habits = useMemo(() => filteredEntities.filter((e) => e.type === 'habit' && e.status === 'todo'), [filteredEntities])
-  const goals = useMemo(() => filteredEntities.filter((e) => e.type === 'goal' && e.status === 'todo'), [filteredEntities])
+  const goals = useMemo(() => filteredEntities.filter((e) => isGoal(e) && e.status === 'todo'), [filteredEntities])
   const sleepEntities = useMemo(() => filteredEntities.filter((e) => e.type === 'sleep-mood'), [filteredEntities])
   const workouts = useMemo(() => filteredEntities.filter((e) => e.type === 'workout'), [filteredEntities])
 

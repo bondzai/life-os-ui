@@ -18,6 +18,7 @@ import { GoalsPage } from '@/pages/goals'
 import { NotesPage } from '@/pages/notes'
 import { ReviewPage } from '@/pages/review'
 import type { Entity } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 // ─── Config ───
 
@@ -101,7 +102,7 @@ export function getTabBadge(id: string, allEntities: Entity[], today: string): n
       return allEntities.filter((e) => e.metadata.isInbox === true && e.status === 'todo').length
     case 'tasks':
       return allEntities.filter((e) =>
-        (e.type === 'task' || e.type === 'chore') &&
+        isTask(e) &&
         e.status !== 'done' && e.status !== 'archived' &&
         e.dueDate && e.dueDate <= today,
       ).length
@@ -110,7 +111,7 @@ export function getTabBadge(id: string, allEntities: Entity[], today: string): n
     case 'habits':
       return allEntities.filter((e) => e.type === 'habit' && e.status === 'todo').length
     case 'goals':
-      return allEntities.filter((e) => e.type === 'goal' && (e.status === 'todo' || e.status === 'in-progress')).length
+      return allEntities.filter((e) => isGoal(e) && (e.status === 'todo' || e.status === 'in-progress')).length
     case 'notes':
       return allEntities.filter((e) => e.type === 'note' && e.metadata.isJournal !== true).length
     default:

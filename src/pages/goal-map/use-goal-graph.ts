@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import { useEntities } from '@/core/hooks'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 const GOAL_SPACING_X = 400
 const TASK_SPACING_X = 280
@@ -39,8 +40,8 @@ export function useGoalGraph() {
   const { items } = useEntities()
 
   return useMemo(() => {
-    const goals = items.filter((e) => e.type === 'goal' && e.status !== 'archived')
-    const tasks = items.filter((e) => e.type === 'task' && e.status !== 'archived')
+    const goals = items.filter((e) => isGoal(e) && e.status !== 'archived')
+    const tasks = items.filter((e) => isTask(e) && e.status !== 'archived')
 
     const tasksByGoal = new Map<string, Entity[]>()
     const orphanTasks: Entity[] = []

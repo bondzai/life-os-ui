@@ -11,6 +11,7 @@ import {
 import { EmptyState } from '@/core/components/empty-state'
 import { useEntities, useRelations } from '@/core/hooks'
 import type { Entity } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 /* ─── Types ─── */
 
@@ -74,9 +75,9 @@ export function GanttPage() {
   // Build rows
   const { rows, timeStart, timeEnd } = useMemo(() => {
     const now = Date.now()
-    const allTasks = entities.filter((e) => e.type === 'task' && e.status !== 'archived')
-    const allProjects = entities.filter((e) => e.type === 'project' && e.status !== 'archived')
-    const allGoals = entities.filter((e) => e.type === 'goal' && e.status !== 'archived')
+    const allTasks = entities.filter((e) => isTask(e) && e.status !== 'archived')
+    const allProjects = entities.filter((e) => isGoal(e) && e.status !== 'archived')
+    const allGoals = allProjects // isGoal covers both goal and project types
     const result: Row[] = []
 
     function taskRow(e: Entity, indent: number): Row {

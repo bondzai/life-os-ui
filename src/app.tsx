@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -31,7 +31,6 @@ const BriefingPage = lazy(() => import('@/pages/tasks/standup-report').then((m) 
 const GoalMapPage = lazy(() => import('@/pages/goal-map').then((m) => ({ default: m.GoalMapPage })))
 const NoteMapPage = lazy(() => import('@/pages/note-map').then((m) => ({ default: m.NoteMapPage })))
 const EventsPage = lazy(() => import('@/pages/events').then((m) => ({ default: m.EventsPage })))
-const ProjectsPage = lazy(() => import('@/pages/projects').then((m) => ({ default: m.ProjectsPage })))
 const SkillsPage = lazy(() => import('@/pages/skills').then((m) => ({ default: m.SkillsPage })))
 const GanttPage = lazy(() => import('@/pages/gantt').then((m) => ({ default: m.GanttPage })))
 const LyraPage = lazy(() => import('@/pages/lyra').then((m) => ({ default: m.LyraPage })))
@@ -59,7 +58,7 @@ export function App() {
                 <Route path="briefing" element={<Suspense fallback={null}><BriefingPage /></Suspense>} />
                 <Route element={<AppLayout />}>
                   <Route index element={<TodayPage />} />
-                  <Route path="projects" element={<ProjectsPage />} />
+                  <Route path="projects" element={<Navigate to="/goals" replace />} />
                   <Route path="gantt" element={<GanttPage />} />
                   <Route path="goals" element={<GoalsPage />} />
                   <Route path="goal-map" element={<GoalMapPage />} />

@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router'
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import type { Entity, EntityStatus } from '@/core/types'
+import { isTask } from '@/core/types'
 import { useGoalGraph } from './goal-map/use-goal-graph'
 import { nodeTypes, MapActionsContext, type MapActions } from './goal-map/map-nodes'
 import { StatusBadge } from '@/core/components/status-badge'
@@ -165,7 +166,7 @@ export function GoalMapPage() {
               )}
 
               {/* Subtasks for tasks */}
-              {selected.type === 'task' && (() => {
+              {isTask(detailEntity) && (() => {
                 const subs = (detailEntity.metadata?.subtasks as Array<{ id: string; title: string; done: boolean }>) ?? []
                 if (subs.length === 0) return null
                 return (

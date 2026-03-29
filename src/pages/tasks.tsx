@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
+import { isTask } from '@/core/types'
 
 type ViewMode = 'list' | 'kanban' | 'backlog' | 'log'
 
@@ -127,7 +128,8 @@ function ListTaskWrapper({
 // ── Component ─────────────────────────────────────────────────────────
 
 export function TasksPage() {
-  const { items: tasks, isLoading, create, update, remove } = useEntities('task')
+  const { items: allItems, isLoading, create, update, remove } = useEntities()
+  const tasks = useMemo(() => allItems.filter(isTask), [allItems])
   const currentUser = useAuthStore((s) => s.currentUser)
 
   const [view, setView] = useState<ViewMode>('list')

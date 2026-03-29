@@ -32,6 +32,7 @@ import {
 import { useAuthStore } from '@/stores/auth-store'
 import { useFocusStore } from '@/stores/focus-store'
 import { useEntities } from '@/core/hooks'
+import { isTask } from '@/core/types'
 import { getModuleGroups, DEFAULT_COLLAPSED_GROUPS } from '@/core/config/modules'
 import { exportData, importData } from '@/lib/data-backup'
 import { notify } from '@/lib/notify'
@@ -84,15 +85,11 @@ export function AppSidebar() {
   const { items: allEntities } = useEntities()
   const today = new Date().toISOString().split('T')[0]
   const dueTaskCount = allEntities.filter(
-    (e) => e.type === 'task' && e.status !== 'done' && e.status !== 'archived' && e.dueDate && e.dueDate <= today,
-  ).length
-  const dueChoreCount = allEntities.filter(
-    (e) => e.type === 'chore' && e.status !== 'done' && e.status !== 'archived' && e.dueDate && e.dueDate <= today,
+    (e) => isTask(e) && e.status !== 'done' && e.status !== 'archived' && e.dueDate && e.dueDate <= today,
   ).length
 
   const badges: Record<string, number> = {}
   if (dueTaskCount > 0) badges['tasks'] = dueTaskCount
-  if (dueChoreCount > 0) badges['family'] = dueChoreCount
 
   // Active focus session detection
   const hasActiveSession = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)

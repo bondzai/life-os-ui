@@ -155,11 +155,6 @@ export function parseCapture(raw: string): ParsedCapture {
     return { rule: slashToRule(slash.cmd), cleanText: slash.rest }
   }
 
-  // Legacy "todo " prefix
-  if (text.toLowerCase().startsWith('todo ')) {
-    return { rule: CAPTURE_RULES[0], cleanText: text.slice(5).trim() }
-  }
-
   // Quick prefixes: ! ? * @ #
   for (const rule of CAPTURE_RULES) {
     if (text.startsWith(rule.prefix as string)) {
@@ -199,7 +194,7 @@ export function groupSlashCommands(commands: SlashCommand[]): { category: string
 
 /** Build placeholder string */
 export function capturePlaceholder(): string {
-  return '/ commands  !task  ?question  *idea  @goal  #habit'
+  return '!action  @outcome  #system  / more'
 }
 
 // ─── Note Templates (for per-task note input) ───

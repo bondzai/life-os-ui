@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useEntities, useRelations } from '@/core/hooks'
 import { modules } from '@/core/config/modules'
 import type { Entity, EntityType } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 /* ─── Types ─── */
 
@@ -71,8 +72,8 @@ export function useCommandCenter() {
 
   return useMemo(() => {
     const now = Date.now()
-    const goals = entities.filter((e) => e.type === 'goal' && e.status !== 'archived')
-    const tasks = entities.filter((e) => e.type === 'task' && e.status !== 'archived')
+    const goals = entities.filter((e) => isGoal(e) && e.status !== 'archived')
+    const tasks = entities.filter((e) => isTask(e) && e.status !== 'archived')
 
     // Index maps
     const entityById = new Map<string, Entity>()

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { modules } from '@/core/config/modules'
 import type { Entity, EntityType } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 import { daysAgo, getWeekStart } from './review-helpers'
 
 /* ─── Types ─── */
@@ -59,9 +60,9 @@ export function useSystemAudit() {
   const now = Date.now()
 
   return useMemo(() => {
-    const projects = entities.filter((e) => e.type === 'project' && e.status !== 'archived')
-    const tasks = entities.filter((e) => e.type === 'task')
-    const goals = entities.filter((e) => e.type === 'goal')
+    const projects = entities.filter((e) => isGoal(e) && e.status !== 'archived')
+    const tasks = entities.filter((e) => isTask(e))
+    const goals = entities.filter((e) => isGoal(e))
     const habits = entities.filter((e) => e.type === 'habit')
 
     /* ── 1. Project Velocity ── */

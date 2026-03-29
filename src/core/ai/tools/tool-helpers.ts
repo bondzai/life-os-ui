@@ -1,4 +1,5 @@
 import type { Entity } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 import type { Tracker } from '@/core/types/tracker'
 
 /** Build a formatted list of available task candidates for AI selection */
@@ -6,7 +7,7 @@ export function buildCandidateList(entities: Entity[], limit = 30): string {
   return entities
     .filter(
       (e) =>
-        (e.type === 'task' || e.type === 'goal') &&
+        (isTask(e) || isGoal(e)) &&
         (e.status === 'todo' || e.status === 'in-progress'),
     )
     .slice(0, limit)
@@ -53,11 +54,11 @@ export function buildKnowledgeSignals(entities: Entity[]): string {
     .slice(0, 10)
 
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
-  const projects = entities.filter((e) => e.type === 'project' && e.status !== 'archived')
+  const projects = entities.filter((e) => isGoal(e) && e.status !== 'archived')
   const projectSummaries = projects
     .map((p) => {
       const tasks = entities.filter(
-        (e) => e.type === 'task' && e.metadata?.projectId === p.id && e.status !== 'archived',
+        (e) => isTask(e) && e.metadata?.projectId === p.id && e.status !== 'archived',
       )
       const doneThisWeek = tasks.filter((t) => t.status === 'done' && t.updatedAt >= weekAgo).length
       const remaining = tasks.filter((t) => t.status !== 'done').length
@@ -69,7 +70,7 @@ export function buildKnowledgeSignals(entities: Entity[]): string {
     .join('\n')
 
   const goals = entities.filter(
-    (e) => e.type === 'goal' && e.status !== 'done' && e.status !== 'archived',
+    (e) => isGoal(e) && e.status !== 'done' && e.status !== 'archived',
   )
 
   return [

@@ -1,6 +1,7 @@
 import { AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { registerWidget, type WidgetProps } from './registry'
+import { isTask } from '@/core/types'
 
 const priorityColor: Record<string, string> = {
   urgent: 'text-red-500',
@@ -14,7 +15,7 @@ function OverdueTasks({ entities }: WidgetProps) {
   const overdue = entities
     .filter(
       (e) =>
-        e.type === 'task' &&
+        isTask(e) &&
         e.dueDate &&
         e.dueDate < today &&
         e.status !== 'done' &&
@@ -54,7 +55,7 @@ registerWidget(
     relevance: ({ entities, today }) => {
       const overdue = entities.filter(
         (e) =>
-          e.type === 'task' &&
+          isTask(e) &&
           e.dueDate &&
           e.dueDate < today &&
           e.status !== 'done' &&

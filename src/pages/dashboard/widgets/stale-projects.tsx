@@ -1,6 +1,7 @@
 import { FolderClock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { registerWidget, type WidgetProps } from './registry'
+import { isGoal, isTask } from '@/core/types'
 
 const STALE_DAYS = 14
 
@@ -9,10 +10,10 @@ function StaleProjects({ entities }: WidgetProps) {
   const cutoff = now - STALE_DAYS * 86400000
 
   const projects = entities.filter(
-    (e) => e.type === 'project' && e.status === 'in-progress',
+    (e) => isGoal(e) && e.status === 'in-progress',
   )
   const tasks = entities.filter(
-    (e) => e.type === 'task' && e.metadata?.projectId,
+    (e) => isTask(e) && e.metadata?.projectId,
   )
 
   const stale = projects.filter((p) => {
@@ -56,9 +57,9 @@ registerWidget(
       const now = Date.now()
       const cutoff = now - STALE_DAYS * 86400000
       const projects = entities.filter(
-        (e) => e.type === 'project' && e.status === 'in-progress',
+        (e) => isGoal(e) && e.status === 'in-progress',
       )
-      const tasks = entities.filter((e) => e.type === 'task' && e.metadata?.projectId)
+      const tasks = entities.filter((e) => isTask(e) && e.metadata?.projectId)
       const hasStale = projects.some((p) => {
         const linked = tasks.filter((t) => t.metadata?.projectId === p.id)
         if (linked.length === 0) return true

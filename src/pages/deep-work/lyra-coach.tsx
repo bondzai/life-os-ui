@@ -6,6 +6,7 @@ import { useAI } from '@/hooks/use-ai'
 import { buildTaskContext } from '@/core/ai/context/task-context'
 import { getSolPrefix } from '@/core/ai/soul'
 import type { Entity } from '@/core/types'
+import { isTask } from '@/core/types'
 
 interface LyraCoachProps {
   phase: 'idle' | 'work' | 'break' | 'long-break'
@@ -102,7 +103,7 @@ export function LyraCoach({ phase, completedSessions, entityIds }: LyraCoachProp
     const entityIdSet = new Set(entityIds)
     const candidates = allEntities.filter(
       (e) =>
-        e.type === 'task' &&
+        isTask(e) &&
         e.status !== 'done' &&
         e.status !== 'archived' &&
         !entityIdSet.has(e.id),

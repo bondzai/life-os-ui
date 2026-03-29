@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useEntities, useTrackers } from '@/core/hooks'
+import { isGoal, isTask } from '@/core/types'
 import { getWeekStart } from '@/pages/review/review-helpers'
 
 export interface HabitSummary {
@@ -24,7 +25,7 @@ export function useWeeklyMetrics(): WeeklyMetrics {
     () =>
       allEntities.filter(
         (e) =>
-          (e.type === 'task' || e.type === 'goal') &&
+          (isTask(e) || isGoal(e)) &&
           e.status === 'done' &&
           e.updatedAt.split('T')[0] >= weekStart,
       ),

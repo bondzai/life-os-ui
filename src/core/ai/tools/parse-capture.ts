@@ -1,5 +1,6 @@
 import { registerTool, type AITool } from './registry'
 import { getSolPrefix } from '../soul'
+import { isGoal } from '@/core/types'
 
 const tool: AITool = {
   id: 'parse-capture',
@@ -8,13 +9,10 @@ const tool: AITool = {
   scope: 'global',
   buildPrompt: ({ entities }) => {
     const projects = entities
-      .filter((e) => e.type === 'project' && e.status !== 'archived')
+      .filter((e) => isGoal(e) && e.status !== 'archived')
       .map((e) => `- "${e.title}" [id:${e.id}]`)
       .join('\n')
-    const goals = entities
-      .filter((e) => e.type === 'goal' && e.status !== 'archived')
-      .map((e) => `- "${e.title}" [id:${e.id}]`)
-      .join('\n')
+    const goals = projects // same as projects — isGoal covers both
 
     const today = new Date().toISOString().split('T')[0]
     const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' })

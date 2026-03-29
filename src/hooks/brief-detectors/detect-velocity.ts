@@ -1,11 +1,12 @@
 import type { Detector, Insight } from './types'
 import { getProjectVelocity } from './utils'
+import { isGoal } from '@/core/types'
 
 export const detectVelocity: Detector = ({ entities, now }) => {
   const insights: Insight[] = []
 
   const projects = entities.filter(
-    (e) => e.type === 'project' && e.status === 'in-progress',
+    (e) => isGoal(e) && e.status === 'in-progress',
   )
 
   for (const project of projects) {

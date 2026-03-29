@@ -55,6 +55,7 @@ import {
 import { useCommandCenter } from './command-center/use-command-center'
 import { MorningBrief } from './today/morning-brief'
 import type { Entity } from '@/core/types'
+import { isGoal, isTask } from '@/core/types'
 
 function getGreeting(): string {
   const h = new Date().getHours()
@@ -312,27 +313,13 @@ export function TodayPage() {
   )
 
   const priorityCandidates = useMemo(
-    () => allEntities.filter((e) => (e.type === 'task' || e.type === 'goal') && (e.status === 'todo' || e.status === 'in-progress')),
+    () => allEntities.filter((e) => (isTask(e) || isGoal(e)) && (e.status === 'todo' || e.status === 'in-progress')),
     [allEntities],
   )
 
-  // Due tasks + chores: active, due today or overdue
-  const todayTasks = useMemo(() => {
-    const items = allEntities.filter(
-      (e) =>
-        (e.type === 'task' || e.type === 'chore') &&
-        e.status === 'todo' &&
-        e.dueDate &&
-        e.dueDate <= today,
-    )
-    const order = { urgent: 0, high: 1, medium: 2, low: 3 }
-    items.sort((a, b) => (order[a.priority as keyof typeof order] ?? 2) - (order[b.priority as keyof typeof order] ?? 2))
-    return items
-  }, [allEntities, today])
 
 
-  // Keep actionItems reference for metrics (total count of active items)
-  const actionItems = todayTasks
+
 
   const todayICalEvents = useMemo(
     () => icalEvents
@@ -366,26 +353,6 @@ export function TodayPage() {
   // ─── Metrics ───
 
   const habitsChecked = habits.filter((h) => h.checkedToday).length
-  const totalItems = actionItems.length + habits.length
-  const doneItems = actionItems.filter((i) => i.status === 'done').length + habitsChecked
-
-  // Focus Score: based on subtask completion across stories + simple task completion
-  const focusScore = useMemo(() => {
-    if (priorities.length === 0) return null
-    let totalSteps = 0
-    let doneSteps = 0
-    for (const entity of priorityEntities) {
-      const subs = Array.isArray(entity.metadata.subtasks) ? (entity.metadata.subtasks as Array<{ done: boolean; status?: string }>) : []
-      if (subs.length > 0) {
-        totalSteps += subs.length
-        doneSteps += subs.filter((s) => (s.status ? s.status === 'done' : s.done)).length
-      } else {
-        totalSteps += 1
-        if (entity.status === 'done') doneSteps += 1
-      }
-    }
-    return totalSteps > 0 ? Math.round((doneSteps / totalSteps) * 100) : 0
-  }, [priorities, priorityEntities])
 
   // Focus streak (consecutive days with 25+ min)
   const focusStreak = useMemo(() => {
@@ -532,23 +499,14 @@ export function TodayPage() {
             {dateStr} &middot; <LiveClock />
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {focusScore !== null && (
-            <span className={`text-xs font-medium tabular-nums ${
-              focusScore >= 100
-                ? 'text-green-600 dark:text-green-400'
-                : focusScore >= 50
-                  ? 'text-amber-600 dark:text-amber-400'
-                  : 'text-muted-foreground'
-            }`}>
-              {focusScore}%
+        <div className="flex items-center gap-3 text-[10px] tabular-nums text-muted-foreground/60">
+          {focusStreak > 0 && (
+            <span className="flex items-center gap-0.5 text-orange-500/70" title={`${focusStreak} day focus streak`}>
+              <Flame className="h-3 w-3" />{focusStreak}d
             </span>
           )}
-          {totalItems > 0 && (
-            <div className="flex items-center gap-2 min-w-[100px]">
-              <Progress value={Math.round((doneItems / totalItems) * 100)} className="h-1 flex-1" />
-              <span className="text-[10px] tabular-nums text-muted-foreground/60">{doneItems}/{totalItems}</span>
-            </div>
+          {habitsChecked > 0 && (
+            <span>{habitsChecked}/{habits.length} habits</span>
           )}
         </div>
       </header>
@@ -663,10 +621,10 @@ export function TodayPage() {
                     const doneCount = subs.filter((s) => (s.status ? s.status === 'done' : s.done)).length
                     const pct = hasSubs ? Math.round((doneCount / subs.length) * 100) : 0
                     const allDone = item.status === 'done' || (hasSubs && doneCount === subs.length)
-                    const isGoal = item.type === 'goal'
+                    const isGoalItem = isGoal(item)
                     const goalProgress = typeof item.metadata.progress === 'number' ? (item.metadata.progress as number) : 0
 
-                    if (isGoal) {
+                    if (isGoalItem) {
                       return (
                         <button
                           key={item.id}

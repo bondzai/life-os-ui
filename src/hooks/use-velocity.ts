@@ -16,16 +16,15 @@ export interface VelocityData {
 
 export function useVelocity(
   entityId: string,
-  entityType: 'goal' | 'project',
+  entityType: 'goal',
   dueDate?: string,
 ): VelocityData {
   const { items: allTasks } = useEntities('task')
 
   return useMemo(() => {
-    const metadataKey = entityType === 'project' ? 'projectId' : 'goalId'
-
+    // Check both projectId and goalId — old entities may use either field
     const linkedTasks = allTasks.filter(
-      (t) => t.status !== 'archived' && t.metadata?.[metadataKey] === entityId,
+      (t) => t.status !== 'archived' && (t.metadata?.goalId === entityId || t.metadata?.projectId === entityId),
     )
 
     const totalTasks = linkedTasks.length
