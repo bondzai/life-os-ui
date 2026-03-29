@@ -5,6 +5,7 @@ import {
   ChevronRight,
   CheckCircle2,
   ClipboardCopy,
+  Crosshair,
   Maximize2,
   CalendarDays,
   CalendarRange,
@@ -19,6 +20,7 @@ import { notify } from '@/lib/notify'
 import { getSubtasks, subtaskDone, getLastWorkday } from './tasks/task-helpers'
 import { getTodayPriorities } from './today/today-helpers'
 import type { EntityPriority } from '@/core/types'
+import { StepWeeklyPlan } from './review/step-weekly-plan'
 import { StepAccomplishments } from './review/step-accomplishments'
 import { StepStale } from './review/step-stale'
 import { StepHabits } from './review/step-habits'
@@ -33,12 +35,13 @@ import {
 } from './review/review-helpers'
 import type { Entity } from '@/core/types'
 
-type ReviewTab = 'standup' | 'daily' | 'weekly'
+type ReviewTab = 'plan' | 'standup' | 'daily' | 'weekly'
 
 export function ReviewPage({ embedded }: { embedded?: boolean }) {
-  const [tab, setTab] = useState<ReviewTab>('standup')
+  const [tab, setTab] = useState<ReviewTab>('plan')
 
   const tabs: { id: ReviewTab; label: string; icon: typeof CalendarDays }[] = [
+    { id: 'plan', label: 'Plan', icon: Crosshair },
     { id: 'standup', label: 'Standup', icon: Mic },
     { id: 'daily', label: 'Debrief', icon: CalendarDays },
     { id: 'weekly', label: 'Weekly', icon: CalendarRange },
@@ -65,7 +68,7 @@ export function ReviewPage({ embedded }: { embedded?: boolean }) {
         </div>
       </div>
 
-      {tab === 'standup' ? <StandupReport /> : tab === 'daily' ? <DailyReview /> : <WeeklyReview />}
+      {tab === 'plan' ? <StepWeeklyPlan /> : tab === 'standup' ? <StandupReport /> : tab === 'daily' ? <DailyReview /> : <WeeklyReview />}
     </div>
   )
 }

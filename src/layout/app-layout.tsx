@@ -93,10 +93,18 @@ export function AppLayout() {
       <CommandBar />
       <InboxCapture />
 
-      {/* Focus mode: floating bar with clock + page + exit */}
+      {/* Focus mode: floating bar with clock + timer + page + exit */}
       {focusMode ? (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background/80 backdrop-blur-sm border rounded-full shadow-md px-4 py-1.5 opacity-0 hover:opacity-100 transition-opacity">
           <span className="text-xs tabular-nums text-muted-foreground font-medium">{clock}</span>
+          {focusSessionActive && focusSeconds > 0 && (
+            <>
+              <span className="w-px h-3 bg-border" />
+              <span className={`text-xs tabular-nums font-medium ${focusPhase === 'work' ? 'text-amber-500' : 'text-emerald-500'}`}>
+                {Math.floor(focusSeconds / 60)}:{String(focusSeconds % 60).padStart(2, '0')}
+              </span>
+            </>
+          )}
           <span className="w-px h-3 bg-border" />
           <span className="text-xs font-medium">{title}</span>
           <span className="w-px h-3 bg-border" />

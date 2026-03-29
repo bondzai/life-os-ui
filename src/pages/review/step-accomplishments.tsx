@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { Trophy, TrendingUp, TrendingDown, Minus, Star, CheckCircle2, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useWeeklyPlan } from '@/hooks/use-weekly-plan'
 import type { Entity } from '@/core/types'
 
 interface StepAccomplishmentsProps {
@@ -10,6 +11,7 @@ interface StepAccomplishmentsProps {
 }
 
 export function StepAccomplishments({ items, allEntities }: StepAccomplishmentsProps) {
+  const { plan, updateOutcomeStatus } = useWeeklyPlan()
   const lastWeekCount = useMemo(() => {
     if (!allEntities) return undefined
     const now = new Date()
@@ -41,6 +43,43 @@ export function StepAccomplishments({ items, allEntities }: StepAccomplishmentsP
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Weekly outcomes check */}
+        {plan && plan.outcomes.length > 0 && (
+          <div className="mb-4 pb-4 border-b border-border/50 space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/50 flex items-center gap-1.5">
+              <Star className="h-3 w-3 text-amber-500" />
+              Weekly Outcomes
+            </p>
+            {plan.outcomes.map((outcome) => (
+              <div key={outcome.id} className="flex items-center gap-2">
+                <button
+                  onClick={() => updateOutcomeStatus(outcome.id, outcome.status === 'done' ? 'open' : 'done')}
+                  className="shrink-0 cursor-pointer"
+                >
+                  {outcome.status === 'done' ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : outcome.status === 'missed' ? (
+                    <XCircle className="h-4 w-4 text-red-500" />
+                  ) : (
+                    <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />
+                  )}
+                </button>
+                <span className={`text-sm flex-1 ${outcome.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
+                  {outcome.text}
+                </span>
+                {outcome.status === 'open' && (
+                  <button
+                    onClick={() => updateOutcomeStatus(outcome.id, 'missed')}
+                    className="text-[10px] text-muted-foreground/30 hover:text-red-500 transition-colors cursor-pointer"
+                  >
+                    missed
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No completed tasks or goals this week. That's okay — every week is different.

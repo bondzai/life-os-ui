@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { X, Play, Pause, SkipForward, Square, Timer, Flame, Crown, ChevronRight, Plus, CheckCircle2, ChevronDown, Pencil, Trash2, GripVertical, MessageSquare, Send, ExternalLink, ChevronsUp, ArrowUp, ArrowDown, Minus as MinusIcon, Inbox } from 'lucide-react'
+import { X, Play, Pause, SkipForward, Square, Timer, Flame, Crown, ChevronRight, Plus, CheckCircle2, ChevronDown, Pencil, Trash2, GripVertical, MessageSquare, Send, ExternalLink, ChevronsUp, ArrowUp, ArrowDown, Minus as MinusIcon, Inbox, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEntities, useTrackers } from '@/core/hooks'
@@ -632,6 +632,31 @@ export function DeepWorkPage() {
   const [detailTask, setDetailTask] = useState<Entity | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
+  // Distraction tally — reset each work phase
+  const [distractions, setDistractions] = useState(0)
+  const prevPhaseForDistractions = useRef(phase)
+  useEffect(() => {
+    if (phase === 'work' && prevPhaseForDistractions.current !== 'work') setDistractions(0)
+    prevPhaseForDistractions.current = phase
+  }, [phase])
+
+  // Session micro-goal
+  const [sessionGoal, setSessionGoal] = useState('')
+
+  // Auto-pause on tab switch
+  const [tabAway, setTabAway] = useState(false)
+  useEffect(() => {
+    const handler = () => {
+      if (document.hidden && phase === 'work' && isRunning) {
+        pauseTimer()
+        setTabAway(true)
+      }
+      if (!document.hidden && tabAway) setTabAway(false)
+    }
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [phase, isRunning, pauseTimer, tabAway])
+
   const entityTitles = useMemo(() => {
     const m = new Map<string, string>()
     for (const e of allEntities) m.set(e.id, e.title)
@@ -734,6 +759,8 @@ export function DeepWorkPage() {
       workMinutes: settings.workMinutes,
       pomodoroIndex: completedSessions + 1,
       workspace: (currentEntity?.metadata?.workspace as string) ?? null,
+      distractions: distractions > 0 ? distractions : undefined,
+      goal: sessionGoal || undefined,
     })
     createTracker.mutate({
       id: crypto.randomUUID(),
@@ -744,7 +771,7 @@ export function DeepWorkPage() {
       timestamp: new Date().toISOString(),
       ownerId: currentUser?.id ?? '',
     })
-  }, [activeEntityId, allEntities, settings.workMinutes, createTracker, currentUser, sessionId, preset, completedSessions])
+  }, [activeEntityId, allEntities, settings.workMinutes, createTracker, currentUser, sessionId, preset, completedSessions, distractions, sessionGoal])
 
   const handleTimerEndRef = useRef<() => void>(() => {})
   useEffect(() => {
@@ -1020,6 +1047,17 @@ export function DeepWorkPage() {
             {currentSession}/{settings.sessionsBeforeLongBreak}
           </span>
           <span className="w-px h-3 bg-zinc-800" />
+          {phase === 'work' && (
+            <button
+              onClick={() => setDistractions((d) => d + 1)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors text-zinc-600 hover:text-zinc-400 cursor-pointer text-xs tabular-nums"
+              title="Log a distraction"
+            >
+              <Zap className="h-3 w-3" />
+              {distractions > 0 && <span>{distractions}</span>}
+            </button>
+          )}
+          <span className="w-px h-3 bg-zinc-800" />
           <button
             onClick={() => useUiStore.getState().setCaptureOpen(true)}
             className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-zinc-600 hover:text-zinc-400 cursor-pointer"
@@ -1029,6 +1067,16 @@ export function DeepWorkPage() {
           </button>
         </div>
       </div>
+
+      {/* Tab-away welcome back */}
+      {tabAway && (
+        <div className="flex items-center justify-center gap-3 py-2 bg-amber-500/10 border-b border-amber-500/20">
+          <span className="text-xs text-amber-400">Paused — you switched away</span>
+          <Button size="sm" variant="outline" className="h-6 px-3 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10" onClick={() => { resumeTimer(); setTabAway(false) }}>
+            Resume
+          </Button>
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 max-w-2xl mx-auto w-full gap-8">
         {/* Timer ring */}
@@ -1047,19 +1095,34 @@ export function DeepWorkPage() {
               style={{ width: `${timerProgress}%` }}
             />
           </div>
+
+          {/* Session goal reminder */}
+          {sessionGoal && phase === 'work' && (
+            <p className="text-xs text-zinc-500 italic">{sessionGoal}</p>
+          )}
         </div>
 
         {/* Controls */}
         <div className="flex items-center gap-3">
           {phase === 'idle' ? (
-            <Button
-              onClick={handleStartWork}
-              size="lg"
-              className="gap-2 bg-amber-500 hover:bg-amber-400 text-black font-medium rounded-full px-8"
-            >
-              <Play className="h-4 w-4" />
-              Start Focus
-            </Button>
+            <div className="flex flex-col items-center gap-3">
+              <input
+                type="text"
+                value={sessionGoal}
+                onChange={(e) => setSessionGoal(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && sessionGoal.trim()) handleStartWork() }}
+                placeholder="Session goal (optional)"
+                className="w-64 bg-transparent border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-300 placeholder:text-zinc-700 focus:outline-none focus:border-amber-500/40 text-center"
+              />
+              <Button
+                onClick={handleStartWork}
+                size="lg"
+                className="gap-2 bg-amber-500 hover:bg-amber-400 text-black font-medium rounded-full px-8"
+              >
+                <Play className="h-4 w-4" />
+                Start Focus
+              </Button>
+            </div>
           ) : (
             <>
               {isRunning ? (

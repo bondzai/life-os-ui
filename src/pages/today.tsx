@@ -28,6 +28,7 @@ import {
   ArrowDown,
   Minus,
   Calendar,
+  Flame,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -39,6 +40,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useFocusStore } from '@/stores/focus-store'
+import { DailyProtocol } from './today/daily-protocol'
 import { PriorityPicker } from './today/priority-picker'
 import { SmartPriority } from './today/smart-priority'
 import { getRecurrence, buildRecurringNext } from './tasks/task-helpers'
@@ -385,6 +387,29 @@ export function TodayPage() {
     return totalSteps > 0 ? Math.round((doneSteps / totalSteps) * 100) : 0
   }, [priorities, priorityEntities])
 
+  // Focus streak (consecutive days with 25+ min)
+  const focusStreak = useMemo(() => {
+    const dailyMin = new Map<string, number>()
+    for (const t of allTrackers) {
+      if (t.unit !== 'focus-min') continue
+      const d = t.timestamp.split('T')[0]
+      dailyMin.set(d, (dailyMin.get(d) ?? 0) + t.value)
+    }
+    let streak = 0
+    const d = new Date()
+    // Check today first — if today has 25+ min, count it
+    const todayKey = d.toISOString().split('T')[0]
+    if ((dailyMin.get(todayKey) ?? 0) >= 25) streak++
+    // Walk backwards from yesterday
+    d.setDate(d.getDate() - 1)
+    for (let i = 0; i < 365; i++) {
+      const key = d.toISOString().split('T')[0]
+      if ((dailyMin.get(key) ?? 0) >= 25) { streak++; d.setDate(d.getDate() - 1) }
+      else break
+    }
+    return streak
+  }, [allTrackers])
+
   // ─── Handlers ───
 
   const handleSavePriorities = useCallback((ids: string[]) => {
@@ -565,6 +590,17 @@ export function TodayPage() {
         {/* ═══ LEFT — Focus + Protocols (7/12) ═══ */}
         <div className="lg:col-span-7 min-h-0 overflow-y-auto space-y-6 pr-1 scrollbar-thin">
 
+          {/* Daily Protocol — from weekly plan */}
+          {priorities.length === 0 && (
+            <DailyProtocol
+              entities={allEntities}
+              onConfirm={(ids) => {
+                setPriorities(ids)
+                setTodayPriorities(ids)
+              }}
+            />
+          )}
+
           {/* Today Focus — story-based */}
           <section>
             {priorities.length > 0 ? (
@@ -609,6 +645,12 @@ export function TodayPage() {
                     >
                       Reset
                     </Button>
+                    {focusStreak > 0 && (
+                      <span className="flex items-center gap-0.5 text-[10px] text-orange-500/70 tabular-nums" title={`${focusStreak} day streak (25+ min/day)`}>
+                        <Flame className="h-3 w-3" />
+                        {focusStreak}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <CollapsibleContent>
