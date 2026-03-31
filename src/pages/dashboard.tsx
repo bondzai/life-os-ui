@@ -16,7 +16,6 @@ import {
   User,
   Zap,
   Crown,
-  ChevronDown,
   Shuffle,
 } from 'lucide-react'
 import {
@@ -31,12 +30,10 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { calcFocusStats, formatMinutes as fmtMin } from '@/lib/focus-stats'
 import { loadHealthProfile, calcBMI, getBMICategory } from '@/lib/health-calc'
-import { FocusLog } from './dashboard/focus-log'
-import { StrategyTab } from './dashboard/strategy-tab'
 import { useDashboardLayout } from './dashboard/use-dashboard-layout'
 import { DynamicGrid } from './dashboard/dynamic-grid'
 import './dashboard/widgets' // triggers widget registration
@@ -148,9 +145,7 @@ function SH({ children }: { children: React.ReactNode }) {
 export function DashboardPage() {
   const { items: allEntities } = useEntities()
   const { items: allTrackers } = useTrackers()
-  const [focusLogOpen, setFocusLogOpen] = useState(true)
   const [workspace, setWorkspace] = useState<'all' | 'work' | 'personal'>('all')
-  const [dashTab, setDashTab] = useState('overview')
 
   // Dynamic widget layout
   const layout = useDashboardLayout()
@@ -335,18 +330,9 @@ export function DashboardPage() {
             <p className="text-sm text-muted-foreground mt-0.5">Life metrics, focus analytics, and weekly trends</p>
           </div>
         </div>
-        <Tabs value={dashTab} onValueChange={setDashTab} className="mt-3">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="strategy">Strategy</TabsTrigger>
-            <TabsTrigger value="focus">Focus Log</TabsTrigger>
-          </TabsList>
-        </Tabs>
       </header>
 
-      <Tabs value={dashTab} onValueChange={setDashTab} className="flex-1 min-h-0">
-
-      <TabsContent value="overview" className="mt-0">
+      <div className="flex-1 min-h-0">
 
       {/* Workspace filter */}
       <div className="flex justify-end mb-4">
@@ -676,30 +662,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      </TabsContent>
-
-      <TabsContent value="strategy" className="mt-0 pb-8">
-        <StrategyTab />
-      </TabsContent>
-
-      <TabsContent value="focus" className="mt-0 pb-8">
-        <div>
-          <button
-            onClick={() => setFocusLogOpen(!focusLogOpen)}
-            className="flex items-center gap-2 mb-3 group"
-          >
-            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              <Crown className="h-3 w-3 inline mr-1.5 -mt-px text-amber-500" />
-              Focus Log &amp; Review
-            </h2>
-            <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground/40 transition-transform ${focusLogOpen ? '' : '-rotate-90'}`} />
-          </button>
-          {focusLogOpen && <FocusLog />}
-        </div>
-      </TabsContent>
-
-
-      </Tabs>
+      </div>
     </div>
   )
 }

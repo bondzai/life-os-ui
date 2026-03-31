@@ -16,7 +16,7 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
-    version: '2.4.7',
+    version: '2.4.8',
     date: '2026-03-31',
     phase: 'Lyra Protocol',
     sections: [
@@ -33,6 +33,8 @@ export const CHANGELOG: ChangelogRelease[] = [
           '**Promote to task**: Up-arrow on subtask row to convert to standalone task',
           '**Pretty JSON notes**: Paste JSON into task notes — renders as structured key-value view with status badges, formatted timestamps, nested objects',
           '**Inline note editing**: Pencil + delete icons on hover — works on task detail panel AND deep work page, for both task notes and subtask notes',
+          '**Dashboard cleanup**: Removed Strategy tab and Focus Log tab — dashboard is now single-view (Overview only)',
+          '**Removed**: strategic-moves AI tool, use-strategic-moves hook, strategy-tab, focus-log (-32 KB)',
         ],
       },
     ],

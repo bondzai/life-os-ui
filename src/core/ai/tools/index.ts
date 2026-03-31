@@ -7,7 +7,6 @@ import './suggest-priorities'
 import './plan-session'
 import './parse-capture'
 import './web-search'
-import './strategic-moves'
 
 // Re-export registry API
 export { getTool, getAllTools, getToolsForScope, registerTool } from './registry'
