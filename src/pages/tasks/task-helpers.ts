@@ -133,3 +133,57 @@ export function getLastWorkday(): Date {
   d.setHours(0, 0, 0, 0)
   return d
 }
+
+// ─── Demote / Promote ───
+
+/** Convert a standalone task entity into a subtask of a parent task.
+ *  Returns the updated parent metadata (caller must persist both changes). */
+export function demoteToSubtask(
+  task: Entity,
+  parent: Entity,
+): { parentMetadata: Record<string, unknown>; } {
+  const existingSubs = getSubtasks(parent.metadata)
+  const newSub: Subtask = {
+    id: crypto.randomUUID(),
+    title: task.title,
+    done: task.status === 'done',
+    status: subtaskStatus({ id: task.id, title: task.title, done: task.status === 'done', status: task.status as SubtaskStatus }),
+    priority: task.priority as Subtask['priority'],
+  }
+  return {
+    parentMetadata: {
+      ...parent.metadata,
+      subtasks: [...existingSubs, newSub],
+      isStory: true,
+    },
+  }
+}
+
+/** Convert a subtask into a standalone task entity.
+ *  Returns the new entity fields and updated parent metadata. */
+export function promoteToTask(
+  subtask: Subtask,
+  parent: Entity,
+): { taskFields: Omit<Entity, 'id' | 'createdAt' | 'updatedAt'>; parentMetadata: Record<string, unknown> } {
+  const remainingSubs = getSubtasks(parent.metadata).filter((s) => s.id !== subtask.id)
+  const status = subtaskStatus(subtask)
+  return {
+    taskFields: {
+      type: 'task',
+      title: subtask.title,
+      status: status as Entity['status'],
+      priority: (subtask.priority ?? 'medium') as Entity['priority'],
+      tags: [],
+      metadata: {
+        goalId: parent.metadata.goalId ?? parent.metadata.projectId,
+      },
+      ownerId: parent.ownerId,
+      visibility: parent.visibility,
+    },
+    parentMetadata: {
+      ...parent.metadata,
+      subtasks: remainingSubs,
+      isStory: remainingSubs.length > 0,
+    },
+  }
+}

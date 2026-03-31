@@ -72,6 +72,8 @@ export interface TaskDetailPanelProps {
   allTasks?: Entity[]
   /** Called when an existing task is linked as a subtask (should archive the original) */
   onLinkTask?: (parentId: string, childTask: Entity) => void
+  /** Called when a subtask is promoted to a standalone task */
+  onPromoteSubtask?: (parentId: string, subtask: Subtask) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -228,6 +230,7 @@ interface SortableSubtaskProps {
   onAddNote: (subtaskId: string, text: string) => void
   onRemoveNote: (subtaskId: string, noteId: string) => void
   onCyclePriority: (subtaskId: string) => void
+  onPromote?: (subtaskId: string) => void
 }
 
 function SortableSubtaskRow({
@@ -244,6 +247,7 @@ function SortableSubtaskRow({
   onAddNote,
   onRemoveNote,
   onCyclePriority,
+  onPromote,
 }: SortableSubtaskProps) {
   const [showNotes, setShowNotes] = useState(false)
   const [noteVal, setNoteVal] = useState('')
@@ -363,6 +367,17 @@ function SortableSubtaskRow({
           <Pencil className="h-3 w-3" />
           <span className="sr-only">Edit</span>
         </Button>
+        {onPromote && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={() => onPromote(st.id)}
+            title="Promote to task"
+          >
+            <ArrowUp className="h-3 w-3" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -425,6 +440,7 @@ export function TaskDetailPanel({
   onDelete,
   allTasks = [],
   onLinkTask,
+  onPromoteSubtask,
 }: TaskDetailPanelProps) {
   // -- Relations (blocks, supports, relates) --------------------------------
   const { items: allRelations, create: createRelation, remove: removeRelation } = useRelations(task?.id)
@@ -1550,6 +1566,10 @@ export function TaskDetailPanel({
                         onAddNote={handleSubtaskAddNote}
                         onRemoveNote={handleSubtaskRemoveNote}
                         onCyclePriority={handleSubtaskCyclePriority}
+                        onPromote={onPromoteSubtask && task ? (subtaskId) => {
+                          const sub = subtasks.find((s) => s.id === subtaskId)
+                          if (sub && task) onPromoteSubtask(task.id, sub)
+                        } : undefined}
                       />
                     ))}
                   </div>

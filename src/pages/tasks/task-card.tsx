@@ -33,6 +33,7 @@ export interface TaskCardProps {
   onEdit: (task: Entity) => void
   onDelete: (task: Entity) => void
   onSnooze?: (task: Entity, days: number) => void
+  onMoveUnder?: (task: Entity) => void
   selected?: boolean
   onSelectTask?: (task: Entity, selected: boolean) => void
   blocked?: boolean
@@ -102,6 +103,7 @@ export const TaskCard = memo(
         onEdit,
         onDelete,
         onSnooze,
+        onMoveUnder,
         selected,
         onSelectTask,
         blocked,
@@ -269,6 +271,21 @@ export const TaskCard = memo(
 
           {/* Hover actions */}
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            {onMoveUnder && !isStory && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMoveUnder(task)
+                }}
+                title="Move under..."
+              >
+                <span className="sr-only">Move under</span>
+                <ArrowRight className="h-3 w-3" />
+              </Button>
+            )}
             {onSnooze && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

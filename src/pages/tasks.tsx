@@ -18,9 +18,11 @@ import { EmptyState } from '@/core/components/empty-state'
 import { ConfirmDialog } from '@/core/components/confirm-dialog'
 import { notify } from '@/lib/notify'
 import { TaskCard } from './tasks/task-card'
+import { TaskMoveDialog } from './tasks/task-move-dialog'
 import { KanbanBoard } from './tasks/kanban-board'
 import { StoryDialog } from './tasks/story-dialog'
 import { TaskDetailPanel } from './tasks/task-detail-panel'
+import { demoteToSubtask, promoteToTask, type Subtask } from './tasks/task-helpers'
 import { TaskFilters, applyTaskFilters, defaultFilters, type TaskFilterState } from './tasks/task-filters'
 import { isStory, getRecurrence, buildRecurringNext } from './tasks/task-helpers'
 import {
@@ -138,6 +140,7 @@ export function TasksPage() {
   const [storyDialogOpen, setStoryDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
+  const [moveTarget, setMoveTarget] = useState<Entity | null>(null)
   const [showDone, setShowDone] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const navigate = useNavigate()
@@ -652,6 +655,29 @@ export function TasksPage() {
     })
   }, [])
 
+  const handleMoveUnder = useCallback((taskId: string, parentId: string) => {
+    const task = tasks.find((t) => t.id === taskId)
+    const parent = tasks.find((t) => t.id === parentId)
+    if (!task || !parent) return
+    const { parentMetadata } = demoteToSubtask(task, parent)
+    update.mutate({ id: parentId, updates: { metadata: parentMetadata, updatedAt: new Date().toISOString() } })
+    update.mutate({ id: taskId, updates: { status: 'archived' as EntityStatus, updatedAt: new Date().toISOString() } })
+    notify({ title: `"${task.title}" moved under "${parent.title}"`, type: 'success' })
+    setMoveTarget(null)
+  }, [tasks, update])
+
+  const handlePromoteSubtask = useCallback((parentId: string, subtask: Subtask) => {
+    const parent = tasks.find((t) => t.id === parentId)
+    if (!parent) return
+    const { taskFields, parentMetadata } = promoteToTask(subtask, parent)
+    const now = new Date().toISOString()
+    create.mutate({ ...taskFields, id: crypto.randomUUID(), createdAt: now, updatedAt: now })
+    update.mutate({ id: parentId, updates: { metadata: parentMetadata, updatedAt: now } })
+    // Sync detail panel
+    setDetailTask((prev) => prev && prev.id === parentId ? { ...prev, metadata: parentMetadata } : prev)
+    notify({ title: `"${subtask.title}" promoted to task`, type: 'success' })
+  }, [tasks, create, update])
+
   const renderTaskCard = (task: Entity, navIndex?: number) => (
     <TaskCard
       task={task}
@@ -662,6 +688,7 @@ export function TasksPage() {
       onEdit={setEditingTask}
       onDelete={setDeleteTarget}
       onSnooze={snoozeTask}
+      onMoveUnder={setMoveTarget}
       selected={selectMode ? selectedTasks.has(task.id) : undefined}
       onSelectTask={selectMode ? handleSelect : undefined}
       blocked={blockedTaskIds.has(task.id)}
@@ -1201,6 +1228,7 @@ export function TasksPage() {
         onDelete={handleDetailDelete}
         allTasks={tasks}
         onLinkTask={handleLinkTask}
+        onPromoteSubtask={handlePromoteSubtask}
       />
 
       {/* Create dialog */}
@@ -1234,6 +1262,15 @@ export function TasksPage() {
             setDeleteTarget(null)
           }
         }}
+      />
+
+      {/* Move under dialog */}
+      <TaskMoveDialog
+        open={!!moveTarget}
+        onOpenChange={(open) => !open && setMoveTarget(null)}
+        task={moveTarget}
+        allEntities={tasks}
+        onMove={handleMoveUnder}
       />
 
       {/* Story dialog */}
