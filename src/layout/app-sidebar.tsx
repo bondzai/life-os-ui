@@ -36,7 +36,6 @@ import { isTask } from '@/core/types'
 import { getModuleGroups, DEFAULT_COLLAPSED_GROUPS } from '@/core/config/modules'
 import { exportData, importData } from '@/lib/data-backup'
 import { notify } from '@/lib/notify'
-import { SettingsDialog } from '@/components/settings-dialog'
 
 const COLLAPSED_KEY = 'lyra:sidebar-collapsed'
 const EXPANDED_SUBS_KEY = 'lyra:sidebar-expanded-subs'
@@ -76,7 +75,6 @@ export function AppSidebar() {
   const [collapsed, setCollapsedState] = useState<Record<string, boolean>>(() => getCollapsed())
   const [expandedSubs, setExpandedSubsState] = useState<Record<string, boolean>>(() => getExpandedSubs())
   const [changelogOpen, setChangelogOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
   const [exportState, setExportState] = useState<'idle' | 'exporting' | 'done'>('idle')
   const [importState, setImportState] = useState<'idle' | 'importing' | 'done'>('idle')
@@ -367,7 +365,7 @@ export function AppSidebar() {
             <SidebarMenuButton onClick={() => setGuideOpen(true)} className="w-auto px-2">
               <HelpCircle className="h-4 w-4" />
             </SidebarMenuButton>
-            <SidebarMenuButton onClick={() => setSettingsOpen(true)} className="w-auto px-2">
+            <SidebarMenuButton onClick={() => navigate('/settings')} className="w-auto px-2">
               <Settings className="h-4 w-4" />
             </SidebarMenuButton>
             <SidebarMenuButton onClick={handleLogout} className="w-auto px-2">
@@ -377,7 +375,6 @@ export function AppSidebar() {
         </div>
       </SidebarFooter>
       <ChangelogDialog open={changelogOpen} onOpenChange={setChangelogOpen} />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <GuideDialog open={guideOpen} onOpenChange={setGuideOpen} />
     </Sidebar>
   )

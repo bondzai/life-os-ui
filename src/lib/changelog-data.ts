@@ -16,14 +16,15 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
-    version: '2.4.1',
+    version: '2.4.2',
     date: '2026-03-31',
     phase: 'Lyra Protocol',
     sections: [
       {
         title: 'Added',
         items: [
-          '**Configurable keybindings**: All shortcuts customizable from Settings — click to rebind, OS conflict detection warns on clashes',
+          '**Settings page** (`/settings`): Full page for all configuration — data mode, keyboard shortcuts, about info',
+          '**Configurable keybindings**: All shortcuts customizable — click to rebind, OS conflict detection warns on clashes',
           '**Briefing shortcut** (⌘⇧B): Opens standup briefing in new window',
           '**Deep Work shortcut** (⌘⇧D): Jump to Emperor Time from any page',
           '**Accordion subtasks**: Click a story task to expand/collapse subtasks inline — works in both list and kanban views, toggle status directly',
