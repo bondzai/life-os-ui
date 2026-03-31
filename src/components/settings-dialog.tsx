@@ -1,4 +1,5 @@
-import { Database, Cloud, Sparkles, Info } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Database, Cloud, Sparkles, Info, Keyboard, AlertTriangle, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -8,8 +9,10 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { APP_VERSION } from '@/lib/changelog-data'
 import { generateMockData, clearMockData } from '@/lib/mock-data'
+import { ACTIONS, useKeybindings, comboToDisplay, checkConflict, type KeyCombo } from '@/hooks/use-keybindings'
 
 type DataMode = 'local' | 'api' | 'demo'
 
@@ -46,9 +49,33 @@ const MODES: Array<{ mode: DataMode; icon: typeof Database; label: string; desc:
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const currentMode = getDataMode()
+  const { getCombo, setCombo, resetAll } = useKeybindings()
+  const [recording, setRecording] = useState<string | null>(null)
+
+  // Key combo recording
+  useEffect(() => {
+    if (!recording) return
+    const handler = (e: KeyboardEvent) => {
+      if (['Meta', 'Control', 'Shift', 'Alt'].includes(e.key)) return
+      e.preventDefault()
+      e.stopPropagation()
+      const combo: KeyCombo = {
+        key: e.key.length === 1 ? e.key.toLowerCase() : e.key,
+        meta: e.metaKey || e.ctrlKey || undefined,
+        shift: e.shiftKey || undefined,
+        alt: e.altKey || undefined,
+      }
+      setCombo(recording, combo)
+      setRecording(null)
+    }
+    const cancel = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); setRecording(null) } }
+    document.addEventListener('keydown', handler, true)
+    document.addEventListener('keydown', cancel)
+    return () => { document.removeEventListener('keydown', handler, true); document.removeEventListener('keydown', cancel) }
+  }, [recording, setCombo])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); setRecording(null) }}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
@@ -85,6 +112,45 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 : 'Switching modes will reload the page.'
               }
             </p>
+          </div>
+
+          {/* Keyboard Shortcuts */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Keyboard className="h-3 w-3" />
+                Shortcuts
+              </Label>
+              <Button variant="ghost" size="sm" className="h-5 text-[10px] text-muted-foreground gap-1" onClick={() => { resetAll(); setRecording(null) }}>
+                <RotateCcw className="h-2.5 w-2.5" />
+                Reset
+              </Button>
+            </div>
+            <div className="rounded-lg border divide-y">
+              {ACTIONS.map((action) => {
+                const combo = getCombo(action.id)
+                const conflict = checkConflict(combo)
+                const isRec = recording === action.id
+                return (
+                  <div key={action.id} className="flex items-center gap-2 px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm">{action.label}</p>
+                    </div>
+                    {conflict && !isRec && (
+                      <span title={conflict}><AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" /></span>
+                    )}
+                    <button
+                      onClick={() => setRecording(action.id)}
+                      className={`px-2 py-0.5 rounded text-xs font-mono cursor-pointer transition-colors ${
+                        isRec ? 'bg-primary text-primary-foreground animate-pulse' : 'bg-muted hover:bg-muted/80'
+                      }`}
+                    >
+                      {isRec ? '...' : comboToDisplay(combo)}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           {/* App Info */}

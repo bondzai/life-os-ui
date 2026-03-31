@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, Suspense } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
-import { Eye, EyeOff, Keyboard } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { AppSidebar } from './app-sidebar'
@@ -9,7 +9,6 @@ import { modules } from '@/core/config/modules'
 import { ChatSidebar } from '@/pages/ai/chat-sidebar'
 import { CommandBar } from '@/pages/ai/command-bar'
 import { InboxCapture } from '@/components/inbox-capture'
-import { KeybindingDialog } from '@/components/keybinding-dialog'
 import { useUiStore } from '@/stores/ui-store'
 import { useFocusStore } from '@/stores/focus-store'
 import { LyraPageLoader } from '@/components/lyra-loader'
@@ -44,8 +43,6 @@ export function AppLayout() {
   const focusMode = useUiStore((s) => s.focusMode)
   const toggleFocusMode = useUiStore((s) => s.toggleFocusMode)
   const clock = useClock()
-  const [keybindingOpen, setKeybindingOpen] = useState(false)
-
   // Browser tab title — show focus timer when session is active
   const focusSessionActive = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)
   const focusSeconds = useFocusStore((s) => s.secondsLeft)
@@ -92,8 +89,6 @@ export function AppLayout() {
       <ChatSidebar />
       <CommandBar />
       <InboxCapture />
-      <KeybindingDialog open={keybindingOpen} onOpenChange={setKeybindingOpen} />
-
       {/* Focus mode: floating bar with clock + timer + page + exit */}
       {focusMode ? (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background/80 backdrop-blur-sm border rounded-full shadow-md px-4 py-1.5 opacity-0 hover:opacity-100 transition-opacity">
@@ -120,26 +115,15 @@ export function AppLayout() {
           </Button>
         </div>
       ) : (
-        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1 opacity-0 hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full shadow-md border bg-background/80 backdrop-blur-sm cursor-pointer"
-            onClick={() => setKeybindingOpen(true)}
-            title="Keyboard Shortcuts"
-          >
-            <Keyboard className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full shadow-md border bg-background/80 backdrop-blur-sm cursor-pointer"
-            onClick={toggleFocusMode}
-            title="Enter Focus Mode"
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="fixed bottom-4 right-4 z-50 h-8 w-8 rounded-full shadow-md border bg-background/80 backdrop-blur-sm opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+          onClick={toggleFocusMode}
+          title="Enter Focus Mode"
+        >
+          <Eye className="h-4 w-4" />
+        </Button>
       )}
     </SidebarProvider>
   )
