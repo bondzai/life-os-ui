@@ -152,6 +152,8 @@ function getNotes(metadata: Record<string, unknown>): TaskNote[] {
 function QuickNote({ entity, onUpdate }: { entity: Entity; onUpdate: (id: string, updates: Partial<Entity>) => void }) {
   const [value, setValue] = useState('')
   const [expanded, setExpanded] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
   const notes = getNotes(entity.metadata)
 
   const handleAdd = () => {
@@ -179,26 +181,62 @@ function QuickNote({ entity, onUpdate }: { entity: Entity; onUpdate: (id: string
         </button>
       )}
       {expanded && notes.slice(0, 5).map((n) => (
-        <div key={n.id} className="group/note flex gap-2 text-[11px] text-zinc-400 bg-white/[0.02] rounded px-2.5 py-1.5 border border-zinc-800/30">
-          <div className="flex-1 min-w-0">
-            <p className="whitespace-pre-wrap">{n.text}</p>
-            <span className="text-[9px] text-zinc-600 tabular-nums">
-              {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
+        editId === n.id ? (
+          <div key={n.id} className="text-[11px] bg-white/[0.02] rounded px-2.5 py-1.5 border border-amber-500/30">
+            <input
+              className="w-full bg-transparent text-zinc-300 text-[11px] focus:outline-none"
+              value={editDraft}
+              onChange={(e) => setEditDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (editDraft.trim()) {
+                    const updated = getNotes(entity.metadata).map((x) => x.id === n.id ? { ...x, text: editDraft.trim() } : x)
+                    onUpdate(entity.id, { metadata: { ...entity.metadata, notes: updated }, updatedAt: new Date().toISOString() })
+                  }
+                  setEditId(null)
+                }
+                if (e.key === 'Escape') setEditId(null)
+              }}
+              onBlur={() => {
+                if (editDraft.trim() && editDraft.trim() !== n.text) {
+                  const updated = getNotes(entity.metadata).map((x) => x.id === n.id ? { ...x, text: editDraft.trim() } : x)
+                  onUpdate(entity.id, { metadata: { ...entity.metadata, notes: updated }, updatedAt: new Date().toISOString() })
+                }
+                setEditId(null)
+              }}
+              autoFocus
+            />
           </div>
-          <button
-            onClick={() => {
-              const existing = getNotes(entity.metadata).filter((x) => x.id !== n.id)
-              onUpdate(entity.id, {
-                metadata: { ...entity.metadata, notes: existing.length > 0 ? existing : undefined },
-                updatedAt: new Date().toISOString(),
-              })
-            }}
-            className="shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity text-zinc-600 hover:text-red-400 cursor-pointer self-start"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
-        </div>
+        ) : (
+          <div key={n.id} className="group/note flex gap-2 text-[11px] text-zinc-400 bg-white/[0.02] rounded px-2.5 py-1.5 border border-zinc-800/30">
+            <div className="flex-1 min-w-0">
+              <p className="whitespace-pre-wrap">{n.text}</p>
+              <span className="text-[9px] text-zinc-600 tabular-nums">
+                {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+            <div className="flex gap-1 shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity self-start">
+              <button
+                onClick={() => { setEditId(n.id); setEditDraft(n.text) }}
+                className="text-zinc-600 hover:text-amber-400 cursor-pointer"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+              <button
+                onClick={() => {
+                  const existing = getNotes(entity.metadata).filter((x) => x.id !== n.id)
+                  onUpdate(entity.id, {
+                    metadata: { ...entity.metadata, notes: existing.length > 0 ? existing : undefined },
+                    updatedAt: new Date().toISOString(),
+                  })
+                }}
+                className="text-zinc-600 hover:text-red-400 cursor-pointer"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        )
       ))}
       {/* Quick add */}
       <div className="flex items-center gap-2">
@@ -255,6 +293,7 @@ function SortableEmperorSubtask({
   onRename,
   onAddNote,
   onRemoveNote,
+  onEditNote,
 }: {
   sub: Subtask
   isCurrent: boolean
@@ -263,9 +302,12 @@ function SortableEmperorSubtask({
   onRename: (entity: Entity, subtaskId: string, title: string) => void
   onAddNote: (entity: Entity, subtaskId: string, text: string) => void
   onRemoveNote: (entity: Entity, subtaskId: string, noteId: string) => void
+  onEditNote: (entity: Entity, subtaskId: string, noteId: string, text: string) => void
 }) {
   const [showNotes, setShowNotes] = useState(false)
   const [noteVal, setNoteVal] = useState('')
+  const [editSubNoteId, setEditSubNoteId] = useState<string | null>(null)
+  const [editSubNoteDraft, setEditSubNoteDraft] = useState('')
   const st = stStatus(sub)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sub.id })
 
@@ -382,20 +424,44 @@ function SortableEmperorSubtask({
           )}
         </div>
         {sub.notes?.map((n) => (
-          <div key={n.id} className="group/note flex gap-2 text-[11px] text-zinc-400 bg-white/[0.02] rounded px-2 py-1 border border-zinc-800/30">
-            <div className="flex-1 min-w-0">
-              <p className="whitespace-pre-wrap">{n.text}</p>
-              <span className="text-[9px] text-zinc-600 tabular-nums">
-                {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
+          editSubNoteId === n.id ? (
+            <div key={n.id} className="text-[11px] bg-white/[0.02] rounded px-2 py-1 border border-amber-500/30">
+              <input
+                className="w-full bg-transparent text-zinc-300 text-[11px] focus:outline-none"
+                value={editSubNoteDraft}
+                onChange={(e) => setEditSubNoteDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { if (editSubNoteDraft.trim()) onEditNote(item, sub.id, n.id, editSubNoteDraft.trim()); setEditSubNoteId(null) }
+                  if (e.key === 'Escape') setEditSubNoteId(null)
+                }}
+                onBlur={() => { if (editSubNoteDraft.trim() && editSubNoteDraft.trim() !== n.text) onEditNote(item, sub.id, n.id, editSubNoteDraft.trim()); setEditSubNoteId(null) }}
+                autoFocus
+              />
             </div>
-            <button
-              onClick={() => onRemoveNote(item, sub.id, n.id)}
-              className="shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity text-zinc-600 hover:text-red-400 cursor-pointer self-start"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </div>
+          ) : (
+            <div key={n.id} className="group/note flex gap-2 text-[11px] text-zinc-400 bg-white/[0.02] rounded px-2 py-1 border border-zinc-800/30">
+              <div className="flex-1 min-w-0">
+                <p className="whitespace-pre-wrap">{n.text}</p>
+                <span className="text-[9px] text-zinc-600 tabular-nums">
+                  {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <div className="flex gap-1 shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity self-start">
+                <button
+                  onClick={() => { setEditSubNoteId(n.id); setEditSubNoteDraft(n.text) }}
+                  className="text-zinc-600 hover:text-amber-400 cursor-pointer"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={() => onRemoveNote(item, sub.id, n.id)}
+                  className="text-zinc-600 hover:text-red-400 cursor-pointer"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          )
         ))}
       </div>
     )}
@@ -960,6 +1026,23 @@ export function DeepWorkPage() {
     [update],
   )
 
+  const editSubtaskNote = useCallback(
+    (targetEntity: Entity, subtaskId: string, noteId: string, text: string) => {
+      const subs = Array.isArray(targetEntity.metadata.subtasks)
+        ? (targetEntity.metadata.subtasks as Subtask[])
+        : []
+      const updated = subs.map((s) => {
+        if (s.id !== subtaskId) return s
+        return { ...s, notes: (s.notes ?? []).map((n) => n.id === noteId ? { ...n, text } : n) }
+      })
+      update.mutate({
+        id: targetEntity.id,
+        updates: { metadata: { ...targetEntity.metadata, subtasks: updated }, updatedAt: new Date().toISOString() },
+      })
+    },
+    [update],
+  )
+
   // Add subtask to any entity
   const addSubtask = useCallback(
     (targetEntity: Entity, title: string) => {
@@ -1245,6 +1328,7 @@ export function DeepWorkPage() {
                             onRename={renameSubtask}
                             onAddNote={addSubtaskNote}
                             onRemoveNote={removeSubtaskNote}
+                            onEditNote={editSubtaskNote}
                           />
                         ))}
                       </SortableContext>
