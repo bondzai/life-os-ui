@@ -30,6 +30,8 @@ interface KanbanBoardProps {
   onSnooze?: (task: Entity, days: number) => void
   onTaskClick?: (task: Entity) => void
   onQuickAdd?: (title: string, status: EntityStatus) => void
+  onToggleSubtask?: (taskId: string, subtaskId: string) => void
+  onMoveUnder?: (taskId: string, parentId: string) => void
 }
 
 export function KanbanBoard({
@@ -41,6 +43,8 @@ export function KanbanBoard({
   onSnooze,
   onTaskClick,
   onQuickAdd,
+  onToggleSubtask,
+  onMoveUnder,
 }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Entity | null>(null)
 
@@ -114,6 +118,9 @@ export function KanbanBoard({
             onSnooze={onSnooze}
             onTaskClick={onTaskClick}
             onQuickAdd={onQuickAdd}
+            onToggleSubtask={onToggleSubtask}
+            onMoveUnder={onMoveUnder}
+            allTasks={boardTasks}
           />
         ))}
       </div>

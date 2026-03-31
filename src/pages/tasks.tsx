@@ -1019,6 +1019,8 @@ export function TasksPage() {
           onSnooze={snoozeTask}
           onTaskClick={openDetail}
           onQuickAdd={handleQuickAdd}
+          onToggleSubtask={handleToggleSubtask}
+          onMoveUnder={handleMoveUnder}
         />
       ) : view === 'backlog' ? (
         /* Backlog view — Jira-style full backlog list */

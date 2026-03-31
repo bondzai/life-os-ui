@@ -20,6 +20,9 @@ interface KanbanColumnProps {
   onSnooze?: (task: Entity, days: number) => void
   onTaskClick?: (task: Entity) => void
   onQuickAdd?: (title: string, status: EntityStatus) => void
+  onToggleSubtask?: (taskId: string, subtaskId: string) => void
+  onMoveUnder?: (taskId: string, parentId: string) => void
+  allTasks?: Entity[]
 }
 
 export function KanbanColumn({
@@ -35,6 +38,9 @@ export function KanbanColumn({
   onSnooze,
   onTaskClick,
   onQuickAdd,
+  onToggleSubtask,
+  onMoveUnder,
+  allTasks,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   const taskIds = tasks.map((t) => t.id)
@@ -99,6 +105,9 @@ export function KanbanColumn({
               onDelete={onDelete}
               onSnooze={onSnooze}
               onTaskClick={onTaskClick}
+              onToggleSubtask={onToggleSubtask}
+              onMoveUnder={onMoveUnder}
+              allTasks={allTasks}
             />
           ))}
 

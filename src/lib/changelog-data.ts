@@ -16,14 +16,14 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
-    version: '2.3.5',
+    version: '2.3.6',
     date: '2026-03-31',
     phase: 'Lyra Protocol',
     sections: [
       {
         title: 'Added',
         items: [
-          '**Accordion subtasks**: Click a story task to expand/collapse subtasks inline — toggle status directly without opening detail panel',
+          '**Accordion subtasks**: Click a story task to expand/collapse subtasks inline — works in both list and kanban views, toggle status directly',
           '**Move under...**: Popover on task hover — search and pick a parent task, one click to nest',
           '**Promote to task**: Up-arrow on subtask row to convert to standalone task',
         ],
