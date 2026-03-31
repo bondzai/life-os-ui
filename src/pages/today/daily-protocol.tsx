@@ -8,6 +8,7 @@ import type { Entity } from '@/core/types'
 
 interface DailyProtocolProps {
   entities: Entity[]
+  confirmed?: boolean
   onConfirm: (entityIds: string[]) => void
 }
 
@@ -18,14 +19,14 @@ const PRIORITY_DOT: Record<string, string> = {
   low: 'bg-zinc-500',
 }
 
-export function DailyProtocol({ entities, onConfirm }: DailyProtocolProps) {
+export function DailyProtocol({ entities, confirmed, onConfirm }: DailyProtocolProps) {
   const { plan, todayAllocations } = useWeeklyPlan()
   const insights = useMorningBrief()
 
   const allocatedEntities = useMemo(
     () => todayAllocations
       .map((id) => entities.find((e) => e.id === id))
-      .filter(Boolean) as Entity[],
+      .filter((e): e is Entity => !!e && e.status !== 'archived'),
     [todayAllocations, entities],
   )
 
@@ -39,8 +40,21 @@ export function DailyProtocol({ entities, onConfirm }: DailyProtocolProps) {
     [insights],
   )
 
+  const totalSignals = useMemo(() => insights.filter((i) => i.severity >= 2).length, [insights])
+
   // Don't render if no weekly plan or no allocations for today
   if (!plan || allocatedEntities.length === 0) return null
+
+  // Confirmed mode — just show weekly outcome reminder
+  if (confirmed) {
+    if (!activeOutcome) return null
+    return (
+      <div className="flex items-center gap-2 px-1 py-1">
+        <Star className="h-3 w-3 text-amber-500/50 shrink-0" />
+        <span className="text-[11px] text-amber-500/50 truncate">{activeOutcome.text}</span>
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-lg border bg-card/50 p-4 space-y-3">
@@ -86,6 +100,9 @@ export function DailyProtocol({ entities, onConfirm }: DailyProtocolProps) {
               {s.title}
             </p>
           ))}
+          {totalSignals > signals.length && (
+            <p className="text-[10px] text-muted-foreground/30">+{totalSignals - signals.length} more</p>
+          )}
         </div>
       )}
 

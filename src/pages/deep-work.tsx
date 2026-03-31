@@ -410,6 +410,8 @@ interface ParsedNote {
   task: string
   completed: string[]
   progress?: string
+  distractions?: number
+  goal?: string
 }
 
 function parseLogNote(raw?: string | null): ParsedNote | null {
@@ -523,6 +525,9 @@ function SessionLogEntry({ tracker, entityTitle, onUpdate, onDelete }: {
             <Trash2 className="h-3 w-3" />
           </button>
         </div>
+        {parsed?.goal && (
+          <p className="text-[10px] text-zinc-600 italic ml-6">{parsed.goal}</p>
+        )}
         {parsed?.completed && parsed.completed.length > 0 && (
           <div className="space-y-0.5 ml-6">
             {parsed.completed.map((item, i) => (
@@ -532,6 +537,11 @@ function SessionLogEntry({ tracker, entityTitle, onUpdate, onDelete }: {
               </div>
             ))}
           </div>
+        )}
+        {parsed?.distractions && parsed.distractions > 0 && (
+          <p className="text-[10px] text-zinc-600 ml-6 flex items-center gap-1">
+            <Zap className="h-2.5 w-2.5" />{parsed.distractions} distraction{parsed.distractions !== 1 ? 's' : ''}
+          </p>
         )}
       </div>
     </div>
@@ -1085,7 +1095,7 @@ export function DeepWorkPage() {
           <div className={`absolute inset-0 -m-12 rounded-full bg-gradient-radial ${style.ring} blur-3xl opacity-60 pointer-events-none`} />
 
           <div className={`relative text-7xl font-light tabular-nums tracking-tight select-none ${style.timerColor}`}>
-            {formatTime(secondsLeft)}
+            {phase === 'idle' ? `${settings.workMinutes}:00` : formatTime(secondsLeft)}
           </div>
 
           {/* Progress track */}

@@ -66,6 +66,9 @@ export function AppLayout() {
         setCommandBarOpen(true)
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
+        // Don't toggle when typing in an input
+        const tag = (e.target as HTMLElement)?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return
         e.preventDefault()
         toggleFocusMode()
       }

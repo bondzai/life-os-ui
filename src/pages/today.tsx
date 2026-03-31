@@ -303,10 +303,19 @@ export function TodayPage() {
 
   // ─── Data queries ───
 
-  const priorityEntities = useMemo(
-    () => priorities.map((id) => allEntities.find((e) => e.id === id)).filter(Boolean) as Entity[],
-    [priorities, allEntities],
-  )
+  // Filter out done/deleted entities from priorities
+  const priorityEntities = useMemo(() => {
+    const valid = priorities
+      .map((id) => allEntities.find((e) => e.id === id))
+      .filter((e): e is Entity => !!e && e.status !== 'archived') as Entity[]
+    // Clean stale IDs from storage
+    if (valid.length !== priorities.length) {
+      const validIds = valid.map((e) => e.id)
+      setPriorities(validIds)
+      setTodayPriorities(validIds)
+    }
+    return valid
+  }, [priorities, allEntities])
 
   const priorityCandidates = useMemo(
     () => allEntities.filter((e) => (isTask(e) || isGoal(e)) && (e.status === 'todo' || e.status === 'in-progress')),
@@ -520,15 +529,14 @@ export function TodayPage() {
         <div className="lg:col-span-7 min-h-0 overflow-y-auto space-y-6 pr-1 scrollbar-thin">
 
           {/* Daily Protocol — from weekly plan */}
-          {priorities.length === 0 && (
-            <DailyProtocol
-              entities={allEntities}
-              onConfirm={(ids) => {
-                setPriorities(ids)
-                setTodayPriorities(ids)
-              }}
-            />
-          )}
+          <DailyProtocol
+            entities={allEntities}
+            confirmed={priorities.length > 0}
+            onConfirm={(ids) => {
+              setPriorities(ids)
+              setTodayPriorities(ids)
+            }}
+          />
 
           {/* Today Focus — story-based */}
           <section>

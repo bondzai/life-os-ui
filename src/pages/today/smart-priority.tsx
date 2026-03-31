@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, RefreshCw } from 'lucide-react'
 import { LyraLoader } from '@/components/lyra-loader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -179,6 +179,17 @@ export function SmartPriority({
             >
               Accept
             </Button>
+            <button
+              className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              onClick={() => {
+                sessionStorage.removeItem(CACHE_KEY)
+                setSuggestions([])
+                fetchSuggestions()
+              }}
+            >
+              <RefreshCw className="h-3 w-3 inline mr-1" />
+              Refresh
+            </button>
             <button
               className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
               onClick={onManual}

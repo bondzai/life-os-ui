@@ -16,6 +16,25 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '2.3.1',
+    date: '2026-03-31',
+    phase: 'Lyra Protocol',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          'Daily Protocol stays visible after priorities confirmed — shows weekly outcome reminder',
+          'Stale priorities auto-cleaned — archived/deleted entities removed from today\'s focus',
+          'Smart Priority has Refresh button — clears cache and re-fetches AI suggestions',
+          'Deep work idle phase shows preset duration (25:00) instead of confusing countdown',
+          'Session goal and distraction count now displayed in session history log entries',
+          'Truncated signals show "+N more" in Daily Protocol',
+          'Focus mode shortcut (⌘⇧F) skipped when typing in input fields',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.3.0',
     date: '2026-03-31',
     phase: 'Lyra Protocol',
