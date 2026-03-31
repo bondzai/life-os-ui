@@ -166,7 +166,7 @@ export function ProtocolDialog({
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
-            A protocol is a checklist of steps you complete together.
+            Define the steps that make up this habit.
           </DialogDescription>
         </DialogHeader>
 
@@ -307,7 +307,7 @@ export function ProtocolDialog({
             </div>
 
             {steps.length === 0 && (
-              <p className="text-xs text-muted-foreground">Add at least one step to create a protocol.</p>
+              <p className="text-xs text-muted-foreground">Add at least one step.</p>
             )}
           </div>
 

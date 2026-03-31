@@ -41,6 +41,7 @@ import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useFocusStore } from '@/stores/focus-store'
 import { DailyProtocol } from './today/daily-protocol'
+import { HabitStrip } from './today/habit-strip'
 import { PriorityPicker } from './today/priority-picker'
 import { SmartPriority } from './today/smart-priority'
 import { getRecurrence, buildRecurringNext } from './tasks/task-helpers'
@@ -299,11 +300,6 @@ export function TodayPage() {
   const [showManualPicker, setShowManualPicker] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
-  const todayStart = useMemo(() => {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    return d.toISOString()
-  }, [])
 
   // ─── Data queries ───
 
@@ -333,26 +329,6 @@ export function TodayPage() {
     [icalEvents, today],
   )
 
-  const activeHabits = useMemo(
-    () => allEntities.filter((e) => e.type === 'habit' && e.status === 'todo'),
-    [allEntities],
-  )
-
-  const habits = useMemo(
-    () => activeHabits
-      .map((habit) => ({
-        habit,
-        checkedToday: allTrackers.some((t) => t.entityId === habit.id && t.timestamp >= todayStart),
-        streak: typeof habit.metadata.streak === 'number' ? (habit.metadata.streak as number) : 0,
-      })),
-    [activeHabits, allTrackers, todayStart],
-  )
-
-
-  // Active Projects — for quick nav count
-  // ─── Metrics ───
-
-  const habitsChecked = habits.filter((h) => h.checkedToday).length
 
   // Focus streak (consecutive days with 25+ min)
   const focusStreak = useMemo(() => {
@@ -499,16 +475,11 @@ export function TodayPage() {
             {dateStr} &middot; <LiveClock />
           </p>
         </div>
-        <div className="flex items-center gap-3 text-[10px] tabular-nums text-muted-foreground/60">
-          {focusStreak > 0 && (
-            <span className="flex items-center gap-0.5 text-orange-500/70" title={`${focusStreak} day focus streak`}>
-              <Flame className="h-3 w-3" />{focusStreak}d
-            </span>
-          )}
-          {habitsChecked > 0 && (
-            <span>{habitsChecked}/{habits.length} habits</span>
-          )}
-        </div>
+        {focusStreak > 0 && (
+          <span className="flex items-center gap-0.5 text-[10px] tabular-nums text-orange-500/70" title={`${focusStreak} day focus streak`}>
+            <Flame className="h-3 w-3" />{focusStreak}d
+          </span>
+        )}
       </header>
 
       {/* ─── Tab Bar ─── */}
@@ -719,6 +690,8 @@ export function TodayPage() {
             )}
           </section>
 
+          {/* Habits / Systems */}
+          <HabitStrip />
 
           <div className="pb-6" />
         </div>
