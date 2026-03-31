@@ -29,6 +29,7 @@ import {
   Minus,
   Calendar,
   Flame,
+  Presentation,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -484,11 +485,21 @@ export function TodayPage() {
             {dateStr} &middot; <LiveClock />
           </p>
         </div>
-        {focusStreak > 0 && (
-          <span className="flex items-center gap-0.5 text-[10px] tabular-nums text-orange-500/70" title={`${focusStreak} day focus streak`}>
-            <Flame className="h-3 w-3" />{focusStreak}d
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {focusStreak > 0 && (
+            <span className="flex items-center gap-0.5 text-[10px] tabular-nums text-orange-500/70" title={`${focusStreak} day focus streak`}>
+              <Flame className="h-3 w-3" />{focusStreak}d
+            </span>
+          )}
+          <button
+            onClick={() => window.open('/briefing', '_blank')}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            title="Open standup briefing (⌘⇧B)"
+          >
+            <Presentation className="h-3.5 w-3.5" />
+            Briefing
+          </button>
+        </div>
       </header>
 
       {/* ─── Tab Bar ─── */}

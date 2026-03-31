@@ -16,7 +16,7 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
-    version: '2.4.2',
+    version: '2.4.3',
     date: '2026-03-31',
     phase: 'Lyra Protocol',
     sections: [
@@ -25,6 +25,7 @@ export const CHANGELOG: ChangelogRelease[] = [
         items: [
           '**Settings page** (`/settings`): Full page for all configuration — data mode, keyboard shortcuts, about info',
           '**Configurable keybindings**: All shortcuts customizable — click to rebind, OS conflict detection warns on clashes',
+          '**Briefing button**: "Briefing" in Focus page header + presentation icon in Deep Work top bar — opens in new window, no context loss',
           '**Briefing shortcut** (⌘⇧B): Opens standup briefing in new window',
           '**Deep Work shortcut** (⌘⇧D): Jump to Emperor Time from any page',
           '**Accordion subtasks**: Click a story task to expand/collapse subtasks inline — works in both list and kanban views, toggle status directly',

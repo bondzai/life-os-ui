@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { X, Play, Pause, SkipForward, Square, Timer, Flame, Crown, ChevronRight, Plus, CheckCircle2, ChevronDown, Pencil, Trash2, GripVertical, MessageSquare, Send, ExternalLink, ChevronsUp, ArrowUp, ArrowDown, Minus as MinusIcon, Inbox, Zap } from 'lucide-react'
+import { X, Play, Pause, SkipForward, Square, Timer, Flame, Crown, ChevronRight, Plus, CheckCircle2, ChevronDown, Pencil, Trash2, GripVertical, MessageSquare, Send, ExternalLink, ChevronsUp, ArrowUp, ArrowDown, Minus as MinusIcon, Inbox, Zap, Presentation } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEntities, useTrackers } from '@/core/hooks'
@@ -1074,6 +1074,13 @@ export function DeepWorkPage() {
             title="Quick Capture (⌘⇧I)"
           >
             <Inbox className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => window.open('/briefing', '_blank')}
+            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-zinc-600 hover:text-zinc-400 cursor-pointer"
+            title="Standup Briefing (⌘⇧B)"
+          >
+            <Presentation className="h-4 w-4" />
           </button>
         </div>
       </div>
