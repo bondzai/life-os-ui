@@ -167,6 +167,11 @@ function addNote(metadata: Record<string, unknown>, text: string): Record<string
   return { ...metadata, notes: [note, ...notes] }
 }
 
+function updateNoteText(metadata: Record<string, unknown>, noteId: string, text: string): Record<string, unknown> {
+  const notes = getNotes(metadata).map((n) => n.id === noteId ? { ...n, text } : n)
+  return { ...metadata, notes }
+}
+
 function removeNote(metadata: Record<string, unknown>, noteId: string): Record<string, unknown> {
   const notes = getNotes(metadata).filter((n) => n.id !== noteId)
   return { ...metadata, notes: notes.length > 0 ? notes : undefined }
@@ -316,6 +321,7 @@ interface SortableSubtaskProps {
   editRef: React.RefObject<HTMLInputElement | null>
   onAddNote: (subtaskId: string, text: string) => void
   onRemoveNote: (subtaskId: string, noteId: string) => void
+  onEditNote: (subtaskId: string, noteId: string, text: string) => void
   onCyclePriority: (subtaskId: string) => void
   onPromote?: (subtaskId: string) => void
 }
@@ -333,11 +339,14 @@ function SortableSubtaskRow({
   editRef,
   onAddNote,
   onRemoveNote,
+  onEditNote,
   onCyclePriority,
   onPromote,
 }: SortableSubtaskProps) {
   const [showNotes, setShowNotes] = useState(false)
   const [noteVal, setNoteVal] = useState('')
+  const [editSubNoteId, setEditSubNoteId] = useState<string | null>(null)
+  const [editSubNoteDraft, setEditSubNoteDraft] = useState('')
   const {
     attributes,
     listeners,
@@ -497,20 +506,39 @@ function SortableSubtaskRow({
             />
           </div>
           {st.notes?.map((n) => (
-            <div key={n.id} className="group/note flex gap-2 text-xs bg-muted/30 rounded px-2 py-1">
-              <div className="flex-1 min-w-0">
-                <p className="whitespace-pre-wrap text-foreground/80">{n.text}</p>
-                <span className="text-[9px] text-muted-foreground/50 tabular-nums">
-                  {formatRelativeTime(n.timestamp)}
-                </span>
+            editSubNoteId === n.id ? (
+              <div key={n.id} className="text-xs bg-muted/30 rounded px-2 py-1">
+                <Input
+                  value={editSubNoteDraft}
+                  onChange={(e) => setEditSubNoteDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); if (editSubNoteDraft.trim()) onEditNote(st.id, n.id, editSubNoteDraft.trim()); setEditSubNoteId(null) }
+                    if (e.key === 'Escape') setEditSubNoteId(null)
+                  }}
+                  onBlur={() => { if (editSubNoteDraft.trim() && editSubNoteDraft.trim() !== n.text) onEditNote(st.id, n.id, editSubNoteDraft.trim()); setEditSubNoteId(null) }}
+                  className="h-6 text-xs"
+                  autoFocus
+                />
               </div>
-              <button
-                onClick={() => onRemoveNote(st.id, n.id)}
-                className="shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity text-muted-foreground hover:text-destructive cursor-pointer self-start"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
+            ) : (
+              <div key={n.id} className="group/note flex gap-2 text-xs bg-muted/30 rounded px-2 py-1">
+                <div
+                  className="flex-1 min-w-0 cursor-pointer rounded hover:bg-muted/50 transition-colors -m-0.5 p-0.5"
+                  onClick={() => { setEditSubNoteId(n.id); setEditSubNoteDraft(n.text) }}
+                >
+                  <p className="whitespace-pre-wrap text-foreground/80">{n.text}</p>
+                  <span className="text-[9px] text-muted-foreground/50 tabular-nums">
+                    {formatRelativeTime(n.timestamp)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => onRemoveNote(st.id, n.id)}
+                  className="shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity text-muted-foreground hover:text-destructive cursor-pointer self-start"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )
           ))}
         </div>
       )}
@@ -559,6 +587,8 @@ export function TaskDetailPanel({
 
   // Notes
   const [noteInput, setNoteInput] = useState('')
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editingNoteDraft, setEditingNoteDraft] = useState('')
 
   // Set parent (make this task a subtask of another)
   const [showParentSearch, setShowParentSearch] = useState(false)
@@ -875,6 +905,19 @@ export function TaskDetailPanel({
         if (s.id !== subtaskId) return s
         const notes = (s.notes ?? []).filter((n) => n.id !== noteId)
         return { ...s, notes: notes.length > 0 ? notes : undefined }
+      })
+      onUpdate(task.id, { metadata: { ...task.metadata, subtasks }, updatedAt: new Date().toISOString() })
+    },
+    [task, onUpdate],
+  )
+
+  const handleSubtaskEditNote = useCallback(
+    (subtaskId: string, noteId: string, text: string) => {
+      if (!task) return
+      const subtasks = getSubtasks(task.metadata).map((s) => {
+        if (s.id !== subtaskId) return s
+        const notes = (s.notes ?? []).map((n) => n.id === noteId ? { ...n, text } : n)
+        return { ...s, notes }
       })
       onUpdate(task.id, { metadata: { ...task.metadata, subtasks }, updatedAt: new Date().toISOString() })
     },
@@ -1573,6 +1616,40 @@ export function TaskDetailPanel({
             {getNotes(task.metadata).length > 0 && (
               <div className="space-y-2">
                 {getNotes(task.metadata).map((note) => {
+                  const isEditing = editingNoteId === note.id
+
+                  if (isEditing) {
+                    return (
+                      <div key={note.id} className="text-xs bg-muted/30 rounded-lg px-3 py-2">
+                        <Textarea
+                          value={editingNoteDraft}
+                          onChange={(e) => setEditingNoteDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              if (editingNoteDraft.trim()) {
+                                const metadata = updateNoteText(task.metadata, note.id, editingNoteDraft.trim())
+                                onUpdate(task.id, { metadata })
+                              }
+                              setEditingNoteId(null)
+                            }
+                            if (e.key === 'Escape') setEditingNoteId(null)
+                          }}
+                          onBlur={() => {
+                            if (editingNoteDraft.trim() && editingNoteDraft.trim() !== note.text) {
+                              const metadata = updateNoteText(task.metadata, note.id, editingNoteDraft.trim())
+                              onUpdate(task.id, { metadata })
+                            }
+                            setEditingNoteId(null)
+                          }}
+                          rows={3}
+                          className="text-xs resize-none"
+                          autoFocus
+                        />
+                      </div>
+                    )
+                  }
+
                   // Detect JSON
                   let jsonData: Record<string, unknown> | null = null
                   const trimmed = note.text.trim()
@@ -1582,7 +1659,10 @@ export function TaskDetailPanel({
 
                   return (
                     <div key={note.id} className="group flex gap-2 text-xs bg-muted/30 rounded-lg px-3 py-2">
-                      <div className="flex-1 min-w-0">
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer rounded hover:bg-muted/50 transition-colors -m-1 p-1"
+                        onClick={() => { setEditingNoteId(note.id); setEditingNoteDraft(note.text) }}
+                      >
                         {jsonData ? (
                           <NoteJsonView data={jsonData} />
                         ) : (
@@ -1665,6 +1745,7 @@ export function TaskDetailPanel({
                         editRef={subtaskEditRef}
                         onAddNote={handleSubtaskAddNote}
                         onRemoveNote={handleSubtaskRemoveNote}
+                        onEditNote={handleSubtaskEditNote}
                         onCyclePriority={handleSubtaskCyclePriority}
                         onPromote={onPromoteSubtask && task ? (subtaskId) => {
                           const sub = subtasks.find((s) => s.id === subtaskId)
