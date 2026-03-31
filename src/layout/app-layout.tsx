@@ -1,6 +1,6 @@
-import { useEffect, useState, Suspense } from 'react'
-import { Outlet, useLocation } from 'react-router'
-import { Eye, EyeOff } from 'lucide-react'
+import { useEffect, useState, useMemo, Suspense } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router'
+import { Eye, EyeOff, Keyboard } from 'lucide-react'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { AppSidebar } from './app-sidebar'
@@ -9,12 +9,14 @@ import { modules } from '@/core/config/modules'
 import { ChatSidebar } from '@/pages/ai/chat-sidebar'
 import { CommandBar } from '@/pages/ai/command-bar'
 import { InboxCapture } from '@/components/inbox-capture'
+import { KeybindingDialog } from '@/components/keybinding-dialog'
 import { useUiStore } from '@/stores/ui-store'
 import { useFocusStore } from '@/stores/focus-store'
 import { LyraPageLoader } from '@/components/lyra-loader'
 import { useLyraPulse } from '@/hooks/use-lyra-pulse'
 import { useSessionSummary } from '@/hooks/use-session-summary'
 import { useCelebrations } from '@/hooks/use-celebrations'
+import { useGlobalShortcuts } from '@/hooks/use-keybindings'
 
 function getPageTitle(pathname: string): string {
   const mod = modules.find((m) => m.path === pathname)
@@ -35,11 +37,14 @@ export function AppLayout() {
   useSessionSummary()
   useCelebrations()
   const location = useLocation()
+  const navigate = useNavigate()
   const title = getPageTitle(location.pathname)
   const setCommandBarOpen = useUiStore((s) => s.setCommandBarOpen)
+  const setCaptureOpen = useUiStore((s) => s.setCaptureOpen)
   const focusMode = useUiStore((s) => s.focusMode)
   const toggleFocusMode = useUiStore((s) => s.toggleFocusMode)
   const clock = useClock()
+  const [keybindingOpen, setKeybindingOpen] = useState(false)
 
   // Browser tab title — show focus timer when session is active
   const focusSessionActive = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)
@@ -47,7 +52,7 @@ export function AppLayout() {
   const focusPhase = useFocusStore((s) => s.phase)
 
   useEffect(() => {
-    if (location.pathname === '/deep-work') return // deep-work page manages its own title
+    if (location.pathname === '/deep-work') return
     if (focusSessionActive && focusSeconds > 0) {
       const m = Math.floor(focusSeconds / 60)
       const s = String(focusSeconds % 60).padStart(2, '0')
@@ -58,24 +63,16 @@ export function AppLayout() {
     }
   }, [focusSessionActive, focusSeconds, focusPhase, location.pathname])
 
-  // Global Cmd+K and Cmd+Shift+F listeners
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        setCommandBarOpen(true)
-      }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
-        // Don't toggle when typing in an input
-        const tag = (e.target as HTMLElement)?.tagName
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return
-        e.preventDefault()
-        toggleFocusMode()
-      }
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [setCommandBarOpen, toggleFocusMode])
+  // Global shortcuts — configurable via keybinding store
+  const shortcutHandlers = useMemo(() => ({
+    'command-bar': () => setCommandBarOpen(true),
+    'focus-mode': () => toggleFocusMode(),
+    'briefing': () => window.open('/briefing', '_blank'),
+    'quick-capture': () => setCaptureOpen(true),
+    'deep-work': () => navigate('/deep-work'),
+  }), [setCommandBarOpen, toggleFocusMode, setCaptureOpen, navigate])
+
+  useGlobalShortcuts(shortcutHandlers)
 
   return (
     <SidebarProvider open={focusMode ? false : undefined}>
@@ -95,6 +92,7 @@ export function AppLayout() {
       <ChatSidebar />
       <CommandBar />
       <InboxCapture />
+      <KeybindingDialog open={keybindingOpen} onOpenChange={setKeybindingOpen} />
 
       {/* Focus mode: floating bar with clock + timer + page + exit */}
       {focusMode ? (
@@ -116,21 +114,32 @@ export function AppLayout() {
             size="icon"
             className="h-6 w-6 cursor-pointer"
             onClick={toggleFocusMode}
-            title="Exit Focus Mode (⌘⇧F)"
+            title="Exit Focus Mode"
           >
             <EyeOff className="h-3.5 w-3.5" />
           </Button>
         </div>
       ) : (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="fixed bottom-4 right-4 z-50 h-8 w-8 rounded-full shadow-md border bg-background/80 backdrop-blur-sm opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
-          onClick={toggleFocusMode}
-          title="Enter Focus Mode (⌘⇧F)"
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1 opacity-0 hover:opacity-100 transition-opacity">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full shadow-md border bg-background/80 backdrop-blur-sm cursor-pointer"
+            onClick={() => setKeybindingOpen(true)}
+            title="Keyboard Shortcuts"
+          >
+            <Keyboard className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full shadow-md border bg-background/80 backdrop-blur-sm cursor-pointer"
+            onClick={toggleFocusMode}
+            title="Enter Focus Mode"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+        </div>
       )}
     </SidebarProvider>
   )

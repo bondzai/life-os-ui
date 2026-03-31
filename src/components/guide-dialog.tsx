@@ -174,10 +174,12 @@ const GUIDE_SECTIONS: GuideSection[] = [
       { label: '`Cmd+K`', detail: 'Open command palette — search and navigate anywhere.' },
       { label: '`Cmd+Shift+I`', detail: 'Open inbox capture dialog from any page.' },
       { label: '`Cmd+Shift+F`', detail: 'Toggle Focus Mode (hide sidebar + top bar).' },
-      { label: '`Cmd+B`', detail: 'Toggle sidebar collapse.' },
+      { label: '`Cmd+Shift+B`', detail: 'Open standup briefing in new window.' },
+      { label: '`Cmd+Shift+D`', detail: 'Jump to Emperor Time (deep work) from any page.' },
       { label: '`/`', detail: 'Focus the capture bar (on Focus page).' },
       { label: '`J` / `K`', detail: 'Navigate down/up through task list items. `Enter` opens the focused task.' },
       { label: '`Esc`', detail: 'Pause / leave Emperor Time session. Deselect focused task in list.' },
+      { label: 'Customize', detail: 'Click the keyboard icon (bottom-right) to rebind any shortcut. System warns about OS/browser conflicts.' },
     ],
   },
   {
