@@ -16,16 +16,15 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
-    version: '2.3.3',
+    version: '2.3.4',
     date: '2026-03-31',
     phase: 'Lyra Protocol',
     sections: [
       {
         title: 'Added',
         items: [
-          '**Move under...**: Click arrow on a task → click another task → first becomes subtask of second. Two clicks, no dialog.',
-          '**Promote to task**: Click up-arrow on any subtask to convert it into a standalone task — carries title, priority, status, goal link',
-          'Move mode shows amber highlight on source, amber hover on targets, banner with Escape to cancel',
+          '**Move under...**: Popover on task hover — search and pick a parent task, one click to nest',
+          '**Promote to task**: Up-arrow on subtask row to convert to standalone task',
         ],
       },
     ],

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import { Plus, CheckSquare, List, Columns3, ChevronRight, BarChart3, ClipboardList, ListChecks, Archive, ArrowRight, Trash2, ChevronsUpDown } from 'lucide-react'
 import { DndContext, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core'
@@ -139,7 +139,6 @@ export function TasksPage() {
   const [storyDialogOpen, setStoryDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Entity | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Entity | null>(null)
-  const [moveTarget, setMoveTarget] = useState<Entity | null>(null)
   const [showDone, setShowDone] = useState(false)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const navigate = useNavigate()
@@ -662,7 +661,6 @@ export function TasksPage() {
     update.mutate({ id: parentId, updates: { metadata: parentMetadata, updatedAt: new Date().toISOString() } })
     update.mutate({ id: taskId, updates: { status: 'archived' as EntityStatus, updatedAt: new Date().toISOString() } })
     notify({ title: `"${task.title}" moved under "${parent.title}"`, type: 'success' })
-    setMoveTarget(null)
   }, [tasks, update])
 
   const handlePromoteSubtask = useCallback((parentId: string, subtask: Subtask) => {
@@ -677,66 +675,30 @@ export function TasksPage() {
     notify({ title: `"${subtask.title}" promoted to task`, type: 'success' })
   }, [tasks, create, update])
 
-  const renderTaskCard = (task: Entity, navIndex?: number) => {
-    const isMoving = moveTarget?.id === task.id
-    const isMoveCandidate = moveTarget && moveTarget.id !== task.id
-
-    return (
-      <TaskCard
-        task={task}
-        taskKey={taskKeyMap.get(task.id)}
-        onClick={() => {
-          if (isMoveCandidate) {
-            handleMoveUnder(moveTarget.id, task.id)
-          } else {
-            openDetail(task)
-          }
-        }}
-        onToggleComplete={toggleComplete}
-        onMoveToStatus={moveToStatus}
-        onEdit={setEditingTask}
-        onDelete={setDeleteTarget}
-        onSnooze={snoozeTask}
-        onMoveUnder={setMoveTarget}
-        selected={selectMode ? selectedTasks.has(task.id) : undefined}
-        onSelectTask={selectMode ? handleSelect : undefined}
-        blocked={blockedTaskIds.has(task.id)}
-        data-nav-index={navIndex}
-        className={`${navIndex !== undefined && navIndex === focusedIndex ? 'ring-1 ring-primary bg-primary/5' : ''} ${
-          isMoving ? 'ring-2 ring-amber-500 bg-amber-500/10' : ''
-        } ${isMoveCandidate ? 'hover:!bg-amber-500/10 hover:ring-1 hover:ring-amber-500/50' : ''}`}
-      />
-    )
-  }
+  const renderTaskCard = (task: Entity, navIndex?: number) => (
+    <TaskCard
+      task={task}
+      taskKey={taskKeyMap.get(task.id)}
+      onClick={() => openDetail(task)}
+      onToggleComplete={toggleComplete}
+      onMoveToStatus={moveToStatus}
+      onEdit={setEditingTask}
+      onDelete={setDeleteTarget}
+      onSnooze={snoozeTask}
+      onMoveUnder={handleMoveUnder}
+      allTasks={tasks}
+      selected={selectMode ? selectedTasks.has(task.id) : undefined}
+      onSelectTask={selectMode ? handleSelect : undefined}
+      blocked={blockedTaskIds.has(task.id)}
+      data-nav-index={navIndex}
+      className={navIndex !== undefined && navIndex === focusedIndex ? 'ring-1 ring-primary bg-primary/5' : undefined}
+    />
+  )
 
   // ── Render ──────────────────────────────────────────────────────────
 
-  // Escape cancels move mode
-  useEffect(() => {
-    if (!moveTarget) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setMoveTarget(null) }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [moveTarget])
-
   return (
     <div className="space-y-4">
-      {/* Move mode banner */}
-      {moveTarget && (
-        <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
-          <ArrowRight className="h-4 w-4 text-amber-500 shrink-0" />
-          <span className="text-sm text-amber-600 dark:text-amber-400 flex-1">
-            Click a task to move <strong>&quot;{moveTarget.title}&quot;</strong> under it
-          </span>
-          <button
-            onClick={() => setMoveTarget(null)}
-            className="text-xs text-amber-500/60 hover:text-amber-500 transition-colors"
-          >
-            Cancel (Esc)
-          </button>
-        </div>
-      )}
-
       {/* Workspace switcher — Jira-style top-level navigation */}
       <div className="flex items-center justify-between border-b pb-3">
         <div className="flex items-center gap-1">

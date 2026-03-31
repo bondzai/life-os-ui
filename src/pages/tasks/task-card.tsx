@@ -1,4 +1,4 @@
-import { forwardRef, memo } from 'react'
+import { forwardRef, memo, useState, useMemo } from 'react'
 import {
   ListChecks,
   ChevronsUp,
@@ -11,9 +11,12 @@ import {
   Pencil,
   Trash2,
   Repeat,
+  Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +36,8 @@ export interface TaskCardProps {
   onEdit: (task: Entity) => void
   onDelete: (task: Entity) => void
   onSnooze?: (task: Entity, days: number) => void
-  onMoveUnder?: (task: Entity) => void
+  onMoveUnder?: (taskId: string, parentId: string) => void
+  allTasks?: Entity[]
   selected?: boolean
   onSelectTask?: (task: Entity, selected: boolean) => void
   blocked?: boolean
@@ -104,6 +108,7 @@ export const TaskCard = memo(
         onDelete,
         onSnooze,
         onMoveUnder,
+        allTasks,
         selected,
         onSelectTask,
         blocked,
@@ -271,20 +276,12 @@ export const TaskCard = memo(
 
           {/* Hover actions */}
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            {onMoveUnder && !isStory && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onMoveUnder(task)
-                }}
-                title="Move under..."
-              >
-                <span className="sr-only">Move under</span>
-                <ArrowRight className="h-3 w-3" />
-              </Button>
+            {onMoveUnder && allTasks && !isStory && (
+              <MoveUnderPopover
+                task={task}
+                allTasks={allTasks}
+                onMove={(parentId) => onMoveUnder(task.id, parentId)}
+              />
             )}
             {onSnooze && (
               <DropdownMenu>
@@ -351,3 +348,72 @@ export const TaskCard = memo(
 )
 
 TaskCard.displayName = 'TaskCard'
+
+// ─── Move Under Popover ───
+
+function MoveUnderPopover({ task, allTasks, onMove }: { task: Entity; allTasks: Entity[]; onMove: (parentId: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+
+  const candidates = useMemo(() => {
+    const filtered = allTasks.filter((e) =>
+      e.id !== task.id &&
+      e.status !== 'archived' &&
+      e.status !== 'done',
+    ).sort((a, b) => {
+      const aHas = Array.isArray(a.metadata?.subtasks) && (a.metadata.subtasks as unknown[]).length > 0
+      const bHas = Array.isArray(b.metadata?.subtasks) && (b.metadata.subtasks as unknown[]).length > 0
+      if (aHas && !bHas) return -1
+      if (!aHas && bHas) return 1
+      return b.updatedAt.localeCompare(a.updatedAt)
+    })
+    if (!search.trim()) return filtered.slice(0, 10)
+    const q = search.toLowerCase()
+    return filtered.filter((e) => e.title.toLowerCase().includes(q)).slice(0, 10)
+  }, [allTasks, task.id, search])
+
+  return (
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch('') }}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0"
+          onClick={(e) => e.stopPropagation()}
+          title="Move under..."
+        >
+          <ArrowRight className="h-3 w-3" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-2" align="end" onClick={(e) => e.stopPropagation()}>
+        <div className="relative mb-2">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search..."
+            className="h-7 pl-7 text-xs"
+            autoFocus
+          />
+        </div>
+        <div className="max-h-[200px] overflow-y-auto space-y-0.5">
+          {candidates.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-2 text-center">No tasks found</p>
+          ) : candidates.map((e) => {
+            const hasSubs = Array.isArray(e.metadata?.subtasks) && (e.metadata.subtasks as unknown[]).length > 0
+            return (
+              <button
+                key={e.id}
+                onClick={() => { onMove(e.id); setOpen(false); setSearch('') }}
+                className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-left text-xs hover:bg-accent transition-colors cursor-pointer"
+              >
+                {hasSubs && <ListChecks className="h-3 w-3 text-muted-foreground shrink-0" />}
+                <span className="truncate flex-1">{e.title}</span>
+              </button>
+            )
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
