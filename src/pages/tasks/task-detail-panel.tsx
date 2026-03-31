@@ -522,21 +522,26 @@ function SortableSubtaskRow({
               </div>
             ) : (
               <div key={n.id} className="group/note flex gap-2 text-xs bg-muted/30 rounded px-2 py-1">
-                <div
-                  className="flex-1 min-w-0 cursor-pointer rounded hover:bg-muted/50 transition-colors -m-0.5 p-0.5"
-                  onClick={() => { setEditSubNoteId(n.id); setEditSubNoteDraft(n.text) }}
-                >
+                <div className="flex-1 min-w-0">
                   <p className="whitespace-pre-wrap text-foreground/80">{n.text}</p>
                   <span className="text-[9px] text-muted-foreground/50 tabular-nums">
                     {formatRelativeTime(n.timestamp)}
                   </span>
                 </div>
-                <button
-                  onClick={() => onRemoveNote(st.id, n.id)}
-                  className="shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity text-muted-foreground hover:text-destructive cursor-pointer self-start"
-                >
-                  <X className="h-3 w-3" />
-                </button>
+                <div className="flex gap-0.5 shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity self-start">
+                  <button
+                    onClick={() => { setEditSubNoteId(n.id); setEditSubNoteDraft(n.text) }}
+                    className="text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => onRemoveNote(st.id, n.id)}
+                    className="text-muted-foreground hover:text-destructive cursor-pointer"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
               </div>
             )
           ))}
@@ -1659,10 +1664,7 @@ export function TaskDetailPanel({
 
                   return (
                     <div key={note.id} className="group flex gap-2 text-xs bg-muted/30 rounded-lg px-3 py-2">
-                      <div
-                        className="flex-1 min-w-0 cursor-pointer rounded hover:bg-muted/50 transition-colors -m-1 p-1"
-                        onClick={() => { setEditingNoteId(note.id); setEditingNoteDraft(note.text) }}
-                      >
+                      <div className="flex-1 min-w-0">
                         {jsonData ? (
                           <NoteJsonView data={jsonData} />
                         ) : (
@@ -1672,15 +1674,25 @@ export function TaskDetailPanel({
                           {formatRelativeTime(note.timestamp)}
                         </span>
                       </div>
-                      <button
-                        onClick={() => {
-                          const metadata = removeNote(task.metadata, note.id)
-                          onUpdate(task.id, { metadata })
-                        }}
-                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive cursor-pointer self-start"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                      <div className="flex flex-col gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => { setEditingNoteId(note.id); setEditingNoteDraft(note.text) }}
+                          className="text-muted-foreground hover:text-foreground cursor-pointer"
+                          title="Edit"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const metadata = removeNote(task.metadata, note.id)
+                            onUpdate(task.id, { metadata })
+                          }}
+                          className="text-muted-foreground hover:text-destructive cursor-pointer"
+                          title="Delete"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                   )
                 })}
