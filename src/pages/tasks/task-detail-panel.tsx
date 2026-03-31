@@ -186,6 +186,93 @@ function formatRelativeTime(iso: string): string {
   return formatDetailDate(iso)
 }
 
+// Pretty JSON renderer for structured notes
+const NOTE_STATUS_BADGE: Record<string, string> = {
+  open: 'bg-blue-500/15 text-blue-600 border-blue-500/30',
+  in_progress: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
+  pending: 'bg-violet-500/15 text-violet-600 border-violet-500/30',
+  resolved: 'bg-green-500/15 text-green-600 border-green-500/30',
+  closed: 'bg-zinc-500/15 text-zinc-500 border-zinc-500/30',
+  done: 'bg-green-500/15 text-green-600 border-green-500/30',
+  todo: 'bg-blue-500/15 text-blue-600 border-blue-500/30',
+}
+
+function NoteJsonView({ data }: { data: unknown }) {
+  if (Array.isArray(data)) {
+    return (
+      <div className="space-y-1">
+        {data.map((item, i) => (
+          <div key={i} className="pl-2 border-l-2 border-border/50">
+            {typeof item === 'object' && item !== null ? <NoteJsonView data={item} /> : (
+              <span className="text-foreground/80">{String(item)}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (typeof data === 'object' && data !== null) {
+    const entries = Object.entries(data as Record<string, unknown>)
+    return (
+      <div className="space-y-1">
+        {entries.map(([key, value]) => {
+          // Status fields — render as badge
+          if ((key === 'status' || key.endsWith('_status')) && typeof value === 'string') {
+            const style = NOTE_STATUS_BADGE[value] ?? 'bg-muted text-muted-foreground'
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <span className="text-muted-foreground/60 w-24 shrink-0 truncate">{key}</span>
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${style}`}>
+                  {value.replace(/_/g, ' ')}
+                </span>
+              </div>
+            )
+          }
+          // Timestamp fields
+          if ((key.endsWith('_at') || key === 'timestamp' || key === 'created_at' || key === 'resolved_at') && typeof value === 'string' && !isNaN(Date.parse(value))) {
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <span className="text-muted-foreground/60 w-24 shrink-0 truncate">{key}</span>
+                <span className="text-foreground/70 tabular-nums">{new Date(value).toLocaleString()}</span>
+              </div>
+            )
+          }
+          // Null values
+          if (value === null || value === undefined) {
+            return (
+              <div key={key} className="flex items-center gap-2">
+                <span className="text-muted-foreground/60 w-24 shrink-0 truncate">{key}</span>
+                <span className="text-muted-foreground/30 italic">—</span>
+              </div>
+            )
+          }
+          // Nested objects
+          if (typeof value === 'object') {
+            return (
+              <div key={key}>
+                <span className="text-muted-foreground/60">{key}</span>
+                <div className="pl-3 mt-0.5 border-l-2 border-border/50">
+                  <NoteJsonView data={value} />
+                </div>
+              </div>
+            )
+          }
+          // String/number — key: value row
+          return (
+            <div key={key} className="flex items-baseline gap-2">
+              <span className="text-muted-foreground/60 w-24 shrink-0 truncate">{key}</span>
+              <span className="text-foreground/80 break-words min-w-0">{String(value)}</span>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return <span className="text-foreground/80">{String(data)}</span>
+}
+
 function resolveWorkspace(metadata: Record<string, unknown>): 'work' | 'personal' | null {
   const ws = metadata.workspace
   if (ws === 'work' || ws === 'personal') return ws
@@ -1485,25 +1572,38 @@ export function TaskDetailPanel({
             </div>
             {getNotes(task.metadata).length > 0 && (
               <div className="space-y-2">
-                {getNotes(task.metadata).map((note) => (
-                  <div key={note.id} className="group flex gap-2 text-xs bg-muted/30 rounded-lg px-3 py-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="whitespace-pre-wrap text-foreground/90">{note.text}</p>
-                      <span className="text-[10px] text-muted-foreground/50 tabular-nums">
-                        {formatRelativeTime(note.timestamp)}
-                      </span>
+                {getNotes(task.metadata).map((note) => {
+                  // Detect JSON
+                  let jsonData: Record<string, unknown> | null = null
+                  const trimmed = note.text.trim()
+                  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                    try { jsonData = JSON.parse(trimmed) } catch { /* not json */ }
+                  }
+
+                  return (
+                    <div key={note.id} className="group flex gap-2 text-xs bg-muted/30 rounded-lg px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        {jsonData ? (
+                          <NoteJsonView data={jsonData} />
+                        ) : (
+                          <p className="whitespace-pre-wrap text-foreground/90">{note.text}</p>
+                        )}
+                        <span className="text-[10px] text-muted-foreground/50 tabular-nums mt-1 block">
+                          {formatRelativeTime(note.timestamp)}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const metadata = removeNote(task.metadata, note.id)
+                          onUpdate(task.id, { metadata })
+                        }}
+                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive cursor-pointer self-start"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => {
-                        const metadata = removeNote(task.metadata, note.id)
-                        onUpdate(task.id, { metadata })
-                      }}
-                      className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive cursor-pointer self-start"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

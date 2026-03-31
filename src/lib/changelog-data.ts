@@ -16,7 +16,7 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
-    version: '2.4.3',
+    version: '2.4.4',
     date: '2026-03-31',
     phase: 'Lyra Protocol',
     sections: [
@@ -31,6 +31,7 @@ export const CHANGELOG: ChangelogRelease[] = [
           '**Accordion subtasks**: Click a story task to expand/collapse subtasks inline — works in both list and kanban views, toggle status directly',
           '**Move under...**: Popover on task hover — search and pick a parent task, one click to nest',
           '**Promote to task**: Up-arrow on subtask row to convert to standalone task',
+          '**Pretty JSON notes**: Paste JSON into task notes — renders as structured key-value view with status badges, formatted timestamps, nested objects',
         ],
       },
     ],
