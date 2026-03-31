@@ -8,7 +8,6 @@ import {
   Command,
   Crown,
   Eye,
-  FolderKanban,
   Keyboard,
   LayoutDashboard,
   ListChecks,
@@ -46,9 +45,8 @@ const GUIDE_SECTIONS: GuideSection[] = [
     items: [
       { label: 'Focus page', detail: 'Your home screen — set up to 3 daily priorities, run morning/evening protocols, and launch Deep Focus sessions. Uses GitHub-style tabs: Overview shows priorities + schedule, favorite tabs embed full pages inline.' },
       { label: 'Favorite tabs', detail: 'Click the gear icon on the Focus tab bar to add/remove tabs. Each tab renders the full module page (Tasks, Calendar, Habits, Report, etc.) directly — no navigation needed.' },
-      { label: 'Capture anything', detail: 'Press `⌘⇧I` from any page (including during Deep Focus) to open Quick Capture. Quick prefixes: `!` task, `?` question, `*` idea, `@` goal, `#` habit.' },
-      { label: 'Report', detail: 'Add Report as a Focus tab — Daily mode renders the full present/briefing view inline with workspace filter and copy. Weekly tab shows completions, goals, habits.' },
-      { label: 'Review', detail: 'Add Review as a Focus tab — Daily tab: evening debrief. Weekly tab: 5-step wizard (accomplishments, stale items, habits, spending, reflection).' },
+      { label: 'Capture anything', detail: 'Press `⌘⇧I` from any page (including during Deep Focus) to open Quick Capture. Three types: `!action` (task), `@outcome` (goal), `#system` (habit). Type `/` for more commands.' },
+      { label: 'Review', detail: '4 tabs — Plan (weekly planning), Standup (daily report + copy), Debrief (evening review), Weekly (6-step wizard). Plan tab is the default.' },
       { label: 'Command palette', detail: 'Press `Cmd+K` from any page to search everything — tasks, goals, notes, habits, and navigation.' },
     ],
   },
@@ -62,7 +60,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
       { label: 'Ask Lyra', detail: 'Type any question in the Lyra widget on Focus page or the full chat on the Lyra page. Responses stream in real-time.' },
       { label: 'AI tools', detail: 'Sparkle (✨) buttons on tasks, goals, projects, and habits. Click to run AI analysis: **Break Down** (subtasks), **Risk Analysis** (deadlines), **Coach Me** (habits), **Weekly Summary**.' },
       { label: 'Personality', detail: 'Lyra speaks like an INTJ strategist — direct, specific, no fluff. Customize her personality in AI Settings → Personality tab.' },
-      { label: 'Ollama setup', detail: 'Run `brew services start ollama` to enable AI. Uses llama3.2:3b locally — your data never leaves your machine.' },
+      { label: 'Ollama setup', detail: 'Run `brew services start ollama` to enable AI. Uses llama3.2:1b locally — your data never leaves your machine.' },
     ],
   },
   {
@@ -92,7 +90,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Focus System',
     items: [
       { label: 'Daily priorities', detail: 'Pick up to 3 tasks/stories as today\'s focus on the Focus page. These drive your Focus Score and appear in the standup summary.' },
-      { label: 'Focus Score', detail: 'Percentage of today\'s priority items completed. Visible on the Focus page — aim for 100% daily.' },
+      { label: 'Focus streak', detail: 'Flame icon shows consecutive days with 25+ minutes of deep work. Visible next to the Deep Focus button.' },
       { label: 'Standup summary', detail: 'Click "Summary" on the Focus page to see what\'s done, in progress, and planned. Copy to clipboard for standups.' },
       { label: 'Stale item detector', detail: 'Items untouched for 14+ days surface in the Focus sidebar. Snooze them (resets the clock) or archive to reduce noise.' },
     ],
@@ -136,14 +134,15 @@ const GUIDE_SECTIONS: GuideSection[] = [
     ],
   },
   {
-    id: 'projects',
-    icon: <FolderKanban className="h-4 w-4" />,
-    title: 'Projects',
+    id: 'goals',
+    icon: <Target className="h-4 w-4" />,
+    title: 'Goals (Outcomes)',
     items: [
-      { label: 'What are projects?', detail: 'A project is anything you\'re building — software, business, creative, learning, or lifestyle. Online or offline. It lives longer than a single task.' },
-      { label: 'Create a project', detail: 'Go to Projects → New Project. Set category, domain, tech stack, summary (for AI context), and external links.' },
-      { label: 'Link tasks', detail: 'In any task detail panel, select a project from the Project dropdown. Linked tasks appear in the project detail view grouped by status.' },
-      { label: 'Velocity panel', detail: 'Project and goal detail views show a velocity panel: 4-week task completion bars, projected completion date, and risk indicator (on-track/at-risk/will-miss).' },
+      { label: 'Three types', detail: 'Lyra uses 3 entity types: **Goal** (outcome — where you\'re going), **Task** (action — what to do next), **Habit** (system — who you\'re becoming).' },
+      { label: 'Goals absorb projects', detail: 'Projects and goals are unified. Create goals with `@outcome` capture. Set category, domain, tech stack, and linked tasks.' },
+      { label: 'Link tasks', detail: 'In any task detail panel, select a goal from the Goal dropdown. Linked tasks drive velocity tracking.' },
+      { label: 'Velocity panel', detail: 'Goal detail views show a velocity panel: 4-week task completion bars, projected completion date, and risk indicator.' },
+      { label: 'Weekly outcomes', detail: 'Set 3 weekly outcomes in Review → Plan tab. Track done/missed in Weekly Review.' },
     ],
   },
   {
@@ -152,9 +151,9 @@ const GUIDE_SECTIONS: GuideSection[] = [
     title: 'Dynamic Dashboard',
     items: [
       { label: 'Signal-driven widgets', detail: '12 widgets auto-selected by relevance: streak tracker, overdue tasks, project velocity, budget meter, sleep trend, goal progress, focus hours, energy pattern, stale projects, upcoming events, decision review, weekly velocity.' },
-      { label: 'Rules / Lyra mode', detail: 'Toggle between algorithmic widget selection (Rules) and AI-curated dashboard (Lyra). Lyra mode generates a focus summary.' },
       { label: 'Pin & hide', detail: 'Hover any widget to pin (always show) or hide (never show). Pinned widgets get a primary border accent.' },
-      { label: 'Shuffle', detail: 'Re-roll widget selection in Rules mode, or regenerate AI summary in Lyra mode.' },
+      { label: 'Shuffle', detail: 'Re-roll widget selection to surface different signals.' },
+      { label: 'Strategy tab', detail: 'Threats from morning brief + AI strategic moves + knowledge pulse + scoreboard with goal velocity.' },
     ],
   },
   {

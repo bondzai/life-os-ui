@@ -16,6 +16,51 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '2.3.0',
+    date: '2026-03-31',
+    phase: 'Lyra Protocol',
+    sections: [
+      {
+        title: 'Added',
+        items: [
+          '**Lyra Protocol**: Weekly planning system — set 3 weekly outcomes ("Three Stars"), allocate tasks to day buckets with drag-and-drop, intel briefing shows carried tasks/deadlines/velocity gaps/calendar load',
+          '**Daily Protocol**: Auto-populates today\'s priorities from weekly plan with morning brief signals, one-click confirm to Emperor Time',
+          '**Weekly outcome tracking**: Done/missed status toggles in Weekly Review step 1, closes the plan-execute-review loop',
+          '**Distraction tally**: Zap button during deep work sessions, count saved per pomodoro in tracker log',
+          '**Auto-pause on tab switch**: Deep work pauses timer when you leave the tab, shows resume banner on return',
+          '**Session micro-goal**: Optional goal input before starting focus, displayed below timer as reminder',
+          '**Focus streak badge**: Flame icon + consecutive days (25+ min/day) on Today page next to Deep Focus button',
+          '**Focus mode timer**: Live countdown in app-level focus mode floating bar',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          '**Entity simplification**: Merged Project into Goal (`isGoal` helper), Chore into Task (`isTask` helper) — 3 mental models: outcome, action, system',
+          '**Projects sidebar removed**: `/projects` redirects to Goals page, goals page shows both goals and old projects',
+          '**Habits unified as protocols**: Every habit requires steps — no more bare checkbox toggles. Streak increments only when ALL steps complete',
+          '**Today page anti-dopamine**: Removed task-count progress bar and focus score percentage, shows focus streak + systems instead',
+          '**Capture simplified**: Placeholder shows `!action @outcome #system / more`',
+          '**Review page**: 4 tabs — Plan, Standup, Debrief, Weekly. Plan tab is default',
+          '**HabitStrip rewritten**: Self-contained component with step checklists, labeled "Systems"',
+          '**Default AI model**: Switched from Qwen3 to llama3.2:1b across all defaults',
+        ],
+      },
+      {
+        title: 'Removed',
+        items: [
+          '**Foresight tab**: Threats merged into Strategy tab, connections and scenarios dropped',
+          '**Report page**: Merged into Review (standup tab with markdown copy)',
+          '**LyraAI widget**: Removed from Today page (duplicate of morning brief + /lyra chat)',
+          '**Dashboard Lyra/Rules mode**: Non-functional toggle removed',
+          '**AI tools removed**: suggest-focus, find-connections, extract-memories (duplicates)',
+          '**Dead components**: daily-affirmation, daily-protocol, daily-brief-widget, protocol-card',
+          '**~2,500 lines removed** across the full cleanup',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.2.0',
     date: '2026-03-22',
     phase: 'Lyra Foresight',
