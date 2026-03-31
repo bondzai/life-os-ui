@@ -1,4 +1,4 @@
-import { forwardRef, memo, useState, useMemo } from 'react'
+import { forwardRef, memo, useState, useMemo, useCallback } from 'react'
 import {
   ListChecks,
   ChevronsUp,
@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { Entity, EntityStatus } from '@/core/types'
-import { isStory as checkIsStory, getSubtaskProgress, isOverdue as checkIsOverdue, formatShortDate, getRecurrence } from './task-helpers'
+import { isStory as checkIsStory, getSubtasks, getSubtaskProgress, isOverdue as checkIsOverdue, formatShortDate, getRecurrence, subtaskStatus, subtaskDone } from './task-helpers'
 
 export interface TaskCardProps {
   task: Entity
@@ -37,6 +37,7 @@ export interface TaskCardProps {
   onDelete: (task: Entity) => void
   onSnooze?: (task: Entity, days: number) => void
   onMoveUnder?: (taskId: string, parentId: string) => void
+  onToggleSubtask?: (taskId: string, subtaskId: string) => void
   allTasks?: Entity[]
   selected?: boolean
   onSelectTask?: (task: Entity, selected: boolean) => void
@@ -108,6 +109,7 @@ export const TaskCard = memo(
         onDelete,
         onSnooze,
         onMoveUnder,
+        onToggleSubtask,
         allTasks,
         selected,
         onSelectTask,
@@ -118,19 +120,28 @@ export const TaskCard = memo(
       },
       ref,
     ) => {
-      const subtasks = getSubtaskProgress(task.metadata)
+      const subtaskProgress = getSubtaskProgress(task.metadata)
       const isStory = checkIsStory(task)
       const completed = task.status === 'done'
       const overdue = checkIsOverdue(task.dueDate, task.status)
       const visibleTags = task.tags.slice(0, 2)
       const extraTags = task.tags.length - 2
+      const [expanded, setExpanded] = useState(false)
+      const allSubs = useMemo(() => isStory ? getSubtasks(task.metadata) : [], [task.metadata, isStory])
+
+      const handleClick = useCallback(() => {
+        if (isStory && onToggleSubtask) {
+          setExpanded((e) => !e)
+        } else {
+          onClick?.()
+        }
+      }, [isStory, onToggleSubtask, onClick])
 
       return (
+        <div ref={ref} style={style} className={className}>
         <div
-          ref={ref}
-          style={style}
-          className={`group flex items-center gap-2 px-2 py-1.5 border-b border-border hover:bg-muted/50 transition-colors cursor-pointer ${className ?? ''}`}
-          onClick={onClick}
+          className={`group flex items-center gap-2 px-2 py-1.5 border-b border-border hover:bg-muted/50 transition-colors cursor-pointer`}
+          onClick={handleClick}
           {...attrs}
         >
           {/* Select checkbox */}
@@ -144,7 +155,7 @@ export const TaskCard = memo(
           )}
 
           {/* Status badge — dropdown for simple tasks, static for stories */}
-          {subtasks ? (
+          {subtaskProgress ? (
             <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${STATUS_STYLE[task.status] ?? ''}`}>
               {STATUS_SHORT[task.status] ?? task.status}
             </span>
@@ -192,12 +203,12 @@ export const TaskCard = memo(
           </span>
 
           {/* Subtask progress bar */}
-          {subtasks && (
-            <div className="w-12 shrink-0 flex items-center gap-1" title={`${subtasks.done}/${subtasks.total}`}>
+          {subtaskProgress && (
+            <div className="w-12 shrink-0 flex items-center gap-1" title={`${subtaskProgress.done}/${subtaskProgress.total}`}>
               <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${subtasks.pct}%` }}
+                  style={{ width: `${subtaskProgress.pct}%` }}
                 />
               </div>
             </div>
@@ -341,6 +352,53 @@ export const TaskCard = memo(
               <Trash2 className="h-3 w-3" />
             </Button>
           </div>
+        </div>
+
+        {/* Accordion subtasks */}
+        {expanded && allSubs.length > 0 && (
+          <div className="border-b border-border bg-muted/20 pl-8 pr-2 py-1">
+            {allSubs.map((st) => {
+              const status = subtaskStatus(st)
+              const done = subtaskDone(st)
+              return (
+                <div key={st.id} className="flex items-center gap-2 py-1 group/st">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onToggleSubtask?.(task.id, st.id)
+                    }}
+                    className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      status === 'done'
+                        ? 'bg-primary border-primary text-primary-foreground'
+                        : status === 'in-progress'
+                          ? 'border-amber-500 bg-amber-500/20'
+                          : 'border-muted-foreground/30'
+                    }`}
+                  >
+                    {status === 'done' && (
+                      <svg className="h-2 w-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                    {status === 'in-progress' && <div className="h-1 w-1 rounded-full bg-amber-500" />}
+                  </button>
+                  <span className={`text-xs flex-1 truncate ${done ? 'line-through text-muted-foreground' : ''}`}>
+                    {st.title}
+                  </span>
+                  {status === 'in-progress' && (
+                    <span className="text-[9px] px-1 py-px rounded bg-amber-500/15 text-amber-500">WIP</span>
+                  )}
+                </div>
+              )
+            })}
+            <button
+              onClick={(e) => { e.stopPropagation(); onClick?.() }}
+              className="text-[10px] text-muted-foreground/40 hover:text-primary transition-colors py-1 cursor-pointer"
+            >
+              Open detail
+            </button>
+          </div>
+        )}
         </div>
       )
     },

@@ -675,6 +675,24 @@ export function TasksPage() {
     notify({ title: `"${subtask.title}" promoted to task`, type: 'success' })
   }, [tasks, create, update])
 
+  const handleToggleSubtask = useCallback((taskId: string, subtaskId: string) => {
+    const task = tasks.find((t) => t.id === taskId)
+    if (!task) return
+    const subs = Array.isArray(task.metadata.subtasks)
+      ? (task.metadata.subtasks as Array<{ id: string; title: string; done: boolean; status?: string }>)
+      : []
+    const updated = subs.map((s) => {
+      if (s.id !== subtaskId) return s
+      const currentStatus = s.status ?? (s.done ? 'done' : 'todo')
+      const nextStatus = currentStatus === 'todo' ? 'in-progress' : currentStatus === 'in-progress' ? 'done' : 'todo'
+      return { ...s, status: nextStatus, done: nextStatus === 'done' }
+    })
+    update.mutate({
+      id: taskId,
+      updates: { metadata: { ...task.metadata, subtasks: updated }, updatedAt: new Date().toISOString() },
+    })
+  }, [tasks, update])
+
   const renderTaskCard = (task: Entity, navIndex?: number) => (
     <TaskCard
       task={task}
@@ -686,6 +704,7 @@ export function TasksPage() {
       onDelete={setDeleteTarget}
       onSnooze={snoozeTask}
       onMoveUnder={handleMoveUnder}
+      onToggleSubtask={handleToggleSubtask}
       allTasks={tasks}
       selected={selectMode ? selectedTasks.has(task.id) : undefined}
       onSelectTask={selectMode ? handleSelect : undefined}
