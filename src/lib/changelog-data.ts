@@ -16,6 +16,25 @@ interface ChangelogRelease {
 
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: '2.5.0',
+    date: '2026-04-02',
+    phase: 'Lean',
+    sections: [
+      {
+        title: 'Removed',
+        items: [
+          '**Sidebar reduced from 17 items to 8** — kept: Focus, Dashboard, Tasks, Goals, Calendar, Notes, Habits, Review',
+          '**Removed pages**: Lyra, Timeline/Gantt, Events, Note Map, Goal Map, Skills, Sessions, Learning, Travel, Family, Health, Wealth, Projects',
+          '**Removed directories**: lyra/, gantt/, note-map/, goal-map/, skills/, places/, wealth/, health/, home/, memories/, reading/, stubs/',
+          '**Removed**: use-lyra-memory hook (orphaned)',
+          'Chat still accessible via ChatSidebar (always available)',
+          'Command bar (⌘K) still navigates to all remaining pages',
+          'Precache reduced from 3418 KB → 1857 KB (-45%)',
+        ],
+      },
+    ],
+  },
+  {
     version: '2.4.9',
     date: '2026-03-31',
     phase: 'Lyra Protocol',

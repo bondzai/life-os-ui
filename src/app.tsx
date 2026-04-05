@@ -15,25 +15,13 @@ const GoalsPage = lazy(() => import('@/pages/goals').then((m) => ({ default: m.G
 const TasksPage = lazy(() => import('@/pages/tasks').then((m) => ({ default: m.TasksPage })))
 const CalendarPage = lazy(() => import('@/pages/calendar').then((m) => ({ default: m.CalendarPage })))
 const HabitsPage = lazy(() => import('@/pages/habits').then((m) => ({ default: m.HabitsPage })))
-const LearningPage = lazy(() => import('@/pages/learning').then((m) => ({ default: m.LearningPage })))
 const NotesPage = lazy(() => import('@/pages/notes').then((m) => ({ default: m.NotesPage })))
-const TravelPage = lazy(() => import('@/pages/places').then((m) => ({ default: m.PlacesPage })))
-const WealthPage = lazy(() => import('@/pages/wealth').then((m) => ({ default: m.WealthPage })))
-const HealthPage = lazy(() => import('@/pages/health').then((m) => ({ default: m.HealthPage })))
-const FamilyPage = lazy(() => import('@/pages/family').then((m) => ({ default: m.FamilyPage })))
 const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m.ReviewPage })))
 const DashboardPage = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.DashboardPage })))
 const NotificationsPage = lazy(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationsPage })))
 const DeepWorkPage = lazy(() => import('@/pages/deep-work').then((m) => ({ default: m.DeepWorkPage })))
-const SessionsPage = lazy(() => import('@/pages/sessions').then((m) => ({ default: m.SessionsPage })))
 const InboxPage = lazy(() => import('@/pages/inbox').then((m) => ({ default: m.InboxPage })))
 const BriefingPage = lazy(() => import('@/pages/tasks/standup-report').then((m) => ({ default: m.BriefingPage })))
-const GoalMapPage = lazy(() => import('@/pages/goal-map').then((m) => ({ default: m.GoalMapPage })))
-const NoteMapPage = lazy(() => import('@/pages/note-map').then((m) => ({ default: m.NoteMapPage })))
-const EventsPage = lazy(() => import('@/pages/events').then((m) => ({ default: m.EventsPage })))
-const SkillsPage = lazy(() => import('@/pages/skills').then((m) => ({ default: m.SkillsPage })))
-const GanttPage = lazy(() => import('@/pages/gantt').then((m) => ({ default: m.GanttPage })))
-const LyraPage = lazy(() => import('@/pages/lyra').then((m) => ({ default: m.LyraPage })))
 const SettingsPage = lazy(() => import('@/pages/settings').then((m) => ({ default: m.SettingsPage })))
 
 
@@ -60,27 +48,15 @@ export function App() {
                 <Route element={<AppLayout />}>
                   <Route index element={<TodayPage />} />
                   <Route path="projects" element={<Navigate to="/goals" replace />} />
-                  <Route path="gantt" element={<GanttPage />} />
                   <Route path="goals" element={<GoalsPage />} />
-                  <Route path="goal-map" element={<GoalMapPage />} />
                   <Route path="tasks" element={<TasksPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
-                  <Route path="events" element={<EventsPage />} />
                   <Route path="notes" element={<NotesPage />} />
-                  <Route path="note-map" element={<NoteMapPage />} />
                   <Route path="habits" element={<HabitsPage />} />
-                  <Route path="skills" element={<SkillsPage />} />
-                  <Route path="learning" element={<LearningPage />} />
-                  <Route path="health" element={<HealthPage />} />
-                  <Route path="wealth" element={<WealthPage />} />
-                  <Route path="travel" element={<TravelPage />} />
-                  <Route path="family" element={<FamilyPage />} />
                   <Route path="review" element={<ReviewPage />} />
-                  <Route path="sessions" element={<SessionsPage />} />
                   <Route path="inbox" element={<InboxPage />} />
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
-                  <Route path="lyra" element={<LyraPage />} />
                   <Route path="settings" element={<SettingsPage />} />
 
                   <Route path="*" element={<NotFoundPage />} />

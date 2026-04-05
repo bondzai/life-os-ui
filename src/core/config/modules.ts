@@ -3,19 +3,10 @@ import {
   CheckSquare,
   Calendar,
   Repeat,
-  GraduationCap,
-  Heart,
-  Wallet,
-  Users,
   NotebookPen,
-  MapPin,
   LayoutDashboard,
   BarChart3,
-  GitBranch,
-  CalendarPlus,
-  GanttChart,
-  Zap,
-  Sparkles,
+  ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -41,39 +32,14 @@ export const modules: ModuleConfig[] = [
   // Daily — what you open every day
   { id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', group: 'Daily', entityTypes: [] },
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard', group: 'Daily', entityTypes: [] },
-  { id: 'lyra', label: 'Lyra', icon: Sparkles, path: '/lyra', group: 'Daily', entityTypes: [] },
-
 
   // Plan — strategic tools & review cycles
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Plan', entityTypes: ['task', 'chore'] },
-  { id: 'gantt', label: 'Timeline', icon: GanttChart, path: '/gantt', group: 'Plan', entityTypes: [] },
-  {
-    id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Plan', entityTypes: ['event'],
-    children: [
-      { id: 'events', label: 'Events', icon: CalendarPlus, path: '/events' },
-    ],
-  },
-  {
-    id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Plan', entityTypes: ['note'],
-    children: [
-      { id: 'note-map', label: 'Note Map', icon: GitBranch, path: '/note-map' },
-    ],
-  },
-  {
-    id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Plan', entityTypes: ['goal', 'project'],
-    children: [
-      { id: 'goal-map', label: 'Goal Map', icon: GitBranch, path: '/goal-map' },
-    ],
-  },
+  { id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Plan', entityTypes: ['goal', 'project'] },
+  { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Plan', entityTypes: ['event'] },
+  { id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Plan', entityTypes: ['note'] },
   { id: 'habits', label: 'Habits', icon: Repeat, path: '/habits', group: 'Plan', entityTypes: ['habit'] },
-  { id: 'skills', label: 'Skills', icon: Zap, path: '/skills', group: 'Plan', entityTypes: ['skill'] },
-
-  // Life — domains you track
-  { id: 'health', label: 'Health', icon: Heart, path: '/health', group: 'Life', entityTypes: ['body-metric', 'workout', 'sleep-mood'] },
-  { id: 'wealth', label: 'Wealth', icon: Wallet, path: '/wealth', group: 'Life', entityTypes: ['transaction', 'budget', 'account', 'asset', 'wallet', 'crypto-tx'] },
-  { id: 'learning', label: 'Learning', icon: GraduationCap, path: '/learning', group: 'Life', entityTypes: ['book', 'course', 'skill'] },
-  { id: 'travel', label: 'Travel', icon: MapPin, path: '/travel', group: 'Life', entityTypes: ['place', 'location', 'trip'] },
-  { id: 'family', label: 'Family', icon: Users, path: '/family', group: 'Life', entityTypes: [] },
+  { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review', group: 'Plan', entityTypes: [] },
 ]
 
 export function getModuleGroups(): { group: string; modules: ModuleConfig[] }[] {
