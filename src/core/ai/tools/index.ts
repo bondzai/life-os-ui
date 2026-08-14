@@ -7,6 +7,10 @@ import './suggest-priorities'
 import './plan-session'
 import './parse-capture'
 import './web-search'
+import './wealth-portfolio-review'
+import './wealth-tier-drift'
+import './wealth-lp-health'
+import './wealth-concentration'
 
 // Re-export registry API
 export { getTool, getAllTools, getToolsForScope, registerTool } from './registry'

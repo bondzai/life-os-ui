@@ -4,6 +4,13 @@ export interface ToolParams {
   entityId?: string
   entities: import('@/core/types').Entity[]
   trackers: import('@/core/types/tracker').Tracker[]
+  /**
+   * Wealth snapshot for the wealth tools, when the portfolio has loaded.
+   *
+   * Optional so every existing caller keeps compiling. The wealth prompts render an explicit
+   * "UNAVAILABLE" block when it is absent rather than quietly omitting the figures.
+   */
+  wealth?: import('../context/wealth-context').WealthBrief
 }
 
 export interface ChatMessage {

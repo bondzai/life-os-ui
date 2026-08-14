@@ -1,5 +1,6 @@
 import type { Entity } from '@/core/types'
 import type { Tracker } from '@/core/types/tracker'
+import type { WealthBrief } from '@/core/ai/context/wealth-context'
 
 /* ─── Insight — the universal signal format ─── */
 
@@ -38,6 +39,14 @@ export interface DetectorContext {
   trackers: Tracker[]
   today: string // YYYY-MM-DD
   now: number // Date.now()
+  /**
+   * Wealth snapshot, when the portfolio has loaded.
+   *
+   * Optional because the brief must still render before (or without) wealth data. Detectors that
+   * need it return no insights when it is absent — silence is correct here, since a wealth line
+   * inferred from missing data would be a false claim about real money.
+   */
+  wealth?: WealthBrief
 }
 
 /** A detector is a pure function: context in, insights out */
