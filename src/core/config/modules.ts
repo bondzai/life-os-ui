@@ -7,6 +7,8 @@ import {
   LayoutDashboard,
   BarChart3,
   ClipboardCheck,
+  Brain,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -40,6 +42,21 @@ export const modules: ModuleConfig[] = [
   { id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Plan', entityTypes: ['note'] },
   { id: 'habits', label: 'Habits', icon: Repeat, path: '/habits', group: 'Plan', entityTypes: ['habit'] },
   { id: 'review', label: 'Review', icon: ClipboardCheck, path: '/review', group: 'Plan', entityTypes: [] },
+  { id: 'knowledge', label: 'Knowledge', icon: Brain, path: '/knowledge', group: 'Plan', entityTypes: [] },
+
+  // Wealth — the crypto portfolio surfaces. Sub-routes are lazy; see App.tsx.
+  {
+    id: 'wealth',
+    label: 'Wealth',
+    icon: Wallet,
+    path: '/wealth',
+    group: 'Plan',
+    entityTypes: ['wallet', 'asset', 'crypto-tx', 'account'],
+    children: [
+      { id: 'wealth-holdings', label: 'Holdings', icon: Wallet, path: '/wealth/holdings' },
+      { id: 'wealth-defi', label: 'DeFi', icon: Wallet, path: '/wealth/defi' },
+    ],
+  },
 ]
 
 export function getModuleGroups(): { group: string; modules: ModuleConfig[] }[] {

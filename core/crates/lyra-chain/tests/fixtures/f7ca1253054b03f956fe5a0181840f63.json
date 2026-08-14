@@ -2,5 +2,5 @@
   "url": "https://api.hyperliquid.xyz/info",
   "method": "POST",
   "status": 200,
-  "body": "{\"balances\":[{\"coin\":\"USDC\",\"entryNtl\":\"0.0\",\"hold\":\"0.0\",\"token\":0,\"total\":\"250.5\"},{\"coin\":\"HYPE\",\"entryNtl\":\"300.0\",\"hold\":\"1.0\",\"token\":1105,\"total\":\"12.5\"},{\"coin\":\"PURR\",\"entryNtl\":\"0.0\",\"hold\":\"0.0\",\"token\":1,\"total\":\"0.0\"}]}"
+  "body": "{\"balances\":[]}"
 }

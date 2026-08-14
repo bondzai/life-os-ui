@@ -431,31 +431,135 @@ mod tests {
         assert!(hypercore_portfolio_from("hyperliquid", &[], &HashMap::new(), 0.0).is_none());
     }
 
+    // --- replayed fixtures --------------------------------------------------
+    //
+    // spotMeta, allMids and both clearinghouse queries under tests/fixtures are real captures.
+    // They are the fixtures that matter most here: the `@index` keying is the subtlest thing in
+    // this module, and only a real universe/mids pair can prove the port reads it the way the
+    // exchange writes it.
+
+    /// The address the real clearinghouse responses were captured for — it holds nothing.
+    const RECORDED_EMPTY_WALLET: &str = "0x1234567890abcdef1234567890abcdef12345678";
+    /// A wallet holding both spot and a perp account. Chosen holdings, real response shape.
+    const FUNDED_WALLET: &str = "0xfeedfacefeedfacefeedfacefeedfacefeedface";
+
     #[tokio::test]
-    async fn the_full_read_replays_from_fixtures() {
+    async fn real_spot_metadata_prices_the_real_universe() {
+        // Against the live universe: every USDC-quoted pair resolves to a token name and a mid.
         let cache = fixtures();
         let client = reqwest::Client::new();
-        let portfolio = hypercore_portfolio(
+        let meta = hl(&client, &cache, &json!({"type": "spotMeta"}))
+            .await
+            .unwrap();
+        let mids = hl(&client, &cache, &json!({"type": "allMids"}))
+            .await
+            .unwrap();
+        let prices = parse_spot_prices(&meta, &mids).unwrap();
+
+        assert_eq!(prices.get("USDC"), Some(&1.0), "USDC is the unit");
+        assert!(
+            prices.len() > 50,
+            "the real universe has hundreds of pairs, got {}",
+            prices.len()
+        );
+        let hype = prices
+            .get("HYPE")
+            .copied()
+            .expect("HYPE trades against USDC");
+        assert!(
+            hype > 0.0 && hype < 10_000.0,
+            "implausible HYPE mid: {hype}"
+        );
+        assert!(
+            prices.values().all(|price| *price > 0.0),
+            "a zero mid means a pair was keyed wrongly"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_real_mids_payload_is_not_keyed_by_symbol() {
+        // allMids mixes perp symbols ("BTC"), spot pair keys ("@107") and other markets
+        // ("#10810"). Reading a spot price by symbol would silently pick up a perp mark price, so
+        // this pins the assumption the parser depends on.
+        let cache = fixtures();
+        let client = reqwest::Client::new();
+        let mids = hl(&client, &cache, &json!({"type": "allMids"}))
+            .await
+            .unwrap();
+        let object = mids.as_object().expect("allMids is an object");
+
+        assert!(
+            object.keys().any(|key| key.starts_with('@')),
+            "no spot pair keys"
+        );
+        assert!(
+            object.contains_key("BTC"),
+            "perp symbols share the map — the reason spot must be read by @index"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_real_empty_wallet_reads_as_nothing_rather_than_an_error() {
+        // Captured from the live API: `{"balances":[]}` and a marginSummary of "0.0" strings.
+        let cache = fixtures();
+        let client = reqwest::Client::new();
+        let portfolio = hypercore_portfolio(&client, &cache, "hyperliquid", RECORDED_EMPTY_WALLET)
+            .await
+            .unwrap();
+        assert!(portfolio.is_none(), "got {portfolio:?}");
+    }
+
+    #[tokio::test]
+    async fn a_real_account_value_is_a_string_not_a_number() {
+        // The shape assumption behind `number()`. If Hyperliquid ever switched to JSON numbers
+        // this test would fail on the next re-record rather than in production.
+        let cache = fixtures();
+        let client = reqwest::Client::new();
+        let perp = hl(
             &client,
             &cache,
-            "hyperliquid",
-            "0x1234567890abcdef1234567890abcdef12345678",
+            &json!({"type": "clearinghouseState", "user": RECORDED_EMPTY_WALLET}),
         )
         .await
-        .unwrap()
         .unwrap();
 
-        assert_eq!(portfolio.spot.len(), 2);
+        let account_value = perp
+            .get("marginSummary")
+            .and_then(|summary| summary.get("accountValue"))
+            .expect("marginSummary.accountValue is still the field name");
+        assert!(account_value.is_string(), "got {account_value}");
+        assert_eq!(parse_account_value(&perp).unwrap(), 0.0);
+    }
+
+    #[tokio::test]
+    async fn the_full_read_replays_from_fixtures() {
+        // The funded scenario: spot holdings priced off the *real* universe, plus a perp account.
+        let cache = fixtures();
+        let client = reqwest::Client::new();
+        let portfolio = hypercore_portfolio(&client, &cache, "hyperliquid", FUNDED_WALLET)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(portfolio.spot.len(), 2, "USDC and HYPE, both priced");
         assert_eq!(
             portfolio.defi.len(),
             1,
             "the perp account must survive the round trip"
         );
-        assert!(
-            (portfolio.usd - 2050.75).abs() < 1e-9,
-            "got {}",
-            portfolio.usd
-        );
+        assert_eq!(portfolio.defi[0].usd, 1500.25);
+
+        // Spot value depends on the recorded HYPE mid, so assert the relationship rather than a
+        // number that changes every time the fixtures are refreshed.
+        let spot_usd: f64 = portfolio.spot.iter().map(|token| token.usd).sum();
+        assert_eq!(portfolio.usd, spot_usd + 1500.25);
+        let usdc = portfolio
+            .spot
+            .iter()
+            .find(|token| token.symbol == "USDC")
+            .expect("USDC holding");
+        assert_eq!(usdc.amount, 250.5);
+        assert_eq!(usdc.usd, 250.5, "USDC is priced at exactly 1");
     }
 
     #[tokio::test]
@@ -464,19 +568,18 @@ mod tests {
         // collide and the perp state would answer the spot query.
         let cache = fixtures();
         let client = reqwest::Client::new();
-        let address = "0x1234567890abcdef1234567890abcdef12345678";
 
         let spot = hl(
             &client,
             &cache,
-            &json!({"type": "spotClearinghouseState", "user": address}),
+            &json!({"type": "spotClearinghouseState", "user": RECORDED_EMPTY_WALLET}),
         )
         .await
         .unwrap();
         let perp = hl(
             &client,
             &cache,
-            &json!({"type": "clearinghouseState", "user": address}),
+            &json!({"type": "clearinghouseState", "user": RECORDED_EMPTY_WALLET}),
         )
         .await
         .unwrap();

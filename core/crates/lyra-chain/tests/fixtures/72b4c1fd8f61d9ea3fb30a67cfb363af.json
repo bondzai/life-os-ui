@@ -2,5 +2,5 @@
   "url": "https://api.mainnet-beta.solana.com",
   "method": "POST",
   "status": 200,
-  "body": "{\"id\":1,\"jsonrpc\":\"2.0\",\"result\":{\"context\":{\"apiVersion\":\"2.1.11\",\"slot\":312000000},\"value\":2500000000}}"
+  "body": "{\"id\":1,\"jsonrpc\":\"2.0\",\"result\":{\"context\":{\"apiVersion\":\"4.2.0\",\"slot\":439264922},\"value\":2500000000}}"
 }

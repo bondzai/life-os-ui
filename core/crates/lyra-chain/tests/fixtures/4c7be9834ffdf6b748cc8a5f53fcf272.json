@@ -2,5 +2,5 @@
   "url": "https://coins.llama.fi/percentage/coingecko:bitcoin?period=24h",
   "method": "GET",
   "status": 200,
-  "body": "{\"coins\":{\"coingecko:bitcoin\":-1.234}}"
+  "body": "{\"coins\":{\"coingecko:bitcoin\":-0.7222816718996087}}"
 }

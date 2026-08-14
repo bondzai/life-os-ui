@@ -2,5 +2,5 @@
   "url": "https://solana-rpc.publicnode.com",
   "method": "POST",
   "status": 200,
-  "body": "{\"id\":1,\"jsonrpc\":\"2.0\",\"result\":{\"context\":{\"apiVersion\":\"2.1.11\",\"slot\":312000001},\"value\":0}}"
+  "body": "{\"id\":1,\"jsonrpc\":\"2.0\",\"result\":{\"context\":{\"apiVersion\":\"4.2.0\",\"slot\":439264922},\"value\":0}}"
 }

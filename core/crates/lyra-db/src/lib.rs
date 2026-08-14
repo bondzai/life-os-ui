@@ -10,6 +10,7 @@
 
 pub mod import;
 pub mod migrations;
+pub mod wealth;
 
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;

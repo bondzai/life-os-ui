@@ -745,6 +745,68 @@ mod tests {
     }
 
     // --- replayed fixtures --------------------------------------------------
+    //
+    // getBalance and the blocked getTokenAccountsByOwner under tests/fixtures are real captures
+    // from solana-rpc.publicnode.com. The funded-wallet scenario is hand-written: no reachable
+    // public RPC would serve token accounts for a busy address.
+
+    /// A real, heavily used account the balance fixture was captured for. Its balance moves
+    /// constantly, so the assertions below check invariants rather than the captured number —
+    /// re-recording these fixtures must not break the suite.
+    const RECORDED_ACCOUNT: &str = "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9";
+
+    #[tokio::test]
+    async fn a_real_balance_falls_through_a_blocked_endpoint() {
+        // Both bodies are real: api.mainnet-beta refuses this host outright (portfolio.py's "403
+        // datacenter IPs" comment is still accurate), and publicnode answers. The fallback is what
+        // turns a blocked primary into a balance rather than a missing chain.
+        let cache = fixtures();
+        let client = reqwest::Client::new();
+        let result = sol_rpc(&client, &cache, "getBalance", json!([RECORDED_ACCOUNT]))
+            .await
+            .expect("the second endpoint must answer");
+
+        let balance = parse_native_balance(&result);
+        assert!(
+            balance > 0.0 && balance < 600_000_000.0,
+            "implausible SOL balance (total supply is ~600M): {balance}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_real_rpc_envelope_carries_context_and_value() {
+        // The shape `parse_native_balance` depends on. A renamed field would surface here.
+        let cache = fixtures();
+        let client = reqwest::Client::new();
+        let result = sol_rpc(&client, &cache, "getBalance", json!([RECORDED_ACCOUNT]))
+            .await
+            .unwrap();
+
+        assert!(result.get("context").is_some(), "got {result}");
+        assert!(
+            result.get("value").and_then(Value::as_u64).is_some(),
+            "lamports must still be an integer: {result}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_real_blocked_response_is_not_mistaken_for_an_empty_wallet() {
+        // publicnode answers getTokenAccountsByOwner with HTTP 403 and a JSON-RPC error body for
+        // busy accounts. Treating that as "no tokens" would silently zero the wallet, so the
+        // status check has to reject it — the call yields None and the caller keeps its holdings
+        // unknown rather than empty.
+        let cache = fixtures();
+        let client = reqwest::Client::new();
+        let result = sol_rpc(
+            &client,
+            &cache,
+            "getTokenAccountsByOwner",
+            json!([RECORDED_ACCOUNT, {"programId": SPL_PROGRAMS[0]}, {"encoding": "jsonParsed"}]),
+        )
+        .await;
+
+        assert!(result.is_none(), "a refusal is not an answer: {result:?}");
+    }
 
     #[tokio::test]
     async fn the_full_read_replays_from_fixtures() {

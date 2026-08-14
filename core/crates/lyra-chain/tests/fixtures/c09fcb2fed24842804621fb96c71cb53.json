@@ -1,0 +1,6 @@
+{
+  "url": "https://api.hyperliquid.xyz/info",
+  "method": "POST",
+  "status": 200,
+  "body": "{\"assetPositions\":[],\"crossMaintenanceMarginUsed\":\"200.0\",\"crossMarginSummary\":{\"accountValue\":\"1500.25\",\"totalMarginUsed\":\"400.0\",\"totalNtlPos\":\"4000.0\",\"totalRawUsd\":\"5500.25\"},\"marginSummary\":{\"accountValue\":\"1500.25\",\"totalMarginUsed\":\"400.0\",\"totalNtlPos\":\"4000.0\",\"totalRawUsd\":\"5500.25\"},\"time\":1786726851618,\"withdrawable\":\"1100.25\"}"
+}

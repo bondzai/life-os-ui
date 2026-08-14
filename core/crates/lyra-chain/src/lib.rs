@@ -5,12 +5,18 @@
 //! registry. Every endpoint here is gated by `lyra-parity` against the Python original before
 //! it is considered ported.
 
+pub mod abi;
 pub mod address;
 pub mod bitcoin;
 pub mod chains;
+pub mod evm;
 pub mod http_cache;
 pub mod hyperliquid;
+pub mod kucoin;
 pub mod lp_math;
 pub mod market;
+pub mod model;
+pub mod prices;
 pub mod solana;
 pub mod spam;
+pub mod spot;

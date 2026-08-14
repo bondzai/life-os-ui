@@ -1,0 +1,4468 @@
+[
+ {
+  "category": null,
+  "symbol": "",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "",
+  "symbol": "",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "AERO",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "AERO",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "AERO",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "AERO",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "AERO",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "AERO",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "AERO",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "AERO",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "AERO",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "AERO",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "AERO",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "AERO",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "AERO",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "AERO",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "AERO",
+  "symbol": "AERO",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "ARB",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "ARB",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "ARB",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "ARB",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "ARB",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "ARB",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "ARB",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "ARB",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "ARB",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "ARB",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "ARB",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "ARB",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "ARB",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "ARB",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "ARB",
+  "symbol": "ARB",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "AVAX",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "AVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "AVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "AVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "AVAX",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "AVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "AVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "AVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "AVAX",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "AVAX",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "AVAX",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "AVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "AVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "AVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "AVAX",
+  "symbol": "AVAX",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "BNB",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "BNB",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "BNB",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "BNB",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "BNB",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "BNB",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "BNB",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "BNB",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "BNB",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "BNB",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "BNB",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "BNB",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "BNB",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "BNB",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "BNB",
+  "symbol": "BNB",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "BTC",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "BTC",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "BTC",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "BTC",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "BTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "BTC",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "BTC",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "BTC",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "BTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "BTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "BTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "BTC",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "BTC",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "BTC",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": true,
+  "norm_sym": "BTC",
+  "symbol": "BTC",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "BTC.B",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "BTC.B",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "BTC.B",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "BTC.B",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "BTC.B",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "BTC.B",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "BTC.B",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "BTC.B",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "BTC.B",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "BTC.B",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "BTC.B",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "BTC.B",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "BTC.B",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "BTC.B",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": true,
+  "norm_sym": "BTC",
+  "symbol": "BTC.B",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "CBBTC",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "CBBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "CBBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "CBBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "CBBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "CBBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "CBBTC",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "CBBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "CBBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "CBBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "CBBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "CBBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "CBBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "CBBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": true,
+  "norm_sym": "BTC",
+  "symbol": "CBBTC",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "DAI",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "DAI",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "DAI",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "DAI",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "DAI",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "DAI",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "DAI",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "DAI",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "DAI",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "DAI",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "DAI",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "DAI",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "DAI",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "DAI",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "DAI",
+  "symbol": "DAI",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "ETH",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "ETH",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "ETH",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "ETH",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "ETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "ETH",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "ETH",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "ETH",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "ETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "ETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "ETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "ETH",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "ETH",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "ETH",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "ETH",
+  "symbol": "ETH",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "ETH.B",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "ETH.B",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "ETH.B",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "ETH.B",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "ETH.B",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "ETH.B",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "ETH.B",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "ETH.B",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "ETH.B",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "ETH.B",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "ETH.B",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "ETH.B",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "ETH.B",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "ETH.B",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "ETH",
+  "symbol": "ETH.B",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "Eth",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "Eth",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "Eth",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "Eth",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "Eth",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "Eth",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "Eth",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "Eth",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "Eth",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "Eth",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "Eth",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "Eth",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "Eth",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "Eth",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "ETH",
+  "symbol": "Eth",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "GOLD",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "GOLD",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "GOLD",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "GOLD",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "GOLD",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "GOLD",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "GOLD",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "GOLD",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "GOLD",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "GOLD",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "GOLD",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "GOLD",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "GOLD",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "GOLD",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "GOLD",
+  "symbol": "GOLD",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "HYPE",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "HYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "HYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "HYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "HYPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "HYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "HYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "HYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "HYPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "HYPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "HYPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "HYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "HYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "HYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "HYPE",
+  "symbol": "HYPE",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "JITOSOL",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "JITOSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "JITOSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "JITOSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "JITOSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "JITOSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "JITOSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "JITOSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "JITOSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "JITOSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "JITOSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "JITOSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "JITOSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "JITOSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "SOL",
+  "symbol": "JITOSOL",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "KAU",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "KAU",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "KAU",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "KAU",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "KAU",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "KAU",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "KAU",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "KAU",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "KAU",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "KAU",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "KAU",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "KAU",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "KAU",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "KAU",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "GOLD",
+  "symbol": "KAU",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "KUCOIN",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "KUCOIN",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "KUCOIN",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "KUCOIN",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "KUCOIN",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "KUCOIN",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "KUCOIN",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "KUCOIN",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "KUCOIN",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "KUCOIN",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "KUCOIN",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "KUCOIN",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "KUCOIN",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "KUCOIN",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "KUCOIN",
+  "symbol": "KUCOIN",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "LBTC",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "LBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "LBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "LBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "LBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "LBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "LBTC",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "LBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "LBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "LBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "LBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "LBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "LBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "LBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": true,
+  "norm_sym": "BTC",
+  "symbol": "LBTC",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "LINK",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "LINK",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "LINK",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "LINK",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "LINK",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "LINK",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "LINK",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "LINK",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "LINK",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "LINK",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "LINK",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "LINK",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "LINK",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "LINK",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "LINK",
+  "symbol": "LINK",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "MATIC",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "MATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "MATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "MATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "MATIC",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "MATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "MATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "MATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "MATIC",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "MATIC",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "MATIC",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "MATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "MATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "MATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "POL",
+  "symbol": "MATIC",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "MSOL",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "MSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "MSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "MSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "MSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "MSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "MSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "MSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "MSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "MSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "MSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "MSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "MSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "MSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "SOL",
+  "symbol": "MSOL",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "OP",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "OP",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "OP",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "OP",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "OP",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "OP",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "OP",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "OP",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "OP",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "OP",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "OP",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "OP",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "OP",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "OP",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "OP",
+  "symbol": "OP",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "PAXG",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "PAXG",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "PAXG",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "PAXG",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "PAXG",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "PAXG",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "PAXG",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "PAXG",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "PAXG",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "PAXG",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "PAXG",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "PAXG",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "PAXG",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "PAXG",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "GOLD",
+  "symbol": "PAXG",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "PEPE",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "PEPE",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "PEPE",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "PEPE",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "PEPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "PEPE",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "PEPE",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "PEPE",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "PEPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "PEPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "PEPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "PEPE",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "PEPE",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "PEPE",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "PEPE",
+  "symbol": "PEPE",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "POL",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "POL",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "POL",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "POL",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "POL",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "POL",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "POL",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "POL",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "POL",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "POL",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "POL",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "POL",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "POL",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "POL",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "POL",
+  "symbol": "POL",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "RETH",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "RETH",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "RETH",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "RETH",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "RETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "RETH",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "RETH",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "RETH",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "RETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "RETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "RETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "RETH",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "RETH",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "RETH",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "ETH",
+  "symbol": "RETH",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "SOL",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "SOL",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "SOL",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "SOL",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "SOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "SOL",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "SOL",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "SOL",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "SOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "SOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "SOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "SOL",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "SOL",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "SOL",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "SOL",
+  "symbol": "SOL",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "STETH",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "STETH",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "STETH",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "STETH",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "STETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "STETH",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "STETH",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "STETH",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "STETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "STETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "STETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "STETH",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "STETH",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "STETH",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "ETH",
+  "symbol": "STETH",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "SUSDE",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "SUSDE",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "SUSDE",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "SUSDE",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "SUSDE",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "SUSDE",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "SUSDE",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "SUSDE",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "SUSDE",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "SUSDE",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "SUSDE",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "SUSDE",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "SUSDE",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "SUSDE",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "SUSDE",
+  "symbol": "SUSDE",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "TBTC",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "TBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "TBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "TBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "TBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "TBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "TBTC",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "TBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "TBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "TBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "TBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "TBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "TBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "TBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": true,
+  "norm_sym": "BTC",
+  "symbol": "TBTC",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "UBTC",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "UBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "UBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "UBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "UBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "UBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "UBTC",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "UBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "UBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "UBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "UBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "UBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "UBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "UBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": true,
+  "norm_sym": "UBTC",
+  "symbol": "UBTC",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "USDC",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "USDC",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "USDC",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "USDC",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "USDC",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "USDC",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "USDC",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "USDC",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "USDC",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "USDC",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "USDC",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "USDC",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "USDC",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "USDC",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "USDC",
+  "symbol": "USDC",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "USDC.E",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "USDC.E",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "USDC.E",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "USDC.E",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "USDC.E",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "USDC.E",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "USDC.E",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "USDC.E",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "USDC.E",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "USDC.E",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "USDC.E",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "USDC.E",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "USDC.E",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "USDC.E",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "USDC",
+  "symbol": "USDC.E",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "USDE",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "USDE",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "USDE",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "USDE",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "USDE",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "USDE",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "USDE",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "USDE",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "USDE",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "USDE",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "USDE",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "USDE",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "USDE",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "USDE",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "USDE",
+  "symbol": "USDE",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "USDT",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "USDT",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "USDT",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "USDT",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "USDT",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "USDT",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "USDT",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "USDT",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "USDT",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "USDT",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "USDT",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "USDT",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "USDT",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "USDT",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "USDT",
+  "symbol": "USDT",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "VELO",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "VELO",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "VELO",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "VELO",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "VELO",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "VELO",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "VELO",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "VELO",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "VELO",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "VELO",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "VELO",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "VELO",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "VELO",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "VELO",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "VELO",
+  "symbol": "VELO",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "WAVAX",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "WAVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "WAVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "WAVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "WAVAX",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "WAVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "WAVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "WAVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "WAVAX",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "WAVAX",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "WAVAX",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "WAVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "WAVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "WAVAX",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "AVAX",
+  "symbol": "WAVAX",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "WBNB",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "WBNB",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "WBNB",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "WBNB",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "WBNB",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "WBNB",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "WBNB",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "WBNB",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "WBNB",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "WBNB",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "WBNB",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "WBNB",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "WBNB",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "WBNB",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "BNB",
+  "symbol": "WBNB",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "WBTC",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "WBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "WBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "WBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "WBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "WBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "WBTC",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "WBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "WBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "WBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "WBTC",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "WBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "WBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "WBTC",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": true,
+  "norm_sym": "BTC",
+  "symbol": "WBTC",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "WEETH",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "WEETH",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "WEETH",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "WEETH",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "WEETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "WEETH",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "WEETH",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "WEETH",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "WEETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "WEETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "WEETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "WEETH",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "WEETH",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "WEETH",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "ETH",
+  "symbol": "WEETH",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "WETH",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "WETH",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "WETH",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "WETH",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "WETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "WETH",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "WETH",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "WETH",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "WETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "WETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "WETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "WETH",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "WETH",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "WETH",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "ETH",
+  "symbol": "WETH",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "WHYPE",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "WHYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "WHYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "WHYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "WHYPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "WHYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "WHYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "WHYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "WHYPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "WHYPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "WHYPE",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "WHYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "WHYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "WHYPE",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "HYPE",
+  "symbol": "WHYPE",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "WMATIC",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "WMATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "WMATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "WMATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "WMATIC",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "WMATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "WMATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "WMATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "WMATIC",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "WMATIC",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "WMATIC",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "WMATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "WMATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "WMATIC",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "POL",
+  "symbol": "WMATIC",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "WPOL",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "WPOL",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "WPOL",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "WPOL",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "WPOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "WPOL",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "WPOL",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "WPOL",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "WPOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "WPOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "WPOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "WPOL",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "WPOL",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "WPOL",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "POL",
+  "symbol": "WPOL",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "WSOL",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "WSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "WSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "WSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "WSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "WSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "WSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "WSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "WSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "WSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "WSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "WSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "WSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "WSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "SOL",
+  "symbol": "WSOL",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "WSTETH",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "WSTETH",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "WSTETH",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "WSTETH",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "WSTETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "WSTETH",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "WSTETH",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "WSTETH",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "WSTETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "WSTETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "WSTETH",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "WSTETH",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "WSTETH",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "WSTETH",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "ETH",
+  "symbol": "WSTETH",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "XAU",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "XAU",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "XAU",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "XAU",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "XAU",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "XAU",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "XAU",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "XAU",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "XAU",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "XAU",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "XAU",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "XAU",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "XAU",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "XAU",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "GOLD",
+  "symbol": "XAU",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "XAUT",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "XAUT",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "XAUT",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "XAUT",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "XAUT",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "XAUT",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "XAUT",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "XAUT",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "XAUT",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "XAUT",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "XAUT",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "XAUT",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "XAUT",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "XAUT",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "GOLD",
+  "symbol": "XAUT",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "btc",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "btc",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "btc",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "btc",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "btc",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "btc",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "btc",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "btc",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "btc",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "btc",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "btc",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "btc",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "btc",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "btc",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": true,
+  "norm_sym": "BTC",
+  "symbol": "btc",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "gold",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "gold",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "gold",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "gold",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "gold",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "gold",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "gold",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "gold",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "gold",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "gold",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "gold",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "gold",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "gold",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "gold",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "GOLD",
+  "symbol": "gold",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "jitoSOL",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "jitoSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "jitoSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "jitoSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "jitoSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "jitoSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "jitoSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "jitoSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "jitoSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "jitoSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "jitoSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "jitoSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "jitoSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "jitoSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "SOL",
+  "symbol": "jitoSOL",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "mSOL",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "mSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "mSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "mSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "mSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "mSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "mSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "mSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "mSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "mSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "mSOL",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "mSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "mSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "mSOL",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "SOL",
+  "symbol": "mSOL",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "unknown-token",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "unknown-token",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "unknown-token",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "unknown-token",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "unknown-token",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "unknown-token",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "unknown-token",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "unknown-token",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "unknown-token",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "unknown-token",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "unknown-token",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "unknown-token",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "unknown-token",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "unknown-token",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "UNKNOWN-TOKEN",
+  "symbol": "unknown-token",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "usdc.e",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "usdc.e",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "usdc.e",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "usdc.e",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "usdc.e",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "usdc.e",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "usdc.e",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "usdc.e",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "usdc.e",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "usdc.e",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "usdc.e",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "usdc.e",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "usdc.e",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "usdc.e",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "USDC",
+  "symbol": "usdc.e",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "wBtC",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "wBtC",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "wBtC",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "wBtC",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "wBtC",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "wBtC",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "wBtC",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "wBtC",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "wBtC",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "wBtC",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "wBtC",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "wBtC",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "wBtC",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "wBtC",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": true,
+  "norm_sym": "BTC",
+  "symbol": "wBtC",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "whype",
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": "whype",
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": "whype",
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": "whype",
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": "whype",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "whype",
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "whype",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "whype",
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": "whype",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "whype",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "whype",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "whype",
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "whype",
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": "whype",
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "HYPE",
+  "symbol": "whype",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": "xaut",
+  "tier": "store"
+ },
+ {
+  "category": "",
+  "symbol": "xaut",
+  "tier": "store"
+ },
+ {
+  "category": "Bond",
+  "symbol": "xaut",
+  "tier": "store"
+ },
+ {
+  "category": "Farm",
+  "symbol": "xaut",
+  "tier": "store"
+ },
+ {
+  "category": "Futures",
+  "symbol": "xaut",
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": "xaut",
+  "tier": "store"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": "xaut",
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": "xaut",
+  "tier": "store"
+ },
+ {
+  "category": "Perps",
+  "symbol": "xaut",
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": "xaut",
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": "xaut",
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": "xaut",
+  "tier": "store"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": "xaut",
+  "tier": "store"
+ },
+ {
+  "category": "Vault",
+  "symbol": "xaut",
+  "tier": "store"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "GOLD",
+  "symbol": "xaut",
+  "tier": "business"
+ },
+ {
+  "category": null,
+  "symbol": null,
+  "tier": "business"
+ },
+ {
+  "category": "",
+  "symbol": null,
+  "tier": "business"
+ },
+ {
+  "category": "Bond",
+  "symbol": null,
+  "tier": "business"
+ },
+ {
+  "category": "Farm",
+  "symbol": null,
+  "tier": "business"
+ },
+ {
+  "category": "Futures",
+  "symbol": null,
+  "tier": "trading"
+ },
+ {
+  "category": "Lending",
+  "symbol": null,
+  "tier": "business"
+ },
+ {
+  "category": "Liquidity Pool",
+  "symbol": null,
+  "tier": "business"
+ },
+ {
+  "category": "Locked",
+  "symbol": null,
+  "tier": "business"
+ },
+ {
+  "category": "Perps",
+  "symbol": null,
+  "tier": "trading"
+ },
+ {
+  "category": "Rebalance",
+  "symbol": null,
+  "tier": "trading"
+ },
+ {
+  "category": "Spot Grid",
+  "symbol": null,
+  "tier": "trading"
+ },
+ {
+  "category": "Staking",
+  "symbol": null,
+  "tier": "business"
+ },
+ {
+  "category": "Unknown Category",
+  "symbol": null,
+  "tier": "business"
+ },
+ {
+  "category": "Vault",
+  "symbol": null,
+  "tier": "business"
+ },
+ {
+  "category": "Yield",
+  "is_btc": false,
+  "norm_sym": "",
+  "symbol": null,
+  "tier": "business"
+ }
+]

@@ -633,11 +633,29 @@ mod tests {
     }
 
     // --- replayed fixtures --------------------------------------------------
+    //
+    // The bodies under tests/fixtures are real upstream responses captured over IPv4, except where
+    // a test says otherwise. A recorded body is the only thing that can catch a field name being
+    // wrong — every hand-written fixture agrees with my reading of the Python by construction.
+
+    /// The address the real recordings were taken for. It held 17_763_463 sats at capture time,
+    /// but these tests deliberately do **not** assert that number: fixtures are meant to be
+    /// re-recorded, and a test that fails the moment someone refreshes them teaches people to skip
+    /// re-recording. Exact scaling is pinned by the synthetic-body tests above; these check the
+    /// invariants that survive a refresh.
+    const RECORDED_ADDRESS: &str = "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq";
+
+    /// Sanity band for a balance: positive, and below the 21M cap that can ever exist.
+    fn is_a_plausible_btc_balance(balance: f64) -> bool {
+        balance > 0.0 && balance < 21_000_000.0
+    }
 
     #[tokio::test]
-    async fn the_fallback_works_end_to_end_against_recorded_responses() {
-        // Fixture 1: blockstream answering HTTP 429 with a rate-limit page.
-        // Fixture 2: blockchain.info answering normally. The balance must come from #2.
+    async fn the_two_real_providers_agree_on_a_real_balance() {
+        // The strongest check available without a second implementation: two unrelated APIs, two
+        // different response shapes (funded-minus-spent vs a single final_balance), one address —
+        // and both parsers must land on the same number. A wrong divisor or a dropped mempool
+        // delta shows up here immediately.
         let cache = fixtures();
         let client = reqwest::Client::new();
         let blockstream = Esplora {
@@ -650,17 +668,53 @@ mod tests {
             cache: &cache,
         };
 
-        let address = "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq";
+        let from_esplora = blockstream.balance(RECORDED_ADDRESS).await.unwrap();
+        let from_blockchain_info = blockchain_info.balance(RECORDED_ADDRESS).await.unwrap();
+
+        assert!(
+            is_a_plausible_btc_balance(from_esplora),
+            "got {from_esplora}"
+        );
+        assert_eq!(
+            from_esplora, from_blockchain_info,
+            "two independent providers, one balance"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_fallback_works_end_to_end_against_recorded_responses() {
+        // A throttled provider cannot be summoned on demand, so this scenario has its own address:
+        // blockstream answers 429 with an nginx rate-limit page (hand-written), blockchain.info
+        // answers normally. The balance must come from the second source.
+        let cache = fixtures();
+        let client = reqwest::Client::new();
+        let blockstream = Esplora {
+            base: BLOCKSTREAM_API,
+            client: &client,
+            cache: &cache,
+        };
+        let blockchain_info = BlockchainInfo {
+            client: &client,
+            cache: &cache,
+        };
+
+        let address = "bc1qfallbacktest0000000000000000000000000000";
         assert!(
             blockstream.balance(address).await.is_err(),
             "the fixture makes the first source fail"
         );
         let balance = balance_from_sources(&[&blockstream, &blockchain_info], address).await;
-        assert_eq!(balance, Some(1.53));
+        assert_eq!(
+            balance,
+            Some(0.177_634_63),
+            "the value in the hand-written fixture"
+        );
     }
 
     #[tokio::test]
     async fn a_healthy_esplora_fixture_replays() {
+        // mempool.space tar-pitted every request from this host — exactly the behaviour
+        // portfolio.py's comment describes — so this one body is hand-written to Esplora's shape.
         let cache = fixtures();
         let client = reqwest::Client::new();
         let source = Esplora {
@@ -668,33 +722,41 @@ mod tests {
             client: &client,
             cache: &cache,
         };
-        assert_eq!(
-            source
-                .balance("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq")
-                .await
-                .unwrap(),
-            1.53
-        );
+        let balance = source.balance(RECORDED_ADDRESS).await.unwrap();
+        assert!(is_a_plausible_btc_balance(balance), "got {balance}");
     }
 
     #[tokio::test]
     async fn the_full_read_prices_a_replayed_balance() {
+        // End to end on entirely real bodies: balance from blockstream, price and 24h change from
+        // DefiLlama, all as captured.
         let cache = fixtures();
         let client = reqwest::Client::new();
-        let portfolio = btc_chain_portfolio(
-            &client,
-            &cache,
-            "bitcoin",
-            "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let portfolio = btc_chain_portfolio(&client, &cache, "bitcoin", RECORDED_ADDRESS)
+            .await
+            .unwrap()
+            .unwrap();
 
-        assert_eq!(portfolio.spot[0].symbol, "BTC");
-        assert_eq!(portfolio.spot[0].amount, 1.53);
-        assert_eq!(portfolio.spot[0].price, 95_000.0);
-        assert_eq!(portfolio.usd, 1.53 * 95_000.0);
-        assert_eq!(portfolio.spot[0].change24h, Some(-1.234));
+        let btc = &portfolio.spot[0];
+        assert_eq!(btc.symbol, "BTC");
+        assert!(is_a_plausible_btc_balance(btc.amount), "got {}", btc.amount);
+        assert!(
+            btc.price > 1_000.0 && btc.price < 10_000_000.0,
+            "implausible BTC price: {}",
+            btc.price
+        );
+        assert_eq!(
+            btc.usd,
+            btc.amount * btc.price,
+            "valuation is amount x price"
+        );
+        assert_eq!(
+            portfolio.usd, btc.usd,
+            "one holding, so it is the whole chain"
+        );
+        assert!(
+            btc.change24h.is_some(),
+            "DefiLlama's percentage endpoint answered, so a change must be carried through"
+        );
     }
 }

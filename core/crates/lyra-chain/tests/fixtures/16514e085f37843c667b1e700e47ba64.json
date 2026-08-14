@@ -2,5 +2,5 @@
   "url": "https://mempool.space/api/address/bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
   "method": "GET",
   "status": 200,
-  "body": "{\"address\":\"bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq\",\"chain_stats\":{\"funded_txo_count\":3,\"funded_txo_sum\":250000000,\"spent_txo_count\":1,\"spent_txo_sum\":100000000,\"tx_count\":4},\"mempool_stats\":{\"funded_txo_count\":1,\"funded_txo_sum\":5000000,\"spent_txo_count\":1,\"spent_txo_sum\":2000000,\"tx_count\":2}}"
+  "body": "{\"address\":\"bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq\",\"chain_stats\":{\"funded_txo_count\":112,\"funded_txo_sum\":17777756,\"spent_txo_count\":1,\"spent_txo_sum\":14293,\"tx_count\":113},\"mempool_stats\":{\"funded_txo_count\":0,\"funded_txo_sum\":0,\"spent_txo_count\":0,\"spent_txo_sum\":0,\"tx_count\":0}}"
 }

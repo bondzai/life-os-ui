@@ -32,10 +32,14 @@ WORKDIR /build
 # dependencies, and the expensive third-party compile happens once. Real sources are copied
 # afterwards, and the final build recompiles only the seven workspace crates.
 #
-# rust-toolchain.toml is copied with the manifests deliberately: it pins the channel, so it
-# must be in place before the first cargo invocation (which is what triggers rustup to fetch
-# that toolchain) rather than invalidating the cached dependency layer later.
-COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+# rust-toolchain.toml is deliberately NOT copied. It asks for `channel = "stable"` plus rustfmt
+# and clippy — but the rust image installs its toolchain under a version name, not under the
+# name "stable", so the file makes rustup download a whole second toolchain (~500 MB) on the
+# first build, for the same compiler. The image tag pins the toolchain instead: `rust:1` tracks
+# latest stable, which is what the file asks for, and the two dev components are of no use in a
+# deploy build. If you ever need an exact pin, change the tag (e.g. rust:1.97-bookworm) rather
+# than adding the file back.
+COPY Cargo.toml Cargo.lock ./
 COPY crates/lyra-alerts/Cargo.toml    crates/lyra-alerts/Cargo.toml
 COPY crates/lyra-analytics/Cargo.toml crates/lyra-analytics/Cargo.toml
 COPY crates/lyra-api/Cargo.toml       crates/lyra-api/Cargo.toml

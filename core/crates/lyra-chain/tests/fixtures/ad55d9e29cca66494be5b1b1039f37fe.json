@@ -1,0 +1,6 @@
+{
+  "url": "https://api.mainnet-beta.solana.com",
+  "method": "POST",
+  "status": 403,
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32602,\"message\":\"Request blocked\"},\"id\":1}"
+}

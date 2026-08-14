@@ -2,5 +2,5 @@
   "url": "https://coins.llama.fi/prices/current/coingecko:solana,solana:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v,solana:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
   "method": "GET",
   "status": 200,
-  "body": "{\"coins\":{\"coingecko:solana\":{\"confidence\":0.99,\"decimals\":9,\"price\":150.0,\"symbol\":\"SOL\",\"timestamp\":1750000000},\"solana:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\":{\"confidence\":0.99,\"decimals\":6,\"price\":1.0,\"symbol\":\"usdc\",\"timestamp\":1750000000},\"solana:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn\":{\"confidence\":0.99,\"decimals\":9,\"price\":180.0,\"symbol\":\"jitoSOL\",\"timestamp\":1750000000}}}"
+  "body": "{\"coins\":{\"coingecko:solana\":{\"confidence\":0.99,\"decimals\":9,\"price\":150.0,\"symbol\":\"SOL\",\"timestamp\":1786726430},\"solana:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\":{\"confidence\":0.99,\"decimals\":6,\"price\":1.0,\"symbol\":\"usdc\",\"timestamp\":1786726430},\"solana:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn\":{\"confidence\":0.99,\"decimals\":9,\"price\":180.0,\"symbol\":\"jitoSOL\",\"timestamp\":1786726430}}}"
 }

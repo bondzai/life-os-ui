@@ -1,0 +1,6 @@
+{
+  "url": "https://blockchain.info/rawaddr/bc1qfallbacktest0000000000000000000000000000?limit=0",
+  "method": "GET",
+  "status": 200,
+  "body": "{\"address\":\"bc1qfallbacktest0000000000000000000000000000\",\"final_balance\":17763463,\"hash160\":\"e8df018c7e326cc253faac7e46cdc51e68542c42\",\"n_tx\":113,\"n_unredeemed\":111,\"total_received\":17777756,\"total_sent\":14293,\"txs\":[]}"
+}

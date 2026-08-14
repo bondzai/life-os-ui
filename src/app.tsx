@@ -23,6 +23,10 @@ const DeepWorkPage = lazy(() => import('@/pages/deep-work').then((m) => ({ defau
 const InboxPage = lazy(() => import('@/pages/inbox').then((m) => ({ default: m.InboxPage })))
 const BriefingPage = lazy(() => import('@/pages/tasks/standup-report').then((m) => ({ default: m.BriefingPage })))
 const SettingsPage = lazy(() => import('@/pages/settings').then((m) => ({ default: m.SettingsPage })))
+const KnowledgePage = lazy(() => import('@/pages/knowledge').then((m) => ({ default: m.KnowledgePage })))
+const WealthOverviewPage = lazy(() => import('@/pages/wealth/overview').then((m) => ({ default: m.WealthOverviewPage })))
+const WealthHoldingsPage = lazy(() => import('@/pages/wealth/holdings').then((m) => ({ default: m.WealthHoldingsPage })))
+const WealthDefiPage = lazy(() => import('@/pages/wealth/defi').then((m) => ({ default: m.WealthDefiPage })))
 
 
 const queryClient = new QueryClient({
@@ -57,6 +61,11 @@ export function App() {
                   <Route path="inbox" element={<InboxPage />} />
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="knowledge" element={<Suspense fallback={null}><KnowledgePage /></Suspense>} />
+                  {/* Wealth — lazy, so the crypto surfaces stay out of the initial bundle. */}
+                  <Route path="wealth" element={<Suspense fallback={null}><WealthOverviewPage /></Suspense>} />
+                  <Route path="wealth/holdings" element={<Suspense fallback={null}><WealthHoldingsPage /></Suspense>} />
+                  <Route path="wealth/defi" element={<Suspense fallback={null}><WealthDefiPage /></Suspense>} />
                   <Route path="settings" element={<SettingsPage />} />
 
                   <Route path="*" element={<NotFoundPage />} />
