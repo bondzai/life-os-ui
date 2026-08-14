@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1
+#
+# Front end for the Rust stack. Kept separate from the root `Dockerfile` (which serves the old
+# TypeScript stack) for two reasons:
+#   1. Vite inlines VITE_* variables at BUILD time. The old compose file passes them as runtime
+#      `environment:` entries, where they do nothing — a bundle built without VITE_USE_API=true
+#      falls back to browser-local storage and never calls the API at all
+#      (src/core/repositories/index.ts). Here they are build args, so they actually land.
+#   2. Node pin: Vite 7 needs Node ^20.19 || >=22.12, and .nvmrc pins 24.
+#
+#   docker build -f Dockerfile.ui .
+
+FROM node:24-alpine AS build
+WORKDIR /app
+
+# Manifests first so `npm ci` is cached independently of source changes.
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+# Baked into the bundle. "/api" keeps the browser same-origin and lets nginx proxy, which is
+# why no CORS origin for the UI is needed on the API side.
+ARG VITE_USE_API=true
+ARG VITE_API_URL=/api
+ENV VITE_USE_API=$VITE_USE_API \
+    VITE_API_URL=$VITE_API_URL
+
+RUN npm run build
+
+FROM nginx:alpine AS runtime
+COPY --from=build /app/dist /usr/share/nginx/html
+# Baked in as a default; docker-compose.rust.yml bind-mounts the same file so the CSP can be
+# edited and reloaded without rebuilding the image.
+COPY nginx.rust.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80

@@ -4,3 +4,6 @@
 //! `{value, confidence, data_gaps}` honesty envelope. The rule that makes this layer worth
 //! trusting: a metric the keyless snapshot cannot support comes back null-with-reason, never
 //! estimated.
+pub mod envelope;
+pub mod exposure;
+pub mod tiers;

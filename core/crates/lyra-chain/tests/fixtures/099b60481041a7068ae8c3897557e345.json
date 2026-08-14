@@ -1,0 +1,6 @@
+{
+  "url": "https://blockstream.info/api/address/bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+  "method": "GET",
+  "status": 429,
+  "body": "Too Many Requests"
+}

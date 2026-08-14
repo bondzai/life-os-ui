@@ -1,0 +1,6 @@
+{
+  "url": "https://api.mainnet-beta.solana.com",
+  "method": "POST",
+  "status": 429,
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":429,\"message\":\"Too many requests\"},\"id\":1}"
+}

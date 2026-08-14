@@ -1,0 +1,9 @@
+# Build artefacts — `core/target` is multiple GB and would be uploaded to the
+# daemon as build context on every build.
+target/
+
+# Local databases and their WAL sidecars live on a volume, never in the image.
+data/
+
+.claude/
+parity.toml

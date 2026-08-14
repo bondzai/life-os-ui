@@ -1,0 +1,6 @@
+{
+  "url": "https://coins.llama.fi/percentage/coingecko:solana,solana:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v,solana:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn?period=24h",
+  "method": "GET",
+  "status": 200,
+  "body": "{\"coins\":{\"coingecko:solana\":-3.75,\"solana:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\":0.01,\"solana:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn\":-3.5}}"
+}

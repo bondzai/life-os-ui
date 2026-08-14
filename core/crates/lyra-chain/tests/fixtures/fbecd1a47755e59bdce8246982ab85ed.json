@@ -1,0 +1,6 @@
+{
+  "url": "https://api.hyperliquid.xyz/info",
+  "method": "POST",
+  "status": 200,
+  "body": "{\"tokens\":[{\"index\":0,\"isCanonical\":true,\"name\":\"USDC\",\"szDecimals\":8,\"tokenId\":\"0x6d1e7cde53ba9467b783cb7c530ce054\",\"weiDecimals\":8},{\"index\":1,\"isCanonical\":true,\"name\":\"PURR\",\"szDecimals\":0,\"tokenId\":\"0xc1fb593aeffbeb02f85e0308e9956a90\",\"weiDecimals\":5},{\"index\":1105,\"isCanonical\":true,\"name\":\"HYPE\",\"szDecimals\":2,\"tokenId\":\"0x0d01dc56dcaaca66ad901c959b4011ec\",\"weiDecimals\":8}],\"universe\":[{\"index\":0,\"isCanonical\":true,\"name\":\"PURR/USDC\",\"tokens\":[1,0]},{\"index\":107,\"isCanonical\":false,\"name\":\"@107\",\"tokens\":[1105,0]}]}"
+}

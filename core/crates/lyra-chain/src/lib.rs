@@ -6,5 +6,11 @@
 //! it is considered ported.
 
 pub mod address;
+pub mod bitcoin;
+pub mod chains;
 pub mod http_cache;
+pub mod hyperliquid;
+pub mod lp_math;
+pub mod market;
+pub mod solana;
 pub mod spam;

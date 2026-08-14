@@ -1,0 +1,6 @@
+{
+  "url": "https://api.mainnet-beta.solana.com",
+  "method": "POST",
+  "status": 200,
+  "body": "{\"id\":1,\"jsonrpc\":\"2.0\",\"result\":[{\"account\":{\"data\":[\"dGVzdA==\",\"base64\"],\"executable\":false,\"lamports\":7500000000,\"owner\":\"Stake11111111111111111111111111111111111111\",\"rentEpoch\":18446744073709551615,\"space\":200},\"pubkey\":\"Stake1\"},{\"account\":{\"data\":[\"dGVzdA==\",\"base64\"],\"executable\":false,\"lamports\":2500000000,\"owner\":\"Stake11111111111111111111111111111111111111\",\"rentEpoch\":18446744073709551615,\"space\":200},\"pubkey\":\"Stake2\"}]}"
+}

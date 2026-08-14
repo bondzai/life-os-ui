@@ -1,0 +1,6 @@
+{
+  "url": "https://api.hyperliquid.xyz/info",
+  "method": "POST",
+  "status": 200,
+  "body": "{\"@0\":\"0.19\",\"@107\":\"24.0\",\"BTC\":\"95000.0\",\"ETH\":\"3200.5\",\"SOL\":\"150.0\"}"
+}

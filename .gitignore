@@ -29,3 +29,7 @@ api/data/
 # Rust core
 core/target
 core/data
+
+# Deployment
+litestream.yml   # holds bucket credentials — litestream.example.yml is the template
+legacy/          # copies of the legacy databases, staged for lyra-migrate

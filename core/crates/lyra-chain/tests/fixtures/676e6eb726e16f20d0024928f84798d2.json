@@ -1,0 +1,6 @@
+{
+  "url": "https://coins.llama.fi/prices/current/coingecko:bitcoin",
+  "method": "GET",
+  "status": 200,
+  "body": "{\"coins\":{\"coingecko:bitcoin\":{\"confidence\":0.99,\"price\":95000.0,\"symbol\":\"BTC\",\"timestamp\":1750000000}}}"
+}

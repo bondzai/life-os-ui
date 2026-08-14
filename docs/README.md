@@ -13,6 +13,8 @@ Technical documentation for Life-OS — a private, self-hosted life management s
 | [API Server](./api-server.md) | Planned REST API (Hono + SQLite + Drizzle) |
 | [Modules](./modules.md) | Module registry and per-module details |
 | [Deployment](./deployment.md) | Docker Compose setup for the home server |
+| [Parity harness](./parity.md) | Gating the Rust port against the Python oracle |
+| [Deployment (Rust)](./deployment-rust.md) | Running the Rust stack on the mini PC — first run, migration, backups, troubleshooting |
 | [Roadmap](./roadmap.md) | Phase-by-phase implementation plan |
 | [Productivity Features](./productivity-features.md) | Today page, Inbox capture, Weekly Review wizard |
 | [Improvements](./improvements.md) | Prioritized nice-to-have features across all modules (4 tiers) |
