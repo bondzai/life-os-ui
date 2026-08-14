@@ -1,0 +1,97 @@
+# Phase 0 gate — see docs/parity.md
+#
+# The endpoint list starts empty on purpose: `make parity` is green before anything is ported,
+# so the gate can be wired into CI now and each phase just adds its endpoints here.
+#
+# Run the oracle first:
+#   cd ../../wallet-portfolio && .venv/bin/python server.py     # :8000
+# then the Rust port on :3001, then `make parity`.
+
+python_base = "http://127.0.0.1:8000"
+rust_base = "http://127.0.0.1:3001"
+
+# Money crosses the float -> Decimal/U256 boundary in the port. Integers are exempt from this
+# and compare exactly — see the note in crates/lyra-parity/src/diff.rs.
+rel_tolerance = 0.005
+abs_epsilon = 1e-9
+
+# portfolio.py fans out across every (wallet x chain) pair with a 75s REQUEST_DEADLINE and
+# returns PARTIAL results when it expires. A partial oracle response shows up here as
+# "missing in rust" on whatever the Rust side did manage to fetch, so give both sides room.
+timeout_secs = 180
+
+# Volatile fields, verified against source rather than guessed:
+#   fetched_at — time.time() in build_portfolios (portfolio.py:2413) and market_sentiment (:2354)
+# Add to this list only when a field is confirmed non-deterministic; every entry here is a
+# hole in the gate.
+ignore = ["fetched_at"]
+
+# The Rust side is JWT-protected where the Python side was open, so it needs a token the
+# oracle does not. Export LYRA_PARITY_JWT before running.
+# [rust_headers]
+# Authorization = "Bearer ${LYRA_PARITY_JWT}"
+
+# ── Enable as each phase lands. Paths are from server.py:139-379. ──────────────────────────
+#
+# Phase 3 — lyra-chain
+# [[endpoint]]
+# name = "portfolio"
+# python_path = "/api/portfolio?addresses=${LYRA_PARITY_WALLETS}"
+# rust_path = "/api/wealth/portfolio?addresses=${LYRA_PARITY_WALLETS}"
+#
+# [[endpoint]]
+# name = "wallet"
+# python_path = "/api/wallet?address=${LYRA_PARITY_WALLET}"
+# rust_path = "/api/wealth/wallet?address=${LYRA_PARITY_WALLET}"
+#
+# [[endpoint]]
+# name = "sentiment"
+# path = "/api/sentiment"
+# rust_path = "/api/wealth/sentiment"
+#
+# [[endpoint]]
+# name = "price-history"
+# python_path = "/api/price-history?coin=coingecko:bitcoin&days=365"
+# rust_path = "/api/wealth/price-history?coin=coingecko:bitcoin&days=365"
+#
+# Phase 4 — lyra-analytics + wealth routes
+# [[endpoint]]
+# name = "yield-radar"
+# path = "/api/yield-radar"
+# rust_path = "/api/wealth/yield-radar"
+#
+# [[endpoint]]
+# name = "fund"
+# python_path = "/api/fund?code=${LYRA_PARITY_FUND}"
+# rust_path = "/api/wealth/fund?code=${LYRA_PARITY_FUND}"
+#
+# [[endpoint]]
+# name = "snapshots"
+# path = "/api/snapshots"
+# rust_path = "/api/wealth/snapshots"
+#
+# [[endpoint]]
+# name = "history"
+# path = "/api/history"
+# rust_path = "/api/wealth/history"
+#
+# [[endpoint]]
+# name = "analyses"
+# path = "/api/analyses"
+# rust_path = "/api/wealth/analyses"
+#
+# [[endpoint]]
+# name = "kucoin"
+# path = "/api/kucoin"
+# rust_path = "/api/wealth/kucoin"
+#
+# Phase 5 — lyra-alerts
+# [[endpoint]]
+# name = "alerts"
+# path = "/api/alerts"
+# rust_path = "/api/wealth/alerts"
+#
+# [[endpoint]]
+# name = "services"
+# path = "/api/services"
+# rust_path = "/api/wealth/services"

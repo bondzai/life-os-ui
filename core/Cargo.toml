@@ -1,0 +1,15 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+
+# Release profile for the mini PC: one small, fast binary. `lto = "fat"` and a single
+# codegen unit cost build time we only pay on deploy, not during the port.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"

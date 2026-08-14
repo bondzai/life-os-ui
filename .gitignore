@@ -25,3 +25,7 @@ dist-ssr
 
 .env
 api/data/
+
+# Rust core
+core/target
+core/data

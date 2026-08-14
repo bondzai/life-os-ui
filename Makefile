@@ -1,6 +1,6 @@
 .PHONY: help dev dev-safe dev-ui dev-api install install-ui install-api build build-ui build-api \
        lint typecheck typecheck-w check test seed clean docker-up docker-down docker-build docker-logs \
-       preview
+       preview core-build core-test core-check parity oracle
 
 # ──────────────────────────────────────────────
 # Config
@@ -9,6 +9,14 @@ HOST        ?= 0.0.0.0
 UI_PORT     ?= 5174
 API_PORT    ?= 3001
 COMPOSE     := docker compose
+
+# Homebrew's rustup keg only links `rustup` into PATH; the cargo/rustc shims live in the opt
+# dir. Put that whole directory on PATH — pointing at the cargo binary alone is not enough,
+# since cargo shells out to rustc and would not find it.
+RUST_BIN    ?= $(shell dirname "$$(command -v cargo 2>/dev/null || echo /opt/homebrew/opt/rustup/bin/cargo)")
+export PATH := $(RUST_BIN):$(PATH)
+CARGO       ?= cargo
+ORACLE_DIR  ?= ../wallet-portfolio
 
 # ──────────────────────────────────────────────
 # Help
@@ -79,6 +87,28 @@ db-generate: ## Generate Drizzle migrations
 
 db-migrate: ## Run Drizzle migrations
 	cd api && npm run db:migrate
+
+# ──────────────────────────────────────────────
+# Rust core (the port target — see docs/parity.md)
+# ──────────────────────────────────────────────
+core-build: ## Build the Rust workspace
+	cd core && $(CARGO) build
+
+core-test: ## Run Rust tests
+	cd core && $(CARGO) test
+
+core-fmt: ## Format the Rust workspace
+	cd core && $(CARGO) fmt
+
+core-check: ## Rust format check + clippy (warnings are errors)
+	cd core && $(CARGO) fmt --check
+	cd core && $(CARGO) clippy --all-targets -- -D warnings
+
+oracle: ## Run the Python oracle on :8000 (the parity source of truth)
+	cd $(ORACLE_DIR) && .venv/bin/python server.py
+
+parity: ## Diff the Rust port against the Python oracle (green with no endpoints configured)
+	cd core && $(CARGO) run -q -p lyra-parity -- --config parity.toml
 
 # ──────────────────────────────────────────────
 # Docker
