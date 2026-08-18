@@ -8,6 +8,7 @@ import { scheduleRoutes } from './routes/schedules.js'
 import { relationRoutes } from './routes/relations.js'
 import { gcalRoutes } from './routes/gcal.js'
 import { searchRoutes } from './routes/search.js'
+import { knowledgeRoutes } from './routes/knowledge.js'
 import { client } from './db/index.js'
 
 const app = new Hono()
@@ -36,6 +37,7 @@ app.use('/api/entities/*', jwtMiddleware())
 app.use('/api/trackers/*', jwtMiddleware())
 app.use('/api/schedules/*', jwtMiddleware())
 app.use('/api/relations/*', jwtMiddleware())
+app.use('/api/knowledge/*', jwtMiddleware())
 
 // Google Calendar OAuth — protect auth/* (except callback) and events/*
 app.use('/api/gcal/auth/url', jwtMiddleware())
@@ -50,6 +52,7 @@ app.route('/api/schedules', scheduleRoutes)
 app.route('/api/relations', relationRoutes)
 app.route('/api/gcal', gcalRoutes)
 app.route('/api/search', searchRoutes)
+app.route('/api/knowledge', knowledgeRoutes)
 
 const port = Number(process.env.PORT) || 3001
 
