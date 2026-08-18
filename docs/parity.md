@@ -327,3 +327,33 @@ lifecycle covers every matched position, campaign rewards only the farms that pa
 RPC-read position already carries its rewards from the adapter that read it.
 
 None of this moves a position's `usd`. What it fixes is an understated *claimable* figure.
+
+## Cutover state — 2026-08-18
+
+**Secrets migrated.** `wallet-portfolio/.env.local` was the only copy on disk of `ALERT_WALLETS`,
+the KuCoin key/secret/passphrase and the Telegram token — it is gitignored there, so deleting that
+directory would have destroyed the running system's configuration. It now lives at
+`lyra/.env.local` (mode 600, covered by `.gitignore:13`), and the names are documented in
+`.env.example`. Verified by running the API entirely from the new file: the KuCoin endpoint
+returned a live balance, so the migrated key works.
+
+With that done, `wallet-portfolio/` is no longer load-bearing. Its tree is clean and it has a
+remote (`git@github.com:bondzai/wallet-portfolio.git`), so the directory is re-clonable — but a
+re-clone will **not** restore `.env.local`, which is exactly why the migration had to come first.
+
+**Route sweep, all green.** Every route registered in `main.rs`, against the migrated database:
+21 endpoints plus the auth gate. Includes the contract details the client depends on — 404 on a
+missing entity (which is what `getById` uses to return `undefined`), 401 on every protected route
+without a token, and the documented 400 from `/alerts/test` and `/alerts/digest` when Telegram is
+unconfigured. CORS preflight from the dev origin echoes it with credentials.
+
+One apparent failure was not one: `/api/knowledge` 404s because it resolves `../lyra-knowledge`,
+which does not exist here — and the Hono route resolves to the identical path, so it would 404
+too. Contract-identical. Point `LYRA_KNOWLEDGE_PATH` at `dev-knowledge/` and it returns content.
+
+**Front end.** `tsc -b` clean, production bundle builds, 184 unit tests pass, and all 21 page
+modules transform through Vite without error against the running Rust API.
+
+**Still needs a human.** The plan gates deleting `api/` on a real click-through in a browser, and
+no browser automation was available in this session. The automated checks above cover the
+data-layer contract, not rendering. See the handoff checklist in the session notes.
