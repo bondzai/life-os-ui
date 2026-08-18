@@ -73,6 +73,24 @@ impl Config {
         {
             *value = expand_env(value)?;
         }
+        // Paths carry `${VAR}` too — the wallet list and fund code live in the environment,
+        // not in this file. Expanding only the bases and headers left `${LYRA_PARITY_WALLETS}`
+        // going to the server verbatim. That is the false-green shape parity.toml warns about:
+        // both sides receive the same nonsense, both answer identically, and the gate is happy.
+        for endpoint in &mut cfg.endpoints {
+            for path in [
+                endpoint.path.as_mut(),
+                endpoint.python_path.as_mut(),
+                endpoint.rust_path.as_mut(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                *path =
+                    expand_env(path).with_context(|| format!("endpoint {:?}", endpoint.name))?;
+            }
+        }
+
         for endpoint in &cfg.endpoints {
             if endpoint.resolve_python().is_none() {
                 anyhow::bail!(
@@ -141,6 +159,67 @@ mod tests {
         assert_eq!(
             expand_env("http://127.0.0.1:8000").unwrap(),
             "http://127.0.0.1:8000"
+        );
+    }
+
+    #[test]
+    fn endpoint_paths_expand_env_vars() {
+        // Regression: only the bases and headers were expanded, so an endpoint path kept its
+        // literal `${LYRA_PARITY_WALLETS}`. Both servers then saw the same garbage address and
+        // answered the same 400 — a green run that compared nothing.
+        unsafe { std::env::set_var("LYRA_PARITY_TEST_WALLETS", "0xabc,0xdef") };
+        let dir = std::env::temp_dir().join("lyra-parity-expand-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("parity.toml");
+        std::fs::write(
+            &file,
+            r#"
+python_base = "http://127.0.0.1:8000"
+rust_base = "http://127.0.0.1:3001"
+
+[[endpoint]]
+name = "portfolio"
+path = "/api/shared?a=${LYRA_PARITY_TEST_WALLETS}"
+python_path = "/api/portfolio?address=${LYRA_PARITY_TEST_WALLETS}"
+rust_path = "/api/wealth/portfolio?address=${LYRA_PARITY_TEST_WALLETS}"
+"#,
+        )
+        .unwrap();
+        let loaded = Config::load(&file).unwrap();
+        let e = &loaded.endpoints[0];
+        assert_eq!(
+            e.resolve_python(),
+            Some("/api/portfolio?address=0xabc,0xdef")
+        );
+        assert_eq!(
+            e.resolve_rust(),
+            Some("/api/wealth/portfolio?address=0xabc,0xdef")
+        );
+        // The shared `path` is expanded too, not just the two overrides.
+        assert_eq!(e.path.as_deref(), Some("/api/shared?a=0xabc,0xdef"));
+    }
+
+    #[test]
+    fn an_unset_var_in_a_path_is_an_error() {
+        let dir = std::env::temp_dir().join("lyra-parity-expand-unset-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("parity.toml");
+        std::fs::write(
+            &file,
+            r#"
+python_base = "http://127.0.0.1:8000"
+rust_base = "http://127.0.0.1:3001"
+
+[[endpoint]]
+name = "portfolio"
+path = "/api/portfolio?address=${LYRA_PARITY_DEFINITELY_UNSET_PATH}"
+"#,
+        )
+        .unwrap();
+        let err = Config::load(&file).unwrap_err().to_string();
+        assert!(
+            err.contains("parsing") || err.contains("portfolio"),
+            "{err}"
         );
     }
 

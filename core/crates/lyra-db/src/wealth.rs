@@ -26,6 +26,7 @@
 //! 4. `archived_at` is a **soft delete**: the rows stay, the scope simply drops out of the default
 //!    listing, and saving a new version brings it back.
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -506,6 +507,208 @@ impl std::fmt::Display for JournalError {
 }
 
 impl std::error::Error for JournalError {}
+
+// ===========================================================================================
+// pos_perf — the cron's in-range accumulators (read side)
+// ===========================================================================================
+
+/// One position's accumulated in-range time, as `_vfat_stamp_lifecycle` reads it.
+///
+/// Mirrors `position_perf.get_many`'s row: the writer is the alert loop, and every build is
+/// strictly read-only against this table.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PerfRecord {
+    pub in_range_secs: f64,
+    pub cycle_start: Option<i64>,
+}
+
+/// Cap on the time one sample may attribute — `position_perf._MAX_SAMPLE_GAP`.
+///
+/// Without it a cron gap or an overnight outage is credited in full as "in range", and a position
+/// that was idle the whole time reads as though it had been earning.
+pub const MAX_SAMPLE_GAP_SECS: f64 = 2.0 * 3600.0;
+
+/// One observation of a position's range state, as the alert sweep produces it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PerfSample {
+    pub key: String,
+    pub in_range: bool,
+    /// The position's `last_harvest_at`, or `""` when it has never been harvested. A *change* here
+    /// is what opens a new cycle, so an empty string must round-trip as an empty string rather
+    /// than as SQL `NULL` — otherwise every sweep would look like a fresh harvest.
+    pub harvest_anchor: String,
+    /// Where the cycle started, when one has to be opened.
+    pub cycle_start_ts: Option<i64>,
+}
+
+/// Advance the in-range accumulators from a batch of observations — port of
+/// `position_perf.sample`.
+///
+/// Only the alert loop may call this: it mutates persisted time, and a second writer would
+/// double-count. Every build is read-only against this table (see [`perf_records`]).
+///
+/// Two behaviours worth keeping straight:
+///
+/// * A key that is new, **or** whose `harvest_anchor` differs from what is stored, opens a fresh
+///   cycle at zero. That is the whole point — a harvest zeroes the fees, so the in-range clock it
+///   is compared against has to zero with it.
+/// * Otherwise the elapsed time since the last sample is credited to the *current* reading, capped
+///   by [`MAX_SAMPLE_GAP_SECS`]. Sampling is coarse and forward-only by design: it can only measure
+///   from the first sample after a harvest onward.
+pub async fn record_perf_samples(
+    pool: &SqlitePool,
+    samples: &[PerfSample],
+    now: i64,
+) -> Result<usize> {
+    let mut wanted: Vec<String> = Vec::new();
+    for sample in samples {
+        if !sample.key.is_empty() && !wanted.contains(&sample.key) {
+            wanted.push(sample.key.clone());
+        }
+    }
+    if wanted.is_empty() {
+        return Ok(0);
+    }
+
+    let mut rows = perf_rows(pool, &wanted).await?;
+
+    for sample in samples.iter().filter(|s| !s.key.is_empty()) {
+        match rows.get_mut(&sample.key) {
+            // Same cycle: credit the gap to whatever the position is doing right now.
+            Some(row) if row.harvest_anchor == sample.harvest_anchor => {
+                if sample.in_range {
+                    let last = row.last_sample_ts.unwrap_or(now);
+                    let gap = (now - last) as f64;
+                    row.in_range_secs += gap.clamp(0.0, MAX_SAMPLE_GAP_SECS);
+                }
+                // Advanced whether or not the position was in range — otherwise the next tick
+                // would credit the whole idle stretch the moment it comes back into range.
+                row.last_sample_ts = Some(now);
+            }
+            // New position, or a harvest since the last sweep: open a cycle.
+            _ => {
+                rows.insert(
+                    sample.key.clone(),
+                    PerfRow {
+                        harvest_anchor: sample.harvest_anchor.clone(),
+                        cycle_start: Some(sample.cycle_start_ts.unwrap_or(now)),
+                        in_range_secs: 0.0,
+                        last_sample_ts: Some(now),
+                    },
+                );
+            }
+        }
+    }
+
+    let mut tx = pool.begin().await.context("opening pos_perf transaction")?;
+    for (key, row) in &rows {
+        sqlx::query(
+            "INSERT INTO pos_perf(key, harvest_anchor, cycle_start, in_range_secs, last_sample_ts) \
+             VALUES(?, ?, ?, ?, ?) \
+             ON CONFLICT(key) DO UPDATE SET \
+               harvest_anchor = excluded.harvest_anchor, \
+               cycle_start    = excluded.cycle_start, \
+               in_range_secs  = excluded.in_range_secs, \
+               last_sample_ts = excluded.last_sample_ts",
+        )
+        .bind(key)
+        .bind(&row.harvest_anchor)
+        .bind(row.cycle_start)
+        .bind(row.in_range_secs)
+        .bind(row.last_sample_ts)
+        .execute(&mut *tx)
+        .await
+        .with_context(|| format!("writing pos_perf row {key}"))?;
+    }
+    tx.commit().await.context("committing pos_perf samples")?;
+    Ok(rows.len())
+}
+
+/// The full row, as the writer needs it. [`perf_records`] returns only the two columns a build
+/// reads; this one also carries the cycle bookkeeping.
+#[derive(Debug, Clone, PartialEq)]
+struct PerfRow {
+    harvest_anchor: String,
+    cycle_start: Option<i64>,
+    in_range_secs: f64,
+    last_sample_ts: Option<i64>,
+}
+
+/// The one read both the build and the sweep go through.
+///
+/// SQLite's default ceiling is 999 bound parameters and a single `IN (...)` past it errors, so the
+/// keys are chunked. A portfolio with more LP positions than that is not worth a failed query.
+async fn perf_rows(pool: &SqlitePool, keys: &[String]) -> Result<HashMap<String, PerfRow>> {
+    const CHUNK: usize = 900;
+    let mut out = HashMap::with_capacity(keys.len());
+
+    for chunk in keys.chunks(CHUNK) {
+        let placeholders = std::iter::repeat_n("?", chunk.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
+            "SELECT key, harvest_anchor, cycle_start, in_range_secs, last_sample_ts \
+             FROM pos_perf WHERE key IN ({placeholders})"
+        );
+        // `AssertSqlSafe` is sound here: the only interpolation is a run of `?` placeholders whose
+        // count comes from `chunk.len()`. Every key is bound, never formatted in.
+        let mut query = sqlx::query(AssertSqlSafe(sql));
+        for key in chunk {
+            query = query.bind(key);
+        }
+        let rows = query
+            .fetch_all(pool)
+            .await
+            .context("reading pos_perf rows")?;
+
+        for row in &rows {
+            let key: String = row.try_get("key")?;
+            out.insert(
+                key,
+                PerfRow {
+                    // A NULL anchor and an empty one must compare equal, or a never-harvested
+                    // position would open a new cycle on every sweep and never accumulate.
+                    harvest_anchor: row
+                        .try_get::<Option<String>, _>("harvest_anchor")?
+                        .unwrap_or_default(),
+                    cycle_start: row.try_get("cycle_start")?,
+                    // NOT NULL DEFAULT 0 in the schema, so always a real number.
+                    in_range_secs: row.try_get("in_range_secs")?,
+                    last_sample_ts: row.try_get("last_sample_ts")?,
+                },
+            );
+        }
+    }
+    Ok(out)
+}
+
+/// Batch-read the accumulators for a set of `"<chainId>:<tokenId>"` keys.
+///
+/// One query for the whole portfolio rather than Python's one per chain — the keys are collected
+/// from the finished snapshot, so there is nothing to gain from splitting it.
+///
+/// An unknown key is simply absent from the map, which is what makes the caller's join a no-op for
+/// a position the cron has never sampled. Python swallows any error here and returns `{}`; this
+/// propagates instead, because the caller is `Result`-shaped anyway and a silently empty map would
+/// look exactly like "the cron has not run yet".
+pub async fn perf_records(
+    pool: &SqlitePool,
+    keys: &[String],
+) -> Result<HashMap<String, PerfRecord>> {
+    Ok(perf_rows(pool, keys)
+        .await?
+        .into_iter()
+        .map(|(key, row)| {
+            (
+                key,
+                PerfRecord {
+                    in_range_secs: row.in_range_secs,
+                    cycle_start: row.cycle_start,
+                },
+            )
+        })
+        .collect())
+}
 
 /// What a caller submits.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -2038,6 +2241,247 @@ mod tests {
         assert!(
             ids.iter()
                 .all(|id| id.len() == 32 && id.chars().all(|c| c.is_ascii_hexdigit()))
+        );
+    }
+
+    // ---------------------------------------------------------------- pos_perf
+
+    async fn seed_perf(pool: &SqlitePool, key: &str, secs: f64, cycle_start: Option<i64>) {
+        sqlx::query("INSERT INTO pos_perf(key, in_range_secs, cycle_start) VALUES(?, ?, ?)")
+            .bind(key)
+            .bind(secs)
+            .bind(cycle_start)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn perf_records_reads_only_the_keys_asked_for() {
+        let (_dir, pool) = fresh().await;
+        seed_perf(&pool, "8453:42", 12_351.0, Some(1_784_124_971)).await;
+        seed_perf(&pool, "999:519288", 60.5, None).await;
+        seed_perf(&pool, "1:999", 7.0, Some(5)).await;
+
+        let out = perf_records(&pool, &["8453:42".into(), "999:519288".into()])
+            .await
+            .unwrap();
+
+        assert_eq!(out.len(), 2, "the third row was not asked for");
+        assert_eq!(out["8453:42"].in_range_secs, 12_351.0);
+        assert_eq!(out["8453:42"].cycle_start, Some(1_784_124_971));
+        // A NULL cycle_start is `None`, which is what makes the caller's `setdefault` a no-op
+        // rather than anchoring the cycle at zero.
+        assert_eq!(out["999:519288"].cycle_start, None);
+    }
+
+    #[tokio::test]
+    async fn an_unknown_key_is_absent_rather_than_zero() {
+        // The difference matters: absent leaves `in_range_secs` off the wire entirely, while a
+        // zero would render as "this position has never been in range".
+        let (_dir, pool) = fresh().await;
+        seed_perf(&pool, "8453:42", 10.0, None).await;
+
+        let out = perf_records(&pool, &["8453:42".into(), "8453:404".into()])
+            .await
+            .unwrap();
+        assert_eq!(out.len(), 1);
+        assert!(!out.contains_key("8453:404"));
+    }
+
+    #[tokio::test]
+    async fn no_keys_means_no_query() {
+        let (_dir, pool) = fresh().await;
+        assert!(perf_records(&pool, &[]).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn more_keys_than_sqlite_allows_parameters() {
+        // SQLite's default ceiling is 999 bound parameters; a single `IN (...)` past it errors.
+        // 2_000 keys must chunk rather than fail, and must still find the rows that exist.
+        let (_dir, pool) = fresh().await;
+        seed_perf(&pool, "8453:1", 1.0, None).await;
+        seed_perf(&pool, "8453:1500", 2.0, None).await;
+
+        let keys: Vec<String> = (0..2_000).map(|i| format!("8453:{i}")).collect();
+        let out = perf_records(&pool, &keys).await.unwrap();
+
+        assert_eq!(out.len(), 2);
+        assert_eq!(out["8453:1"].in_range_secs, 1.0);
+        assert_eq!(out["8453:1500"].in_range_secs, 2.0);
+    }
+
+    // ---------------------------------------------------------------- pos_perf, writing
+
+    fn sample(key: &str, in_range: bool, anchor: &str, cycle_start: Option<i64>) -> PerfSample {
+        PerfSample {
+            key: key.into(),
+            in_range,
+            harvest_anchor: anchor.into(),
+            cycle_start_ts: cycle_start,
+        }
+    }
+
+    async fn row(pool: &SqlitePool, key: &str) -> (f64, Option<i64>, Option<i64>, String) {
+        let r = sqlx::query(
+            "SELECT harvest_anchor, cycle_start, in_range_secs, last_sample_ts \
+             FROM pos_perf WHERE key = ?",
+        )
+        .bind(key)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        (
+            r.try_get("in_range_secs").unwrap(),
+            r.try_get("cycle_start").unwrap(),
+            r.try_get("last_sample_ts").unwrap(),
+            r.try_get::<Option<String>, _>("harvest_anchor")
+                .unwrap()
+                .unwrap_or_default(),
+        )
+    }
+
+    #[tokio::test]
+    async fn a_first_sighting_opens_a_cycle_at_zero() {
+        let (_dir, pool) = fresh().await;
+        let samples = [sample("8453:42", true, "", Some(1_000))];
+
+        record_perf_samples(&pool, &samples, 5_000).await.unwrap();
+
+        let (secs, cycle_start, last, _) = row(&pool, "8453:42").await;
+        assert_eq!(secs, 0.0, "the first sample can only start the clock");
+        assert_eq!(cycle_start, Some(1_000), "anchored where the position says");
+        assert_eq!(last, Some(5_000));
+    }
+
+    #[tokio::test]
+    async fn an_in_range_position_accrues_the_gap() {
+        let (_dir, pool) = fresh().await;
+        let samples = [sample("8453:42", true, "h1", Some(1_000))];
+        record_perf_samples(&pool, &samples, 5_000).await.unwrap();
+        record_perf_samples(&pool, &samples, 5_600).await.unwrap();
+
+        let (secs, cycle_start, last, _) = row(&pool, "8453:42").await;
+        assert_eq!(secs, 600.0);
+        assert_eq!(cycle_start, Some(1_000), "same cycle, same anchor");
+        assert_eq!(last, Some(5_600));
+    }
+
+    #[tokio::test]
+    async fn an_out_of_range_position_accrues_nothing_but_still_advances() {
+        // The clock must move even while idle. If `last_sample_ts` stayed put, the next in-range
+        // tick would credit the entire idle stretch as earning time.
+        let (_dir, pool) = fresh().await;
+        record_perf_samples(&pool, &[sample("8453:42", true, "h1", Some(1_000))], 5_000)
+            .await
+            .unwrap();
+        record_perf_samples(&pool, &[sample("8453:42", false, "h1", Some(1_000))], 5_600)
+            .await
+            .unwrap();
+        record_perf_samples(&pool, &[sample("8453:42", true, "h1", Some(1_000))], 5_900)
+            .await
+            .unwrap();
+
+        let (secs, _, _, _) = row(&pool, "8453:42").await;
+        assert_eq!(secs, 300.0, "only the last 300s counted, not all 900");
+    }
+
+    #[tokio::test]
+    async fn a_harvest_resets_the_accumulator() {
+        let (_dir, pool) = fresh().await;
+        record_perf_samples(&pool, &[sample("8453:42", true, "h1", Some(1_000))], 5_000)
+            .await
+            .unwrap();
+        record_perf_samples(&pool, &[sample("8453:42", true, "h1", Some(1_000))], 5_600)
+            .await
+            .unwrap();
+        assert_eq!(row(&pool, "8453:42").await.0, 600.0);
+
+        // A new harvest anchor opens a new fee cycle, so the in-range clock it is compared
+        // against has to zero with it.
+        record_perf_samples(&pool, &[sample("8453:42", true, "h2", Some(6_000))], 6_200)
+            .await
+            .unwrap();
+
+        let (secs, cycle_start, _, anchor) = row(&pool, "8453:42").await;
+        assert_eq!(secs, 0.0);
+        assert_eq!(cycle_start, Some(6_000));
+        assert_eq!(anchor, "h2");
+    }
+
+    #[tokio::test]
+    async fn a_never_harvested_position_keeps_accumulating() {
+        // The empty anchor must round-trip as empty rather than as SQL NULL. If a NULL read back
+        // as something other than "", every sweep would look like a fresh harvest and the counter
+        // would sit at zero forever — silently, since nothing errors.
+        let (_dir, pool) = fresh().await;
+        let samples = [sample("8453:42", true, "", Some(1_000))];
+        record_perf_samples(&pool, &samples, 5_000).await.unwrap();
+        record_perf_samples(&pool, &samples, 5_600).await.unwrap();
+        record_perf_samples(&pool, &samples, 6_200).await.unwrap();
+
+        assert_eq!(row(&pool, "8453:42").await.0, 1_200.0);
+    }
+
+    #[tokio::test]
+    async fn an_outage_is_capped_not_credited_in_full() {
+        // The box was down for a day. Crediting the whole gap would report a position as having
+        // earned through an outage it was not even observed during.
+        let (_dir, pool) = fresh().await;
+        let samples = [sample("8453:42", true, "h1", Some(1_000))];
+        record_perf_samples(&pool, &samples, 5_000).await.unwrap();
+        record_perf_samples(&pool, &samples, 5_000 + 86_400)
+            .await
+            .unwrap();
+
+        assert_eq!(row(&pool, "8453:42").await.0, MAX_SAMPLE_GAP_SECS);
+    }
+
+    #[tokio::test]
+    async fn a_clock_that_went_backwards_credits_nothing() {
+        // NTP correction, or a container started with a bad clock. `clamp` floors at zero, so the
+        // accumulator can never run backwards.
+        let (_dir, pool) = fresh().await;
+        let samples = [sample("8453:42", true, "h1", Some(1_000))];
+        record_perf_samples(&pool, &samples, 5_000).await.unwrap();
+        record_perf_samples(&pool, &samples, 4_000).await.unwrap();
+
+        assert_eq!(row(&pool, "8453:42").await.0, 0.0);
+    }
+
+    #[tokio::test]
+    async fn a_cycle_with_no_anchor_time_starts_now() {
+        let (_dir, pool) = fresh().await;
+        record_perf_samples(&pool, &[sample("8453:42", true, "", None)], 5_000)
+            .await
+            .unwrap();
+        assert_eq!(row(&pool, "8453:42").await.1, Some(5_000));
+    }
+
+    #[tokio::test]
+    async fn the_sampler_and_the_reader_agree() {
+        // The round trip that matters: what the sweep writes is what a build reads back, under the
+        // same key. These are the two halves of a cross-process contract.
+        let (_dir, pool) = fresh().await;
+        let samples = [sample("999:519288", true, "h1", Some(1_000))];
+        record_perf_samples(&pool, &samples, 5_000).await.unwrap();
+        record_perf_samples(&pool, &samples, 5_600).await.unwrap();
+
+        let read = perf_records(&pool, &["999:519288".into()]).await.unwrap();
+        assert_eq!(read["999:519288"].in_range_secs, 600.0);
+        assert_eq!(read["999:519288"].cycle_start, Some(1_000));
+    }
+
+    #[tokio::test]
+    async fn empty_input_writes_nothing() {
+        let (_dir, pool) = fresh().await;
+        assert_eq!(record_perf_samples(&pool, &[], 5_000).await.unwrap(), 0);
+        // A sample with no key is skipped rather than stored under "".
+        assert_eq!(
+            record_perf_samples(&pool, &[sample("", true, "", None)], 5_000)
+                .await
+                .unwrap(),
+            0
         );
     }
 }

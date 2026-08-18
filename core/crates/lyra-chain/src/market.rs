@@ -417,14 +417,29 @@ const WM_CLIENT_ID: &str = "0324E43A029B34CDC026148C8EF5492FC9290765E7497EDD40B3
 #[derive(Debug)]
 pub struct Market {
     client: reqwest::Client,
+    /// WealthMagik rejects a request with no `clientId` header — `401 "CLIENT ID INVALID"` — so
+    /// its two calls need [`wealthmagik_client`] rather than the plain one.
+    ///
+    /// This is separate from `client` rather than folded into it because those headers include an
+    /// `Origin`/`Referer` pair claiming to be wealthmagik.com; sending that to DefiLlama or
+    /// mempool.space would be wrong.
+    ///
+    /// Falls back to `client` if the builder fails, which only happens with no TLS backend. The
+    /// fund panel is then dead, but so is everything else.
+    wealthmagik: reqwest::Client,
     cache: HttpCache,
     metrics: Mutex<HashMap<String, MetricEntry>>,
 }
 
 impl Market {
     pub fn new(client: reqwest::Client, cache: HttpCache) -> Self {
+        let wealthmagik = wealthmagik_client().unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "building the WealthMagik client; Thai fund NAV will fail");
+            client.clone()
+        });
         Self {
             client,
+            wealthmagik,
             cache,
             metrics: Mutex::new(HashMap::new()),
         }
@@ -435,7 +450,17 @@ impl Market {
     /// Every upstream here is optional garnish on the portfolio: the Python wraps each in a bare
     /// `except`, and a market panel that fails must never take the balances down with it.
     async fn get_json(&self, url: &str) -> Option<serde_json::Value> {
-        let recorded = self.cache.get(&self.client, url).await.ok()?;
+        self.get_json_with(&self.client, url).await
+    }
+
+    /// [`get_json`](Self::get_json) against a caller-chosen client, for upstreams that need
+    /// headers the default client must not carry.
+    async fn get_json_with(
+        &self,
+        client: &reqwest::Client,
+        url: &str,
+    ) -> Option<serde_json::Value> {
+        let recorded = self.cache.get(client, url).await.ok()?;
         serde_json::from_str(&recorded.body).ok()
     }
 
@@ -572,15 +597,19 @@ impl Market {
         }
 
         let sid = self
-            .get_json(&format!(
-                "{WEALTHMAGIK}/GetSecurityIDByFundCode?fundCode={code}"
-            ))
+            .get_json_with(
+                &self.wealthmagik,
+                &format!("{WEALTHMAGIK}/GetSecurityIDByFundCode?fundCode={code}"),
+            )
             .await?;
         // The id comes back bare, sometimes quoted; both must parse the same as Python's `int()`.
         let sid = as_number(&sid)? as i64;
 
         let info = self
-            .get_json(&format!("{WEALTHMAGIK}/GetFundInfo?securityID={sid}"))
+            .get_json_with(
+                &self.wealthmagik,
+                &format!("{WEALTHMAGIK}/GetFundInfo?securityID={sid}"),
+            )
             .await?;
         // Newer responses wrap the payload in `ResultObj`; older ones are flat.
         let root = info.get("ResultObj").unwrap_or(&info);

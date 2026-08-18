@@ -6,7 +6,9 @@
 //! it is considered ported.
 
 pub mod abi;
+pub mod adapters;
 pub mod address;
+pub mod aggregate;
 pub mod bitcoin;
 pub mod chains;
 pub mod evm;
@@ -18,5 +20,6 @@ pub mod market;
 pub mod model;
 pub mod prices;
 pub mod solana;
+pub mod sources;
 pub mod spam;
 pub mod spot;

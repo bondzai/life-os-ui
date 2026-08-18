@@ -28,70 +28,101 @@ ignore = ["fetched_at"]
 
 # The Rust side is JWT-protected where the Python side was open, so it needs a token the
 # oracle does not. Export LYRA_PARITY_JWT before running.
-# [rust_headers]
-# Authorization = "Bearer ${LYRA_PARITY_JWT}"
+[rust_headers]
+Authorization = "Bearer ${LYRA_PARITY_JWT}"
 
-# ── Enable as each phase lands. Paths are from server.py:139-379. ──────────────────────────
+
+# ── Live endpoints. Paths verified against server.py:139-379, not copied from an earlier draft. ──
 #
+# Deliberately NOT here: /api/alerts/test and /api/alerts/digest. Both *send* a Telegram message
+# on GET (server.py:173, :181) — a parity run would ping the user's phone twice, and `ok: true`
+# on both sides proves nothing about the port anyway.
+#
+# Query params come from the handlers themselves:
+#   portfolio/wallet/yield-radar -> `address` (singular, comma/space separated) — server.py:220,270,243
+#   fund -> `code` (server.py:234)   price-history -> `coin`,`days` (server.py:284)
+#   history -> `group` (server.py:292)   snapshots -> `group`, defaulting to "server" (server.py:300)
+
 # Phase 3 — lyra-chain
-# [[endpoint]]
-# name = "portfolio"
-# python_path = "/api/portfolio?addresses=${LYRA_PARITY_WALLETS}"
-# rust_path = "/api/wealth/portfolio?addresses=${LYRA_PARITY_WALLETS}"
-#
-# [[endpoint]]
-# name = "wallet"
-# python_path = "/api/wallet?address=${LYRA_PARITY_WALLET}"
-# rust_path = "/api/wealth/wallet?address=${LYRA_PARITY_WALLET}"
-#
-# [[endpoint]]
-# name = "sentiment"
-# path = "/api/sentiment"
-# rust_path = "/api/wealth/sentiment"
-#
-# [[endpoint]]
-# name = "price-history"
-# python_path = "/api/price-history?coin=coingecko:bitcoin&days=365"
-# rust_path = "/api/wealth/price-history?coin=coingecko:bitcoin&days=365"
-#
+[[endpoint]]
+name = "sentiment"
+path = "/api/sentiment"
+rust_path = "/api/wealth/sentiment"
+
+[[endpoint]]
+name = "price-history"
+python_path = "/api/price-history?coin=coingecko:bitcoin&days=365"
+rust_path = "/api/wealth/price-history?coin=coingecko:bitcoin&days=365"
+
+[[endpoint]]
+name = "wallet"
+python_path = "/api/wallet?address=${LYRA_PARITY_WALLET}"
+rust_path = "/api/wealth/wallet?address=${LYRA_PARITY_WALLET}"
+
+[[endpoint]]
+name = "portfolio"
+python_path = "/api/portfolio?address=${LYRA_PARITY_WALLETS}"
+rust_path = "/api/wealth/portfolio?address=${LYRA_PARITY_WALLETS}"
+
 # Phase 4 — lyra-analytics + wealth routes
-# [[endpoint]]
-# name = "yield-radar"
-# path = "/api/yield-radar"
-# rust_path = "/api/wealth/yield-radar"
-#
-# [[endpoint]]
-# name = "fund"
-# python_path = "/api/fund?code=${LYRA_PARITY_FUND}"
-# rust_path = "/api/wealth/fund?code=${LYRA_PARITY_FUND}"
-#
-# [[endpoint]]
-# name = "snapshots"
-# path = "/api/snapshots"
-# rust_path = "/api/wealth/snapshots"
-#
-# [[endpoint]]
-# name = "history"
-# path = "/api/history"
-# rust_path = "/api/wealth/history"
-#
-# [[endpoint]]
-# name = "analyses"
-# path = "/api/analyses"
-# rust_path = "/api/wealth/analyses"
-#
-# [[endpoint]]
-# name = "kucoin"
-# path = "/api/kucoin"
-# rust_path = "/api/wealth/kucoin"
-#
+[[endpoint]]
+name = "yield-radar"
+python_path = "/api/yield-radar?address=${LYRA_PARITY_WALLETS}"
+rust_path = "/api/wealth/yield-radar?address=${LYRA_PARITY_WALLETS}"
+
+[[endpoint]]
+name = "fund"
+python_path = "/api/fund?code=${LYRA_PARITY_FUND}"
+rust_path = "/api/wealth/fund?code=${LYRA_PARITY_FUND}"
+
+[[endpoint]]
+name = "kucoin"
+path = "/api/kucoin"
+rust_path = "/api/wealth/kucoin"
+
+[[endpoint]]
+name = "snapshots"
+python_path = "/api/snapshots?group=server"
+rust_path = "/api/wealth/snapshots?group=server"
+
+[[endpoint]]
+name = "history"
+python_path = "/api/history?group=${LYRA_PARITY_GROUP}"
+rust_path = "/api/wealth/history?group=${LYRA_PARITY_GROUP}"
+
+[[endpoint]]
+name = "analyses"
+path = "/api/analyses"
+rust_path = "/api/wealth/analyses"
+
 # Phase 5 — lyra-alerts
-# [[endpoint]]
-# name = "alerts"
-# path = "/api/alerts"
-# rust_path = "/api/wealth/alerts"
+[[endpoint]]
+name = "alerts"
+path = "/api/alerts"
+rust_path = "/api/wealth/alerts"
+# Two fields of live poller state that two independently-running loops cannot agree on. The other
+# two — `running` and `watching` — are NOT ignored: those are deterministic given the same wallets,
+# and they are the ones that prove the sweep is actually running.
 #
-# [[endpoint]]
-# name = "services"
-# path = "/api/services"
-# rust_path = "/api/wealth/services"
+#   last_error  sticky and never cleared on either side, so it holds whatever last went wrong in
+#               that process. The oracle's is currently a `tgbot getUpdates` connection reset from
+#               its Telegram long-poll bot, which the Rust port does not run at all.
+#   last_check  each loop stamps its own sweep. Worth knowing: this was never really being compared
+#               anyway — see the epoch-float note in docs/parity.md. Ignoring it makes a hole that
+#               already existed visible instead of leaving it to look like a passing check.
+ignore = ["last_error", "last_check"]
+
+[[endpoint]]
+name = "services"
+path = "/api/services"
+rust_path = "/api/wealth/services"
+# `ms` is a wall-clock latency measurement of a live upstream, taken at two different moments by
+# two different processes. It is non-deterministic by construction, not by accident — the only
+# entry on this list that is measured rather than fetched.
+#
+# `status`, `detail` and `summary.*` are deliberately NOT ignored even though they are derived
+# from `ms` through the 3000ms/`SLOW_MS` threshold and the 8s probe timeout. They are the answer
+# the board exists to give, and ignoring them would have hidden the untimed-probe-client bug this
+# endpoint found. Expect an occasional flake when an upstream sits near a threshold; re-run before
+# investigating, per the note in docs/parity.md.
+ignore = ["ms"]

@@ -199,6 +199,71 @@ pub trait EvmRpcExt: EvmRpc {
 impl<T: EvmRpc + ?Sized> EvmRpcExt for T {}
 
 // ===========================================================================
+// ERC-20 metadata
+// ===========================================================================
+
+/// `_token_meta`'s memo: decimals and symbol per token, read once per adapter run.
+///
+/// The Python memoises globally and forever; scoping the cache to one run keeps the port honest
+/// about lifetime while still collapsing the repeated reads a multi-position wallet makes — an
+/// LP portfolio is mostly the same half-dozen tokens paired up different ways.
+///
+/// It lives here rather than in one adapter because every adapter that values a pair needs the
+/// same two reads: Slipstream, Uniswap v3 and v4 all price their legs this way.
+#[derive(Debug, Default)]
+pub struct TokenMeta {
+    cache: Mutex<HashMap<String, (i32, String)>>,
+}
+
+impl TokenMeta {
+    /// An empty cache. One per adapter run; sharing one across runs would be the Python's
+    /// forever-memo, which is a different lifetime decision than this port makes.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// `(decimals, symbol)` for `token`, reading the chain only on a miss.
+    ///
+    /// Takes `?Sized` so a `&dyn EvmRpc` works: the v3/v4 readers are object-safe by design and
+    /// pass the trait object through, while the Slipstream reader is generic.
+    pub async fn get<R: EvmRpc + ?Sized>(&self, rpc: &R, token: &str) -> Result<(i32, String)> {
+        let key = token.to_lowercase();
+        if let Some(hit) = self
+            .cache
+            .lock()
+            .expect("token meta cache poisoned")
+            .get(&key)
+        {
+            return Ok(hit.clone());
+        }
+        // `int(addr, 16) == 0` in the Python: the zero address means the chain's native coin,
+        // which has no ERC-20 metadata to read.
+        let meta = if key.trim_start_matches("0x").chars().all(|c| c == '0') {
+            (18, "ETH".to_string())
+        } else {
+            let decimals = rpc
+                .call_one(token, "decimals()", &[], "uint8")
+                .await
+                .with_context(|| format!("decimals() of {token}"))?
+                .as_u8()?;
+            let symbol = rpc
+                .call_one(token, "symbol()", &[], "string")
+                .await
+                .with_context(|| format!("symbol() of {token}"))?
+                .as_str()?
+                .to_string();
+            (i32::from(decimals), symbol)
+        };
+        self.cache
+            .lock()
+            .expect("token meta cache poisoned")
+            .insert(key, meta.clone());
+        Ok(meta)
+    }
+}
+
+// ===========================================================================
 // The live implementation
 // ===========================================================================
 

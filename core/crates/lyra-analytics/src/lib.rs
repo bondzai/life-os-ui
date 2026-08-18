@@ -6,4 +6,5 @@
 //! estimated.
 pub mod envelope;
 pub mod exposure;
+pub mod strategy;
 pub mod tiers;

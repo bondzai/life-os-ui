@@ -426,7 +426,7 @@ impl Wallet {
     pub fn new(address: impl Into<String>, chains: Vec<ChainBucket>) -> Self {
         Self {
             address: address.into(),
-            total: chains.iter().map(|c| c.usd).sum(),
+            total: positive_zero(chains.iter().map(|c| c.usd).sum()),
             chains,
         }
     }
@@ -505,11 +505,28 @@ impl PortfolioSnapshot {
     ) -> Self {
         Self {
             addresses,
-            total: wallets.iter().map(|w| w.total).sum(),
+            total: positive_zero(wallets.iter().map(|w| w.total).sum()),
             wallets,
             rates,
             sentiment,
             fetched_at,
         }
     }
+}
+
+/// Turn `-0.0` into `0.0`, leaving every other value untouched.
+///
+/// Rust's `Sum` for floats folds from `-0.0` — deliberately, so that summing a list of negative
+/// zeros preserves the sign — which means an **empty** sum is `-0.0`. Python's `sum([])` is the
+/// integer `0`. So a wallet whose chains all failed, or a portfolio of such wallets, serialises
+/// as `"total": -0.0` here against the oracle's `"total": 0`.
+///
+/// That is not a rounding difference the parity tolerance absorbs, it is a different JSON token,
+/// and it surfaces at the worst moment: a front end formatting the degraded case renders
+/// `-$0.00`, which reads like a loss rather than like nothing.
+///
+/// `x + 0.0` is the whole fix — it maps `-0.0` to `+0.0` and is the identity on every other
+/// finite value, on both infinities, and on NaN.
+fn positive_zero(total: f64) -> f64 {
+    total + 0.0
 }

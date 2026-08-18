@@ -69,7 +69,12 @@ pub fn currency_symbol(code: &str) -> Option<&'static str> {
 ///
 /// An indirection on purpose: `std::env` is process-global, so accessor tests that set real
 /// variables race each other under the test harness's threads. Tests use [`MapEnv`].
-pub trait EnvSource {
+///
+/// `Send + Sync` is required, not incidental: [`AlertConfig`] holds `&dyn EnvSource`, so without
+/// these bounds any future holding an `AlertConfig` is not `Send`, and an axum handler that reads
+/// alert config fails the `Handler` trait bound with an error that points at the route rather than
+/// at this line. Every real implementation is trivially both.
+pub trait EnvSource: Send + Sync {
     fn get(&self, key: &str) -> Option<String>;
 }
 

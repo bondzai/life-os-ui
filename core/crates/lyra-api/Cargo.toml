@@ -9,6 +9,8 @@ axum = "0.8.9"
 bcrypt = "0.19.3"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
+lyra-alerts = { version = "0.1.0", path = "../lyra-alerts" }
+lyra-chain = { version = "0.1.0", path = "../lyra-chain" }
 lyra-db = { version = "0.1.0", path = "../lyra-db" }
 rand = "0.10.2"
 regex = "1.13.1"

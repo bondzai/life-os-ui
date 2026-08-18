@@ -5,7 +5,9 @@
 //! so the existing React client runs against this binary with no front-end change. Any change the
 //! front end needs means the port was wrong.
 
+mod alert_loop;
 mod auth;
+mod collect;
 mod common;
 mod entities;
 mod gcal;
@@ -14,6 +16,7 @@ mod relations;
 mod schedules;
 mod search;
 mod trackers;
+mod wealth;
 
 use anyhow::{Context, Result};
 use axum::extract::State;
@@ -34,6 +37,9 @@ pub struct AppState {
     pub rate_limiter: Arc<auth::RateLimiter>,
     /// Pending Google OAuth handshakes. In-memory, like the Map in gcal.ts.
     pub gcal_states: Arc<gcal::OAuthStates>,
+    /// Live state of the background sweep, so `/api/wealth/alerts` can report it. Shared with
+    /// [`alert_loop`]; inert (`running: false`) when the loop was never started.
+    pub alert_meta: alert_loop::SharedMeta,
 }
 
 impl AppState {
@@ -43,6 +49,7 @@ impl AppState {
             jwt_secret: Arc::new(jwt_secret),
             rate_limiter: Arc::new(auth::RateLimiter::default()),
             gcal_states: Arc::new(gcal::OAuthStates::default()),
+            alert_meta: alert_loop::SharedMeta::default(),
         }
     }
 }
@@ -132,6 +139,32 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
             "/api/gcal/events/{eventId}",
             patch(gcal::update_event).delete(gcal::delete_event),
         )
+        // Wealth — the ported server.py surface, remounted under /api/wealth/*. Mirrors the
+        // `router()` in wealth.rs's own tests; keep the two in step.
+        .route("/api/wealth/portfolio", get(wealth::portfolio))
+        .route("/api/wealth/wallet", get(wealth::wallet))
+        .route("/api/wealth/fund", get(wealth::fund))
+        .route("/api/wealth/sentiment", get(wealth::sentiment))
+        .route("/api/wealth/yield-radar", get(wealth::yield_radar))
+        .route("/api/wealth/kucoin", get(wealth::kucoin))
+        .route("/api/wealth/price-history", get(wealth::price_history))
+        .route(
+            "/api/wealth/history",
+            get(wealth::history).post(wealth::save_history),
+        )
+        .route("/api/wealth/snapshots", get(wealth::snapshots))
+        .route(
+            "/api/wealth/analyses",
+            get(wealth::analyses).post(wealth::create_analysis),
+        )
+        .route("/api/wealth/analyses/{id}", get(wealth::analysis))
+        .route("/api/wealth/notes", post(wealth::create_note))
+        .route("/api/wealth/notes/archive", post(wealth::archive_note))
+        .route("/api/wealth/services", get(wealth::services))
+        .route("/api/wealth/alerts", get(wealth::alerts))
+        .route("/api/wealth/alerts/test", get(wealth::alerts_test))
+        .route("/api/wealth/alerts/digest", get(wealth::alerts_digest))
+        .route("/api/wealth/alerts/config", post(wealth::alerts_config))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             auth::require_auth,
@@ -205,6 +238,12 @@ async fn main() -> Result<()> {
     tracing::info!(port, database, "Lyra API listening");
 
     let state = AppState::new(pool.clone(), jwt_secret);
+
+    // The always-on sweep — range alerts, the daily brief, and the net-worth series — started
+    // here and not in `app()` so that the router the tests build stays inert. It no-ops when
+    // nothing is configured for it to do.
+    alert_loop::spawn(state.clone());
+
     axum::serve(listener, app(state, allowed_origins()))
         .with_graceful_shutdown(shutdown_signal())
         .await

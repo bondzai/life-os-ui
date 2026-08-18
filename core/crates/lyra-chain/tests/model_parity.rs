@@ -808,6 +808,57 @@ fn builds_wallet_totals_from_chains() {
     );
 }
 
+/// An empty total serialises as `0.0`, never `-0.0`.
+///
+/// Rust's `Sum` for floats folds from `-0.0` so that a list of negative zeros keeps its sign,
+/// which makes the **empty** sum `-0.0`; the oracle's `sum([])` is the integer `0`, and the
+/// corpus records `"total": 0`. The two agree numerically, so neither `assert_same` nor the
+/// parity harness's tolerance can see the difference — but the wire bytes differ, and a front
+/// end formatting the degraded case renders `-$0.00`, which reads as a loss rather than as
+/// nothing. This pins the token rather than the value.
+#[test]
+fn an_empty_total_is_positive_zero_on_the_wire() {
+    let wallet = Wallet::new("0x7Fce9c293dBD6d050455B986cb6850114Aad71a8", Vec::new());
+    assert!(
+        !wallet.total.is_sign_negative(),
+        "an all-failed wallet must not report -0.0"
+    );
+    assert_eq!(
+        serde_json::to_value(&wallet).unwrap()["total"].to_string(),
+        "0.0"
+    );
+
+    let snapshot = PortfolioSnapshot::new(
+        Vec::new(),
+        Vec::new(),
+        fallback_rates(),
+        PortfolioSentiment::default(),
+        1783924800.0,
+    );
+    assert!(!snapshot.total.is_sign_negative());
+    assert_eq!(
+        serde_json::to_value(&snapshot).unwrap()["total"].to_string(),
+        "0.0"
+    );
+
+    // A wallet of wallets that each summed to nothing must not reintroduce the sign either.
+    let empties = vec![
+        Wallet::new("0xaaa0000000000000000000000000000000000001", Vec::new()),
+        Wallet::new("0xbbb0000000000000000000000000000000000002", Vec::new()),
+    ];
+    let snapshot = PortfolioSnapshot::new(
+        Vec::new(),
+        empties,
+        fallback_rates(),
+        PortfolioSentiment::default(),
+        1783924800.0,
+    );
+    assert_eq!(
+        serde_json::to_value(&snapshot).unwrap()["total"].to_string(),
+        "0.0"
+    );
+}
+
 /// The top-level envelope: six keys, `rates` always an object, both sentiment legs present.
 #[test]
 fn builds_snapshot_envelope() {

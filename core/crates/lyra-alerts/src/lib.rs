@@ -4,5 +4,7 @@
 //! than a temp JSON file, so dedup survives a restart. Alerts fan out to both Telegram and
 //! Lyra's in-app notification store.
 pub mod config;
+pub mod digest;
 pub mod rules;
 pub mod state;
+pub mod telegram;
