@@ -305,7 +305,13 @@ pub async fn history(
     _user: AuthUser,
     Query(params): Query<GroupQuery>,
 ) -> Response {
-    let group = params.group.unwrap_or_default();
+    // An absent group means "this box's own series", not the group literally named "". The
+    // sweep writes under `SNAPSHOT_GROUP`, so that is what the client gets when it does not ask
+    // for something else — the same reasoning as the address fallback above.
+    let group = match params.group {
+        Some(g) if !g.trim().is_empty() => g,
+        _ => crate::alert_loop::snapshot_group(),
+    };
     match store::load_history(&state.pool, &group).await {
         Ok(points) => Json(json!({
             "group": group,
@@ -1760,6 +1766,8 @@ mod tests {
         assert!(!point.contains_key("debt"), "null debt must not be sent");
     }
 
+    /// A *write* is not defaulted the way a read is: it must say where it goes. An unreadable
+    /// body writes nothing, so the group it reports is cosmetic.
     #[tokio::test]
     async fn an_unreadable_history_body_is_treated_as_empty_rather_than_rejected() {
         let (_dir, _pool, router, token) = test_app().await;
@@ -1770,14 +1778,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn history_defaults_to_the_empty_group_and_snapshots_to_server() {
+    async fn a_read_with_no_group_means_this_boxs_own_series() {
+        // These two used to disagree: `/snapshots` defaulted to the sweep's group while
+        // `/history` defaulted to the group literally named "", which nothing ever writes. The
+        // net-worth chart asks for neither by name, so it read the empty one and stayed blank
+        // however much history the database held.
         let (_dir, _pool, router, token) = test_app().await;
 
         let (_, body) = get_json(&router, "/api/wealth/history", &token).await;
-        assert_eq!(body["group"], "");
+        assert_eq!(body["group"], "server");
 
         let (_, body) = get_json(&router, "/api/wealth/snapshots", &token).await;
         assert_eq!(body["group"], "server");
+    }
+
+    #[tokio::test]
+    async fn an_explicit_group_still_wins_on_a_history_read() {
+        let (_dir, _pool, router, token) = test_app().await;
+        let (_, body) = get_json(&router, "/api/wealth/history?group=me", &token).await;
+        assert_eq!(body["group"], "me");
     }
 
     /* ─── Snapshots ─── */

@@ -330,7 +330,7 @@ async fn maybe_digest(state: &AppState, config: &AlertConfig<'_>) {
 
 /// `SNAPSHOT_GROUP`, defaulting to `server` — the series the always-on box owns, kept separate
 /// from the browser's per-group history because the server only ever sees the keyless book.
-fn snapshot_group() -> String {
+pub fn snapshot_group() -> String {
     let raw = std::env::var("SNAPSHOT_GROUP").unwrap_or_default();
     let trimmed = raw.trim();
     if trimmed.is_empty() {

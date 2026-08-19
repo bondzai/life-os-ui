@@ -553,3 +553,46 @@ data contract, the render tree, the error and empty states — now is.
   not safe to record.
 - **`/api/knowledge` 404s** unless `LYRA_KNOWLEDGE_PATH` points somewhere real. Contract-identical
   to the Hono route, which resolved the same missing path.
+
+## The net-worth chart was reading a dead table — 2026-08-19
+
+Found while checking what would be lost by deleting the oracle. Three separate things, each
+individually invisible:
+
+**1. The Python's database was never fully imported.** `pow.db` does not live in
+`wallet-portfolio/` — `db.py` resolves it to `$POW_DB`, else `$HISTORY_DIR/pow.db`, else a path
+under the system temp directory, which is where it actually was. Re-running `lyra-migrate`
+against it imported **61 rows nothing had**: 57 daily net-worth points spanning 2026-06-12 to
+2026-08-18, plus 4 snapshots. `nw_history` in `lyra.db` was **empty**.
+
+Worth noting for anyone repeating this: the live database sat in a temp directory that macOS is
+free to clean.
+
+**2. Nothing writes `nw_history` any more.** The only writer was ever the old browser app POSTing
+to `/history`; Lyra's front end has no such call. So the daily series the chart draws stopped
+growing the day the port landed. `record_snapshot` now files a daily point in the same
+transaction as the fine-grained snapshot — one per UTC day, last write wins, exactly what the
+browser did. Two tests pin it.
+
+**3. `/history` and `/snapshots` disagreed about the default group.** `/snapshots` defaulted to
+the sweep's `SNAPSHOT_GROUP`; `/history` defaulted to the group literally named `""`, which
+nothing has ever written. The client asks for neither by name, so the chart read the empty group
+and would have stayed blank however much history the database held. Both now default to the same
+place, and an explicit `?group=` still wins.
+
+### Why the legacy series is *not* spliced onto the live one
+
+Tempting, and wrong. The imported series runs $919–$2358; the on-chain book today is ~$449.
+Splicing them would draw one line with a ~$1100 cliff at the join.
+
+The two do not measure the same thing. The old app's net worth included the off-chain assets the
+user typed into that browser, which a keyless server cannot see. Whether the rest of the gap is
+missing off-chain value or a book that genuinely shrank is **not knowable from this data** — and
+a chart that answers a question it cannot answer is worse than one that starts today.
+
+So the legacy points stay under their own group (`me`), readable at
+`/api/wealth/history?group=me`, and the live series starts from the sweep's first daily point.
+The chart says "not enough history yet" until it has two, which is true.
+
+Closing this properly means Lyra tracking off-chain assets server-side, at which point the two
+bases match and the join is honest. Until then they are two series, presented as two.

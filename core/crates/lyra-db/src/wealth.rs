@@ -391,6 +391,26 @@ pub async fn record_snapshot(
     .await
     .with_context(|| format!("recording snapshot for {group}"))?;
 
+    // The same reading, filed as a daily point.
+    //
+    // `snapshots` is a fine-grained log that gets pruned; `nw_history` is the daily series the
+    // net-worth chart draws, and until now the only thing that wrote it was the old browser app
+    // POSTing to `/history`. Nothing in Lyra does, so the chart could never fill in — it read a
+    // table that had stopped growing the day the port landed. One point per UTC day, last write
+    // wins, which is exactly what the browser did.
+    let day_ms = (now.div_euclid(86_400)) * 86_400 * 1_000;
+    sqlx::query(
+        "INSERT INTO nw_history (grp, d, v, debt) VALUES (?, ?, ?, ?) \
+         ON CONFLICT(grp, d) DO UPDATE SET v = excluded.v, debt = excluded.debt",
+    )
+    .bind(group)
+    .bind(day_ms)
+    .bind(input.net_worth)
+    .bind(input.debt)
+    .execute(&mut *tx)
+    .await
+    .with_context(|| format!("recording daily net worth for {group}"))?;
+
     // Prune by timestamp value, so rows sharing a second are kept or dropped together.
     sqlx::query(
         "DELETE FROM snapshots WHERE grp = ? AND ts NOT IN \
@@ -1396,6 +1416,53 @@ mod tests {
     }
 
     // ----- snapshots --------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn a_snapshot_also_files_a_daily_net_worth_point() {
+        // The chart reads `nw_history`, and until the sweep wrote it the only writer was the old
+        // browser app POSTing to /history. Nothing in Lyra does, so the series stopped growing
+        // the day the port landed and the chart could never fill in.
+        let dir = TempDir::new().unwrap();
+        let pool = open_and_migrate(&dir.path().join("lyra.db")).await.unwrap();
+        let input = SnapshotInput {
+            net_worth: 1_234.5,
+            debt: Some(200.0),
+            ..Default::default()
+        };
+
+        assert!(
+            record_snapshot(&pool, "server", &input, 3600, Some(T0))
+                .await
+                .unwrap()
+        );
+        let points = load_history(&pool, "server").await.unwrap();
+        assert_eq!(points.len(), 1);
+        assert_eq!(points[0].v, 1_234.5);
+        assert_eq!(points[0].debt, Some(200.0));
+        // UTC midnight of T0, in milliseconds — the day key the browser used.
+        assert_eq!(points[0].d, (T0 / 86_400) * 86_400 * 1_000);
+    }
+
+    #[tokio::test]
+    async fn a_second_snapshot_the_same_day_overwrites_its_point_rather_than_adding_one() {
+        // One point per day, last write wins. Two rows for one day would draw a vertical jump on
+        // a chart whose x-axis is days.
+        let dir = TempDir::new().unwrap();
+        let pool = open_and_migrate(&dir.path().join("lyra.db")).await.unwrap();
+
+        record_snapshot(&pool, "server", &SnapshotInput { net_worth: 100.0, ..Default::default() }, 0, Some(T0))
+            .await
+            .unwrap();
+        record_snapshot(&pool, "server", &SnapshotInput { net_worth: 175.0, ..Default::default() }, 0, Some(T0 + 3_600))
+            .await
+            .unwrap();
+
+        let points = load_history(&pool, "server").await.unwrap();
+        assert_eq!(points.len(), 1);
+        assert_eq!(points[0].v, 175.0);
+        // The fine-grained log still has both readings; only the daily series collapses them.
+        assert_eq!(count(&pool, "snapshots").await, 2);
+    }
 
     #[tokio::test]
     async fn the_snapshot_throttle_survives_a_restart() {
