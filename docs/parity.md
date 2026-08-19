@@ -596,3 +596,40 @@ The chart says "not enough history yet" until it has two, which is true.
 
 Closing this properly means Lyra tracking off-chain assets server-side, at which point the two
 bases match and the join is honest. Until then they are two series, presented as two.
+
+## The oracle is gone — 2026-08-19
+
+`wallet-portfolio/` was deleted once every phase was complete. What that means for this document:
+**every rule below is still the specification, and `make parity` cannot run until the oracle is
+back.** Nothing here is stale; it just needs its other half.
+
+### Getting the oracle back
+
+```bash
+make oracle-clone   # clone + venv + deps, next to this repo
+cp .env.local ../wallet-portfolio/.env.local
+make oracle         # :8000
+```
+
+Three things to know before trusting a run afterwards:
+
+- **Its venv needs brew `python@3.13`.** The system Python will not do.
+- **`.env.local` does not come back with the clone** — it is gitignored, and this repo's copy is
+  now the only one. That is why the secrets were migrated *before* the directory was deleted.
+- **Starting it also starts the Telegram command bot and its crons.** It is not a read-only
+  process.
+
+### What was kept
+
+- `core/data/legacy-pow.db` — the oracle's own database, checkpointed with `.backup`. 57
+  `nw_history` points, 4 snapshots, 6 `pos_perf` rows. Its live copy sat in a system temp
+  directory that macOS is free to clean, which is a poor place for the only copy of anything.
+- `core/data/legacy-life-os.db` — the Hono API's database, 89 entities.
+- Everything else is in the git remote: `git@github.com:bondzai/wallet-portfolio.git`, clean tree,
+  nothing unpushed, verified before deleting.
+
+### The differential tests do not need it
+
+`lyra-chain/tests/spam_parity.rs` runs against a committed corpus (3,255 cases generated *by* the
+Python filter), so it keeps working. Regenerating that corpus needs the oracle back — see
+"Differential tests for pure functions" above.

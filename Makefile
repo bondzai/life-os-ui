@@ -1,6 +1,6 @@
 .PHONY: help dev dev-safe dev-ui dev-api install install-ui build build-ui build-api \
        lint typecheck typecheck-w check test clean docker-up docker-down docker-build docker-logs \
-       preview core-build core-test core-check parity oracle mcp
+       preview core-build core-test core-check parity oracle oracle-clone mcp
 
 # ──────────────────────────────────────────────
 # Config
@@ -104,7 +104,14 @@ core-check: ## Rust format check + clippy (warnings are errors)
 	cd core && $(CARGO) fmt --check
 	cd core && $(CARGO) clippy --all-targets -- -D warnings
 
-oracle: ## Run the Python oracle on :8000 (the parity source of truth)
+# The oracle was deleted on 2026-08-19, once the port was complete. Both targets below need it
+# back; `make oracle-clone` fetches it. See docs/parity.md → "Getting the oracle back".
+oracle-clone: ## Re-clone the Python oracle next to this repo
+	test -d $(ORACLE_DIR) || git clone git@github.com:bondzai/wallet-portfolio.git $(ORACLE_DIR)
+	cd $(ORACLE_DIR) && python3.13 -m venv .venv && .venv/bin/pip install -r requirements.txt
+	@echo "Now copy the secrets it needs: cp .env.local $(ORACLE_DIR)/.env.local"
+
+oracle: ## Run the Python oracle on :8000 (the parity source of truth; needs oracle-clone first)
 	cd $(ORACLE_DIR) && .venv/bin/python server.py
 
 parity: ## Diff the Rust port against the Python oracle (green with no endpoints configured)
