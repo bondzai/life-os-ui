@@ -127,7 +127,9 @@ pub struct PortfolioHolding {
     #[serde(default)]
     pub category: Option<String>,
     pub usd: f64,
-    /// Fractional 24h change (0.05 = +5%), or `None` when the engine has no price history for it.
+    /// 24h change as a **percentage** (5.0 = +5%), or `None` when the engine has no price history
+    /// for it. Percent, not a fraction: it is passed through from the engine unscaled and comes
+    /// back out under `change_24h_pct`, so the oracle and this port report the same number.
     #[serde(default)]
     pub change_24h: Option<f64>,
 }

@@ -395,3 +395,104 @@ wallets, LPs, bots and off-chain assets, and both the tags and its daily climb s
 - The panel does **not** hide itself when nothing is tagged, which the original did. The ❄ toggles
   live on DeFi and Bots, so a book holding only a wallet and off-chain assets could never have
   found the feature. It collapses to one line plus a source picker instead.
+
+## `lyra-mcp` wired to real data — 2026-08-19
+
+Phase 6 was recorded as "DONE (unverified)". It was not done. The crate had the JSON-RPC server,
+all ten tool bodies, the egress secret scrub and the read-only boot refusal with its tests — and
+no way to run any of it:
+
+- **no binary.** `lyra-mcp` was `lib.rs` only, so there was no executable for an MCP client to
+  launch. "Never exercised" was not an oversight; it was not possible.
+- **no production data.** The only implementors of `PortfolioSource` / `MarketSource` /
+  `AnalysisStore` anywhere in the tree were the test fakes in `server.rs`.
+
+Both are closed.
+
+### `book.rs` — the walk
+
+Port of `wallet-portfolio/analysis.py` L61-158: `holdings`, `lp_positions`, `lending_positions`,
+`trading_bots`, and the spot/DeFi legs the exposure unwrap needs. `lyra-analytics` deliberately
+owns no chain types ("the adapter maps the real portfolio onto it"), so this is the one file that
+knows both shapes and the only place a field can be lost in translation.
+
+Pure by construction — one `PortfolioSnapshot` in, one `Snapshot` out, no I/O and no clock — which
+is what lets the oracle's rules be tested offline. The four that matter, each with a test:
+
+- **A borrow line is never an asset row.** Its collateral is already counted as spot aTokens, so
+  a holding row would double it; it comes back through `net_usd` instead. That `net_usd` is the
+  engine's own figure, not a recomputation: Aave carries −debt, Compound and Morpho carry
+  collateral−debt, and deriving it here would get one of the two families wrong by the collateral.
+- **A DeFi row is classified by its first token, not its display name** — an ETH/USDC pool lands
+  where an ETH holding lands.
+- **Only an explicit `in_range: false` sorts to the front.** A position whose range could not be
+  determined stays with the healthy ones rather than being paraded as broken.
+- **Zero-value rows and zero-amount reward legs are dropped**, as the oracle does.
+
+### `sources.rs` — the data room
+
+Port of `pow_mcp/sources.py`, reading the same env names and defaults (`POW_WALLETS`,
+`POW_MCP_TTL=120`, `POW_MCP_CACHE_MAX=32`, `POW_MCP_MAX_WALLETS=10`, `POW_MCP_RADAR_LIMIT=8`) so
+one `.env` drives either implementation.
+
+The bounded TTL+LRU snapshot cache is the load-bearing part. One analysis calls several tools, and
+without it each would trigger its own multi-chain fan-out — the model would then reason across a
+*drifting* book where two tools disagree because prices moved between them. Verified in the live
+run below: seven tool calls, one `as_of`, one snapshot hash.
+
+The journal writes to the same `analyses` table the HTTP API uses, with `source = "mcp"`. Sharing
+it is the point: a review the desk writes has to appear in the Journal page, and one written in
+the UI has to be readable by the model. Validation runs before the insert so a malformed scope
+comes back as `InvalidInput` — something the model can fix — rather than `Unavailable`, which
+reads as "try again later".
+
+### `main.rs` — the entry point
+
+Three refusals, each checked before a frame can be served, and each exercised:
+
+1. **Signing material in the environment** → exit 1, naming the variable. Verified with
+   `PRIVATE_KEY=…`.
+2. **`MCP_TRANSPORT` other than stdio** → exit 1. The Python's v1 HTTP transport bound
+   `allowed_hosts=['*']` with no auth, which served a full net worth to anyone with the URL; it
+   stays fail-closed until remote auth exists. Verified with `MCP_TRANSPORT=http`.
+3. **Logs go to stderr.** stdout *is* the protocol — one stray log line there is a corrupt frame
+   and a dead session.
+
+### The live run
+
+Against the real wallets (`POW_WALLETS=$ALERT_WALLETS`), one stdio session, every tool:
+
+| tool | result |
+|---|---|
+| `initialize` / `tools/list` | 10 tools, matching the Python's surface |
+| `get_portfolio` | net worth $448.63, 14 holdings, 6 LP positions, 6 chains incl. KuCoin |
+| `get_exposures` | HHI 0.219, top asset BTC 30.6%, stables 26.1% |
+| `get_trading_bots` | the live futures bot with its sub-bot breakdown |
+| `get_market_context` | rates + fear/greed + rainbow + MVRV |
+| `get_fund_nav` | `K-GOLD-A(D)` at 16.5106 THB, dated |
+| `list_opportunities` | empty board — no pool beat what the book already earns |
+| `save_analysis` → `list_analyses` | written and read back, with a server-side anchor |
+
+Every call in that session shared one `as_of` and one snapshot hash, which is the cache doing its
+job rather than seven separate fan-outs.
+
+### One unit bug found and fixed
+
+`PortfolioHolding::change_24h` was documented as a fraction (`0.05 = +5%`) while the value it
+feeds is emitted as `change_24h_pct` and the oracle supplies a percentage. A live book would have
+reported a 3% day as `0.03%`. The field is now percent throughout, matching the engine and the key
+name; the one unit test that encoded the old reading was corrected with it.
+
+**Registering the desk** with an MCP client — `LYRA_DB` must point at the same database the API
+uses, or the journal is a different journal:
+
+```json
+{
+  "mcpServers": {
+    "proof-of-wealth": {
+      "command": "/path/to/lyra/core/target/release/lyra-mcp",
+      "env": { "LYRA_DB": "/path/to/lyra.db", "POW_WALLETS": "0x…,bc1…" }
+    }
+  }
+}
+```

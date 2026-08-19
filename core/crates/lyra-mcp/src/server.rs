@@ -949,7 +949,7 @@ mod tests {
                 PortfolioHolding {
                     symbol: Some("WBTC".into()),
                     usd: 750.0,
-                    change_24h: Some(0.04),
+                    change_24h: Some(4.0),
                     ..Default::default()
                 },
             ],
@@ -1331,8 +1331,9 @@ mod tests {
         assert_eq!(frames[2]["result"]["isError"], false);
         assert_eq!(portfolio["net_worth_usd"], 1000.0);
         assert_eq!(portfolio["env"]["snapshot"], "abc123def456");
-        // 750/1000 at +4%, 250/1000 flat -> value-weighted +3%.
-        assert_eq!(portfolio["change_24h_pct"], 0.03);
+        // 750/1000 at +4%, 250/1000 flat -> value-weighted +3%. Percent throughout, as the key
+        // name says and as the engine supplies it.
+        assert_eq!(portfolio["change_24h_pct"], 3.0);
         // WBTC is Store of Value, USDC is Reserve: 75/25 against the 40/10 defaults.
         let ladder = portfolio["capital_ladder"].as_array().unwrap();
         assert_eq!(ladder[0]["tier"], "Reserve");

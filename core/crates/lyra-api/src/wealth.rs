@@ -12,12 +12,10 @@
 //!
 //! # Completeness
 //!
-//! Every route is wired. Two caveats worth knowing before trusting a figure, both inherited from
-//! `lyra-chain` rather than from this module:
+//! Every route is wired, and as of 2026-08-18 so are `_merkl_rewards` and
+//! `_vfat_stamp_lifecycle` — the two gaps this section used to warn about. One caveat remains,
+//! inherited from `lyra-chain` rather than from this module:
 //!
-//! * **Claimable rewards can be understated.** `_merkl_rewards` and `_vfat_stamp_lifecycle` are
-//!   not ported, so a gauge-staked farm added by the vfat enrich pass carries its correct `usd`
-//!   but may under-report what it has accrued. Net worth is unaffected.
 //! * **A partial read looks like a complete one.** The `FetchHealth` that comes back with a
 //!   snapshot is logged, not serialised — see [`log_health`] — because the Python has no such
 //!   field and adding one would fail every parity run. A response is safe to display and not safe

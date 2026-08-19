@@ -6,7 +6,12 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.104"
 lyra-analytics = { version = "0.1.0", path = "../lyra-analytics" }
+lyra-chain = { version = "0.1.0", path = "../lyra-chain" }
+lyra-db = { version = "0.1.0", path = "../lyra-db" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "sqlite", "json", "macros"] }
+reqwest = { version = "0.13.4", features = ["json"] }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "io-std", "io-util"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tracing = "0.1.44"
