@@ -1,0 +1,147 @@
+/**
+ * The wealth surfaces, rendered against the **running** Rust API.
+ *
+ * Skipped unless `LYRA_LIVE_API=1` and the API answers `/api/health`, so it never runs in CI or
+ * on a machine with nothing listening. Run it with the API up:
+ *
+ * ```bash
+ * LYRA_LIVE_API=1 npx vitest run src/pages/wealth/live-api.test.tsx
+ * ```
+ *
+ * Why this exists: `surfaces.test.tsx` proves the pages render *the mock*. It cannot catch a
+ * front end asking for a route the server does not have, or typing a response as an array when
+ * the server sends an object — and both of those were real, sitting in this repo, invisible to a
+ * green test suite and a green route sweep, because nothing had ever put the two halves
+ * together. This is the closest thing to a click-through that does not need a browser: real
+ * fetches, real JSON, real component tree. What it does *not* check is what things look like.
+ */
+
+import { render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { useAuthStore } from '@/stores/auth-store'
+import { API_URL } from '@/lib/api-url'
+
+// Declared rather than pulled in from `@types/node`: this is the only file in the app that reads
+// a shell variable, and it is a test. Adding node types to the whole project for two reads would
+// also make `process` look available to browser code, which it is not.
+declare const process: { env: Record<string, string | undefined> }
+
+const LIVE = process.env.LYRA_LIVE_API === '1'
+const PIN = process.env.LYRA_LIVE_PIN ?? '1234'
+
+/** Pages import their data source at module load, so the mode has to be set before that. */
+localStorage.setItem('lyra:data-mode', 'api')
+
+async function signIn(): Promise<void> {
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin: PIN }),
+  })
+  if (!res.ok) throw new Error(`login failed: ${res.status}`)
+  const body = await res.json()
+  localStorage.setItem('lyra:token', body.token)
+  useAuthStore.setState({ isAuthenticated: true, currentUser: body.user })
+}
+
+/**
+ * One client for the whole file, as the app has.
+ *
+ * A client per test would refetch the portfolio for every page — a real multi-chain fan-out each
+ * time, minutes of wall clock, and a fetch storm against live upstreams for no added coverage.
+ */
+const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+function renderPage(ui: React.ReactElement) {
+  return render(
+    <MemoryRouter>
+      <QueryClientProvider client={client}>{ui}</QueryClientProvider>
+    </MemoryRouter>,
+  )
+}
+
+/**
+ * Wait for the page to stop loading, then assert it did not land on the failure state.
+ *
+ * `WealthError` renders "Could not load" — matching on it is what turns a silent 404 into a red
+ * test. A skeleton that never resolves fails here too, via the timeout.
+ */
+async function settles(matcher: RegExp | string) {
+  // `getAllBy`, not `getBy`: a label like "Claimable" legitimately appears on a stat card, a
+  // section heading and every position row, and a single-match assertion would fail on a page
+  // that rendered perfectly well.
+  await waitFor(() => expect(screen.getAllByText(matcher).length).toBeGreaterThan(0), {
+    timeout: 60_000,
+  })
+  expect(screen.queryByText(/Could not load/i)).toBeNull()
+  expect(screen.queryByText(/Session expired/i)).toBeNull()
+}
+
+describe.skipIf(!LIVE)('wealth surfaces against the live API', () => {
+  beforeAll(async () => {
+    await signIn()
+  }, 30_000)
+
+  afterEach(() => {
+    localStorage.removeItem('lyra:wealth:snowball')
+  })
+
+  it('serves a portfolio without being told which wallets to count', async () => {
+    // The repository sends no `?address=`; the server falls back to ALERT_WALLETS. This asserted
+    // a 400 before that fallback existed.
+    const res = await fetch(`${API_URL}/wealth/portfolio`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('lyra:token')}` },
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(Array.isArray(body.wallets)).toBe(true)
+    expect(body.wallets.length).toBeGreaterThan(0)
+  }, 60_000)
+
+  it('renders Overview with a real net worth', async () => {
+    const { WealthOverviewPage } = await import('./overview')
+    renderPage(<WealthOverviewPage />)
+    await settles('Net worth')
+    await settles('Asset tiers')
+  }, 60_000)
+
+  it('renders Holdings with real rows', async () => {
+    const { WealthHoldingsPage } = await import('./holdings')
+    renderPage(<WealthHoldingsPage />)
+    await settles('Total book')
+  }, 60_000)
+
+  it('renders DeFi', async () => {
+    const { WealthDefiPage } = await import('./defi')
+    renderPage(<WealthDefiPage />)
+    await settles(/Claimable|No positions/)
+    await settles(/Position value|No positions/)
+  }, 60_000)
+
+  it('renders BTC reserves', async () => {
+    const { WealthBtcPage } = await import('./btc')
+    renderPage(<WealthBtcPage />)
+    await settles(/Reserves|No bitcoin/)
+  }, 60_000)
+
+  it('renders Bots', async () => {
+    const { WealthBotsPage } = await import('./bots')
+    renderPage(<WealthBotsPage />)
+    await settles(/Bot equity|No active trading bots/)
+  }, 60_000)
+
+  it('renders the Journal off the analyses endpoint', async () => {
+    const { WealthJournalPage } = await import('./journal')
+    renderPage(<WealthJournalPage />)
+    await settles(/Filter by title|No analyses yet/)
+  }, 60_000)
+
+  it('renders Alerts off the live sweep state', async () => {
+    const { WealthSettingsPage } = await import('./settings')
+    renderPage(<WealthSettingsPage />)
+    await settles('Sweep')
+    await settles('Alert thresholds')
+  }, 60_000)
+})

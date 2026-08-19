@@ -14,6 +14,26 @@ import { API_URL } from '@/lib/api-url'
 import type { WealthDataSource } from '@/pages/wealth/data-source'
 import type { AlertStatus, Analysis, ManualAsset, NwPoint, PortfolioData } from '@/pages/wealth/types'
 
+/** Where the browser keeps off-chain assets. Shared with anything that writes them. */
+export const MANUAL_ASSETS_KEY = 'lyra:wealth:manual-assets'
+
+/**
+ * Read the browser's off-chain asset list.
+ *
+ * Anything malformed is treated as an empty list rather than thrown: a corrupt entry here would
+ * otherwise blank every wealth page, and these are additive to a portfolio that stands on its
+ * own without them.
+ */
+function readManualAssets(): ManualAsset[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(MANUAL_ASSETS_KEY) ?? '[]')
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((a): a is ManualAsset => Boolean(a) && typeof a === 'object')
+  } catch {
+    return []
+  }
+}
+
 function getHeaders(): HeadersInit {
   const token = localStorage.getItem('lyra:token')
   return {
@@ -62,12 +82,31 @@ export class ApiWealthRepository implements WealthDataSource {
     return get<PortfolioData>('wealth/portfolio')
   }
 
-  getHistory(): Promise<NwPoint[]> {
-    return get<NwPoint[]>('wealth/history')
+  /**
+   * The net-worth series.
+   *
+   * The endpoint answers `{group, points}` — the group is which series was asked for, and the
+   * client only ever wants the default one. Unwrapping here rather than widening the interface
+   * keeps `WealthDataSource` a list of series, which is what every caller actually uses.
+   */
+  async getHistory(): Promise<NwPoint[]> {
+    const body = await get<{ group: string; points: NwPoint[] }>('wealth/history')
+    return body.points ?? []
   }
 
+  /**
+   * Off-chain assets — cold storage, a Thai fund, sats on a Lightning wallet.
+   *
+   * **There is no endpoint for these and there should not be.** The backend is keyless by
+   * design: it reads public chain data for addresses it is given, and it has no way to learn
+   * that you hold gold in a drawer. `lyra-db`'s own header says the same — the keyless server
+   * "can never see manual assets". So they live where the user entered them, in this browser,
+   * exactly as they did in the original app.
+   *
+   * This is why net worth here can be lower than the number on the device you type them into.
+   */
   getManualAssets(): Promise<ManualAsset[]> {
-    return get<ManualAsset[]>('wealth/manual-assets')
+    return Promise.resolve(readManualAssets())
   }
 
   /** The LLM analysis journal — latest entry per scope unless `history` is asked for. */

@@ -304,6 +304,74 @@ memory.
 | `UI_PORT` | No | `8080` | Host port for the front end (compose-level) |
 | `OLLAMA_PORT` | No | `11434` | Host port for Ollama (compose-level) |
 
+### 7.1 Wealth
+
+These come in through `env_file: .env.local`, **not** through `environment:` in the compose file.
+That is deliberate: `environment:` wins over `env_file:`, so writing
+`ALERT_WALLETS=${ALERT_WALLETS:-}` there would overwrite the real value with an empty string
+whenever your shell had not exported it — and the symptom is a blank Holdings page on a healthy
+container with nothing in the log.
+
+Nothing here is required. Without them the API starts, serves every route, and reports an empty
+book; the sweep runs and finds nothing to say.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `ALERT_WALLETS` | — | Wallets the sweep and the digest cover. Comma/space separated `0x…` and/or `bc1…`. The wealth pages take their addresses from the request, not from this |
+| `KUCOIN_API_KEY` / `_SECRET` / `_PASSPHRASE` | — | Read-only exchange credentials. **Do not grant trade permission** — nothing in this stack places an order, so a key that can trade only adds blast radius |
+| `TELEGRAM_BOT_TOKEN` | — | Unset, `/alerts/test` and `/alerts/digest` answer `400` and the sweep still runs, recording state without sending. That is the right first-boot state |
+| `TELEGRAM_CHAT_ID` | — | Where alerts go |
+| `ALERT_INTERVAL` | `900` | Seconds between sweeps |
+| `SNAPSHOT_INTERVAL` | — | Seconds between net-worth snapshots |
+| `SNAPSHOT_GROUP` | — | Group the snapshot cron writes under |
+| `DIGEST_HOUR` | — | Local hour for the daily brief. **Unset means no digest is ever sent** |
+| `ALERT_FEE_USD` | — | Claimable threshold that triggers a harvest nudge |
+| `ALERT_HF` | — | Health factor below which a borrow is called out |
+| `ALERT_REPORT_CCY` | — | Currency the digest reports in |
+| `REQUEST_DEADLINE` | — | Chain fan-out budget in seconds |
+| `ADAPTER_CONCURRENCY` | — | Parallel adapter reads |
+
+`.env.local` is the only copy on disk of the KuCoin key and the Telegram token. Back it up
+alongside the database — a restored `lyra.db` with no `.env.local` is a system that comes up
+showing an empty book.
+
+**The first sweep is silent, the second is not.** A fresh `alert_state` baselines without sending;
+once it has a baseline, a real change sends a real message to a real phone. When testing, either
+stop the API inside `ALERT_INTERVAL` or leave `TELEGRAM_BOT_TOKEN` unset.
+
+### 7.2 The MCP research desk
+
+`lyra-mcp` is a **separate stdio process**, not a service — an MCP client launches it as a child
+and talks JSON-RPC over its stdin/stdout. It is not in the compose file because there is nothing
+for it to listen on.
+
+```bash
+cd core && cargo build --release --bin lyra-mcp
+```
+
+Register it with the client (Claude Desktop / Claude Code):
+
+```json
+{
+  "mcpServers": {
+    "proof-of-wealth": {
+      "command": "/path/to/lyra/core/target/release/lyra-mcp",
+      "env": { "LYRA_DB": "/path/to/lyra.db", "POW_WALLETS": "0x…,bc1…" }
+    }
+  }
+}
+```
+
+Two things to get right:
+
+- **`LYRA_DB` must be the same database the API uses**, or the analysis journal the desk writes is
+  a different journal from the one the Journal page reads.
+- **Wallets come from `POW_WALLETS`**, not `ALERT_WALLETS`. The desk is a research tool with its
+  own scope; the sweep's wallet list is a separate setting on purpose.
+
+It refuses to start if any signing variable (`PRIVATE_KEY`, `MNEMONIC`, `SEED_PHRASE`, …) is in
+its environment, and refuses any `MCP_TRANSPORT` but stdio. Both exit 1 with the reason on stderr.
+
 Build-time only, baked into the JS bundle — they do nothing as runtime variables:
 
 | Build arg | Default | What it does |

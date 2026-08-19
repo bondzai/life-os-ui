@@ -575,8 +575,39 @@ pub struct AddressQuery {
 ///
 /// The error side is the message rather than a built `Response`: a `Response` is a large enough
 /// `Err` variant that every caller would pay for it on the success path too.
-fn addresses(raw: Option<String>, max_wallets: usize) -> Result<Vec<String>, String> {
-    parse_addresses(&raw.unwrap_or_default(), max_wallets)
+/// The wallets this box belongs to, read once.
+///
+/// A `LazyLock` rather than a per-request read so the answer cannot change under a running
+/// process, and so tests never depend on the shell they were launched from — [`addresses`] takes
+/// the value as an argument and is exercised directly.
+static DEFAULT_WALLETS: LazyLock<String> =
+    LazyLock::new(|| std::env::var("ALERT_WALLETS").unwrap_or_default());
+
+/// Resolve the `address` query parameter, falling back to the configured wallets.
+///
+/// The Python required an address on every call because its front end kept the wallet list in
+/// the browser. Lyra's does not: this is a single-user box whose wallets are already configured
+/// server-side as `ALERT_WALLETS`, so a page asking "what am I worth" should not have to be told
+/// whose money to count. Without this the front end's `getPortfolio()` — which sends no
+/// `?address=` — got a 400 and every wealth page rendered its error state.
+///
+/// An explicit address still wins, so the parity gate (which always passes one) is unaffected,
+/// and a *malformed* address is still a 400. Only an absent one falls back.
+fn addresses(
+    raw: Option<String>,
+    max_wallets: usize,
+    configured: &str,
+) -> Result<Vec<String>, String> {
+    let raw = raw.unwrap_or_default();
+    let raw = if raw.trim().is_empty() { configured } else { &raw };
+    if raw.trim().is_empty() {
+        return Err(
+            "no address supplied and no wallets are configured — pass ?address= or set \
+             ALERT_WALLETS"
+                .into(),
+        );
+    }
+    parse_addresses(raw, max_wallets)
 }
 
 /// `GET /api/wealth/portfolio?address=` — every wallet, aggregated.
@@ -593,7 +624,7 @@ pub async fn portfolio(
     _user: AuthUser,
     Query(params): Query<AddressQuery>,
 ) -> Response {
-    let addresses = match addresses(params.address, MAX_WALLETS) {
+    let addresses = match addresses(params.address, MAX_WALLETS, &DEFAULT_WALLETS) {
         Ok(addresses) => addresses,
         Err(message) => return error(StatusCode::BAD_REQUEST, &message),
     };
@@ -614,7 +645,7 @@ pub async fn wallet(
     _user: AuthUser,
     Query(params): Query<AddressQuery>,
 ) -> Response {
-    let addresses = match addresses(params.address, 1) {
+    let addresses = match addresses(params.address, 1, &DEFAULT_WALLETS) {
         Ok(addresses) => addresses,
         Err(message) => return error(StatusCode::BAD_REQUEST, &message),
     };
@@ -755,7 +786,7 @@ pub async fn price_history(_user: AuthUser, Query(params): Query<PriceHistoryQue
 /// A wallet the vfat feed cannot be read for is skipped rather than failing the request — the
 /// radar is a suggestion board, and one unreachable wallet should not blank it.
 pub async fn yield_radar(_user: AuthUser, Query(params): Query<AddressQuery>) -> Response {
-    let addresses = match addresses(params.address, MAX_WALLETS) {
+    let addresses = match addresses(params.address, MAX_WALLETS, &DEFAULT_WALLETS) {
         Ok(addresses) => addresses,
         Err(message) => return error(StatusCode::BAD_REQUEST, &message),
     };
@@ -1994,15 +2025,34 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn a_missing_address_is_400_rather_than_an_empty_portfolio() {
-        // `parse_addresses("")` rejects, which is how the Python reaches the same 400 through
-        // `parse_qs(...).get("address", [""])[0]`. An empty list would otherwise read as
-        // "you asked about no wallets, here is nothing", which is not what the caller meant.
-        let (_dir, _pool, router, token) = test_app().await;
-        let (status, body) = get_json(&router, "/api/wealth/portfolio", &token).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
-        assert_eq!(body, json!({"error": "invalid address"}));
+    #[test]
+    fn a_missing_address_with_nothing_configured_is_an_error_not_an_empty_portfolio() {
+        // An empty list would read as "you asked about no wallets, here is nothing", which is
+        // not what the caller meant — and is indistinguishable from a genuinely empty book.
+        let refused = addresses(None, MAX_WALLETS, "").unwrap_err();
+        assert!(refused.contains("no address supplied"), "{refused}");
+        assert!(addresses(Some(String::new()), MAX_WALLETS, "").is_err());
+    }
+
+    #[test]
+    fn a_missing_address_falls_back_to_the_configured_wallets() {
+        // What makes the front end work: `getPortfolio()` sends no address at all.
+        let resolved = addresses(None, MAX_WALLETS, EVM_ADDRESS).unwrap();
+        assert_eq!(resolved, vec![EVM_ADDRESS.to_string()]);
+    }
+
+    #[test]
+    fn an_explicit_address_beats_the_configured_one() {
+        let other = "0x0000000000000000000000000000000000000001";
+        let resolved = addresses(Some(other.into()), MAX_WALLETS, EVM_ADDRESS).unwrap();
+        assert_eq!(resolved, vec![other.to_string()]);
+    }
+
+    #[test]
+    fn a_malformed_address_is_still_refused_even_with_wallets_configured() {
+        // The fallback covers "you did not say"; it must not paper over "you said something
+        // wrong", or a typo in a bookmark would silently report someone else's book.
+        assert!(addresses(Some("not-an-address".into()), MAX_WALLETS, EVM_ADDRESS).is_err());
     }
 
     #[tokio::test]

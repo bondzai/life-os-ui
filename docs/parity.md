@@ -496,3 +496,60 @@ uses, or the journal is a different journal:
   }
 }
 ```
+
+## The cutover, checked against a running stack — 2026-08-19
+
+The UI had never been pointed at the API. Everything green up to this point — 21 routes swept,
+21 page modules transformed, `tsc -b` clean, 199 unit tests — was true of a front end reading
+`mockWealthSource` and a back end nobody had asked for a page's worth of data. Putting the two
+together found three breaks, none of which any of those checks could see:
+
+1. **`getPortfolio()` sends no `?address=`, and the route answered 400.** The Python required an
+   address on every call because its front end kept the wallet list in the browser; Lyra's does
+   not. The route now falls back to `ALERT_WALLETS` — this is a single-user box whose wallets are
+   already configured server-side, and a page asking "what am I worth" should not have to be told
+   whose money to count. An explicit address still wins, so the parity gate is unaffected, and a
+   *malformed* address is still a 400: the fallback covers "you did not say", never "you said
+   something wrong".
+2. **`getManualAssets()` called `wealth/manual-assets`, which does not exist** and never did.
+   Off-chain assets are the one thing a keyless backend cannot know — `lyra-db`'s own header says
+   so. They live in the browser, as they did in the original app, and the repository now reads
+   them from there. This is why net worth can be lower here than on the device you typed them
+   into.
+3. **`getHistory()` typed the response as an array; the route returns `{group, points}`.** It
+   degraded quietly to "not enough history" rather than throwing, which is the worst kind of
+   wrong — a chart that renders, and lies by omission.
+
+### `live-api.test.tsx`
+
+A render test that mounts every wealth surface against the **running** API — real fetches, real
+JSON, real component tree — skipped unless `LYRA_LIVE_API=1`:
+
+```bash
+LYRA_LIVE_API=1 npx vitest run src/pages/wealth/live-api.test.tsx
+```
+
+Eight tests, ~21s. It exists because the three bugs above were each invisible to a green suite:
+`surfaces.test.tsx` proves the pages render *the mock*, and a route sweep proves the server
+answers *its own* URLs. Only something that puts both halves together can catch a client asking
+for a route that was never built.
+
+One client is shared across the file, as the app does. A client per test refetched the portfolio
+for every page — a real multi-chain fan-out each time, 128s of wall clock and a fetch storm
+against live upstreams for no added coverage.
+
+### What this does not cover
+
+Pixels. No browser automation was available, so layout, styling, responsive behaviour and
+anything that only shows up on a real paint remain unverified by eye. Everything underneath — the
+data contract, the render tree, the error and empty states — now is.
+
+### Observed while running
+
+- **A cold portfolio read can drop KuCoin.** The first call after a restart logged
+  `(kucoin skipped: timed out)` and returned one wallet at $368.87; warm calls return two at
+  $448.71. That is the documented side-channel budget doing its job, and it is exactly the
+  "a partial read looks like a complete one" hazard this file warns about — safe to display,
+  not safe to record.
+- **`/api/knowledge` 404s** unless `LYRA_KNOWLEDGE_PATH` points somewhere real. Contract-identical
+  to the Hono route, which resolved the same missing path.

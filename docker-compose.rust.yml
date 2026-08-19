@@ -56,6 +56,36 @@ services:
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8080}
       # Only for public/embedded calendar reads; falls back to a built-in public embed key.
       - GCAL_API_KEY=${GCAL_API_KEY:-}
+
+      # ── Wealth ───────────────────────────────────────────────────────────
+      # Deliberately NOT listed here. `environment:` wins over `env_file:`, so declaring
+      # `ALERT_WALLETS=${ALERT_WALLETS:-}` would overwrite the real value from `.env.local` with
+      # an empty string whenever the host shell had not exported it — a blank Holdings page with
+      # a healthy container and nothing in the log. They come in through `env_file` below:
+      #
+      #   ALERT_WALLETS        wallets the sweep and digest cover (comma/space separated)
+      #   KUCOIN_API_KEY       read-only exchange credentials. Trade permission is not needed and
+      #   KUCOIN_API_SECRET    must not be granted: nothing in this stack places an order, so a
+      #   KUCOIN_API_PASSPHRASE  key that can trade only adds blast radius.
+      #   TELEGRAM_BOT_TOKEN   unset, /alerts/test and /alerts/digest answer 400 and the sweep
+      #   TELEGRAM_CHAT_ID     still runs, recording state without sending — what you want on a
+      #                        first boot.
+      #   ALERT_INTERVAL       seconds between sweeps (default 900)
+      #   SNAPSHOT_INTERVAL    seconds between net-worth snapshots
+      #   DIGEST_HOUR          local hour for the daily brief; UNSET means no digest is ever sent
+      #   ALERT_FEE_USD        claimable threshold that triggers a harvest nudge
+      #   ALERT_HF             health factor below which a borrow is called out
+      #   ALERT_REPORT_CCY     currency the digest reports in
+      #   SNAPSHOT_GROUP       which group the snapshot cron writes under
+      #   REQUEST_DEADLINE     chain fan-out budget, seconds (AggregateConfig::from_env)
+      #   ADAPTER_CONCURRENCY  parallel adapter reads
+      #
+      # Without them the API still starts and every wealth surface renders an empty book, which
+      # is why a blank page is the symptom of a missing variable rather than a crash.
+    # `.env.local` is gitignored and mode 600 — the only copy on disk of the KuCoin key and the
+    # Telegram token, so it is the one file to back up alongside the database.
+    env_file:
+      - .env.local
     volumes:
       # ONE volume for the database. SQLite runs in WAL mode (crates/lyra-db/src/lib.rs), so
       # lyra.db is always accompanied by lyra.db-wal and lyra.db-shm. Those sidecars hold

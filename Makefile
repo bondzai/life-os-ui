@@ -1,6 +1,6 @@
-.PHONY: help dev dev-safe dev-ui dev-api install install-ui install-api build build-ui build-api \
-       lint typecheck typecheck-w check test seed clean docker-up docker-down docker-build docker-logs \
-       preview core-build core-test core-check parity oracle
+.PHONY: help dev dev-safe dev-ui dev-api install install-ui build build-ui build-api \
+       lint typecheck typecheck-w check test clean docker-up docker-down docker-build docker-logs \
+       preview core-build core-test core-check parity oracle mcp
 
 # ──────────────────────────────────────────────
 # Config
@@ -8,7 +8,9 @@
 HOST        ?= 0.0.0.0
 UI_PORT     ?= 5174
 API_PORT    ?= 3001
-COMPOSE     := docker compose
+# The Rust stack is the stack. `docker-compose.rust.yml` keeps its own compose project name, so
+# it does not collide with anything else on the box.
+COMPOSE     := docker compose -f docker-compose.rust.yml
 
 # Homebrew's rustup keg only links `rustup` into PATH; the cargo/rustc shims live in the opt
 # dir. Put that whole directory on PATH — pointing at the cargo binary alone is not enough,
@@ -28,13 +30,10 @@ help: ## Show this help
 # ──────────────────────────────────────────────
 # Install
 # ──────────────────────────────────────────────
-install: install-ui install-api ## Install all dependencies
+install: install-ui ## Install all dependencies
 
 install-ui: ## Install frontend dependencies
 	npm ci
-
-install-api: ## Install API dependencies
-	cd api && npm ci
 
 # ──────────────────────────────────────────────
 # Development
@@ -48,8 +47,11 @@ dev-safe: ## Start UI + API + live typecheck (catches TS errors in real time)
 dev-ui: ## Start frontend dev server (HTTPS)
 	npx vite --host $(HOST) --port $(UI_PORT)
 
-dev-api: ## Start API dev server
-	cd api && npm run dev
+# The backend is the Rust binary. It reads its configuration from the environment, and
+# JWT_SECRET has no default on purpose — the process exits 1 rather than sign tokens with a
+# fallback secret. Source your .env before running, or pass it inline.
+dev-api: ## Start the Rust API (port 3001)
+	cd core && $(CARGO) run --bin lyra-api
 
 # ──────────────────────────────────────────────
 # Build
@@ -59,8 +61,8 @@ build: build-ui build-api ## Build everything
 build-ui: ## Build frontend for production
 	npm run build
 
-build-api: ## Build API
-	cd api && npm run build
+build-api: ## Build the Rust API, the migrator and the MCP desk, optimised
+	cd core && $(CARGO) build --release
 
 # ──────────────────────────────────────────────
 # Quality
@@ -79,20 +81,20 @@ check: typecheck lint ## Run all quality checks (same as prod)
 # ──────────────────────────────────────────────
 # Database
 # ──────────────────────────────────────────────
-seed: ## Seed the database with sample data
-	cd api && npm run seed
-
-db-generate: ## Generate Drizzle migrations
-	cd api && npm run db:generate
-
-db-migrate: ## Run Drizzle migrations
-	cd api && npm run db:migrate
+# Schema changes are forward-only SQL in crates/lyra-db/src/migrations, applied automatically at
+# API startup and tracked by PRAGMA user_version. There is nothing to generate: no ORM sits
+# between the code and the schema any more.
+db-migrate: ## Import a legacy database into lyra.db (incremental, safe to re-run)
+	cd core && $(CARGO) run --bin lyra-migrate -- data/lyra.db
 
 # ──────────────────────────────────────────────
 # Rust core (the port target — see docs/parity.md)
 # ──────────────────────────────────────────────
 core-build: ## Build the Rust workspace
 	cd core && $(CARGO) build
+
+mcp: ## Build the MCP research desk (stdio; see docs/deployment-rust.md 7.2)
+	cd core && $(CARGO) build --release --bin lyra-mcp
 
 core-test: ## Run Rust tests
 	cd core && $(CARGO) test
@@ -136,5 +138,5 @@ preview: ## Preview production build locally
 	npm run preview -- --host $(HOST) --port $(UI_PORT)
 
 clean: ## Remove build artifacts and node_modules
-	rm -rf dist api/dist
-	rm -rf node_modules api/node_modules
+	rm -rf dist
+	rm -rf node_modules
