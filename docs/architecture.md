@@ -33,15 +33,23 @@ The visual frontend — React 19 SPA with dashboard, kanban boards, calendar, ch
 
 - **Stack**: React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui
 - **State**: Zustand (client), TanStack Query (server)
-- **Data**: Currently localStorage via `LocalRepository` — will migrate to `ApiRepository` calling Life-OS API
+- **Data**: `ApiRepository` against the Life-OS API, or `LocalRepository` on browser storage for
+  demo mode. Which one is live is a single session-wide decision (`lyra:data-mode`), so the app
+  can never show demo entities next to real balances.
 
-### Life-OS API (planned)
+### Life-OS API
 
-Thin REST server that owns the database. Both the UI and OpenClaw talk to it.
+One Rust binary that owns the database. The UI and OpenClaw both talk to it.
 
-- **Stack**: Hono + SQLite + Drizzle ORM
-- **Endpoints**: CRUD for entities, trackers, schedules, relations
-- **See**: [API Server docs](./api-server.md)
+- **Stack**: axum + sqlx over SQLite (WAL). No ORM — forward-only SQL migrations applied at
+  startup.
+- **Scope**: CRUD for entities, trackers, schedules and relations; git-backed knowledge notes;
+  Google Calendar; and the whole wealth surface — multi-chain portfolio, LP and borrow positions,
+  trading bots, market data, the analysis journal and alert configuration.
+- **Also in-process**: the chain fan-out and the alert sweep, so their upstream caches are shared
+  with the request path rather than duplicated, and an alert can never disagree with the page it
+  points at.
+- **See**: [API Server docs](./api-server.md) and [the parity harness](./parity.md)
 
 ### OpenClaw Gateway
 
@@ -126,7 +134,7 @@ Leaflet + react-leaflet with OpenStreetMap tiles for the Places and Travel modul
 ### API server migration path
 - Repository interface (`IRepository<T>`) is the abstraction boundary. Swap `LocalRepository` for `ApiRepository` with zero UI changes
 - Push entity type filtering, pagination, and date-range queries to the server
-- Add indexed lookups by `type`, `ownerId`, `status`, and `dueDate` in SQLite/Drizzle schema
+- Add indexed lookups by `type`, `ownerId`, `status`, and `dueDate` in the SQLite schema
 
 ### Bundle size
 - Single-chunk build (~1.4 MB). Acceptable for a self-hosted LAN app, but add route-based code splitting (`React.lazy`) before exceeding ~2 MB

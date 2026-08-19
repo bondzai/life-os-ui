@@ -8,9 +8,7 @@
 HOST        ?= 0.0.0.0
 UI_PORT     ?= 5174
 API_PORT    ?= 3001
-# The Rust stack is the stack. `docker-compose.rust.yml` keeps its own compose project name, so
-# it does not collide with anything else on the box.
-COMPOSE     := docker compose -f docker-compose.rust.yml
+COMPOSE     := docker compose
 
 # Homebrew's rustup keg only links `rustup` into PATH; the cargo/rustc shims live in the opt
 # dir. Put that whole directory on PATH — pointing at the cargo binary alone is not enough,
@@ -93,7 +91,7 @@ db-migrate: ## Import a legacy database into lyra.db (incremental, safe to re-ru
 core-build: ## Build the Rust workspace
 	cd core && $(CARGO) build
 
-mcp: ## Build the MCP research desk (stdio; see docs/deployment-rust.md 7.2)
+mcp: ## Build the MCP research desk (stdio; see docs/deployment.md 7.2)
 	cd core && $(CARGO) build --release --bin lyra-mcp
 
 core-test: ## Run Rust tests

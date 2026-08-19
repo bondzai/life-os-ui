@@ -432,6 +432,12 @@ Automation
 
 ## Tech Stack
 
+> **Historical.** The backend named below was built and then replaced: the API is now one
+> Rust binary (axum + sqlx), and SQLite is reached through sqlx with forward-only SQL
+> migrations rather than Drizzle. This document is kept as the original design intent —
+> see [docs/architecture.md](./docs/architecture.md) for what actually runs.
+
+
 | Layer | Technology | Rationale |
 |---|---|---|
 | Language | TypeScript 5.9 | Type safety across UI and API, single language |

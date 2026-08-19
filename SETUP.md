@@ -2,129 +2,60 @@
 
 ## Prerequisites
 
-- Node.js 20+
-- npm
-- Git
+- **Node 24** — `nvm use` in this directory picks it up from `.nvmrc`. The shell default of 18
+  is too old for Vite 7.
+- **Rust** — Homebrew's rustup keg only links `rustup`; the cargo/rustc shims live in
+  `/opt/homebrew/opt/rustup/bin`, which the `Makefile` prepends for you.
+- Git, and Docker if you want the container stack.
 
 ## Quick Start (Local Development)
 
 ```bash
-# Clone
 git clone git@github.com:bondzai/life-os-ui.git
 cd life-os-ui
+nvm use && npm install
 
-# Frontend
-npm install
-npm run dev              # http://localhost:5173
+# Terminal 1 — the Rust API on :3001
+export JWT_SECRET="$(openssl rand -base64 48)"
+make dev-api
 
-# API (separate terminal)
-cd api
-npm install
-cp .env.example .env     # Edit: set JWT_SECRET
-npm run db:push          # Create tables in local SQLite
-npm run seed             # Seed demo data
-npm run dev              # http://localhost:3001
+# Terminal 2 — the front end on :5174
+make dev-ui
 ```
 
-Set `VITE_USE_API=true` and `VITE_API_URL=http://localhost:3001/api` in a root `.env` file to connect the frontend to the API. Without these, the frontend uses localStorage only.
+Then sign in and pick **API** mode; the PIN is whatever is in your database (`1234` on a fresh
+seed). The choice is stored as `lyra:data-mode` and is what every repository — entities,
+trackers, and the wealth surfaces alike — reads to decide whether it is talking to the server or
+to browser-local demo data. `VITE_USE_API=true` in a root `.env` sets the default for a session
+that has not chosen.
 
-Default PINs: JB=`1234`, Sunny=`5678`.
+**Wealth needs a little more.** The wealth pages read live chain data, which the server fetches
+for the addresses in `ALERT_WALLETS`, and the KuCoin account needs read-only API credentials.
+All of it lives in `.env.local` (gitignored, mode 600); `.env.example` documents every name. With
+none of it set the API still starts and every page renders an empty book — a blank Holdings page
+is the symptom of a missing variable, not a crash.
+
+**The MCP research desk** is a separate stdio binary, `make mcp`. See
+[Deployment §7.2](./docs/deployment.md).
 
 ---
 
-## Production Deployment (Render + Turso)
+## Deployment
 
-### 1. Create Turso Database
-
-```bash
-brew install tursodatabase/tap/turso
-turso auth login
-turso db create lyra --location sin    # Singapore (closest region)
-turso db show lyra --url               # Copy the libsql:// URL
-turso db tokens create lyra            # Copy the auth token
-```
-
-### 2. Deploy API on Render
-
-Create a **Web Service** on [render.com](https://render.com):
-
-| Setting       | Value                                    |
-|---------------|------------------------------------------|
-| Root Dir      | `api`                                    |
-| Build Command | `npm install`                            |
-| Start Command | `npm run db:migrate && npx tsx src/index.ts` |
-| Region        | Singapore                                |
-
-Set these environment variables:
-
-| Variable             | Value                                         |
-|----------------------|-----------------------------------------------|
-| `JWT_SECRET`         | `openssl rand -hex 32` (generate one)         |
-| `TURSO_DATABASE_URL` | `libsql://your-db.turso.io` (from step 1)     |
-| `TURSO_AUTH_TOKEN`   | Token from step 1                             |
-| `CORS_ORIGINS`       | `https://lyra.onrender.com` (your frontend)   |
-| `FRONTEND_URL`       | `https://lyra.onrender.com`                   |
-| `PORT`               | `3001`                                        |
-
-Optional (Google Calendar):
-
-| Variable                | Value                                      |
-|-------------------------|--------------------------------------------|
-| `GOOGLE_CLIENT_ID`      | OAuth client ID from Google Cloud Console  |
-| `GOOGLE_CLIENT_SECRET`  | OAuth client secret                        |
-| `GOOGLE_REDIRECT_URI`   | `https://lyra-api.onrender.com/api/gcal/auth/callback` |
-
-### 3. Seed the Database
-
-Run once after first deploy:
+Lyra is meant to run on a mini PC in your house, not in someone else's cloud: it holds a live
+picture of your net worth, and the whole point of a keyless design is that nothing about it has
+to leave the LAN.
 
 ```bash
-cd api
-TURSO_DATABASE_URL=libsql://your-db.turso.io \
-TURSO_AUTH_TOKEN=your-token \
-SEED_PIN_ADMIN=your-pin \
-SEED_PIN_MEMBER=your-pin \
-npm run seed
+docker compose up -d --build      # UI on :8080, Ollama on :11434
 ```
 
-### 4. Deploy Frontend on Render
+The full procedure — first run, bringing the legacy database across, backups, restore,
+troubleshooting, and every environment variable — is in [Deployment](./docs/deployment.md).
 
-Create a **Static Site** on Render:
-
-| Setting              | Value                        |
-|----------------------|------------------------------|
-| Build Command        | `npm install && npm run build` |
-| Publish Directory    | `dist`                       |
-
-Environment variables:
-
-| Variable       | Value                                          |
-|----------------|-------------------------------------------------|
-| `VITE_USE_API` | `true`                                          |
-| `VITE_API_URL` | `https://lyra-api.onrender.com/api`             |
-
-Add a rewrite rule: `/* → /index.html` (for SPA routing).
-
-### Alternative: Blueprint Deploy
-
-Push `render.yaml` to your repo, then go to **Render > Blueprints > New Blueprint** and connect the repo. It provisions both services automatically.
-
----
-
-## Docker Compose (Self-Hosted)
-
-For running on a home server or mini PC:
-
-```bash
-cp api/.env.example api/.env
-# Edit api/.env: set JWT_SECRET, optionally TURSO_* vars
-
-docker compose up --build
-# Frontend: http://localhost:8080
-# API:      http://localhost:3001
-```
-
-Without Turso vars, the API uses a local SQLite file at `api/data/lyra.db`.
+The earlier Render + Turso instructions are gone with the Hono API they deployed. For access
+from outside the house, put the box on a tailnet rather than forwarding a port; see
+[Deployment §8](./docs/deployment.md).
 
 ---
 
@@ -170,52 +101,15 @@ const MIGRATIONS: Record<number, MigrationFn> = {
 
 ---
 
-## Database Migrations (API/Turso)
+## Database Migrations
 
-Lyra uses [Drizzle ORM](https://orm.drizzle.team) with migration files tracked in `api/drizzle/`.
+Forward-only SQL in `core/crates/lyra-db/src/migrations`, applied automatically when the API
+starts and tracked by `PRAGMA user_version`. There is nothing to generate and nothing to run by
+hand: no ORM sits between the code and the schema.
 
-### Workflow
-
-```
-1. Edit api/src/db/schema.ts        # Change your schema
-2. cd api && npm run db:generate    # Generate SQL migration file
-3. git add drizzle/ && git commit   # Version the migration
-4. Deploy                           # Render auto-runs db:migrate on startup
-```
-
-### Commands
-
-| Command            | Purpose                                              |
-|--------------------|------------------------------------------------------|
-| `npm run db:push`  | Sync schema directly to DB (dev only, no migration file) |
-| `npm run db:generate` | Generate a migration file from schema changes      |
-| `npm run db:migrate`  | Apply pending migration files to DB                |
-| `npm run db:studio`   | Open Drizzle Studio (visual DB browser)            |
-| `npm run seed`        | Seed demo data (destructive — clears existing data) |
-
-### Rules
-
-- **Dev**: Use `db:push` for fast iteration. No migration files needed.
-- **Production**: Always use `db:generate` + commit + deploy. Migrations run automatically on startup.
-- **Never** edit a migration file after it has been applied to production.
-- **Never** run `seed` on production unless you want to reset all data.
-
-### Adding a Column (Example)
-
-```typescript
-// api/src/db/schema.ts
-export const entities = sqliteTable('entities', {
-  // ... existing columns
-  color: text('color'),  // ← add new column
-})
-```
-
-```bash
-cd api
-npm run db:generate    # Creates api/drizzle/0001_xxx.sql
-npm run db:migrate     # Apply locally
-# Commit and deploy — Render applies it automatically
-```
+To add a column, write the next numbered migration and bump the version. To bring a legacy
+database across, `make db-migrate` — the importer is `INSERT OR IGNORE`, so re-running it after
+the old system has moved on is safe and picks up only what is new.
 
 ---
 
@@ -230,17 +124,18 @@ lyra/
 │   ├── stores/             # Zustand stores
 │   ├── layout/             # Sidebar, shell
 │   └── lib/                # Utilities
-├── api/                    # Backend (Hono + Drizzle)
-│   ├── src/
-│   │   ├── db/             # Schema, connection, migrations
-│   │   ├── routes/         # API route handlers
-│   │   ├── middleware/     # Auth (JWT)
-│   │   └── index.ts        # Server entry
-│   ├── drizzle/            # Migration files (committed)
+├── core/                   # Backend — one Rust workspace
+│   ├── crates/lyra-api/    # axum HTTP server (the binary you run)
+│   ├── crates/lyra-db/     # SQLite + forward-only migrations
+│   ├── crates/lyra-chain/  # Multi-chain portfolio reader
+│   ├── crates/lyra-analytics/  # Tier/exposure/strategy maths
+│   ├── crates/lyra-alerts/ # Background sweep, digest, Telegram
+│   ├── crates/lyra-mcp/    # MCP research desk (separate stdio binary)
+│   ├── crates/lyra-parity/ # Diffs this port against the Python oracle
 │   └── data/               # Local SQLite file (gitignored)
-├── docker-compose.yml      # Self-hosted deployment
-├── render.yaml             # Render blueprint
-└── nginx.conf              # Frontend proxy config
+├── docker-compose.yml      # The deployment stack
+├── Dockerfile.ui           # Front-end image (VITE_* are BUILD args)
+└── nginx.conf         # Front-end proxy + CSP
 ```
 
 ## API Endpoints
@@ -279,18 +174,22 @@ All protected routes require `Authorization: Bearer <jwt>` header.
 | `VITE_USE_API`   | —       | Set `true` to use backend API   |
 | `VITE_API_URL`   | —       | API base URL (e.g. `/api`)      |
 
-### Backend (`api/.env`)
+### Backend
 
-| Variable             | Default                 | Description                       |
-|----------------------|-------------------------|-----------------------------------|
-| `JWT_SECRET`         | *required*              | Secret for JWT signing            |
-| `TURSO_DATABASE_URL` | `file:./data/lyra.db`   | Turso URL or local SQLite path    |
-| `TURSO_AUTH_TOKEN`   | —                       | Turso auth token (cloud only)     |
-| `PORT`               | `3001`                  | API server port                   |
-| `CORS_ORIGINS`       | `http://localhost:5173`  | Comma-separated allowed origins  |
-| `FRONTEND_URL`       | —                       | Frontend URL (for OAuth redirect) |
-| `SEED_PIN_ADMIN`     | `1234`                  | Admin user PIN (seed only)        |
-| `SEED_PIN_MEMBER`    | `5678`                  | Member user PIN (seed only)       |
-| `GOOGLE_CLIENT_ID`   | —                       | Google OAuth client ID            |
-| `GOOGLE_CLIENT_SECRET`| —                      | Google OAuth client secret        |
-| `GOOGLE_REDIRECT_URI`| —                       | Google OAuth callback URL         |
+`JWT_SECRET` is the only required one — missing or empty and the process exits 1 rather than sign
+tokens with a fallback secret.
+
+| Variable | Default | Description |
+|---|---|---|
+| `JWT_SECRET` | *required* | Signs session tokens |
+| `LYRA_DB` | `data/lyra.db` | SQLite path. WAL mode, so it always has `-wal`/`-shm` sidecars — back up all three or none |
+| `PORT` | `3001` | Listen port |
+| `CORS_ORIGINS` | `http://localhost:5173,http://localhost:8080` | Comma-separated allow-list |
+| `RUST_LOG` | `info` | Tracing filter |
+| `LYRA_KNOWLEDGE_PATH` | `../lyra-knowledge` | Markdown notes repo; `/api/knowledge` 404s without it |
+| `GOOGLE_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | — | Calendar OAuth |
+| `FRONTEND_URL` | `http://localhost:5173` | Where the OAuth callback returns to |
+
+Wealth and alert variables — `ALERT_WALLETS`, the KuCoin credentials, the Telegram token, the
+sweep thresholds — are in [Deployment §7.1](./docs/deployment.md). All optional; without them the
+book is empty.

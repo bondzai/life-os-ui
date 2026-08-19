@@ -1,7 +1,7 @@
 # Litestream — optional, continuous backup of lyra.db to object storage.
 #
 # Copy to litestream.yml, fill in the placeholders, then uncomment the `litestream` service in
-# docker-compose.rust.yml. Nothing below is a real credential; the file you create from it will
+# docker-compose.yml. Nothing below is a real credential; the file you create from it will
 # hold secrets, so keep litestream.yml out of git (it is already gitignored).
 #
 # How it works: Litestream opens the same SQLite file the API writes, follows the WAL, and ships

@@ -1,11 +1,10 @@
 # syntax=docker/dockerfile:1
 #
-# Front end for the Rust stack. Kept separate from the root `Dockerfile` (which serves the old
-# TypeScript stack) for two reasons:
-#   1. Vite inlines VITE_* variables at BUILD time. The old compose file passes them as runtime
-#      `environment:` entries, where they do nothing — a bundle built without VITE_USE_API=true
-#      falls back to browser-local storage and never calls the API at all
-#      (src/core/repositories/index.ts). Here they are build args, so they actually land.
+# Front end image. The one thing to get right here:
+#   Vite inlines VITE_* variables at BUILD time. The compose file it replaced passed them as
+#   runtime `environment:` entries, where they do nothing — a bundle built without
+#   VITE_USE_API=true falls back to browser-local storage and never calls the API at all
+#   (src/core/repositories/index.ts). Here they are build args, so they actually land.
 #   2. Node pin: Vite 7 needs Node ^20.19 || >=22.12, and .nvmrc pins 24.
 #
 #   docker build -f Dockerfile.ui .

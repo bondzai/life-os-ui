@@ -47,7 +47,7 @@ Lyra is a full-stack personal life management system that tracks everything — 
 
 - **Frontend**: React 19, TypeScript 5.9, Vite 7, Tailwind CSS 4, Radix/shadcn UI
 - **State**: Zustand, TanStack React Query
-- **Backend**: Hono, SQLite via Drizzle ORM, JWT auth
+- **Backend**: Rust (axum + sqlx), SQLite in WAL mode, JWT auth — one binary that also reads the chains and runs the alert sweep
 - **AI**: Ollama (local), OpenAI-compatible API, provider-agnostic
 - **Charts**: Recharts
 - **PWA**: Offline support via vite-plugin-pwa
@@ -87,7 +87,14 @@ src/
   components/     # Shared UI: AIAction, ViewToggle, view-toggle
   stores/         # Zustand stores: auth, focus, chat, ai, ui
   layout/         # AppLayout, sidebar, top bar
-api/              # Hono backend with SQLite
+core/             # Rust workspace — the backend
+  crates/lyra-api/       # axum HTTP server (the binary you run)
+  crates/lyra-db/        # SQLite + forward-only migrations
+  crates/lyra-chain/     # multi-chain portfolio reader
+  crates/lyra-analytics/ # tier / exposure / strategy maths
+  crates/lyra-alerts/    # background sweep, digest, Telegram
+  crates/lyra-mcp/       # MCP research desk (separate stdio binary)
+  crates/lyra-parity/    # diffs the port against the Python oracle
 ```
 
 ## License
