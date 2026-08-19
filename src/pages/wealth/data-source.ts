@@ -1,11 +1,11 @@
 /**
  * Where the wealth surfaces get their data.
  *
- * The backend does not exist yet, so everything renders from `mockWealthSource`. The interface is
- * the seam: `api-wealth-repository.ts` already implements it against the real endpoints, so
- * switching over is the one-line change in `use-wealth.ts` (see `WEALTH_SOURCE`), with no
- * component touched. The mock is shaped to exercise the awkward cases — an out-of-range LP, a
- * borrow position, a shared campaign claim, an off-chain asset — because those are what break.
+ * The interface is the seam: `api-wealth-repository.ts` implements it against the Rust endpoints
+ * and `mockWealthSource` implements it for a demo session, and `use-wealth.ts` picks between them
+ * from the app-wide data mode — no component knows which one it has. The mock is shaped to
+ * exercise the awkward cases — an out-of-range LP, a borrow position, a shared campaign claim, an
+ * off-chain asset — because those are what break, and it is what the render tests run against.
  */
 
 import type { ManualAsset, NwPoint, PortfolioData } from './types'

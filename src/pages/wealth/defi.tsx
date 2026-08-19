@@ -21,10 +21,14 @@ import {
   earnings,
   lpPositions,
   rangeInfo,
+  sbLpId,
   sortLp,
   type LpSortKey,
 } from './derive'
 import { chainLabel, formatAmount, formatDuration, formatPct, formatRelativeTime, formatUsd } from './format'
+import { BorrowingPanel } from './borrowing'
+import { HarvestPanel } from './cashflow'
+import { SnowballToggle } from './snowball'
 import { RowsSkeleton, StaleBanner, WealthError } from './states'
 import type { LpRow } from './types'
 import { useWealth } from './use-wealth'
@@ -198,6 +202,10 @@ export function WealthDefiPage() {
           {rows.map((row) => <PositionCard key={row.key} row={row} />)}
         </div>
       )}
+
+      {/* What the positions above pay out, and the debt taken against them. Both self-hide. */}
+      <HarvestPanel ctx={ctx} />
+      <BorrowingPanel ctx={ctx} />
     </div>
   )
 }
@@ -231,11 +239,14 @@ function PositionCard({ row }: { row: LpRow }) {
               )}
             </div>
           </div>
-          <div className="text-right">
-            <div className="font-semibold tabular-nums">{formatUsd(row.value)}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.apr !== null ? <>{formatPct(row.apr, 1)} APR</> : 'APR n/a'}
-              {daily && <> · ≈{formatUsd(daily.perDay)}/day</>}
+          <div className="flex items-start gap-1">
+            <SnowballToggle id={sbLpId(row.key)} name={row.pair} className="mt-0.5" />
+            <div className="text-right">
+              <div className="font-semibold tabular-nums">{formatUsd(row.value)}</div>
+              <div className="text-xs text-muted-foreground">
+                {row.apr !== null ? <>{formatPct(row.apr, 1)} APR</> : 'APR n/a'}
+                {daily && <> · ≈{formatUsd(daily.perDay)}/day</>}
+              </div>
             </div>
           </div>
         </div>

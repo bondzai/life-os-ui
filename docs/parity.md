@@ -357,3 +357,41 @@ modules transform through Vite without error against the running Rust API.
 **Still needs a human.** The plan gates deleting `api/` on a real click-through in a browser, and
 no browser automation was available in this session. The automated checks above cover the
 data-layer contract, not rendering. See the handoff checklist in the session notes.
+
+## Front end on live data — 2026-08-19
+
+The wealth surfaces were rendering `mockWealthSource` the whole time — `use-wealth.ts` carried a
+hardcoded `USE_MOCK_DATA = true`. Every automated check up to this point (page transforms, `tsc`,
+the route sweep) passed against that, so "the UI works" meant the mock worked. The switch is gone:
+`WEALTH_SOURCE` now follows the app-wide data mode (`lyra:data-mode`, else `VITE_USE_API`), the
+same one the entity repositories use. A demo session and a live session can no longer disagree
+about which of them is showing real money.
+
+Two surfaces read the API directly rather than through that seam, because there is nothing
+sensible to mock: Journal (analyses the AI layer actually wrote) and Alerts (server state — sweep
+interval, Telegram wiring). Both now skip the request in a demo session and say why, instead of
+rendering an error from a backend that was never meant to be there.
+
+The render tests still run on the mock, which is the point of the seam: `localStorage` has no
+`lyra:data-mode` under jsdom and `VITE_USE_API` is unset, so `USE_API` is false in tests.
+
+## Phase 7 surfaces, complete — 2026-08-19
+
+The last of the Python `web/src/surfaces/` list is ported. BTC, Bots, Journal, Alerts (Settings),
+Borrowing and Cashflow (Harvest) landed as pages and panels; **Snowball** closes the set.
+
+Snowball is the one surface with no server side at all: it is a hand-tagged basket cutting across
+wallets, LPs, bots and off-chain assets, and both the tags and its daily climb series live in
+`localStorage`. Ported deliberately rather than transliterated:
+
+- Tag ids are built by `lpKey`/`botKey` — the same functions that build the row keys — so a tag
+  cannot drift away from the position it points at. This is why those two are exported.
+- A wallet tagged whole **swallows its own positions**, since `wallet.total` already contains
+  them. Tested; the naive version inflates the basket by whatever share is deployed.
+- Sub-bots are not tagged individually (the original allowed it). Lyra's Bots page presents a
+  futures strategy as one row, so it is tagged as one row.
+- `btcUsd` uses the BTC page's wrapper-aware `isBtcSymbol`, where the original counted only
+  literal `BTC`. Same question, better answer: redeeming cbBTC gives you bitcoin.
+- The panel does **not** hide itself when nothing is tagged, which the original did. The ❄ toggles
+  live on DeFi and Bots, so a book holding only a wallet and off-chain assets could never have
+  found the feature. It collapses to one line plus a source picker instead.

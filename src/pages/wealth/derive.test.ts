@@ -22,6 +22,14 @@ import {
   netWorth,
   portfolioChange,
   rangeInfo,
+  sbBotId,
+  sbLpId,
+  sbManualId,
+  sbMonthly,
+  sbWalletId,
+  sbWeekDelta,
+  snowballCandidates,
+  snowballMembers,
   sortLp,
   tierTotals,
   windowPerf,
@@ -369,5 +377,105 @@ describe('history window', () => {
     const perf = windowPerf(series, 60)
     expect(perf?.low).toBe(150)
     expect(perf?.points).toHaveLength(3)
+  })
+})
+
+describe('snowball', () => {
+  const lp: DefiPosition = {
+    protocol: 'Uniswap v3', category: 'Liquidity Pool', name: 'ETH/USDC', id: '1', via: null,
+    tokens: [{ symbol: 'ETH', amount: 1 }], usd: 1_000, rewards: [], rewards_usd: 0,
+  }
+  const bot: DefiPosition = {
+    protocol: 'KuCoin', category: 'Futures', name: 'grid-1', id: 'b1', via: null,
+    tokens: [], usd: 400, bot: { kind: 'futures', status: 'running', margin_usd: 100 },
+  }
+
+  /** One wallet holding an LP, a bot and some spot BTC — the three taggable on-chain kinds. */
+  function sbCtx(): Ctx {
+    const ctx = ctxOf([lp, bot, lendingPosition], [spot('WBTC', 600)])
+    ctx.data.wallets[0].total = 2_000
+    ctx.manual = [{ name: 'Cold storage', ccy: 'sats', value: 1_000_000, tier: 'store' }]
+    return ctx
+  }
+
+  const address = '0xabc0000000000000000000000000000000000001'
+  const lpId = sbLpId('Uniswap v3:ethereum:1')
+  const botId = sbBotId(`${address}:ethereum:b1`)
+
+  it('offers every position, the wallet and off-chain assets as candidates', () => {
+    const ids = snowballCandidates(sbCtx()).map((c) => c.id)
+    expect(ids).toContain(sbWalletId(address))
+    expect(ids).toContain(lpId)
+    expect(ids).toContain(botId)
+    expect(ids).toContain(sbManualId('Cold storage'))
+    // Borrowing is a liability, not something that compounds — it is not taggable.
+    expect(ids).toHaveLength(4)
+  })
+
+  it('counts only what is tagged', () => {
+    const members = snowballMembers(sbCtx(), { [lpId]: true })
+    expect(members.map((m) => m.label)).toEqual(['ETH/USDC'])
+    expect(members[0].usd).toBe(1_000)
+  })
+
+  it('sorts members largest first', () => {
+    const members = snowballMembers(sbCtx(), { [lpId]: true, [botId]: true })
+    expect(members.map((m) => m.usd)).toEqual([1_000, 400])
+  })
+
+  it('does not double-count positions inside a wallet tagged as a whole', () => {
+    // The wallet total already includes the LP and the bot: 2000, not 2000 + 1000 + 400.
+    const members = snowballMembers(sbCtx(), { [sbWalletId(address)]: true, [lpId]: true, [botId]: true })
+    expect(members).toHaveLength(1)
+    expect(members[0].usd).toBe(2_000)
+  })
+
+  it('counts sats-denominated off-chain value as bitcoin exposure', () => {
+    const [member] = snowballMembers(sbCtx(), { [sbManualId('Cold storage')]: true })
+    // 1,000,000 sats at $100k/BTC.
+    expect(member.usd).toBeCloseTo(1_000)
+    expect(member.btcUsd).toBeCloseTo(1_000)
+  })
+
+  it('counts wrapped bitcoin held in a tagged wallet toward the sats readout', () => {
+    const [member] = snowballMembers(sbCtx(), { [sbWalletId(address)]: true })
+    expect(member.btcUsd).toBe(600)
+  })
+
+  it('drops a tagged position that has been closed out', () => {
+    const ctx = sbCtx()
+    ctx.data.wallets[0].chains[0].defi = [{ ...lp, usd: 0 }]
+    expect(snowballMembers(ctx, { [lpId]: true })).toHaveLength(0)
+  })
+})
+
+describe('snowball trend', () => {
+  const day = 86_400_000
+  const today = Date.UTC(2026, 0, 31)
+
+  it('measures the week against the oldest point inside the window', () => {
+    const history = [
+      { d: today - 30 * day, v: 100 },
+      { d: today - 6 * day, v: 200 },
+      { d: today, v: 260 },
+    ]
+    // The 30-day-old point is outside the window; the week is measured from 200.
+    expect(sbWeekDelta(history)).toBe(60)
+  })
+
+  it('withholds a week delta until there are two distinct days', () => {
+    expect(sbWeekDelta([])).toBeNull()
+    expect(sbWeekDelta([{ d: today, v: 100 }])).toBeNull()
+    expect(sbWeekDelta([{ d: today, v: 100 }, { d: today, v: 120 }])).toBeNull()
+  })
+
+  it('projects a monthly feed rate from the realized slope', () => {
+    const monthly = sbMonthly([{ d: today - 30 * day, v: 1_000 }, { d: today, v: 1_300 }])
+    // $10/day over 30 days, annualised to an average month.
+    expect(monthly).toBeCloseTo(10 * (365.25 / 12), 6)
+  })
+
+  it('withholds the feed rate under three days of history', () => {
+    expect(sbMonthly([{ d: today - 2 * day, v: 1_000 }, { d: today, v: 2_000 }])).toBeNull()
   })
 })

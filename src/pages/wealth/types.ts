@@ -230,3 +230,42 @@ export interface LpRow {
 }
 
 export type Currency = 'usd' | 'thb' | 'sats'
+
+/** One entry in the LLM analysis journal (`/api/wealth/analyses`). */
+export interface Analysis {
+  id: string
+  scope: string
+  kind: string
+  source: string
+  title: string | null
+  summary: string | null
+  body: string | null
+  version: number
+  created_at: number
+  superseded_by: string | null
+  archived: boolean
+}
+
+/**
+ * Alert configuration and the live state of the background sweep (`/api/wealth/alerts`).
+ *
+ * The four poller fields are reported inert — `running: false`, the rest null — when the loop was
+ * never started, which is the honest answer rather than a fabricated timestamp.
+ */
+export interface AlertStatus {
+  configured: boolean
+  can_send: boolean
+  wallets: number
+  interval: number
+  fee_threshold: number | null
+  hf_alert: number | null
+  report_ccy: string
+  digest_enabled: boolean
+  digest_hour: number | null
+  digest_last: string | null
+  overrides: Record<string, unknown>
+  last_check: number | null
+  watching: number | null
+  last_error: string | null
+  running: boolean
+}

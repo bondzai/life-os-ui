@@ -1,26 +1,27 @@
 /**
  * The single data hook behind every wealth surface.
  *
- * All three surfaces read from here, so they can never disagree about the numbers: one fetch,
- * one cache entry, one `Ctx`. Swapping mock data for the real API is the `WEALTH_SOURCE`
- * assignment below — nothing else in the feature knows which one it is talking to.
+ * Every surface reads from here, so they can never disagree about the numbers: one fetch, one
+ * cache entry, one `Ctx`. Which backend is behind it is the `WEALTH_SOURCE` assignment below —
+ * nothing else in the feature knows which one it is talking to.
  */
 
 import { useMemo, useSyncExternalStore } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth-store'
+import { USE_API } from '@/core/repositories'
 import { apiWealthRepository } from '@/core/repositories/api-wealth-repository'
 import { mockWealthSource, type WealthDataSource } from './data-source'
 import type { Ctx } from './derive'
 
 /**
- * TO GO LIVE: change this to `apiWealthRepository`.
+ * Live or mock, decided the same way the rest of the app decides it: the `lyra:data-mode` the
+ * user picked at login, falling back to `VITE_USE_API`.
  *
- * `apiWealthRepository` is referenced (not just imported for its type) so this stays a real
- * one-token switch and the file cannot rot into a broken import while the backend is built.
+ * Deliberately not a switch of its own. A session showing demo entities alongside real balances
+ * would be indistinguishable from a session where the wealth API had quietly started lying.
  */
-const USE_MOCK_DATA = true
-export const WEALTH_SOURCE: WealthDataSource = USE_MOCK_DATA ? mockWealthSource : apiWealthRepository
+export const WEALTH_SOURCE: WealthDataSource = USE_API ? apiWealthRepository : mockWealthSource
 
 /** Portfolio data is expensive to compute server-side; a minute of staleness is a fair trade. */
 const STALE_MS = 60_000

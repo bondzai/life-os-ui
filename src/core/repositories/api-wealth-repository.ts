@@ -6,13 +6,13 @@
  * writes. It reuses the same auth header and 401 handling so session expiry behaves identically
  * across the app.
  *
- * Nothing renders from this yet — the Rust endpoints are still being built. It exists so the
- * switch in `use-wealth.ts` is a one-line change rather than a rewrite.
+ * `WealthDataSource` covers the portfolio surfaces; the journal and alert-settings calls hang off
+ * the class directly, since they are not part of what a mock portfolio source needs to provide.
  */
 
 import { API_URL } from '@/lib/api-url'
 import type { WealthDataSource } from '@/pages/wealth/data-source'
-import type { ManualAsset, NwPoint, PortfolioData } from '@/pages/wealth/types'
+import type { AlertStatus, Analysis, ManualAsset, NwPoint, PortfolioData } from '@/pages/wealth/types'
 
 function getHeaders(): HeadersInit {
   const token = localStorage.getItem('lyra:token')
@@ -37,6 +37,26 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}/${path}`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (res.status === 401) {
+    localStorage.removeItem('lyra:token')
+    localStorage.removeItem('lyra:auth')
+    window.location.href = '/login'
+    throw new Error('Session expired')
+  }
+  if (!res.ok) {
+    // The server names the offending field on a 400; surfacing that beats a generic failure.
+    const detail = await res.json().catch(() => null)
+    throw new Error(detail?.error ?? `Failed to post ${path} (${res.status})`)
+  }
+  return res.json() as Promise<T>
+}
+
 export class ApiWealthRepository implements WealthDataSource {
   getPortfolio(): Promise<PortfolioData> {
     return get<PortfolioData>('wealth/portfolio')
@@ -48,6 +68,28 @@ export class ApiWealthRepository implements WealthDataSource {
 
   getManualAssets(): Promise<ManualAsset[]> {
     return get<ManualAsset[]>('wealth/manual-assets')
+  }
+
+  /** The LLM analysis journal — latest entry per scope unless `history` is asked for. */
+  async getAnalyses(): Promise<Analysis[]> {
+    const body = await get<{ analyses: Analysis[] }>('wealth/analyses')
+    return body.analyses ?? []
+  }
+
+  /** Alert configuration plus the live state of the background sweep. */
+  getAlertStatus(): Promise<AlertStatus> {
+    return get<AlertStatus>('wealth/alerts')
+  }
+
+  /**
+   * Save alert overrides, answering with the new status.
+   *
+   * A key set to `null` is **removed**, reverting it to its environment default — which is a
+   * different thing from `0`, meaning "off". The server owns that distinction; this just passes
+   * the patch through unaltered.
+   */
+  saveAlertConfig(patch: Record<string, unknown>): Promise<AlertStatus> {
+    return post<AlertStatus>('wealth/alerts/config', patch)
   }
 }
 

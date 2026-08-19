@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { EmptyState } from '@/core/components/empty-state'
+import { BorrowingPanel } from './borrowing'
+import { SnowballPanel } from './snowball'
 import { cn } from '@/lib/utils'
 import {
   HISTORY_WINDOWS,
@@ -251,6 +253,14 @@ export function WealthOverviewPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* The slice the user chose to compound — a different question from net worth, which is why
+          it gets its own series rather than a filter on the chart above. */}
+      <SnowballPanel ctx={ctx} />
+
+      {/* Debt is the other half of net worth, so it belongs on the page that leads with it.
+          Self-hiding: a wallet that does not borrow never sees this. */}
+      <BorrowingPanel ctx={ctx} />
     </div>
   )
 }

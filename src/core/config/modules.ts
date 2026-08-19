@@ -9,6 +9,11 @@ import {
   ClipboardCheck,
   Brain,
   Wallet,
+  Layers,
+  Bitcoin,
+  Bot,
+  BookOpen,
+  BellRing,
   type LucideIcon,
 } from 'lucide-react'
 import type { EntityType } from '@/core/types'
@@ -54,7 +59,11 @@ export const modules: ModuleConfig[] = [
     entityTypes: ['wallet', 'asset', 'crypto-tx', 'account'],
     children: [
       { id: 'wealth-holdings', label: 'Holdings', icon: Wallet, path: '/wealth/holdings' },
-      { id: 'wealth-defi', label: 'DeFi', icon: Wallet, path: '/wealth/defi' },
+      { id: 'wealth-defi', label: 'DeFi', icon: Layers, path: '/wealth/defi' },
+      { id: 'wealth-btc', label: 'BTC', icon: Bitcoin, path: '/wealth/btc' },
+      { id: 'wealth-bots', label: 'Bots', icon: Bot, path: '/wealth/bots' },
+      { id: 'wealth-journal', label: 'Journal', icon: BookOpen, path: '/wealth/journal' },
+      { id: 'wealth-settings', label: 'Alerts', icon: BellRing, path: '/wealth/settings' },
     ],
   },
 ]

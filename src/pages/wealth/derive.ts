@@ -400,6 +400,26 @@ export function walletsInData(data: PortfolioData): { address: string; label: st
 // DeFi / LP positions
 // ---------------------------------------------------------------------------
 
+/** The display pair for an LP: its own name, else the token symbols joined. */
+function lpPair(position: DefiPosition): string {
+  return position.name || position.tokens.map((t) => t.symbol).join('/')
+}
+
+/**
+ * Stable row identities.
+ *
+ * Exported because the snowball tags positions by these strings and stores them in localStorage:
+ * a key that changed shape between renders would silently drop someone's tags, so both the rows
+ * and the tags must be built from the same function rather than from two copies of the formula.
+ */
+export function lpKey(position: DefiPosition, chain: string): string {
+  return `${position.protocol}:${chain}:${position.id || lpPair(position)}`
+}
+
+export function botKey(address: string, chain: string, position: DefiPosition): string {
+  return `${address}:${chain}:${position.id ?? position.name}`
+}
+
 /**
  * LP and farm positions.
  *
@@ -412,9 +432,9 @@ export function lpPositions(data: PortfolioData): LpRow[] {
   eachChain(data, (_wallet, chain) => {
     for (const position of chain.defi) {
       if (!('rewards' in position)) continue
-      const pair = position.name || position.tokens.map((t) => t.symbol).join('/')
+      const pair = lpPair(position)
       rows.push({
-        key: `${position.protocol}:${chain.chain}:${position.id || pair}`,
+        key: lpKey(position, chain.chain),
         protocol: position.protocol,
         pair,
         chain: chain.chain,
@@ -664,6 +684,232 @@ export function windowPerf(series: NwPoint[], days: number, now: number = Date.n
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// BTC reserves — true bitcoin exposure, wrappers unwrapped
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Symbols that ARE bitcoin, however they are wrapped.
+ *
+ * Deliberately narrower than `STORE_SYMBOLS`: this answers "how much bitcoin do I actually have",
+ * so ETH and gold are not in it. A wrapper counts because redeeming it gives you BTC — the whole
+ * point of the panel is that the answer does not change when you move between wrappers.
+ */
+const BTC_SYMBOLS = new Set(['BTC', 'WBTC', 'CBBTC', 'TBTC', 'LBTC', 'UBTC', 'SOLVBTC', 'XSOLVBTC', 'BTCB'])
+
+export function isBtcSymbol(symbol: string | undefined): boolean {
+  return BTC_SYMBOLS.has((symbol ?? '').toUpperCase())
+}
+
+/** One wrapper, and how much of the reserve it accounts for. */
+export interface BtcComponent {
+  symbol: string
+  usd: number
+}
+
+/** Where the bitcoin is held, and under whose custody. */
+export interface BtcLocation {
+  label: string
+  kind: 'cold' | 'cex' | 'custodial' | 'onchain'
+  usd: number
+}
+
+export interface BtcReserves {
+  usd: number
+  /** Sats, or `null` when no BTC price is available — never 0, which would read as "none held". */
+  sats: number | null
+  components: BtcComponent[]
+  locations: BtcLocation[]
+}
+
+/**
+ * Total bitcoin exposure across spot, LP legs, bot baskets and off-chain assets.
+ *
+ * Lending positions are skipped: their collateral is already counted as spot aTokens, so adding
+ * the position too would double the reserve.
+ */
+export function btcReserves(ctx: Ctx): BtcReserves {
+  const bySymbol = new Map<string, number>()
+  const byLocation = new Map<string, BtcLocation>()
+
+  const add = (symbol: string | undefined, usd: number): number => {
+    if (!isBtcSymbol(symbol) || !(usd > 0)) return 0
+    const key = (symbol as string).toUpperCase()
+    bySymbol.set(key, (bySymbol.get(key) ?? 0) + usd)
+    return usd
+  }
+  const addLocation = (label: string, kind: BtcLocation['kind'], usd: number) => {
+    if (!(usd > 0)) return
+    const existing = byLocation.get(label) ?? { label, kind, usd: 0 }
+    existing.usd += usd
+    byLocation.set(label, existing)
+  }
+
+  for (const wallet of ctx.data.wallets) {
+    // The synthetic "KuCoin" wallet is an exchange account; a real address is self-custody.
+    const isExchange = !wallet.address.startsWith('0x') && !wallet.address.startsWith('bc1')
+    const label = isExchange ? wallet.address : `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`
+    const kind: BtcLocation['kind'] = isExchange ? 'cex' : 'onchain'
+
+    for (const chain of wallet.chains) {
+      for (const token of chain.spot) addLocation(label, kind, add(token.symbol, token.usd ?? 0))
+      for (const position of chain.defi) {
+        if (position.health) continue // a lending liability line, not an asset
+        let usd = 0
+        if (position.bot?.weights?.length) {
+          for (const weight of position.bot.weights) usd += add(weight.symbol, weight.usd)
+        } else if (position.tokens?.length && position.tokens.every((t) => t.usd != null)) {
+          for (const token of position.tokens) usd += add(token.symbol, token.usd as number)
+        } else {
+          usd += add(position.tokens?.[0]?.symbol, position.usd ?? 0)
+        }
+        addLocation(label, kind, usd)
+      }
+    }
+  }
+
+  for (const asset of ctx.manual) {
+    const usd = manualUsd(asset, ctx)
+    // Sats-denominated off-chain value is bitcoin whatever the asset is called.
+    const counted = asset.ccy === 'sats' ? add('BTC', usd) : add(asset.name, usd)
+    // Custodial means a third party holds the keys — not the same claim as cold storage, so it
+    // gets its own bucket rather than being flattered into one.
+    const custodial = asset.custody === 'custodial'
+    addLocation(custodial ? asset.name : 'Off-chain', custodial ? 'custodial' : 'cold', counted)
+  }
+
+  const components = [...bySymbol.entries()]
+    .map(([symbol, usd]) => ({ symbol, usd }))
+    .sort((a, b) => b.usd - a.usd)
+  const total = components.reduce((sum, c) => sum + c.usd, 0)
+  const btcPrice = ctx.data.rates?.btc_usd
+  return {
+    usd: total,
+    sats: typeof btcPrice === 'number' && btcPrice > 0 ? (total * 1e8) / btcPrice : null,
+    components,
+    locations: [...byLocation.values()].filter((l) => l.usd > 0).sort((a, b) => b.usd - a.usd),
+  }
+}
+
+/** Stacking milestones, in sats. The next one up is the default target. */
+const SATS_MILESTONES = [
+  100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000, 10_000_000,
+  21_000_000, 50_000_000, 100_000_000,
+]
+
+/** The next milestone above `sats`; beyond the last one, the next whole bitcoin. */
+export function nextSatsMilestone(sats: number): number {
+  const next = SATS_MILESTONES.find((m) => m > sats)
+  if (next) return next
+  return Math.max(1, Math.ceil(sats / 100_000_000 + 1e-9)) * 100_000_000
+}
+
+// ---------------------------------------------------------------------------------------------
+// Trading bots
+// ---------------------------------------------------------------------------------------------
+
+export interface BotRow {
+  key: string
+  label: string
+  account: string
+  category: string
+  usd: number
+  pnlUsd: number | null
+  pnlPct: number | null
+  marginUsd: number | null
+  subBots: number
+  info: DefiPosition['bot']
+}
+
+/**
+ * Automated exchange strategies — rebalance and futures bots.
+ *
+ * A sibling to LP positions rather than a static holding: capital that runs on its own and needs
+ * watching. Identified by carrying a `bot` block, which only `kucoin.py` emits.
+ */
+export function tradingBots(data: PortfolioData): BotRow[] {
+  const rows: BotRow[] = []
+  eachChain(data, (wallet, chain) => {
+    for (const position of chain.defi) {
+      if (!position.bot) continue
+      rows.push({
+        key: botKey(wallet.address, chain.chain, position),
+        label: defiLabel(position),
+        account: wallet.address,
+        category: position.category ?? '',
+        usd: position.usd ?? 0,
+        pnlUsd: position.pnl_usd ?? null,
+        pnlPct: position.pnl_pct ?? null,
+        marginUsd: position.bot.margin_usd ?? null,
+        subBots: position.bot.bots?.length ?? position.bot.count ?? 0,
+        info: position.bot,
+      })
+    }
+  })
+  return rows.sort((a, b) => b.usd - a.usd)
+}
+
+export interface BotTotals {
+  equity: number
+  pnl: number
+  margin: number
+  subBots: number
+  /** Return on invested capital: invested = equity − unrealized PnL. `null` when nothing is in. */
+  returnPct: number | null
+}
+
+export function botTotals(rows: BotRow[]): BotTotals {
+  const equity = rows.reduce((sum, r) => sum + r.usd, 0)
+  const pnl = rows.reduce((sum, r) => sum + (r.pnlUsd ?? 0), 0)
+  const invested = equity - pnl
+  return {
+    equity,
+    pnl,
+    margin: rows.reduce((sum, r) => sum + (r.marginUsd ?? 0), 0),
+    subBots: rows.reduce((sum, r) => sum + r.subBots, 0),
+    returnPct: invested > 0 ? (pnl / invested) * 100 : null,
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Cashflow — what the book pays out
+// ---------------------------------------------------------------------------------------------
+
+export interface Cashflow {
+  /** Unclaimed fees and rewards sitting in positions right now. */
+  claimable: number
+  /** Modelled daily yield from positions reporting an APR. */
+  perDay: number
+  perYear: number
+  /** Positions with something worth harvesting, biggest first. */
+  harvest: LpRow[]
+}
+
+/**
+ * Yield the portfolio is throwing off, and what is ready to collect.
+ *
+ * `perDay`/`perYear` are modelled from each position's own APR, so they are a projection and not
+ * a measurement — a position with no APR contributes nothing rather than being guessed at.
+ */
+export function cashflow(rows: LpRow[], minHarvestUsd = 1): Cashflow {
+  let perDay = 0
+  let perYear = 0
+  for (const row of rows) {
+    const e = earnings(row)
+    if (!e) continue
+    perDay += e.perDay
+    perYear += e.perYear
+  }
+  return {
+    claimable: claimableUsd(rows),
+    perDay,
+    perYear,
+    // `fees` is total claimable — swap fees plus gauge and campaign rewards — which is what you
+    // actually collect when you harvest, so it is the right threshold to sort and filter on.
+    harvest: rows.filter((r) => r.fees >= minHarvestUsd).sort((a, b) => b.fees - a.fees),
+  }
+}
+
 export const HISTORY_WINDOWS = [
   { label: '7D', days: 7 },
   { label: '1M', days: 30 },
@@ -671,3 +917,176 @@ export const HISTORY_WINDOWS = [
   { label: '1Y', days: 365 },
   { label: 'ALL', days: Number.POSITIVE_INFINITY },
 ] as const
+
+// ---------------------------------------------------------------------------------------------
+// Snowball — the basket tagged as the compounding engine
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The snowball is a cross-cutting basket: a BTC wallet, an LP and a bot can all be in it. It is
+ * not a tier and not a chain — it is the user's own statement of "this is the part that is
+ * supposed to compound", so membership is tagged by hand and lives only on this device.
+ *
+ * Tag ids are built from the same key functions the rows use (`lpKey`, `botKey`), so a tag keeps
+ * pointing at its position across refetches.
+ */
+export type SbKind = 'wallet' | 'lp' | 'bot' | 'manual'
+
+export interface SbMember {
+  id: string
+  kind: SbKind
+  label: string
+  sub: string
+  usd: number
+  /** The bitcoin-denominated slice, so the sats readout counts only real BTC exposure. */
+  btcUsd: number
+  change: number | null
+  /** Owning wallet, for the no-double-count rule. Absent for off-chain assets. */
+  wallet?: string
+}
+
+/** Present-and-true means tagged; a removed tag is deleted rather than set false. */
+export type SbTags = Record<string, true>
+
+export const sbWalletId = (address: string): string => `w:${address}`
+export const sbManualId = (name: string): string => `m:${name}`
+export const sbLpId = (key: string): string => `lp:${key}`
+export const sbBotId = (key: string): string => `bot:${key}`
+
+/** BTC held as spot inside one wallet. Uses the BTC page's definition, so wrappers count. */
+function walletBtcUsd(wallet: Wallet): number {
+  let usd = 0
+  for (const chain of wallet.chains) {
+    for (const token of chain.spot) {
+      if (isBtcSymbol(token.symbol)) usd += token.usd ?? 0
+    }
+  }
+  return usd
+}
+
+/**
+ * Everything that can be tagged, whether or not it is.
+ *
+ * Drives the source picker, and `snowballMembers` is this list filtered — one walk, so a source
+ * that can be tagged is always one the basket can then count.
+ */
+export function snowballCandidates(ctx: Ctx): SbMember[] {
+  const sources: SbMember[] = []
+
+  for (const wallet of ctx.data.wallets) {
+    sources.push({
+      id: sbWalletId(wallet.address),
+      kind: 'wallet',
+      label: accountLabel(wallet.address),
+      sub: 'whole wallet',
+      usd: wallet.total,
+      btcUsd: walletBtcUsd(wallet),
+      change: null,
+      wallet: wallet.address,
+    })
+
+    for (const chain of wallet.chains) {
+      for (const position of chain.defi) {
+        if (position.bot) {
+          sources.push({
+            id: sbBotId(botKey(wallet.address, chain.chain, position)),
+            kind: 'bot',
+            label: defiLabel(position),
+            sub: position.category || 'bot',
+            usd: position.usd ?? 0,
+            btcUsd: 0,
+            change: null,
+            wallet: wallet.address,
+          })
+          continue
+        }
+        // Same discriminator `lpPositions` uses — lending carries `health`, not `rewards`.
+        if (!('rewards' in position)) continue
+        sources.push({
+          id: sbLpId(lpKey(position, chain.chain)),
+          kind: 'lp',
+          label: lpPair(position),
+          sub: `${position.protocol} · ${chain.chain}`,
+          usd: position.usd ?? 0,
+          btcUsd: 0,
+          change: position.change24h ?? null,
+          wallet: wallet.address,
+        })
+      }
+    }
+  }
+
+  for (const asset of ctx.manual) {
+    const usd = manualUsd(asset, ctx)
+    // Sats-denominated value is bitcoin whatever the asset is called.
+    const isBtc = asset.ccy === 'sats' || isBtcSymbol(asset.name)
+    sources.push({
+      id: sbManualId(asset.name),
+      kind: 'manual',
+      label: asset.name,
+      sub: asset.kind === 'lightning' ? 'lightning' : 'off-chain',
+      usd,
+      btcUsd: isBtc ? usd : 0,
+      change: null,
+    })
+  }
+
+  return sources
+}
+
+/**
+ * The tagged basket, largest first.
+ *
+ * A wallet tagged as a whole **swallows its own positions**: every LP and bot inside it is already
+ * in `wallet.total`, so counting them again would inflate the basket by whatever share is
+ * deployed. Untagging the wallet brings the individual positions back on their own tags.
+ *
+ * Unlike the original, sub-bots are not tagged individually — a futures strategy is tagged as one
+ * row, matching how the Bots page presents it.
+ */
+export function snowballMembers(ctx: Ctx, tags: SbTags): SbMember[] {
+  const sources = snowballCandidates(ctx)
+  const wholeWallets = new Set(
+    sources.filter((s) => s.kind === 'wallet' && tags[s.id]).map((s) => s.wallet as string),
+  )
+
+  return sources
+    .filter((s) => {
+      if (!tags[s.id]) return false
+      if (s.kind !== 'wallet' && s.wallet && wholeWallets.has(s.wallet)) return false
+      // A zero-value source is a position that has been closed; it stays tagged (re-entering the
+      // same pool rejoins the basket) but contributes nothing, so it is not shown as a member.
+      return s.usd > 0
+    })
+    .sort((a, b) => b.usd - a.usd)
+}
+
+export function snowballUsd(ctx: Ctx, tags: SbTags): number {
+  return sumUsd(snowballMembers(ctx, tags))
+}
+
+/**
+ * Change over the last seven days of the basket's own series.
+ *
+ * `null` when there is nothing to compare against — one point, or every point on the same day.
+ * A day-old install must say "not yet", never "+$0".
+ */
+export function sbWeekDelta(history: NwPoint[]): number | null {
+  if (history.length < 2) return null
+  const latest = history[history.length - 1]
+  const base = history.find((p) => p.d >= latest.d - 7 * DAY_MS) ?? history[0]
+  return base.d === latest.d ? null : latest.v - base.v
+}
+
+/**
+ * Feed rate: USD per month implied by the realized slope across the whole series.
+ *
+ * Under three days of history the slope is noise rather than a trend, so it is withheld — a
+ * projection built on two adjacent points would swing wildly with the market.
+ */
+export function sbMonthly(history: NwPoint[]): number | null {
+  if (history.length < 2) return null
+  const spanDays = (history[history.length - 1].d - history[0].d) / DAY_MS
+  if (spanDays < 3) return null
+  return ((history[history.length - 1].v - history[0].v) / spanDays) * (365.25 / 12)
+}
