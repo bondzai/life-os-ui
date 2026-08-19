@@ -1,5 +1,24 @@
+# Build context for the UI image (Dockerfile.ui, context `.`).
+#
+# `core/` is the one that matters: its `target/` directory is ~15 GB of Rust build artefacts, and
+# without this line every `docker compose build ui` uploads all of it to the daemon. That is not a
+# slow build, it is a full disk — it filled a 228 GB volume and failed with an I/O error. The UI
+# image needs the front end and nothing else; the API has its own context under `core/`.
+core
+
 node_modules
 dist
 .git
-api/node_modules
-api/data
+.github
+
+# Local state that must never end up in an image.
+.env
+.env.local
+*.db
+*.db-wal
+*.db-shm
+
+# Test and tooling output.
+coverage
+playwright-report
+.vite

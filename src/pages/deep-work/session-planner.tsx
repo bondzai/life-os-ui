@@ -25,6 +25,24 @@ function parseEntityIds(text: string): string[] {
   return [...new Set(ids)]
 }
 
+/**
+ * What the planner shows when it has no plan to offer.
+ *
+ * Deliberately not an error state: choosing your own tasks is the normal way to work, and a red
+ * banner for "the optional AI step is unavailable" would misrepresent it.
+ */
+function Unavailable({ reason, onSkip }: { reason: string; onSkip: () => void }) {
+  return (
+    <div className="w-full max-w-md mx-auto text-center space-y-4 py-8">
+      <Sparkles className="h-8 w-8 mx-auto text-primary/25" />
+      <p className="text-sm text-zinc-400">{reason}</p>
+      <Button variant="outline" onClick={onSkip} className="border-zinc-800 text-zinc-300 hover:bg-zinc-900">
+        Choose tasks yourself
+      </Button>
+    </div>
+  )
+}
+
 export function SessionPlanner({ onStartSession, onSkip }: SessionPlannerProps) {
   const { run, isOnline } = useAI()
   const [plan, setPlan] = useState<string | null>(null)
@@ -61,7 +79,18 @@ export function SessionPlanner({ onStartSession, onSkip }: SessionPlannerProps) 
     }
   }, [isOnline]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!isOnline) return null
+  // The planner is the *only* thing on screen when there are no focus tasks yet, so it must
+  // never render nothing. Both of the cases below used to `return null`, which left a blank dark
+  // page with no control on it and no way back — a dead end reachable by simply not running
+  // Ollama. Neither is an error worth shouting about; they just mean "do this part yourself".
+  if (!isOnline) {
+    return (
+      <Unavailable
+        reason="Lyra is offline, so there is no suggested plan."
+        onSkip={onSkip}
+      />
+    )
+  }
 
   if (loading) {
     return (
@@ -72,7 +101,12 @@ export function SessionPlanner({ onStartSession, onSkip }: SessionPlannerProps) 
   }
 
   if (error || !plan) {
-    return null
+    return (
+      <Unavailable
+        reason={error ? 'The plan could not be generated.' : 'No plan came back.'}
+        onSkip={onSkip}
+      />
+    )
   }
 
   return (

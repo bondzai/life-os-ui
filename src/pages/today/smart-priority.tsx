@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Sparkles, RefreshCw } from 'lucide-react'
 import { LyraLoader } from '@/components/lyra-loader'
 import { Button } from '@/components/ui/button'
@@ -106,11 +106,27 @@ export function SmartPriority({
     fetchSuggestions()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // If AI is offline or no candidates, fall through to manual
-  if (!isOnline || candidates.length === 0) {
-    onManual()
-    return null
-  }
+  // Nothing to suggest: either Lyra is offline or there is nothing to choose between.
+  const unavailable = !isOnline || candidates.length === 0
+
+  /**
+   * Hand back to the manual picker from an effect, not from the render.
+   *
+   * `onManual()` sets state on the *parent*, and calling it while this component renders is the
+   * "Cannot update a component while rendering a different component" warning — React's way of
+   * saying the render is not pure. It also made the handoff order-dependent: this component
+   * returns `null` and depends entirely on that side effect to put something on screen.
+   *
+   * The prop is a fresh arrow on every parent render, so it is held in a ref and left out of the
+   * dependencies; including it would re-run the effect on each render and fight the parent.
+   */
+  const manual = useRef(onManual)
+  manual.current = onManual
+  useEffect(() => {
+    if (unavailable) manual.current()
+  }, [unavailable])
+
+  if (unavailable) return null
 
   // Error state — fall through to manual
   if (error) {

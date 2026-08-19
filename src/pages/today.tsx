@@ -304,19 +304,35 @@ export function TodayPage() {
 
   // ─── Data queries ───
 
-  // Filter out done/deleted entities from priorities
-  const priorityEntities = useMemo(() => {
-    const valid = priorities
-      .map((id) => allEntities.find((e) => e.id === id))
-      .filter((e): e is Entity => !!e && e.status !== 'archived') as Entity[]
-    // Clean stale IDs from storage
-    if (valid.length !== priorities.length) {
-      const validIds = valid.map((e) => e.id)
-      setPriorities(validIds)
-      setTodayPriorities(validIds)
-    }
-    return valid
-  }, [priorities, allEntities])
+  // Today's priorities, resolved against what still exists.
+  const priorityEntities = useMemo(
+    () =>
+      priorities
+        .map((id) => allEntities.find((e) => e.id === id))
+        .filter((e): e is Entity => !!e && e.status !== 'archived'),
+    [priorities, allEntities],
+  )
+
+  /**
+   * Drop ids that no longer resolve, in an effect rather than during render.
+   *
+   * This used to live inside the memo above, which meant setting state — including a store
+   * setter that updates *other* components — while this one rendered. React warns about exactly
+   * that, and `setState` in a `useMemo` can loop, because the write changes a dependency of the
+   * memo that performed it.
+   *
+   * The `allEntities.length` guard is the part that matters most. Without it, a render that
+   * happens before the entities have loaded resolves *every* priority to nothing, concludes they
+   * are all stale, and writes an empty list to storage — silently wiping the user's list because
+   * a fetch had not come back yet.
+   */
+  useEffect(() => {
+    if (allEntities.length === 0) return
+    if (priorityEntities.length === priorities.length) return
+    const validIds = priorityEntities.map((e) => e.id)
+    setPriorities(validIds)
+    setTodayPriorities(validIds)
+  }, [priorityEntities, priorities.length, allEntities.length])
 
   const priorityCandidates = useMemo(
     () => allEntities.filter((e) => (isTask(e) || isGoal(e)) && (e.status === 'todo' || e.status === 'in-progress')),

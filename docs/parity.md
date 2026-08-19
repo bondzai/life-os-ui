@@ -633,3 +633,63 @@ Three things to know before trusting a run afterwards:
 `lyra-chain/tests/spam_parity.rs` runs against a committed corpus (3,255 cases generated *by* the
 Python filter), so it keeps working. Regenerating that corpus needs the oracle back — see
 "Differential tests for pure functions" above.
+
+## The click-through, finally done — 2026-08-19
+
+No browser automation was available through any of the porting sessions, so "does it actually
+work when a person opens it" stayed unanswered to the end. It is answerable without an
+integration: `playwright-core` drives the **system Chrome**, downloading no browser. The harness
+is `scripts/visual-sweep.mjs`.
+
+It loads all 21 routes against the running API and records what a person would otherwise have to
+notice: console errors, uncaught exceptions, failed requests, HTTP ≥ 400, the React error
+boundary, and whether the page painted at all. A screenshot per route lands in `shots/`.
+
+**First run: 2 real defects, both invisible to everything else.**
+
+### `/deep-work` was a blank screen with no way out
+
+`SessionPlanner` is the only thing on that page when no focus tasks are set, and it had two
+`return null` branches: AI offline, and no plan came back. Not running Ollama was enough to get a
+completely empty dark page with no control on it — no button, no text, no way back. Both branches
+now render a short "choose tasks yourself" hand-off. It renders 70 characters instead of 0, which
+is the whole difference between a dead end and a working page.
+
+### `SmartPriority` set state on `TodayPage` while rendering
+
+```jsx
+if (!isOnline || candidates.length === 0) {
+  onManual()      // ← the parent's setState, during this component's render
+  return null
+}
+```
+
+React's "Cannot update a component while rendering a different component". Moved into an effect,
+with the prop held in a ref — it is a fresh arrow on every parent render, so depending on it
+would re-run the effect forever.
+
+Chasing it turned up a third thing in `today.tsx`: the same file pruned stale priority ids from
+inside a `useMemo`, calling two setters mid-render. Worse, it had no guard for "the entities have
+not loaded yet" — a render before the fetch returned resolved *every* priority to nothing,
+concluded they were all stale, and wrote an empty list to storage. A slow fetch could silently
+wipe the user's list. Now an effect, guarded on `allEntities.length`.
+
+### After the fixes: 21/21 clean
+
+Confirmed by eye as well as by counter — Overview shows $448.31 with the tier split and the
+Snowball panel; DeFi shows six live positions with range bars, per-position ❄ toggles and the
+de-duplicated claim summary.
+
+### What it deliberately ignores
+
+`:11434` (Ollama is not running here, and the browser calling it directly is the documented
+offline path) and `/api/knowledge` (404s without `LYRA_KNOWLEDGE_PATH`). Everything else is a
+failure.
+
+### A note on disk
+
+Running `docker compose build` first filled a 228 GB volume and took the Docker daemon down with
+it. The cause was a missing rule: the root `.dockerignore` did not exclude `core/`, so building
+the **UI** image uploaded `core/target` — about 15 GB of Rust artefacts — as build context. Fixed
+there. Worth knowing that the failure mode is an I/O error deep in a layer write, which does not
+look like "your ignore file is wrong".
