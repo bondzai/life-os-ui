@@ -11,12 +11,14 @@ The stack is `docker-compose.yml`. The TypeScript API it replaced was deleted on
 ## 1. What you need
 
 - A mini PC running Linux (Debian/Ubuntu) or macOS
-- Docker Engine 24+ with the Compose plugin (`docker compose version` should print v2.x)
-- ~6 GB of free disk: ~2 GB while building the Rust image, plus whatever Ollama models you pull
+- Docker + Docker Compose
+- **Disk headroom.** The API image compiles the Rust workspace inside the container; between the
+  build cache, the images and the database volume, give it **20 GB free** and keep an eye on it.
+  A build that runs out of space does not fail with "no space left on device" — it fails with an
+  I/O error deep in a layer write, and on Docker Desktop it can take the VM down with it, needing
+  a restart from the GUI. Check `df -h /` before a first build.
 - The repo checked out somewhere sensible, e.g. `~/lyra`
-
-Nothing else. Rust, Node and SQLite are all inside the build containers — you do not install
-them on the mini PC.
+- Ollama models are extra on top of that, and they are gigabytes each
 
 ---
 

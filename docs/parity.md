@@ -693,3 +693,42 @@ it. The cause was a missing rule: the root `.dockerignore` did not exclude `core
 the **UI** image uploaded `core/target` — about 15 GB of Rust artefacts — as build context. Fixed
 there. Worth knowing that the failure mode is an I/O error deep in a layer write, which does not
 look like "your ignore file is wrong".
+
+## Phase 9 — where it actually stands — 2026-08-19
+
+Honest status, because "the compose file exists" has been mistaken for "the stack runs" once
+already in this project.
+
+**Done and checked:**
+
+- `docker compose config` resolves, including the wealth variables through `env_file` — verified
+  by inspecting the resolved config, not by reading the YAML.
+- The `.dockerignore` fix is measured, not assumed: the UI build context drops from **893 MB to
+  3 MB**. Before `core/target/debug` was cleared it would have been ~15.9 GB, which is what
+  filled the disk.
+- Every path the stack depends on is named in the deployment doc, and the disk requirement now
+  leads it.
+
+**Not done:** neither image has ever been built successfully, so nothing has run in a container.
+
+The first attempt died on the full disk — the buildkit metadata database took the I/O error
+(`write /var/lib/docker/buildkit/.../metadata_v2.db: input/output error`), which killed the API
+build as well as the UI one. Docker Desktop then threw error dialogs and its VM has not booted
+since; the backend process runs, `docker info` returns client info only, and
+`~/.docker/run/docker.sock` never appears. That needs a human at the GUI, and deleting Docker's
+data directory is not a repair anyone should do on someone else's machine — it holds images and
+volumes from other projects.
+
+**When Docker is back**, in order:
+
+```bash
+df -h /                                    # 20 GB free, per §1
+docker compose build api ui                # the context is 3 MB now, not 15.9 GB
+docker compose up -d api ui                # ollama is a separate, large pull — add it after
+docker compose ps                          # api should reach "healthy"
+```
+
+The database volume starts empty, so the API will migrate a fresh schema and there will be **no
+user to log in as**. Either run the `migrate` service against the legacy databases (§2.2) or copy
+the working `core/data/lyra.db` onto the `lyra-data` volume first — a fresh schema with no rows
+looks identical to a broken import until you try to sign in.
