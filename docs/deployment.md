@@ -12,13 +12,46 @@ The stack is `docker-compose.yml`. The TypeScript API it replaced was deleted on
 
 - A mini PC running Linux (Debian/Ubuntu) or macOS
 - Docker + Docker Compose
-- **Disk headroom.** The API image compiles the Rust workspace inside the container; between the
-  build cache, the images and the database volume, give it **20 GB free** and keep an eye on it.
-  A build that runs out of space does not fail with "no space left on device" — it fails with an
-  I/O error deep in a layer write, and on Docker Desktop it can take the VM down with it, needing
-  a restart from the GUI. Check `df -h /` before a first build.
+- **About 3 GB of free disk for the first build**, and ~200 MB once it is built. The breakdown is
+  in §1.1 — the images themselves are small; it is the Rust builder that is briefly large.
 - The repo checked out somewhere sensible, e.g. `~/lyra`
 - Ollama models are extra on top of that, and they are gigabytes each
+
+
+### 1.1 What actually takes the space
+
+Worth knowing, because the numbers look alarming from the outside and mostly are not.
+
+**Shipped — what stays on the box:**
+
+| Image | Base | Payload | Total |
+|---|---|---|---|
+| `lyra-api` | `debian:bookworm-slim` + ca-certificates, git, tzdata, curl | `lyra-api` 11.6 MB + `lyra-migrate` 2.8 MB | **~135 MB** |
+| `lyra-ui` | `nginx:alpine` | the built SPA, 2.1 MB | **~52 MB** |
+
+Under 200 MB for the whole application. The API is one statically-linked binary with `strip =
+"symbols"`; the runtime image is mostly `git`, which is there because the knowledge module shells
+out to it.
+
+**Transient — build cache only, never shipped:**
+
+| What | Size |
+|---|---|
+| `rust:1-bookworm` builder | ~1.4 GB |
+| the workspace's `target/release` | ~900 MB, of which ~800 MB is `deps/` |
+| `node:24-alpine` builder | ~180 MB |
+
+None of that is in the final images — that is the whole point of the multi-stage build. `docker
+builder prune` reclaims it whenever you want the space back, at the cost of a slow next build.
+
+**The real disk consumer is Ollama**, and it is optional: the image is ~1 GB and each model is
+gigabytes on top. Pull models deliberately, not by reflex.
+
+**What is *not* a normal cost:** the first build attempt here uploaded ~15.9 GB as build context
+and filled the disk. That was a missing rule in the root `.dockerignore` — it did not exclude
+`core/`, so building the *UI* image sent the entire Rust `target/` directory to the daemon. Fixed;
+the context is now 3 MB. If you ever see a build eat tens of gigabytes, suspect the context
+before the image.
 
 ---
 

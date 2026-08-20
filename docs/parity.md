@@ -722,7 +722,7 @@ volumes from other projects.
 **When Docker is back**, in order:
 
 ```bash
-df -h /                                    # 20 GB free, per §1
+df -h /                                    # ~3 GB is enough, per §1.1
 docker compose build api ui                # the context is 3 MB now, not 15.9 GB
 docker compose up -d api ui                # ollama is a separate, large pull — add it after
 docker compose ps                          # api should reach "healthy"
