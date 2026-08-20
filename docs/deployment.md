@@ -12,7 +12,7 @@ The stack is `docker-compose.yml`. The TypeScript API it replaced was deleted on
 
 - A mini PC running Linux (Debian/Ubuntu) or macOS
 - Docker + Docker Compose
-- **About 3 GB of free disk for the first build**, and ~200 MB once it is built. The breakdown is
+- **About 3 GB of free disk for the first build**, and ~400 MB once it is built. The breakdown is
   in §1.1 — the images themselves are small; it is the Rust builder that is briefly large.
 - The repo checked out somewhere sensible, e.g. `~/lyra`
 - Ollama models are extra on top of that, and they are gigabytes each
@@ -22,27 +22,36 @@ The stack is `docker-compose.yml`. The TypeScript API it replaced was deleted on
 
 Worth knowing, because the numbers look alarming from the outside and mostly are not.
 
-**Shipped — what stays on the box:**
+**Shipped — measured from the built images, not estimated:**
 
-| Image | Base | Payload | Total |
-|---|---|---|---|
-| `lyra-api` | `debian:bookworm-slim` + ca-certificates, git, tzdata, curl | `lyra-api` 11.6 MB + `lyra-migrate` 2.8 MB | **~135 MB** |
-| `lyra-ui` | `nginx:alpine` | the built SPA, 2.1 MB | **~52 MB** |
+| Image | Total | Where it goes |
+|---|---|---|
+| `lyra-api` | **300 MB** | debian-slim base 108 MB · **apt layer 106 MB** · `lyra-api` 12.5 MB · `lyra-migrate` 3 MB |
+| `lyra-ui` | **95.5 MB** | nginx:alpine packages 51 MB · the built SPA 2.2 MB · base and entrypoint scripts |
 
-Under 200 MB for the whole application. The API is one statically-linked binary with `strip =
-"symbols"`; the runtime image is mostly `git`, which is there because the knowledge module shells
-out to it.
+About 400 MB for the whole application. The surprise is the API's **apt layer: `git` and its
+dependency chain cost 106 MB — as much as the entire base OS**, and `--no-install-recommends` is
+already set, so that is git's hard dependencies. It is there for one feature: the knowledge
+module shells out to `git` for note history. Replacing that with a Rust git library (`gix`,
+`git2`) would take roughly a third off the image. Worth knowing; not worth doing until the image
+size actually matters.
 
 **Transient — build cache only, never shipped:**
 
-| What | Size |
-|---|---|
-| `rust:1-bookworm` builder | ~1.4 GB |
-| the workspace's `target/release` | ~900 MB, of which ~800 MB is `deps/` |
-| `node:24-alpine` builder | ~180 MB |
+| What | Size | Where it lives |
+|---|---|---|
+| `rust:1-bookworm` builder | ~1.4 GB | image layer, builder stage only |
+| the workspace's `target/` | ~900 MB, mostly dependency artefacts | **BuildKit cache mount** — not a layer at all |
+| the cargo registry | a few hundred MB | BuildKit cache mount |
+| `node:24-alpine` builder | ~180 MB | image layer, builder stage only |
 
-None of that is in the final images — that is the whole point of the multi-stage build. `docker
-builder prune` reclaims it whenever you want the space back, at the cost of a slow next build.
+None of it reaches the final images. `target/` and the cargo registry are mounted as BuildKit
+caches rather than written into layers, which is why the builder stage stays thin and why a
+source-only change recompiles the seven workspace crates and nothing else.
+
+`docker builder prune` reclaims all of it, at the cost of a full recompile next time — the cache
+is local to the machine, which is the right trade for a box that builds its own images and the
+wrong one if you ever move these builds to CI and a registry.
 
 **The real disk consumer is Ollama**, and it is optional: the image is ~1 GB and each model is
 gigabytes on top. Pull models deliberately, not by reflex.
@@ -174,6 +183,31 @@ algorithmic mode — everything else keeps working.
 The compose project is named `lyra-rust`, which is where the volume names
 (`lyra-rust_lyra-data`, `lyra-rust_ollama-models`) come from. Do not rename it on an existing
 deployment: compose would create a second, empty database and the app would come up blank.
+
+
+### 3.1 Seeding the volume — the two things that will bite you
+
+The `lyra-data` volume starts empty, so a first `up` gives you a freshly migrated schema with
+**no users**, and the login page will reject every PIN. Import the legacy databases (§2.2), or
+copy a working database across:
+
+```bash
+# .backup, not cp — it checkpoints the WAL, so one file carries everything.
+sqlite3 core/data/lyra.db ".backup /tmp/seed.db"
+
+docker run --rm -v lyra-rust_lyra-data:/data -v /tmp:/src:ro alpine \
+    sh -c "cp /src/seed.db /data/lyra.db && chown -R 10001:10001 /data"
+```
+
+**`chown -R` on `/data`, not just the file.** The container runs as uid 10001, and SQLite in WAL
+mode has to *create* `lyra.db-wal` and `lyra.db-shm` in that directory. A root-owned directory
+with a correctly-owned database inside it fails with `attempt to write a readonly database` —
+which points at the file and is the wrong place to look. (uid 10001 is what matters; the group
+inside the image is gid 999, and mismatching it is harmless.)
+
+**Export `JWT_SECRET` for every compose command, not just `up`.** It is declared `:?` so compose
+refuses to interpolate without it — including for `logs` and `ps`, which then report the
+interpolation error instead of the container state and make a running stack look broken.
 
 ---
 

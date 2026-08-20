@@ -21,61 +21,35 @@ RUN apt-get update \
 
 WORKDIR /build
 
-# ── Why the layer order below ──
-# Cargo has no notion of "dependencies only": it rebuilds from the oldest changed input, and
-# every file in the context is an input. Copying the whole workspace first would mean a
-# one-line change in a handler recompiles aws-lc, SQLite, axum and ~400 other crates — several
-# minutes each time, on a mini PC more like ten.
+# ── Why cache mounts instead of a dependency layer ──
+# This used to copy the manifests alone with a stub `main.rs` per crate, build that to compile
+# the ~400 third-party crates, then copy the real sources. It worked, but the compiled
+# dependencies landed in an *image layer* — about 900 MB of `target/release/deps` carried in the
+# builder stage — and the layer was invalidated by any change to Cargo.lock.
 #
-# So the manifests come first, alone, with a fake entry point per crate. That layer's only
-# inputs are Cargo.toml/Cargo.lock, so Docker reuses it for every commit that doesn't touch
-# dependencies, and the expensive third-party compile happens once. Real sources are copied
-# afterwards, and the final build recompiles only the seven workspace crates.
+# BuildKit cache mounts do the same job directly: `target/` and the cargo registry persist
+# across builds without ever becoming layers, and cargo's own fingerprinting decides what to
+# recompile. A source-only change rebuilds the seven workspace crates and nothing else, same as
+# before, and the builder stage now carries no dependency artefacts at all.
 #
-# rust-toolchain.toml is deliberately NOT copied. It asks for `channel = "stable"` plus rustfmt
-# and clippy — but the rust image installs its toolchain under a version name, not under the
-# name "stable", so the file makes rustup download a whole second toolchain (~500 MB) on the
-# first build, for the same compiler. The image tag pins the toolchain instead: `rust:1` tracks
-# latest stable, which is what the file asks for, and the two dev components are of no use in a
-# deploy build. If you ever need an exact pin, change the tag (e.g. rust:1.97-bookworm) rather
-# than adding the file back.
+# The trade-off, stated plainly: this cache is local to the machine and `docker builder prune`
+# clears it, after which the next build is a full recompile. That is the right trade for a
+# single mini PC building its own images; it would be the wrong one if these were built in CI
+# and pushed to a registry, where a shared layer earns its size.
 COPY Cargo.toml Cargo.lock ./
-COPY crates/lyra-alerts/Cargo.toml    crates/lyra-alerts/Cargo.toml
-COPY crates/lyra-analytics/Cargo.toml crates/lyra-analytics/Cargo.toml
-COPY crates/lyra-api/Cargo.toml       crates/lyra-api/Cargo.toml
-COPY crates/lyra-chain/Cargo.toml     crates/lyra-chain/Cargo.toml
-COPY crates/lyra-db/Cargo.toml        crates/lyra-db/Cargo.toml
-COPY crates/lyra-mcp/Cargo.toml       crates/lyra-mcp/Cargo.toml
-COPY crates/lyra-parity/Cargo.toml    crates/lyra-parity/Cargo.toml
-
-# `members = ["crates/*"]` means cargo insists every member parses, so each one gets a stub
-# matching the target its manifest implies (lib, bin, or both).
-RUN mkdir -p crates/lyra-alerts/src crates/lyra-analytics/src crates/lyra-api/src \
-             crates/lyra-chain/src crates/lyra-db/src/bin crates/lyra-mcp/src \
-             crates/lyra-parity/src \
-    && touch crates/lyra-alerts/src/lib.rs \
-             crates/lyra-analytics/src/lib.rs \
-             crates/lyra-chain/src/lib.rs \
-             crates/lyra-db/src/lib.rs \
-             crates/lyra-mcp/src/lib.rs \
-    && echo 'fn main() {}' > crates/lyra-api/src/main.rs \
-    && echo 'fn main() {}' > crates/lyra-parity/src/main.rs \
-    && echo 'fn main() {}' > crates/lyra-db/src/bin/lyra-migrate.rs
-
-# Dependencies only. Same profile as the real build so the artefacts are reusable —
-# a debug prebuild here would be wasted work.
-RUN cargo build --release --bin lyra-api --bin lyra-migrate
-
-# Now the real code. Everything above this line stays cached across ordinary commits.
 COPY crates crates
 
-# COPY gives the sources fresh mtimes, which is what makes cargo rebuild them — except for the
-# stub files it just overwrote, where the fingerprint can still look current. Removing the
-# workspace crates' own artefacts is cheap (they are seconds of compile time) and removes the
-# guesswork; the dependency artefacts in target/release/deps are untouched.
-RUN find target/release -maxdepth 1 -name '*lyra*' -delete \
-    && rm -rf target/release/.fingerprint/lyra-* \
-    && cargo build --release --bin lyra-api --bin lyra-migrate
+# `sharing=locked` because two concurrent builds writing one `target/` corrupt each other —
+# compose builds `api` and `migrate` from this same Dockerfile.
+#
+# The binaries are copied to /out inside the same RUN: a cache mount is not part of the layer,
+# so anything left in `target/` is gone the moment this step ends.
+RUN --mount=type=cache,target=/build/target,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    cargo build --release --bin lyra-api --bin lyra-migrate \
+    && mkdir -p /out \
+    && cp target/release/lyra-api target/release/lyra-migrate /out/
 
 # ─────────────────────────── runtime ───────────────────────────
 # Not distroless, on purpose: the knowledge module shells out to `git` (add/commit/log in
@@ -100,8 +74,8 @@ RUN useradd --system --uid 10001 --user-group --home-dir /app --shell /usr/sbin/
     && mkdir -p /app /data \
     && chown -R lyra:lyra /app /data
 
-COPY --from=builder /build/target/release/lyra-api     /usr/local/bin/lyra-api
-COPY --from=builder /build/target/release/lyra-migrate /usr/local/bin/lyra-migrate
+COPY --from=builder /out/lyra-api     /usr/local/bin/lyra-api
+COPY --from=builder /out/lyra-migrate /usr/local/bin/lyra-migrate
 
 # The knowledge repo is bind-mounted from the host and therefore owned by a different uid than
 # the one inside the container; without this git refuses to touch it ("dubious ownership") and
@@ -120,7 +94,7 @@ USER lyra
 WORKDIR /app
 EXPOSE 3001
 
-# Compose owns the healthcheck (see docker-compose.rust.yml); this is the fallback for
+# Compose owns the healthcheck (see docker-compose.yml); this is the fallback for
 # `docker run` without compose.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${PORT}/api/health" || exit 1

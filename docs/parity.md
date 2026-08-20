@@ -732,3 +732,46 @@ The database volume starts empty, so the API will migrate a fresh schema and the
 user to log in as**. Either run the `migrate` service against the legacy databases (§2.2) or copy
 the working `core/data/lyra.db` onto the `lyra-data` volume first — a fresh schema with no rows
 looks identical to a broken import until you try to sign in.
+
+## Phase 9, actually run — 2026-08-20
+
+The stack has now been built and served, which the previous entry could not say.
+
+Docker's VM was recovered first: the backend had crashed *while recovering from an engine crash*
+(it could not write its own log — the disk was full), and the wedged `com.docker.backend` process
+then blocked every restart. `docker desktop restart` and quitting the app both just waited on it.
+`pkill -9 -f com.docker.backend` followed by `open -a Docker` brought it back. Deleting
+`~/Library/Containers/com.docker.docker/Data` would also have "worked" and would have taken every
+other project's images and volumes with it.
+
+**What the first real build found** — two things no amount of reading could have:
+
+1. **`Dockerfile.ui` still copied `nginx.rust.conf`.** The rename to `nginx.conf` had been
+   followed through compose, the Makefile and the docs, and missed the one place that actually
+   consumes it. The build failed on a missing file; nothing else in the repo referenced it.
+2. **Seeding the volume by hand leaves `/data` root-owned**, and SQLite in WAL mode must *create*
+   its `-wal`/`-shm` sidecars in that directory. The error is `attempt to write a readonly
+   database`, which names the file — the file was fine. `chown -R 10001:10001 /data`.
+
+A third, smaller: `JWT_SECRET` is declared `:?`, so **every** compose subcommand needs it
+exported, `logs` and `ps` included. Without it they print the interpolation error instead of
+container state, which makes a healthy stack look dead.
+
+**The builder now uses BuildKit cache mounts** for `target/` and the cargo registry, replacing the
+manifest-stub dependency layer. Same incremental behaviour, but the ~900 MB of dependency
+artefacts never becomes an image layer. The trade is that the cache is machine-local and
+`docker builder prune` clears it — right for a box that builds its own images, wrong if these ever
+move to CI and a registry.
+
+**Verified end to end:**
+
+- `lyra-api` and `lyra-ui` build clean.
+- nginx serves the SPA on :8080 and proxies `/api`; health, login and a live portfolio read
+  ($455.17 across 2 wallets) all answer through it.
+- The **production** bundle passes the same browser sweep as the dev server: **21/21 routes clean**
+  against `http://localhost:8080`.
+
+**Measured image sizes**, replacing the estimates that were in here twice: `lyra-api` **300 MB**,
+`lyra-ui` **95.5 MB**. The one worth knowing: git and its dependencies are **106 MB** of the API
+image — as much as the base OS — for the knowledge module's note history. A Rust git library would
+take about a third off the image.

@@ -1,6 +1,6 @@
 .PHONY: help dev dev-safe dev-ui dev-api install install-ui build build-ui build-api \
        lint typecheck typecheck-w check test clean docker-up docker-down docker-build docker-logs \
-       preview core-build core-test core-check parity oracle oracle-clone mcp
+       preview core-build core-test core-check parity oracle oracle-clone mcp visual
 
 # ──────────────────────────────────────────────
 # Config
@@ -75,6 +75,13 @@ typecheck-w: ## Run TypeScript type checking (watch mode)
 	npx tsc -b --watch --preserveWatchOutput
 
 check: typecheck lint ## Run all quality checks (same as prod)
+
+# Needs the UI and the API running, and a browser. Not part of `check` for that reason — it is
+# the "does this work when a person opens it" pass, which found a blank page with no way out and
+# a setState-during-render on its first run. See docs/parity.md.
+visual: ## Click through every route in a real Chrome and report what breaks
+	npm i --no-save playwright-core
+	node scripts/visual-sweep.mjs
 
 # ──────────────────────────────────────────────
 # Database

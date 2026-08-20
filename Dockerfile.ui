@@ -29,7 +29,7 @@ RUN npm run build
 
 FROM nginx:alpine AS runtime
 COPY --from=build /app/dist /usr/share/nginx/html
-# Baked in as a default; docker-compose.rust.yml bind-mounts the same file so the CSP can be
+# Baked in as a default; docker-compose.yml bind-mounts the same file so the CSP can be
 # edited and reloaded without rebuilding the image.
-COPY nginx.rust.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
