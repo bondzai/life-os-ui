@@ -432,8 +432,11 @@ Two things to get right:
 
 - **`LYRA_DB` must be the same database the API uses**, or the analysis journal the desk writes is
   a different journal from the one the Journal page reads.
-- **Wallets come from `POW_WALLETS`**, not `ALERT_WALLETS`. The desk is a research tool with its
-  own scope; the sweep's wallet list is a separate setting on purpose.
+- **Wallets come from `POW_WALLETS`, falling back to `ALERT_WALLETS`.** The desk is a research
+  tool and gets its own setting on purpose — pointing it at a subset of the book, or at an
+  address the sweep does not watch, is a reasonable thing to want. But requiring the same list
+  under a second name on a single-user box only produces two lists that drift, so an unset (or
+  blank) `POW_WALLETS` means "whatever the sweep watches".
 
 It refuses to start if any signing variable (`PRIVATE_KEY`, `MNEMONIC`, `SEED_PHRASE`, …) is in
 its environment, and refuses any `MCP_TRANSPORT` but stdio. Both exit 1 with the reason on stderr.

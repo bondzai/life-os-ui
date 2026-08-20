@@ -674,13 +674,39 @@ pub fn desk_config_from_env() -> crate::tools::DeskConfig {
             .unwrap_or(default)
     };
     crate::tools::DeskConfig {
-        default_wallets: std::env::var("POW_WALLETS")
-            .unwrap_or_default()
-            .trim()
-            .to_string(),
+        default_wallets: default_wallets(),
         radar_limit: usize_var("POW_MCP_RADAR_LIMIT", 8),
         ..Default::default()
     }
+}
+
+/// The wallets the desk answers about when a tool call does not name any.
+///
+/// `POW_WALLETS` first, because the desk is a research tool and deserves its own scope — pointing
+/// it at a subset of the book, or at an address the sweep does not watch, is a reasonable thing
+/// to want.
+///
+/// Falling back to `ALERT_WALLETS` is what makes it work out of the box. This is a single-user
+/// box whose wallets are already configured once for the API and the sweep, and requiring the
+/// same list under a second name only produces two lists that drift apart. Without the fallback
+/// every portfolio tool answers "no wallets supplied", which reads like a broken server rather
+/// than a missing setting.
+fn default_wallets() -> String {
+    resolve_wallets(|name| std::env::var(name).ok())
+}
+
+/// The lookup half, taking the environment as an argument so it can be tested without mutating
+/// the process's own — which is unsound to do from a test thread.
+fn resolve_wallets(get: impl Fn(&str) -> Option<String>) -> String {
+    for name in ["POW_WALLETS", "ALERT_WALLETS"] {
+        if let Some(raw) = get(name) {
+            let trimmed = raw.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+    }
+    String::new()
 }
 
 #[cfg(test)]
@@ -704,6 +730,40 @@ mod tests {
     }
 
     // ---------- the start-up guard ----------
+
+    #[test]
+    fn the_desk_falls_back_to_the_sweeps_wallets() {
+        let only_alert = |name: &str| match name {
+            "ALERT_WALLETS" => Some("0xabc, bc1qxyz".to_string()),
+            _ => None,
+        };
+        assert_eq!(resolve_wallets(only_alert), "0xabc, bc1qxyz");
+    }
+
+    #[test]
+    fn its_own_setting_wins_over_the_sweeps() {
+        // The desk is a research tool; pointing it at a subset of the book is a reasonable want.
+        let both = |name: &str| match name {
+            "POW_WALLETS" => Some("0xdesk".to_string()),
+            "ALERT_WALLETS" => Some("0xsweep".to_string()),
+            _ => None,
+        };
+        assert_eq!(resolve_wallets(both), "0xdesk");
+    }
+
+    #[test]
+    fn an_empty_setting_is_not_a_setting() {
+        // A variable exported as "" is how a half-filled .env presents itself; treating it as a
+        // real value would mean answering "no wallets supplied" while ALERT_WALLETS sits right
+        // there, which reads as a broken server rather than a missing setting.
+        let blank_desk = |name: &str| match name {
+            "POW_WALLETS" => Some("   ".to_string()),
+            "ALERT_WALLETS" => Some("0xsweep".to_string()),
+            _ => None,
+        };
+        assert_eq!(resolve_wallets(blank_desk), "0xsweep");
+        assert_eq!(resolve_wallets(|_| None), "");
+    }
 
     #[test]
     fn it_refuses_to_start_with_any_signing_material() {

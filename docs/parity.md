@@ -775,3 +775,30 @@ move to CI and a registry.
 `lyra-ui` **95.5 MB**. The one worth knowing: git and its dependencies are **106 MB** of the API
 image — as much as the base OS — for the knowledge module's note history. A Rust git library would
 take about a third off the image.
+
+## The env move, finished — 2026-08-20
+
+`wallet-portfolio/.env.local` was migrated into `lyra/.env.local` on 2026-08-18, before the
+directory was deleted — that ordering was deliberate, because a re-clone does not bring the file
+back. An audit of what the binaries actually read confirms nothing was lost: `ALERT_WALLETS`, all
+three `KUCOIN_*` and both `TELEGRAM_*` are present.
+
+Two things the move did leave behind, both found by checking every variable the code reads rather
+than by reading the file:
+
+**`POW_WALLETS` was never set** — so every portfolio tool on the MCP desk answered "no wallets
+supplied", which reads like a broken server rather than a missing setting. The desk keeps its own
+variable (a research tool deserves its own scope) but now falls back to `ALERT_WALLETS`, because
+requiring the same list under a second name on a single-user box only produces two lists that
+drift apart. A blank value counts as unset, since that is how a half-filled `.env` presents
+itself. Verified against the real environment: `get_portfolio` with no `POW_WALLETS` returns
+$449.06 across 2 wallets.
+
+**`JWT_SECRET` is present but empty**, which is why the API exits 1 on `make dev-api` from the
+repo's own environment. This one cannot be fixed in code and should not be: the secret has to be
+the operator's. Generate it once and keep it stable — changing it invalidates every existing
+session:
+
+```bash
+printf '\nJWT_SECRET=%s\n' "$(openssl rand -base64 48)" >> .env.local
+```
