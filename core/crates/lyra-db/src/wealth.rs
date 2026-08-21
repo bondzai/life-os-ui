@@ -3,12 +3,15 @@
 //! Three separate series live in this crate's tables, and confusing them is the easiest mistake to
 //! make when reading the code:
 //!
-//! * **`nw_history`** — the *browser's* net worth, POSTed daily. Only the browser knows the user's
-//!   off-chain manual assets, so it is the source of truth for total net worth; the keyless server
-//!   just stores what it is given, keyed by day.
-//! * **`snapshots`** — the *server's* net worth, written by the always-on notify cron from the
-//!   keyless book (on-chain spot + DeFi + KuCoin − lending debt). It accrues 24/7 with no browser
-//!   open, but can never see manual assets. Treat it as the on-chain trend, not the whole picture.
+//! * **`nw_history`** — the daily net-worth series the chart draws. Historically the *browser*
+//!   POSTed it, because only the browser knew the off-chain assets; the server now writes it too,
+//!   from the same reading it files as a snapshot. One point per UTC day, last write wins.
+//! * **`snapshots`** — the *server's* net worth, written by the always-on notify cron. It accrues
+//!   24/7 with no browser open.
+//! * **`manual_assets`** — the off-chain book: cold-storage BTC, metals, a bank balance. This is
+//!   what used to live in `localStorage`, and moving it here is what makes the two series above
+//!   measure the same thing. **Points written before 2026-08-21 do not include it** — see
+//!   `docs/parity.md` on why the legacy series was not spliced onto the live one.
 //! * **`analyses`** — append-only, versioned LLM-authored reasoning about the book.
 //!
 //! The schema is owned by [`crate::migrations`]; nothing here creates or alters a table.
@@ -1154,6 +1157,318 @@ pub async fn analysis_versions(pool: &SqlitePool, scope: &str) -> Result<Vec<Ana
         .await
         .with_context(|| format!("reading versions of {scope}"))?;
     rows.iter().map(row_to_analysis).collect()
+}
+
+// ===========================================================================================
+// manual_assets — the off-chain book
+// ===========================================================================================
+
+/// An asset the chain cannot see: cold-storage BTC, a Kinesis gold balance, a THB bank account.
+///
+/// `value` is denominated in `ccy`, **not** USD. Converting on write would freeze one day's
+/// exchange rate into what is meant to be a standing fact — 180,000 THB stays 180,000 THB — so the
+/// USD figure is derived at read time from the portfolio's live rates.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ManualAsset {
+    pub id: String,
+    pub name: String,
+    /// A recognised off-chain product (`jlp`, `kgold`, `lightning`), or `None` for a plain balance.
+    pub kind: Option<String>,
+    pub value: Option<f64>,
+    /// `usd` | `thb` | `sats`. `None` reads as USD, matching the front end's optional field.
+    pub ccy: Option<String>,
+    pub units: Option<f64>,
+    pub code: Option<String>,
+    pub tier: String,
+    pub chain: Option<String>,
+    pub note: Option<String>,
+    /// BTC custody: `cold` (you hold the keys) or `custodial` (someone else does).
+    pub custody: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// The writable half of a [`ManualAsset`] — everything except the id and the stamps.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ManualAssetInput {
+    pub name: String,
+    pub kind: Option<String>,
+    pub value: Option<f64>,
+    pub ccy: Option<String>,
+    pub units: Option<f64>,
+    pub code: Option<String>,
+    pub tier: String,
+    pub chain: Option<String>,
+    pub note: Option<String>,
+    pub custody: Option<String>,
+}
+
+/// A rejected off-chain write. Callers map every variant to 422, as they do [`JournalError`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ManualAssetError {
+    MissingName,
+    BadTier,
+    BadCcy,
+    BadCustody,
+    BadNumber(&'static str),
+}
+
+impl std::fmt::Display for ManualAssetError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingName => write!(f, "name is required"),
+            Self::BadTier => write!(f, "tier must be one of {TIERS:?}"),
+            Self::BadCcy => write!(f, "ccy must be one of {CCYS:?}"),
+            Self::BadCustody => write!(f, "custody must be one of {CUSTODIES:?}"),
+            Self::BadNumber(field) => write!(f, "{field} must be a finite number"),
+        }
+    }
+}
+
+impl std::error::Error for ManualAssetError {}
+
+/// The three buckets the wealth pages group by. Kept in step with `Tier` in `types.ts`.
+pub const TIERS: [&str; 3] = ["store", "business", "trading"];
+/// What `value` may be denominated in. `sats` is a BTC amount, not a currency the market quotes.
+pub const CCYS: [&str; 3] = ["usd", "thb", "sats"];
+const CUSTODIES: [&str; 2] = ["cold", "custodial"];
+
+/// Trims, caps and lowercases the closed-set fields, rejecting what no reader could make sense of.
+///
+/// The sets are checked here rather than by a CHECK constraint so the caller gets a message naming
+/// the field. A blank optional string stores as NULL — that is how an untouched form field
+/// arrives, and `""` and absent must not become two different states in the database.
+fn clean_manual(input: &ManualAssetInput) -> Result<ManualAssetInput> {
+    fn opt(raw: Option<&String>, cap: usize) -> Option<String> {
+        raw.map(|s| s.trim().chars().take(cap).collect::<String>())
+            .filter(|s| !s.is_empty())
+    }
+
+    let name = input.name.trim().chars().take(200).collect::<String>();
+    if name.is_empty() {
+        return Err(ManualAssetError::MissingName.into());
+    }
+
+    let tier = input.tier.trim().to_ascii_lowercase();
+    if !TIERS.contains(&tier.as_str()) {
+        return Err(ManualAssetError::BadTier.into());
+    }
+
+    let ccy = opt(input.ccy.as_ref(), 8).map(|c| c.to_ascii_lowercase());
+    if ccy.as_deref().is_some_and(|c| !CCYS.contains(&c)) {
+        return Err(ManualAssetError::BadCcy.into());
+    }
+
+    let custody = opt(input.custody.as_ref(), 16).map(|c| c.to_ascii_lowercase());
+    if custody.as_deref().is_some_and(|c| !CUSTODIES.contains(&c)) {
+        return Err(ManualAssetError::BadCustody.into());
+    }
+
+    // A NaN here would propagate into the net-worth total and poison every chart drawn from it,
+    // and NaN is not even storable as a comparable REAL. Refused at the door instead.
+    for (field, number) in [("value", input.value), ("units", input.units)] {
+        if number.is_some_and(|n| !n.is_finite()) {
+            return Err(ManualAssetError::BadNumber(field).into());
+        }
+    }
+
+    Ok(ManualAssetInput {
+        name,
+        kind: opt(input.kind.as_ref(), 32).map(|k| k.to_ascii_lowercase()),
+        value: input.value,
+        ccy,
+        units: input.units,
+        code: opt(input.code.as_ref(), 32),
+        tier,
+        chain: opt(input.chain.as_ref(), 64),
+        note: opt(input.note.as_ref(), 2000),
+        custody,
+    })
+}
+
+fn row_to_manual(row: &sqlx::sqlite::SqliteRow) -> Result<ManualAsset> {
+    Ok(ManualAsset {
+        id: row.try_get("id")?,
+        name: row.try_get("name")?,
+        kind: row.try_get("kind")?,
+        value: row.try_get("value")?,
+        ccy: row.try_get("ccy")?,
+        units: row.try_get("units")?,
+        code: row.try_get("code")?,
+        tier: row.try_get("tier")?,
+        chain: row.try_get("chain")?,
+        note: row.try_get("note")?,
+        custody: row.try_get("custody")?,
+        created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
+    })
+}
+
+/// Writes a whole row, insert or replace. Both callers have already validated.
+async fn put_manual(pool: &SqlitePool, asset: &ManualAsset) -> Result<()> {
+    sqlx::query(
+        "INSERT OR REPLACE INTO manual_assets \
+         (id, name, kind, value, ccy, units, code, tier, chain, note, custody, created_at, updated_at) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&asset.id)
+    .bind(&asset.name)
+    .bind(&asset.kind)
+    .bind(asset.value)
+    .bind(&asset.ccy)
+    .bind(asset.units)
+    .bind(&asset.code)
+    .bind(&asset.tier)
+    .bind(&asset.chain)
+    .bind(&asset.note)
+    .bind(&asset.custody)
+    .bind(asset.created_at)
+    .bind(asset.updated_at)
+    .execute(pool)
+    .await
+    .with_context(|| format!("writing manual asset {}", asset.id))?;
+    Ok(())
+}
+
+/// Every off-chain asset, newest first.
+///
+/// Tie-broken by `id` so the list does not reshuffle between reads when two assets share a
+/// second — an order that moves under the user mid-edit is worse than an arbitrary one.
+pub async fn list_manual_assets(pool: &SqlitePool) -> Result<Vec<ManualAsset>> {
+    let rows = sqlx::query("SELECT * FROM manual_assets ORDER BY created_at DESC, id DESC")
+        .fetch_all(pool)
+        .await
+        .context("listing manual assets")?;
+    rows.iter().map(row_to_manual).collect()
+}
+
+/// One asset by id, or `None`.
+pub async fn get_manual_asset(pool: &SqlitePool, id: &str) -> Result<Option<ManualAsset>> {
+    let row = sqlx::query("SELECT * FROM manual_assets WHERE id = ?")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .context("reading manual asset")?;
+    row.as_ref().map(row_to_manual).transpose()
+}
+
+/// Inserts one asset and returns it as stored.
+///
+/// The id is generated here rather than accepted from the caller: the browser list this replaces
+/// had no ids at all, so there is nothing to preserve, and a client-chosen key is a client-chosen
+/// collision.
+pub async fn create_manual_asset(
+    pool: &SqlitePool,
+    input: &ManualAssetInput,
+    now: Option<i64>,
+) -> Result<ManualAsset> {
+    let clean = clean_manual(input)?;
+    let now = now_or(now);
+    let asset = ManualAsset {
+        id: new_id(),
+        name: clean.name,
+        kind: clean.kind,
+        value: clean.value,
+        ccy: clean.ccy,
+        units: clean.units,
+        code: clean.code,
+        tier: clean.tier,
+        chain: clean.chain,
+        note: clean.note,
+        custody: clean.custody,
+        created_at: now,
+        updated_at: now,
+    };
+    put_manual(pool, &asset).await?;
+    Ok(asset)
+}
+
+/// Replaces one asset wholesale, keeping its id and `created_at`. `Ok(None)` means no such id.
+///
+/// A whole-row replace rather than a field-wise patch, because the editor sends the whole form:
+/// under a patch, clearing a note would be indistinguishable from not touching it.
+pub async fn update_manual_asset(
+    pool: &SqlitePool,
+    id: &str,
+    input: &ManualAssetInput,
+    now: Option<i64>,
+) -> Result<Option<ManualAsset>> {
+    let clean = clean_manual(input)?;
+    let Some(existing) = get_manual_asset(pool, id).await? else {
+        return Ok(None);
+    };
+
+    let asset = ManualAsset {
+        id: existing.id,
+        name: clean.name,
+        kind: clean.kind,
+        value: clean.value,
+        ccy: clean.ccy,
+        units: clean.units,
+        code: clean.code,
+        tier: clean.tier,
+        chain: clean.chain,
+        note: clean.note,
+        custody: clean.custody,
+        created_at: existing.created_at,
+        updated_at: now_or(now),
+    };
+    put_manual(pool, &asset).await?;
+    Ok(Some(asset))
+}
+
+/// Returns `true` if a row was removed.
+///
+/// A hard delete, where `analyses` soft-archives: an off-chain asset is a present-tense claim
+/// about what you own, and a sold one is not a version of anything.
+pub async fn delete_manual_asset(pool: &SqlitePool, id: &str) -> Result<bool> {
+    let result = sqlx::query("DELETE FROM manual_assets WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("deleting manual asset")?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// USD value of one off-chain asset, given the portfolio's live rates.
+///
+/// The port of `manualUsd` in `src/pages/wealth/derive.ts`, moved server-side so the snapshot cron
+/// and the browser agree by construction rather than by two implementations staying in step.
+///
+/// A missing or non-positive rate yields `0.0` rather than an error: one unpriceable asset must not
+/// take down a net-worth read, and a zero is visibly wrong where a stale rate is not.
+pub fn manual_usd(asset: &ManualAsset, thb_per_usd: Option<f64>, btc_usd: Option<f64>) -> f64 {
+    let value = asset.value.unwrap_or(0.0);
+    match asset.ccy.as_deref() {
+        Some("thb") => match thb_per_usd {
+            Some(rate) if rate > 0.0 => value / rate,
+            _ => 0.0,
+        },
+        Some("sats") => match btc_usd {
+            Some(price) => (value / 100_000_000.0) * price,
+            None => 0.0,
+        },
+        // `usd` and an absent ccy are the same case — see the field's doc comment.
+        _ => value,
+    }
+}
+
+/// The off-chain book's total in USD, and what it is made of.
+///
+/// Returned together because a caller that adds the total to a net worth almost always also needs
+/// to say how many assets were behind it — "+$18,400 across 4 off-chain assets" is auditable where
+/// a bare number is not.
+pub async fn manual_total_usd(
+    pool: &SqlitePool,
+    thb_per_usd: Option<f64>,
+    btc_usd: Option<f64>,
+) -> Result<(f64, usize)> {
+    let assets = list_manual_assets(pool).await?;
+    let total = assets
+        .iter()
+        .map(|a| manual_usd(a, thb_per_usd, btc_usd))
+        .sum();
+    Ok((total, assets.len()))
 }
 
 #[cfg(test)]
@@ -2551,4 +2866,273 @@ mod tests {
             0
         );
     }
+
+    // ---- manual_assets ----
+
+    fn manual_input(name: &str, tier: &str) -> ManualAssetInput {
+        ManualAssetInput {
+            name: name.into(),
+            tier: tier.into(),
+            ..ManualAssetInput::default()
+        }
+    }
+
+    fn manual_error(e: &anyhow::Error) -> ManualAssetError {
+        e.downcast_ref::<ManualAssetError>()
+            .expect("should be a ManualAssetError")
+            .clone()
+    }
+
+    #[tokio::test]
+    async fn a_manual_asset_round_trips_every_field() {
+        let (_dir, pool) = fresh().await;
+        let input = ManualAssetInput {
+            name: "Cold storage BTC".into(),
+            kind: Some("lightning".into()),
+            value: Some(14_000_000.0),
+            ccy: Some("sats".into()),
+            units: Some(0.14),
+            code: Some("BTC".into()),
+            tier: "store".into(),
+            chain: Some("bitcoin".into()),
+            note: Some("Hardware wallet".into()),
+            custody: Some("cold".into()),
+        };
+
+        let created = create_manual_asset(&pool, &input, Some(1_700_000_000))
+            .await
+            .unwrap();
+        let read = get_manual_asset(&pool, &created.id).await.unwrap().unwrap();
+
+        assert_eq!(read, created);
+        assert_eq!(read.name, "Cold storage BTC");
+        assert_eq!(read.ccy.as_deref(), Some("sats"));
+        assert_eq!(read.custody.as_deref(), Some("cold"));
+        assert_eq!(read.created_at, 1_700_000_000);
+        assert_eq!(read.updated_at, read.created_at);
+    }
+
+    #[tokio::test]
+    async fn an_update_keeps_the_id_and_created_at_but_moves_updated_at() {
+        let (_dir, pool) = fresh().await;
+        let created = create_manual_asset(&pool, &manual_input("THB savings", "business"), Some(1_700_000_000))
+            .await
+            .unwrap();
+
+        let mut next = manual_input("THB savings", "store");
+        next.value = Some(180_000.0);
+        next.ccy = Some("thb".into());
+        let updated = update_manual_asset(&pool, &created.id, &next, Some(1_700_090_000))
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.created_at, created.created_at);
+        assert_eq!(updated.updated_at, 1_700_090_000);
+        assert_eq!(updated.tier, "store");
+        assert_eq!(updated.value, Some(180_000.0));
+        // One row, not two — the replace is keyed on the id.
+        assert_eq!(list_manual_assets(&pool).await.unwrap().len(), 1);
+    }
+
+    /// The whole-row replace has to be able to *clear* a field, which a patch could not express.
+    #[tokio::test]
+    async fn an_update_can_clear_an_optional_field() {
+        let (_dir, pool) = fresh().await;
+        let mut input = manual_input("Kinesis gold", "store");
+        input.note = Some("vault receipt 4471".into());
+        let created = create_manual_asset(&pool, &input, None).await.unwrap();
+        assert!(created.note.is_some());
+
+        let cleared = update_manual_asset(&pool, &created.id, &manual_input("Kinesis gold", "store"), None)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(cleared.note, None);
+    }
+
+    #[tokio::test]
+    async fn updating_or_deleting_an_unknown_id_is_not_an_error() {
+        let (_dir, pool) = fresh().await;
+        assert!(
+            update_manual_asset(&pool, "nope", &manual_input("x", "store"), None)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(!delete_manual_asset(&pool, "nope").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn delete_removes_the_row_outright() {
+        let (_dir, pool) = fresh().await;
+        let created = create_manual_asset(&pool, &manual_input("Sold gold", "store"), None)
+            .await
+            .unwrap();
+        assert!(delete_manual_asset(&pool, &created.id).await.unwrap());
+        assert!(get_manual_asset(&pool, &created.id).await.unwrap().is_none());
+        assert!(list_manual_assets(&pool).await.unwrap().is_empty());
+    }
+
+    /// A blank optional field and an absent one must not become two states in the database.
+    #[tokio::test]
+    async fn blank_optional_strings_store_as_null_and_the_closed_sets_are_lowercased() {
+        let (_dir, pool) = fresh().await;
+        let input = ManualAssetInput {
+            name: "  Spaced  ".into(),
+            note: Some("   ".into()),
+            code: Some("".into()),
+            ccy: Some("THB".into()),
+            custody: Some("Cold".into()),
+            tier: " Store ".into(),
+            ..ManualAssetInput::default()
+        };
+
+        let created = create_manual_asset(&pool, &input, None).await.unwrap();
+        assert_eq!(created.name, "Spaced");
+        assert_eq!(created.note, None);
+        assert_eq!(created.code, None);
+        assert_eq!(created.ccy.as_deref(), Some("thb"));
+        assert_eq!(created.custody.as_deref(), Some("cold"));
+        assert_eq!(created.tier, "store");
+    }
+
+    #[tokio::test]
+    async fn the_closed_sets_are_enforced_by_name() {
+        let (_dir, pool) = fresh().await;
+
+        let cases = [
+            (manual_input("", "store"), ManualAssetError::MissingName),
+            (manual_input("x", "savings"), ManualAssetError::BadTier),
+            (
+                ManualAssetInput { ccy: Some("eur".into()), ..manual_input("x", "store") },
+                ManualAssetError::BadCcy,
+            ),
+            (
+                ManualAssetInput { custody: Some("warm".into()), ..manual_input("x", "store") },
+                ManualAssetError::BadCustody,
+            ),
+        ];
+
+        for (input, want) in cases {
+            let e = create_manual_asset(&pool, &input, None).await.unwrap_err();
+            assert_eq!(manual_error(&e), want);
+        }
+        assert!(list_manual_assets(&pool).await.unwrap().is_empty());
+    }
+
+    /// A NaN would propagate into the net-worth total and poison every chart drawn from it.
+    #[tokio::test]
+    async fn a_non_finite_number_is_refused_naming_its_field() {
+        let (_dir, pool) = fresh().await;
+
+        for (field, input) in [
+            ("value", ManualAssetInput { value: Some(f64::NAN), ..manual_input("x", "store") }),
+            ("units", ManualAssetInput { units: Some(f64::INFINITY), ..manual_input("x", "store") }),
+        ] {
+            let e = create_manual_asset(&pool, &input, None).await.unwrap_err();
+            assert_eq!(manual_error(&e), ManualAssetError::BadNumber(field));
+        }
+    }
+
+    #[tokio::test]
+    async fn the_list_is_newest_first() {
+        let (_dir, pool) = fresh().await;
+        create_manual_asset(&pool, &manual_input("older", "store"), Some(1_700_000_000))
+            .await
+            .unwrap();
+        create_manual_asset(&pool, &manual_input("newer", "store"), Some(1_700_000_500))
+            .await
+            .unwrap();
+
+        let names: Vec<_> = list_manual_assets(&pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|a| a.name)
+            .collect();
+        assert_eq!(names, ["newer", "older"]);
+    }
+
+    /// The port of `manualUsd` in `derive.ts`; these are the cases that file's tests cover.
+    #[test]
+    fn manual_usd_converts_from_each_denomination() {
+        let asset = |value: f64, ccy: Option<&str>| ManualAsset {
+            value: Some(value),
+            ccy: ccy.map(str::to_string),
+            ..ManualAsset::default()
+        };
+
+        assert_eq!(manual_usd(&asset(4200.0, Some("usd")), Some(36.0), Some(60_000.0)), 4200.0);
+        // An absent ccy is USD, not an error.
+        assert_eq!(manual_usd(&asset(4200.0, None), Some(36.0), Some(60_000.0)), 4200.0);
+        assert_eq!(manual_usd(&asset(180_000.0, Some("thb")), Some(36.0), None), 5000.0);
+        assert_eq!(
+            manual_usd(&asset(14_000_000.0, Some("sats")), None, Some(60_000.0)),
+            8400.0
+        );
+        // No value at all is zero, not a panic on unwrap.
+        assert_eq!(manual_usd(&ManualAsset::default(), Some(36.0), Some(60_000.0)), 0.0);
+    }
+
+    /// A missing rate yields zero rather than an error: one unpriceable asset must not take down
+    /// the whole net-worth read, and a zero is visibly wrong where a stale rate is not.
+    #[test]
+    fn a_missing_or_zero_rate_prices_the_asset_at_zero() {
+        let thb = ManualAsset {
+            value: Some(180_000.0),
+            ccy: Some("thb".into()),
+            ..ManualAsset::default()
+        };
+        let sats = ManualAsset {
+            value: Some(14_000_000.0),
+            ccy: Some("sats".into()),
+            ..ManualAsset::default()
+        };
+
+        assert_eq!(manual_usd(&thb, None, Some(60_000.0)), 0.0);
+        // A zero rate would divide to infinity, which is the same poison as a NaN.
+        assert_eq!(manual_usd(&thb, Some(0.0), Some(60_000.0)), 0.0);
+        assert_eq!(manual_usd(&sats, Some(36.0), None), 0.0);
+    }
+
+    #[tokio::test]
+    async fn the_off_chain_total_sums_across_denominations() {
+        let (_dir, pool) = fresh().await;
+        for (name, value, ccy) in [
+            ("btc", 14_000_000.0, "sats"),
+            ("gold", 4_200.0, "usd"),
+            ("bank", 180_000.0, "thb"),
+        ] {
+            create_manual_asset(
+                &pool,
+                &ManualAssetInput {
+                    value: Some(value),
+                    ccy: Some(ccy.into()),
+                    ..manual_input(name, "store")
+                },
+                None,
+            )
+            .await
+            .unwrap();
+        }
+
+        let (total, count) = manual_total_usd(&pool, Some(36.0), Some(60_000.0))
+            .await
+            .unwrap();
+        // 8400 + 4200 + 5000
+        assert!((total - 17_600.0).abs() < 1e-9, "total was {total}");
+        assert_eq!(count, 3);
+    }
+
+    #[tokio::test]
+    async fn an_empty_off_chain_book_totals_zero() {
+        let (_dir, pool) = fresh().await;
+        assert_eq!(
+            manual_total_usd(&pool, Some(36.0), Some(60_000.0)).await.unwrap(),
+            (0.0, 0)
+        );
+    }
+
 }

@@ -567,6 +567,156 @@ pub async fn archive_note(
     }
 }
 
+/* ─── Off-chain assets ─── */
+
+/// Serialises an off-chain asset for the browser.
+///
+/// Absent optionals are **omitted** rather than sent as `null`, because `ManualAsset` in
+/// `types.ts` declares them with `?` — `null` is not assignable to `string | undefined`, and the
+/// alternative was widening every one of those fields and every reader of them.
+fn manual_json(asset: &store::ManualAsset) -> Value {
+    let mut out = serde_json::Map::new();
+    out.insert("id".into(), json!(asset.id));
+    out.insert("name".into(), json!(asset.name));
+    out.insert("tier".into(), json!(asset.tier));
+    out.insert("created_at".into(), json!(asset.created_at));
+    out.insert("updated_at".into(), json!(asset.updated_at));
+
+    for (key, value) in [
+        ("kind", &asset.kind),
+        ("ccy", &asset.ccy),
+        ("code", &asset.code),
+        ("chain", &asset.chain),
+        ("note", &asset.note),
+        ("custody", &asset.custody),
+    ] {
+        if let Some(value) = value {
+            out.insert(key.into(), json!(value));
+        }
+    }
+    for (key, value) in [("value", asset.value), ("units", asset.units)] {
+        if let Some(value) = value {
+            out.insert(key.into(), json!(value));
+        }
+    }
+    Value::Object(out)
+}
+
+/// Reads an off-chain asset out of a request body.
+///
+/// Numbers are accepted as numbers *or* as the strings an HTML `<input type="number">` produces —
+/// the alternative is a form that silently drops the one field it exists to capture. An
+/// unparseable string becomes `None`, which `clean_manual` treats as "no value", not as zero.
+fn manual_input(body: &Value) -> store::ManualAssetInput {
+    let text = |key: &str| {
+        body.get(key)
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .filter(|s| !s.trim().is_empty())
+    };
+    let number = |key: &str| match body.get(key) {
+        Some(Value::Number(n)) => n.as_f64(),
+        Some(Value::String(s)) => s.trim().parse::<f64>().ok(),
+        _ => None,
+    };
+
+    store::ManualAssetInput {
+        name: text("name").unwrap_or_default(),
+        kind: text("kind"),
+        value: number("value"),
+        ccy: text("ccy"),
+        units: number("units"),
+        code: text("code"),
+        tier: text("tier").unwrap_or_default(),
+        chain: text("chain"),
+        note: text("note"),
+        custody: text("custody"),
+    }
+}
+
+/// Maps a rejected off-chain write to a status code: 422 for validation, 500 for anything else.
+///
+/// The same split as [`journal_failure`], minus the rate limit — this endpoint is driven by a
+/// human filling in a form, not by an agent in a loop.
+fn manual_failure(e: &anyhow::Error) -> Response {
+    match e.downcast_ref::<store::ManualAssetError>() {
+        Some(bad) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "error": bad.to_string() })),
+        )
+            .into_response(),
+        None => {
+            tracing::error!(error = %e, "manual asset write failed");
+            error(StatusCode::INTERNAL_SERVER_ERROR, "Internal error")
+        }
+    }
+}
+
+/// `GET /api/wealth/manual-assets` — the off-chain book.
+///
+/// These used to live in the browser's `localStorage`, which meant one device, no backup, and gone
+/// with a cleared cache. It also meant the server's own net-worth snapshot could never see them,
+/// so `snapshots` and the legacy `nw_history` series were measuring two different things.
+pub async fn manual_assets(State(state): State<AppState>, _user: AuthUser) -> Response {
+    match store::list_manual_assets(&state.pool).await {
+        Ok(assets) => Json(json!({
+            "assets": assets.iter().map(manual_json).collect::<Vec<_>>(),
+        }))
+        .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "listing manual assets");
+            error(StatusCode::INTERNAL_SERVER_ERROR, "Internal error")
+        }
+    }
+}
+
+/// `POST /api/wealth/manual-assets` — add one, answering `201` with the stored row.
+pub async fn create_manual_asset(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    body: String,
+) -> Response {
+    let input = manual_input(&read_json(&body));
+    match store::create_manual_asset(&state.pool, &input, None).await {
+        Ok(asset) => (StatusCode::CREATED, Json(manual_json(&asset))).into_response(),
+        Err(e) => manual_failure(&e),
+    }
+}
+
+/// `PUT /api/wealth/manual-assets/{id}` — replace one wholesale.
+///
+/// A replace rather than a patch: the editor sends the whole form, and under a patch "clear this
+/// note" and "leave this note alone" would be the same request.
+pub async fn update_manual_asset(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    Path(id): Path<String>,
+    body: String,
+) -> Response {
+    let input = manual_input(&read_json(&body));
+    match store::update_manual_asset(&state.pool, &id, &input, None).await {
+        Ok(Some(asset)) => Json(manual_json(&asset)).into_response(),
+        Ok(None) => error(StatusCode::NOT_FOUND, "not found"),
+        Err(e) => manual_failure(&e),
+    }
+}
+
+/// `DELETE /api/wealth/manual-assets/{id}` — remove one for good.
+pub async fn delete_manual_asset(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    Path(id): Path<String>,
+) -> Response {
+    match store::delete_manual_asset(&state.pool, &id).await {
+        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(false) => error(StatusCode::NOT_FOUND, "not found"),
+        Err(e) => {
+            tracing::error!(error = %e, "deleting manual asset");
+            error(StatusCode::INTERNAL_SERVER_ERROR, "Internal error")
+        }
+    }
+}
+
 /* ─── Chain-backed reads — awaiting a `lyra-chain` dependency ─── */
 
 #[derive(Debug, Deserialize)]
@@ -1478,7 +1628,8 @@ pub(crate) async fn build_watched_wallet(
 /// not. The Python has no such check because it cannot tell the two apart.
 ///
 /// `None` also when the read came back empty, for the same reason.
-pub(crate) async fn collect_figures() -> Option<lyra_alerts::digest::DigestInput> {
+pub(crate) async fn collect_figures()
+-> Option<(lyra_alerts::digest::DigestInput, lyra_chain::market::Rates)> {
     let addresses = watched_wallets();
     let snapshot = build_portfolios(Arc::clone(&UPSTREAMS.sources), &addresses, &AGGREGATE).await;
     log_health("alerts/snapshot", &snapshot.health);
@@ -1491,8 +1642,9 @@ pub(crate) async fn collect_figures() -> Option<lyra_alerts::digest::DigestInput
         return None;
     }
 
+    let rates = snapshot.portfolio.rates.clone();
     let input = collect::collect(&snapshot.portfolio);
-    (input.total > 0.0).then_some(input)
+    (input.total > 0.0).then_some((input, rates))
 }
 
 /// `POST /api/wealth/alerts/config` — save the poller knobs, answering with the new status.
@@ -1546,7 +1698,7 @@ mod tests {
     use axum::Router;
     use axum::body::Body;
     use axum::http::Request;
-    use axum::routing::{get, post};
+    use axum::routing::{get, post, put};
     use http_body_util::BodyExt;
     use sqlx::SqlitePool;
     use tempfile::TempDir;
@@ -1567,6 +1719,14 @@ mod tests {
             .route("/api/wealth/snapshots", get(snapshots))
             .route("/api/wealth/analyses", get(analyses).post(create_analysis))
             .route("/api/wealth/analyses/{id}", get(analysis))
+            .route(
+                "/api/wealth/manual-assets",
+                get(manual_assets).post(create_manual_asset),
+            )
+            .route(
+                "/api/wealth/manual-assets/{id}",
+                put(update_manual_asset).delete(delete_manual_asset),
+            )
             .route("/api/wealth/notes", post(create_note))
             .route("/api/wealth/notes/archive", post(archive_note))
             .route("/api/wealth/services", get(services))
@@ -1615,6 +1775,18 @@ mod tests {
             "/api/wealth/analyses",
             r#"{"scope":"strategy:main","kind":"general","title":"t","body_md":"b"}"#,
         ),
+        ("GET", "/api/wealth/manual-assets", ""),
+        (
+            "POST",
+            "/api/wealth/manual-assets",
+            r#"{"name":"Cold BTC","tier":"store"}"#,
+        ),
+        (
+            "PUT",
+            "/api/wealth/manual-assets/does-not-exist",
+            r#"{"name":"Cold BTC","tier":"store"}"#,
+        ),
+        ("DELETE", "/api/wealth/manual-assets/does-not-exist", ""),
         (
             "POST",
             "/api/wealth/notes",
@@ -2420,4 +2592,179 @@ mod tests {
         assert_eq!(read_json("{bad"), json!({}));
         assert_eq!(read_json(r#"{"a":1}"#), json!({"a": 1}));
     }
+
+    /* ─── Off-chain assets ─── */
+
+    async fn put_json(
+        router: &Router,
+        path: &str,
+        token: &str,
+        body: &str,
+    ) -> (StatusCode, Value) {
+        call(router, "PUT", path, Some(token), body).await
+    }
+
+    #[tokio::test]
+    async fn an_off_chain_asset_round_trips_through_the_api() {
+        let (_dir, _pool, router, token) = test_app().await;
+
+        let (status, created) = post_json(
+            &router,
+            "/api/wealth/manual-assets",
+            &token,
+            r#"{"name":"Cold storage BTC","value":14000000,"ccy":"sats","tier":"store","custody":"cold","note":"Hardware wallet"}"#,
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(created["name"], "Cold storage BTC");
+        assert_eq!(created["ccy"], "sats");
+        assert!(created["id"].as_str().is_some_and(|id| !id.is_empty()));
+
+        let (status, listed) = get_json(&router, "/api/wealth/manual-assets", &token).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            listed["assets"].as_array().unwrap(),
+            std::slice::from_ref(&created)
+        );
+    }
+
+    /// `ManualAsset` in `types.ts` declares its optionals with `?`, so a `null` would not type-check
+    /// on the reading side. This is the test that holds that contract.
+    #[tokio::test]
+    async fn absent_optional_fields_are_omitted_rather_than_null() {
+        let (_dir, _pool, router, token) = test_app().await;
+        let (_, created) = post_json(
+            &router,
+            "/api/wealth/manual-assets",
+            &token,
+            r#"{"name":"Bare","tier":"trading"}"#,
+        )
+        .await;
+
+        let object = created.as_object().unwrap();
+        for key in ["kind", "ccy", "code", "chain", "note", "custody", "value", "units"] {
+            assert!(!object.contains_key(key), "{key} should be absent, not null");
+        }
+        assert!(object.contains_key("id"));
+        assert_eq!(created["tier"], "trading");
+    }
+
+    /// An HTML number input hands back a string; dropping it would silently lose the one field
+    /// the form exists to capture.
+    #[tokio::test]
+    async fn numbers_are_accepted_as_strings_too() {
+        let (_dir, _pool, router, token) = test_app().await;
+        let (status, created) = post_json(
+            &router,
+            "/api/wealth/manual-assets",
+            &token,
+            r#"{"name":"THB savings","value":"180000","units":" 1.5 ","ccy":"thb","tier":"business"}"#,
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(created["value"], 180_000.0);
+        assert_eq!(created["units"], 1.5);
+    }
+
+    /// Unparseable is "no value", not zero — a typo must not be recorded as a balance of nothing.
+    #[tokio::test]
+    async fn an_unparseable_number_is_absent_rather_than_zero() {
+        let (_dir, _pool, router, token) = test_app().await;
+        let (_, created) = post_json(
+            &router,
+            "/api/wealth/manual-assets",
+            &token,
+            r#"{"name":"Typo","value":"about 200","tier":"store"}"#,
+        )
+        .await;
+        assert!(!created.as_object().unwrap().contains_key("value"));
+    }
+
+    #[tokio::test]
+    async fn a_put_replaces_the_asset_and_a_delete_removes_it() {
+        let (_dir, _pool, router, token) = test_app().await;
+        let (_, created) = post_json(
+            &router,
+            "/api/wealth/manual-assets",
+            &token,
+            r#"{"name":"Kinesis gold","value":4200,"ccy":"usd","tier":"store","note":"vault 4471"}"#,
+        )
+        .await;
+        let id = created["id"].as_str().unwrap().to_string();
+
+        let (status, updated) = put_json(
+            &router,
+            &format!("/api/wealth/manual-assets/{id}"),
+            &token,
+            r#"{"name":"Kinesis gold","value":4800,"ccy":"usd","tier":"business"}"#,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(updated["id"], created["id"]);
+        assert_eq!(updated["value"], 4800.0);
+        assert_eq!(updated["tier"], "business");
+        // The note was left out of the replacement, so it is gone — a patch could not say this.
+        assert!(!updated.as_object().unwrap().contains_key("note"));
+
+        let (status, _) = call(
+            &router,
+            "DELETE",
+            &format!("/api/wealth/manual-assets/{id}"),
+            Some(&token),
+            "",
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let (_, listed) = get_json(&router, "/api/wealth/manual-assets", &token).await;
+        assert!(listed["assets"].as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn writing_or_deleting_an_unknown_id_is_a_404() {
+        let (_dir, _pool, router, token) = test_app().await;
+        let (status, body) = put_json(
+            &router,
+            "/api/wealth/manual-assets/nope",
+            &token,
+            r#"{"name":"x","tier":"store"}"#,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(body, json!({"error": "not found"}));
+
+        let (status, _) = call(
+            &router,
+            "DELETE",
+            "/api/wealth/manual-assets/nope",
+            Some(&token),
+            "",
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn a_rejected_asset_is_a_422_naming_the_field() {
+        let (_dir, _pool, router, token) = test_app().await;
+
+        for (body, wanted) in [
+            (r#"{"tier":"store"}"#, "name is required"),
+            (r#"{"name":"x","tier":"savings"}"#, "tier must be one of"),
+            (r#"{"name":"x","tier":"store","ccy":"eur"}"#, "ccy must be one of"),
+            (
+                r#"{"name":"x","tier":"store","custody":"warm"}"#,
+                "custody must be one of",
+            ),
+        ] {
+            let (status, value) = post_json(&router, "/api/wealth/manual-assets", &token, body).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+            let message = value["error"].as_str().unwrap_or_default();
+            assert!(message.starts_with(wanted), "{body} said {message:?}");
+        }
+
+        let (_, listed) = get_json(&router, "/api/wealth/manual-assets", &token).await;
+        assert!(listed["assets"].as_array().unwrap().is_empty());
+    }
+
 }

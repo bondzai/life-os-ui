@@ -19,6 +19,7 @@ import { EmptyState } from '@/core/components/empty-state'
 import { notify } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { formatRelativeTime } from './format'
+import { OffChainAssets } from './off-chain'
 import { RowsSkeleton, WealthError } from './states'
 import type { AlertStatus } from './types'
 import { StatCard } from './wealth-ui'
@@ -114,7 +115,7 @@ function SweepState({ status }: { status: AlertStatus }) {
   )
 }
 
-export function WealthSettingsPage() {
+function AlertSettings() {
   const queryClient = useQueryClient()
   const {
     data: status,
@@ -156,6 +157,8 @@ export function WealthSettingsPage() {
     onError: (e: Error) => notify({ title: 'Could not save', message: e.message, type: 'error' }),
   })
 
+  // Alert config is server-only, and the off-chain book is not — hence the split. Before, this
+  // return took the whole page with it, so a demo session had no way to see either.
   if (!USE_API) {
     return (
       <EmptyState
@@ -189,7 +192,7 @@ export function WealthSettingsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <>
       <SweepState status={status} />
 
       <Card>
@@ -270,6 +273,15 @@ export function WealthSettingsPage() {
           <StatCard label="Wallets watched" value={String(status.wallets)} hint="from ALERT_WALLETS" />
         </CardContent>
       </Card>
+    </>
+  )
+}
+
+export function WealthSettingsPage() {
+  return (
+    <div className="space-y-4">
+      <OffChainAssets />
+      <AlertSettings />
     </div>
   )
 }

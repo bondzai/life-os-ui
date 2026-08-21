@@ -221,8 +221,8 @@ describe('manual assets', () => {
     const ctx: Ctx = {
       ...ctxOf(),
       manual: [
-        { name: 'Cold BTC', value: 100_000_000, ccy: 'sats', tier: 'store' },
-        { name: 'Baht', value: 32_000, ccy: 'thb', tier: 'business' },
+        { id: 'm1', name: 'Cold BTC', value: 100_000_000, ccy: 'sats', tier: 'store' },
+        { id: 'm2', name: 'Baht', value: 32_000, ccy: 'thb', tier: 'business' },
       ],
     }
     const rows = holdings(ctx)
@@ -394,7 +394,7 @@ describe('snowball', () => {
   function sbCtx(): Ctx {
     const ctx = ctxOf([lp, bot, lendingPosition], [spot('WBTC', 600)])
     ctx.data.wallets[0].total = 2_000
-    ctx.manual = [{ name: 'Cold storage', ccy: 'sats', value: 1_000_000, tier: 'store' }]
+    ctx.manual = [{ id: 'm1', name: 'Cold storage', ccy: 'sats', value: 1_000_000, tier: 'store' }]
     return ctx
   }
 

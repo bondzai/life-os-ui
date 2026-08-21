@@ -12,25 +12,68 @@
 
 import { API_URL } from '@/lib/api-url'
 import type { WealthDataSource } from '@/pages/wealth/data-source'
-import type { AlertStatus, Analysis, ManualAsset, NwPoint, PortfolioData } from '@/pages/wealth/types'
+import type {
+  AlertStatus,
+  Analysis,
+  ManualAsset,
+  ManualAssetInput,
+  NwPoint,
+  PortfolioData,
+} from '@/pages/wealth/types'
 
-/** Where the browser keeps off-chain assets. Shared with anything that writes them. */
+/** Where the browser used to keep off-chain assets. Now a queue of rows waiting to be imported. */
 export const MANUAL_ASSETS_KEY = 'lyra:wealth:manual-assets'
 
+/** Rows already accepted by the server, kept as a local backup of what was handed over. */
+export const MANUAL_ASSETS_IMPORTED_KEY = 'lyra:wealth:manual-assets.imported'
+
 /**
- * Read the browser's off-chain asset list.
+ * Read a stored off-chain asset list.
  *
  * Anything malformed is treated as an empty list rather than thrown: a corrupt entry here would
- * otherwise blank every wealth page, and these are additive to a portfolio that stands on its
- * own without them.
+ * otherwise blank every wealth page, and these are additive to a portfolio that stands on its own
+ * without them.
  */
-function readManualAssets(): ManualAsset[] {
+function readStoredAssets(key: string): ManualAssetInput[] {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(MANUAL_ASSETS_KEY) ?? '[]')
+    const parsed: unknown = JSON.parse(localStorage.getItem(key) ?? '[]')
     if (!Array.isArray(parsed)) return []
-    return parsed.filter((a): a is ManualAsset => Boolean(a) && typeof a === 'object')
+    return parsed.filter((a): a is ManualAssetInput => Boolean(a) && typeof a === 'object')
   } catch {
     return []
+  }
+}
+
+/**
+ * Hand the browser's off-chain assets to the server, once.
+ *
+ * **Each row is removed from the queue only after the server has accepted it**, and appended to a
+ * backup key rather than dropped. That ordering is the whole design: a batch that fails halfway
+ * leaves exactly the un-imported rows behind, so the next read finishes the job instead of
+ * importing the first few a second time. A single "already migrated" flag could not do this — a
+ * partial failure under one would either duplicate rows or lose them.
+ *
+ * A failure is logged and swallowed. This runs inside a read, and an unreachable import endpoint
+ * must not blank the portfolio page; the rows stay queued for the next attempt.
+ */
+async function importLocalAssets(): Promise<void> {
+  const pending = readStoredAssets(MANUAL_ASSETS_KEY)
+  if (pending.length === 0) return
+
+  const imported = readStoredAssets(MANUAL_ASSETS_IMPORTED_KEY)
+  const remaining = [...pending]
+
+  for (const asset of pending) {
+    try {
+      await post<ManualAsset>('wealth/manual-assets', asset)
+    } catch (e) {
+      console.error('Could not import an off-chain asset; it stays in this browser', e)
+      break
+    }
+    remaining.shift()
+    imported.push(asset)
+    localStorage.setItem(MANUAL_ASSETS_KEY, JSON.stringify(remaining))
+    localStorage.setItem(MANUAL_ASSETS_IMPORTED_KEY, JSON.stringify(imported))
   }
 }
 
@@ -57,11 +100,11 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
+async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_URL}/${path}`, {
-    method: 'POST',
+    method,
     headers: getHeaders(),
-    body: JSON.stringify(body),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   if (res.status === 401) {
     localStorage.removeItem('lyra:token')
@@ -70,11 +113,17 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     throw new Error('Session expired')
   }
   if (!res.ok) {
-    // The server names the offending field on a 400; surfacing that beats a generic failure.
+    // The server names the offending field on a 422; surfacing that beats a generic failure.
     const detail = await res.json().catch(() => null)
-    throw new Error(detail?.error ?? `Failed to post ${path} (${res.status})`)
+    throw new Error(detail?.error ?? `Failed to ${method.toLowerCase()} ${path} (${res.status})`)
   }
+  // A 204 has no body to parse — `DELETE` answers with one, and `res.json()` would throw on it.
+  if (res.status === 204) return null as T
   return res.json() as Promise<T>
+}
+
+function post<T>(path: string, body: unknown): Promise<T> {
+  return send<T>('POST', path, body)
 }
 
 export class ApiWealthRepository implements WealthDataSource {
@@ -97,16 +146,29 @@ export class ApiWealthRepository implements WealthDataSource {
   /**
    * Off-chain assets — cold storage, a Thai fund, sats on a Lightning wallet.
    *
-   * **There is no endpoint for these and there should not be.** The backend is keyless by
-   * design: it reads public chain data for addresses it is given, and it has no way to learn
-   * that you hold gold in a drawer. `lyra-db`'s own header says the same — the keyless server
-   * "can never see manual assets". So they live where the user entered them, in this browser,
-   * exactly as they did in the original app.
+   * These used to live only in this browser's `localStorage`, on the reasoning that a keyless
+   * server cannot learn you hold gold in a drawer. True, and beside the point: it cannot learn it,
+   * but it can be *told*. Keeping them client-side meant one device, no backup, gone with a
+   * cleared cache — and a server-side net-worth snapshot that could never match the browser's.
    *
-   * This is why net worth here can be lower than the number on the device you type them into.
+   * Anything still in `localStorage` is imported on the first read — see [[importLocalAssets]].
    */
-  getManualAssets(): Promise<ManualAsset[]> {
-    return Promise.resolve(readManualAssets())
+  async getManualAssets(): Promise<ManualAsset[]> {
+    await importLocalAssets()
+    const body = await get<{ assets: ManualAsset[] }>('wealth/manual-assets')
+    return body.assets ?? []
+  }
+
+  createManualAsset(input: ManualAssetInput): Promise<ManualAsset> {
+    return post<ManualAsset>('wealth/manual-assets', input)
+  }
+
+  updateManualAsset(id: string, input: ManualAssetInput): Promise<ManualAsset> {
+    return send<ManualAsset>('PUT', `wealth/manual-assets/${encodeURIComponent(id)}`, input)
+  }
+
+  async deleteManualAsset(id: string): Promise<void> {
+    await send<null>('DELETE', `wealth/manual-assets/${encodeURIComponent(id)}`)
   }
 
   /** The LLM analysis journal — latest entry per scope unless `history` is asked for. */

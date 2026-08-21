@@ -56,7 +56,13 @@ const { token, user } = await res.json()
 
 fs.mkdirSync('shots', { recursive: true })
 const browser = await chromium.launch({ executablePath: CHROME, headless: true })
-const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+// The dev server is HTTPS with a self-signed certificate, so without this every route fails
+// navigation before it renders — and a blocked page also cannot read `localStorage`, which is
+// where the session token lives. Harmless here: the only origin this ever visits is BASE.
+const context = await browser.newContext({
+  viewport: { width: 1440, height: 900 },
+  ignoreHTTPSErrors: true,
+})
 
 // Seed the session before any app code runs: the data-mode decides which repositories the
 // modules bind at import time, so setting it after load would be too late.

@@ -22,7 +22,7 @@ use anyhow::{Context, Result};
 use axum::extract::State;
 use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{delete, get, patch, post};
+use axum::routing::{delete, get, patch, post, put};
 use axum::{Json, Router};
 use serde_json::json;
 use sqlx::SqlitePool;
@@ -158,6 +158,14 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
             get(wealth::analyses).post(wealth::create_analysis),
         )
         .route("/api/wealth/analyses/{id}", get(wealth::analysis))
+        .route(
+            "/api/wealth/manual-assets",
+            get(wealth::manual_assets).post(wealth::create_manual_asset),
+        )
+        .route(
+            "/api/wealth/manual-assets/{id}",
+            put(wealth::update_manual_asset).delete(wealth::delete_manual_asset),
+        )
         .route("/api/wealth/notes", post(wealth::create_note))
         .route("/api/wealth/notes/archive", post(wealth::archive_note))
         .route("/api/wealth/services", get(wealth::services))

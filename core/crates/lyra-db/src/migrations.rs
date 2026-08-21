@@ -141,6 +141,34 @@ pub const MIGRATIONS: &[&[&str]] = &[
                updated_at INTEGER NOT NULL
            )"#,
     ],
+    // v3 -> v4: off-chain assets get a server-side home.
+    //
+    // These lived in the browser's `localStorage` under `lyra:wealth:manual-assets` — which is why
+    // `snapshots` could only ever be the on-chain trend, and why the legacy `nw_history` series
+    // (which *did* include them) was never comparable with it. One device, no backup, and gone
+    // with a cleared cache.
+    //
+    // `value` is stored in the asset's own denomination with `ccy` naming it, rather than
+    // pre-converted to USD: a THB balance is 180,000 THB whatever the rate did today, and
+    // converting on write would freeze a rate into what is meant to be a standing fact.
+    &[
+        r#"CREATE TABLE IF NOT EXISTS manual_assets (
+               id         TEXT PRIMARY KEY,
+               name       TEXT    NOT NULL,
+               kind       TEXT,               -- 'jlp' | 'kgold' | 'lightning' | NULL
+               value      REAL,               -- in `ccy`, not USD
+               ccy        TEXT,               -- 'usd' | 'thb' | 'sats'; NULL means usd
+               units      REAL,
+               code       TEXT,
+               tier       TEXT    NOT NULL,   -- 'store' | 'business' | 'trading'
+               chain      TEXT,
+               note       TEXT,
+               custody    TEXT,               -- 'cold' | 'custodial'
+               created_at INTEGER NOT NULL,
+               updated_at INTEGER NOT NULL
+           )"#,
+        "CREATE INDEX IF NOT EXISTS idx_manual_assets_tier ON manual_assets(tier)",
+    ],
 ];
 
 /// Applies every migration the database has not seen yet. Returns the resulting `user_version`.

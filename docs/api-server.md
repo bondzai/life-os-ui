@@ -77,9 +77,12 @@ which diffs this server against the Python one endpoint by endpoint.
   serialised — because the Python has no such field and adding one would fail every parity run.
   Safe to display, **not** safe to record. A cold read that drops KuCoin logs
   `(kucoin skipped: timed out)` and quietly reports a smaller book.
-- **Off-chain assets are invisible here.** The server is keyless: it reads public chain data for
-  addresses it is given and has no way to learn about gold in a drawer. Manual assets live in the
-  browser, which is why net worth on the API can be lower than on the device you typed them into.
+- **Off-chain assets are only what you have told it.** The server is keyless: it reads public
+  chain data for addresses it is given and cannot *discover* gold in a drawer. It can be told, and
+  since 2026-08-21 that is what `/api/wealth/manual-assets` is for — the book is server state, and
+  the net-worth snapshot counts it. A number is still only as complete as that list: nothing
+  reconciles it against reality, so an asset you sold and did not delete is still in your net
+  worth.
 
 ## Configuration
 

@@ -171,7 +171,13 @@ export interface PortfolioData {
   fetched_at: number
 }
 
-export interface ManualAsset {
+export interface ManualAsset extends ManualAssetInput {
+  /** Server-assigned. Absent from the browser-local lists this replaced — see the repository. */
+  id: string
+}
+
+/** The writable half of a [[ManualAsset]] — what an editor form produces. */
+export interface ManualAssetInput {
   name: string
   kind?: 'jlp' | 'kgold' | 'lightning'
   value?: number

@@ -360,7 +360,7 @@ async fn maybe_snapshot(state: &AppState, config: &AlertConfig<'_>) {
         }
     }
 
-    let Some(figures) = wealth::collect_figures().await else {
+    let Some((figures, rates)) = wealth::collect_figures().await else {
         record_error(
             &meta,
             "snapshot: the portfolio read returned nothing".into(),
@@ -368,13 +368,39 @@ async fn maybe_snapshot(state: &AppState, config: &AlertConfig<'_>) {
         return;
     };
 
+    // The off-chain book, added in.
+    //
+    // This is what makes the stored series mean "net worth" rather than "the on-chain trend". It
+    // is also why the legacy `nw_history` points (which included these) could not honestly be
+    // spliced onto the live ones (which did not) — see `docs/parity.md`. Points from here on
+    // measure the same thing the legacy ones did.
+    //
+    // A failed read is logged and skipped rather than aborting the snapshot: an on-chain-only
+    // point is a known, recorded understatement, where no point at all is a gap in the chart.
+    let (off_chain, off_chain_count) =
+        match store::manual_total_usd(&state.pool, rates.thb, rates.btc_usd).await {
+            Ok(totals) => totals,
+            Err(e) => {
+                record_error(&meta, format!("snapshot: reading off-chain assets: {e}"));
+                (0.0, 0)
+            }
+        };
+
+    let assets = figures.total + off_chain;
     let input = SnapshotInput {
-        net_worth: figures.total - figures.debt,
-        assets: Some(figures.total),
+        net_worth: assets - figures.debt,
+        assets: Some(assets),
         debt: Some(figures.debt),
         btc_usd: Some(figures.btc_usd),
         btc_sats: figures.btc_sats,
-        extra: None,
+        // Recorded so a reader can back the off-chain half out of any stored point — without it,
+        // a jump the day an asset is entered looks like the portfolio moved.
+        extra: (off_chain_count > 0).then(|| {
+            serde_json::json!({
+                "off_chain_usd": off_chain,
+                "off_chain_count": off_chain_count,
+            })
+        }),
     };
     if let Err(e) = store::record_snapshot(&state.pool, &group, &input, interval, None).await {
         record_error(&meta, format!("snapshot: {e}"));

@@ -511,11 +511,11 @@ together found three breaks, none of which any of those checks could see:
    whose money to count. An explicit address still wins, so the parity gate is unaffected, and a
    *malformed* address is still a 400: the fallback covers "you did not say", never "you said
    something wrong".
-2. **`getManualAssets()` called `wealth/manual-assets`, which does not exist** and never did.
-   Off-chain assets are the one thing a keyless backend cannot know — `lyra-db`'s own header says
-   so. They live in the browser, as they did in the original app, and the repository now reads
-   them from there. This is why net worth can be lower here than on the device you typed them
-   into.
+2. **`getManualAssets()` called `wealth/manual-assets`, which did not exist.** The reasoning at
+   the time was that off-chain assets are the one thing a keyless backend cannot know, so the
+   repository read them from `localStorage` instead. That reasoning was half right and the
+   conclusion was wrong: a keyless server cannot *discover* what you hold off chain, but it can
+   be told. **The route exists as of 2026-08-21** — see "The off-chain book" below.
 3. **`getHistory()` typed the response as an array; the route returns `{group, points}`.** It
    degraded quietly to "not enough history" rather than throwing, which is the worst kind of
    wrong — a chart that renders, and lies by omission.
@@ -596,6 +596,10 @@ The chart says "not enough history yet" until it has two, which is true.
 
 Closing this properly means Lyra tracking off-chain assets server-side, at which point the two
 bases match and the join is honest. Until then they are two series, presented as two.
+
+**Half of that landed on 2026-08-21** — see below. The bases match *from that day forward*; the
+live points already written do not include the off-chain book, so the join is still not a
+back-fill. It becomes one only once there is enough same-basis history to be worth drawing.
 
 ## The oracle is gone — 2026-08-19
 
@@ -802,3 +806,47 @@ session:
 ```bash
 printf '\nJWT_SECRET=%s\n' "$(openssl rand -base64 48)" >> .env.local
 ```
+
+## The off-chain book — 2026-08-21
+
+Cold-storage BTC, metals, a bank balance: the assets a keyless server cannot discover. They lived
+in `localStorage` under `lyra:wealth:manual-assets`, which meant one device, no backup, gone with a
+cleared cache — and a server-side net-worth snapshot that could never agree with the browser's.
+That gap is the reason the legacy series was not spliced onto the live one.
+
+They are server state now.
+
+**Schema** — migration v3 → v4 adds `manual_assets`. `value` is stored in the asset's own
+denomination with `ccy` naming it (`usd` | `thb` | `sats`), never pre-converted: 180,000 THB is
+180,000 THB whatever today's rate did, and converting on write would freeze one day's rate into a
+standing fact. The USD figure is derived at read time from the portfolio's live rates.
+
+**Routes** — `GET`/`POST /api/wealth/manual-assets`, `PUT`/`DELETE /api/wealth/manual-assets/{id}`,
+behind the same JWT gate as the rest of the module. `PUT` is a **whole-row replace, not a patch**:
+the editor sends the whole form, and under a patch "clear this note" and "leave this note alone"
+would be the same request. `DELETE` is a hard delete, where `analyses` soft-archives — an off-chain
+asset is a present-tense claim about what you own, and a sold one is not a version of anything.
+
+**The snapshot counts them.** `maybe_snapshot` adds the off-chain total to `assets` and hence to
+`net_worth`, and records the split in `snapshots.extra` as `{off_chain_usd, off_chain_count}` so a
+reader can back it out — without that, the day an asset is entered looks like the portfolio moved.
+A failed off-chain read logs and records an on-chain-only point rather than skipping: a known
+understatement beats a gap in the chart. Verified end to end — 180,000 THB entered through the UI,
+next snapshot `net_worth = 5882.02 = 413.39 on-chain + 5468.63 off-chain`, `extra` naming the
+split, and the settings page showing `$5,468.63` for the same row.
+
+**The digest is deliberately left on chain.** Folding a large static off-chain balance into the
+alert denominator would dampen every percentage move — a 10% drawdown in the traded book reads as
+2% against a net worth padded with cold storage, and the alerts quietly weaken. The daily brief
+reports the book it watches.
+
+**The browser's list is handed over, resumably.** `importLocalAssets` POSTs each queued row and
+removes it from `localStorage` **only after the server has accepted it**, appending it to a backup
+key rather than dropping it. A batch that fails halfway therefore leaves exactly the un-imported
+rows behind, and the next read finishes the job. A single "already migrated" flag could not do
+this: under one, a partial failure either duplicates rows or loses them. Three tests pin it.
+
+**Still on chain only: the MCP desk.** `get_portfolio` and friends answer from the chain fan-out,
+so an agent reasoning about net worth cannot see the off-chain book. That is a real gap now that
+the book exists and is not one this change closes — it is an addition to a ported surface, not
+part of giving the assets a home.

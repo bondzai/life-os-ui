@@ -143,5 +143,44 @@ describe.skipIf(!LIVE)('wealth surfaces against the live API', () => {
     renderPage(<WealthSettingsPage />)
     await settles('Sweep')
     await settles('Alert thresholds')
+    // The off-chain card shares the page and reads a different endpoint; if that route were
+    // missing this is where it would show, rather than in a passing mock render.
+    await settles('Off-chain assets')
   }, 60_000)
+
+  /**
+   * The off-chain book, written and read back through the real server.
+   *
+   * A round trip rather than a render: this is a *write* path, and the failure it guards against
+   * is the one this file exists for — a request the server does not accept, or a response the
+   * client cannot read. It cleans up after itself so a live run does not leave a fake asset in
+   * the user's net worth.
+   */
+  it('round-trips an off-chain asset', async () => {
+    const auth = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${localStorage.getItem('lyra:token')}`,
+    }
+    const created = await fetch(`${API_URL}/wealth/manual-assets`, {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ name: 'live-api test asset', value: 1, ccy: 'usd', tier: 'store' }),
+    })
+    expect(created.status).toBe(201)
+    const asset = await created.json()
+    expect(asset.id).toBeTruthy()
+
+    try {
+      const listed = await fetch(`${API_URL}/wealth/manual-assets`, { headers: auth })
+      expect(listed.status).toBe(200)
+      const body = await listed.json()
+      expect(body.assets.some((a: { id: string }) => a.id === asset.id)).toBe(true)
+    } finally {
+      const removed = await fetch(`${API_URL}/wealth/manual-assets/${asset.id}`, {
+        method: 'DELETE',
+        headers: auth,
+      })
+      expect(removed.status).toBe(204)
+    }
+  }, 30_000)
 })

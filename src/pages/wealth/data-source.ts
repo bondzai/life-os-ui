@@ -8,12 +8,16 @@
  * off-chain asset — because those are what break, and it is what the render tests run against.
  */
 
-import type { ManualAsset, NwPoint, PortfolioData } from './types'
+import type { ManualAsset, ManualAssetInput, NwPoint, PortfolioData } from './types'
 
 export interface WealthDataSource {
   getPortfolio(): Promise<PortfolioData>
   getHistory(): Promise<NwPoint[]>
   getManualAssets(): Promise<ManualAsset[]>
+  createManualAsset(input: ManualAssetInput): Promise<ManualAsset>
+  /** A whole-row replace, not a patch — an absent field is cleared. */
+  updateManualAsset(id: string, input: ManualAssetInput): Promise<ManualAsset>
+  deleteManualAsset(id: string): Promise<void>
 }
 
 const DAY_MS = 86_400_000
@@ -239,11 +243,29 @@ const MOCK_PORTFOLIO: PortfolioData = {
 }
 
 const MOCK_MANUAL: ManualAsset[] = [
-  { name: 'Cold storage BTC', value: 14_000_000, ccy: 'sats', tier: 'store', custody: 'cold', note: 'Hardware wallet' },
-  { name: 'Kinesis gold (KAU)', kind: 'kgold', value: 4_200, ccy: 'usd', tier: 'store', code: 'KAU' },
-  { name: 'Lightning channel', kind: 'lightning', value: 2_400_000, ccy: 'sats', tier: 'trading', custody: 'custodial' },
-  { name: 'THB savings', value: 180_000, ccy: 'thb', tier: 'business', note: 'Bangkok bank' },
+  { id: 'manual-btc', name: 'Cold storage BTC', value: 14_000_000, ccy: 'sats', tier: 'store', custody: 'cold', note: 'Hardware wallet' },
+  { id: 'manual-kau', name: 'Kinesis gold (KAU)', kind: 'kgold', value: 4_200, ccy: 'usd', tier: 'store', code: 'KAU' },
+  { id: 'manual-ln', name: 'Lightning channel', kind: 'lightning', value: 2_400_000, ccy: 'sats', tier: 'trading', custody: 'custodial' },
+  { id: 'manual-thb', name: 'THB savings', value: 180_000, ccy: 'thb', tier: 'business', note: 'Bangkok bank' },
 ]
+
+/**
+ * A mutable off-chain book for the demo session.
+ *
+ * Module-level and deliberately not persisted: a demo is meant to be resettable by reloading the
+ * page, and writing it to `localStorage` would leave demo rows behind for the real session to
+ * import. Ids are counter-based so they are stable within a session and obviously not server ids.
+ */
+let mockManual: ManualAsset[] = [...MOCK_MANUAL]
+let mockManualSeq = 0
+
+function mockWrite(id: string, input: ManualAssetInput): ManualAsset {
+  const asset: ManualAsset = { ...input, id }
+  const at = mockManual.findIndex((a) => a.id === id)
+  if (at >= 0) mockManual[at] = asset
+  else mockManual = [asset, ...mockManual]
+  return asset
+}
 
 function delay<T>(value: T, ms = 320): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
@@ -253,7 +275,13 @@ function delay<T>(value: T, ms = 320): Promise<T> {
 export const mockWealthSource: WealthDataSource = {
   getPortfolio: () => delay(MOCK_PORTFOLIO),
   getHistory: () => delay(history(400, MOCK_TOTAL)),
-  getManualAssets: () => delay(MOCK_MANUAL),
+  getManualAssets: () => delay([...mockManual]),
+  createManualAsset: (input) => delay(mockWrite(`manual-demo-${++mockManualSeq}`, input)),
+  updateManualAsset: (id, input) => delay(mockWrite(id, input)),
+  deleteManualAsset: (id) => {
+    mockManual = mockManual.filter((a) => a.id !== id)
+    return delay(undefined)
+  },
 }
 
 /** Renders the empty/onboarding state — no wallets configured yet. */
@@ -261,4 +289,7 @@ export const emptyWealthSource: WealthDataSource = {
   getPortfolio: () => delay({ wallets: [], total: 0, rates: null, fetched_at: Date.now() / 1000 }),
   getHistory: () => delay([]),
   getManualAssets: () => delay([]),
+  createManualAsset: (input) => delay({ ...input, id: 'empty' }),
+  updateManualAsset: (id, input) => delay({ ...input, id }),
+  deleteManualAsset: () => delay(undefined),
 }
