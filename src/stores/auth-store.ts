@@ -33,6 +33,10 @@ export const useAuthStore = create<AuthState>()(
       },
       logout: () => {
         localStorage.removeItem('lyra:token')
+        // The data mode belongs to the session, not to the browser. Leaving it behind is what
+        // made "sign out and sign back in" unable to escape a demo or local session — the next
+        // sign-in read the stale mode and served mock data against a healthy API.
+        localStorage.removeItem('lyra:data-mode')
         set({ currentUser: null, isAuthenticated: false })
       },
     }),

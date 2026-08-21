@@ -1,22 +1,29 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useEffect, useState } from 'react'
 import { Sparkles, LogIn } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/stores/auth-store'
 import { generateMockData, clearMockData } from '@/lib/mock-data'
+import { API_URL } from '@/lib/api-url'
 import type { User } from '@/core/types'
 
 const KEY_PREFIX = 'lyra:'
 
-function getStoredMode(): string | null {
-  return localStorage.getItem('lyra:data-mode')
-}
+type DataMode = 'api' | 'local' | 'demo'
 
-function isApiMode(): boolean {
-  const stored = getStoredMode()
-  return stored === 'api' || (stored === null && import.meta.env.VITE_USE_API === 'true')
+/**
+ * Land in the app with the chosen mode actually in force.
+ *
+ * A full page load, **not** `navigate()`. `USE_API` and every repository built from it are
+ * module-level constants, read once when the bundle first ran — so a client-side transition
+ * leaves the session bound to whatever mode was in effect *before* the sign-in. That is how
+ * signing in as JB produced mock balances against a perfectly healthy API. `setDataMode` in
+ * Settings has always reloaded for exactly this reason.
+ */
+function enter(mode: DataMode): void {
+  localStorage.setItem('lyra:data-mode', mode)
+  window.location.href = '/'
 }
 
 const DEFAULT_USERS: User[] = [
@@ -47,21 +54,41 @@ export function LoginPage() {
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
   const login = useAuthStore((s) => s.login)
   const loginWithApi = useAuthStore((s) => s.loginWithApi)
+
+  /**
+   * Whether the backend is actually up. `null` while the probe is in flight.
+   *
+   * **Probed, not configured.** This used to read `VITE_USE_API`, a build-time flag — so on a
+   * box whose server was running perfectly, a fresh browser still took the local branch, wrote
+   * `data-mode: local`, and served mock balances. Worse, `logout` left that mode behind, so
+   * signing out and back in could never escape it. A self-hosted box either has its server
+   * running or it does not; that is a question to ask at sign-in, not to rebuild the bundle for.
+   */
+  const [apiUp, setApiUp] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    const abort = new AbortController()
+    let live = true
+    fetch(`${API_URL}/health`, { signal: abort.signal })
+      .then((res) => { if (live) setApiUp(res.ok) })
+      .catch(() => { if (live) setApiUp(false) })
+    return () => { live = false; abort.abort() }
+  }, [])
+
+  const useApi = apiUp === true
 
   const handleDemo = () => {
     clearMockData()
     generateMockData()
-    localStorage.setItem('lyra:data-mode', 'demo')
     // Auto-login as demo user
     const users = getUsers()
     const demoUser = users.find((u) => u.id === 'user-demo') || users[0]
     if (demoUser) {
       login(demoUser)
     }
-    navigate('/')
+    enter('demo')
   }
 
   const [username, setUsername] = useState('')
@@ -75,31 +102,30 @@ export function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (isApiMode()) {
+    if (useApi) {
       setLoading(true)
       try {
-        localStorage.setItem('lyra:data-mode', 'api')
         await loginWithApi(pin)
-        navigate('/')
+        enter('api')
       } catch (err) {
+        // The server answered and said no — staying here with the reason beats falling back to
+        // a local session that would quietly show different numbers for the same PIN.
         setError(err instanceof Error ? err.message : 'Login failed')
         setPin('')
-      } finally {
         setLoading(false)
       }
       return
     }
 
-    // Local mode: match by name + pin
+    // No server reachable: browser-local storage, matched by name + pin.
     const users = getUsers()
     const trimmedName = username.trim().toLowerCase()
     const matched = users.find(
       (u) => u.name.toLowerCase() === trimmedName && u.pin === pin,
     )
     if (matched) {
-      localStorage.setItem('lyra:data-mode', 'local')
       login(matched)
-      navigate('/')
+      enter('local')
     } else {
       setError('Invalid name or PIN')
       setPin('')
@@ -164,7 +190,15 @@ export function LoginPage() {
                 </div>
                 <div>
                   <p className="font-medium">Sign In</p>
-                  <p className="text-xs text-muted-foreground">Log in with your PIN</p>
+                  {/* Which store you are about to land in, answered before the PIN rather than
+                      discovered afterwards by noticing the balances are invented. */}
+                  <p className="text-xs text-muted-foreground">
+                    {apiUp === null
+                      ? 'Log in with your PIN'
+                      : apiUp
+                        ? 'Your live server — real balances'
+                        : 'Server offline — this browser only'}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -200,10 +234,17 @@ export function LoginPage() {
             </svg>
           </div>
           <CardTitle>Sign In</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            {apiUp === null
+              ? 'Checking for your server…'
+              : apiUp
+                ? 'Signing in to your live server'
+                : 'No server reachable — signing in to this browser only'}
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isApiMode() && (
+            {!useApi && (
               <Input
                 type="text"
                 placeholder="Name"
@@ -219,12 +260,12 @@ export function LoginPage() {
               placeholder="PIN"
               value={pin}
               onChange={(e) => { setPin(e.target.value); setError('') }}
-              autoFocus={isApiMode()}
+              autoFocus={useApi}
               maxLength={8}
               className="text-center text-lg tracking-widest"
             />
             {error && <p className="text-sm text-destructive mt-1 text-center">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading || (!isApiMode() && !username.trim()) || !pin}>
+            <Button type="submit" className="w-full" disabled={loading || (!useApi && !username.trim()) || !pin}>
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
             <Button type="button" variant="ghost" className="w-full" onClick={() => { setStep('choose'); setPin(''); setUsername(''); setError('') }}>

@@ -11,6 +11,12 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['src/**/*.test.{ts,tsx}'],
+    // Pinned so the suite does not read the operator's `.env.local`. `USE_API` falls back to
+    // `VITE_USE_API` when no data mode is stored, and jsdom starts with an empty localStorage —
+    // so setting that flag on a real box silently swapped every mock-backed render test onto the
+    // API repository and failed thirteen of them. Tests decide their own mode; `live-api.test.tsx`
+    // opts in by writing `lyra:data-mode` before its imports run.
+    env: { VITE_USE_API: 'false' },
   },
   plugins: [
     react(),
