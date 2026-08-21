@@ -9,6 +9,7 @@ import { modules } from '@/core/config/modules'
 import { ChatSidebar } from '@/pages/ai/chat-sidebar'
 import { CommandBar } from '@/pages/ai/command-bar'
 import { InboxCapture } from '@/components/inbox-capture'
+import { DataModeNotice } from '@/components/data-mode-notice'
 import { useUiStore } from '@/stores/ui-store'
 import { useFocusStore } from '@/stores/focus-store'
 import { LyraPageLoader } from '@/components/lyra-loader'
@@ -77,6 +78,9 @@ export function AppLayout() {
         {!focusMode && <AppSidebar />}
         <main className="flex-1 flex flex-col">
           {!focusMode && <TopBar title={title} />}
+          {/* Above the content, not inside a page: a stranded session shows invented tasks and
+              notes too, not only invented money. */}
+          {!focusMode && <DataModeNotice />}
           <div className={`flex-1 ${focusMode ? 'p-4 sm:p-8' : 'p-3 sm:p-6'}`}>
             <Suspense
               fallback={<LyraPageLoader />}
