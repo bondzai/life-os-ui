@@ -139,12 +139,17 @@ describe.skipIf(!LIVE)('wealth surfaces against the live API', () => {
   }, 60_000)
 
   it('renders Alerts off the live sweep state', async () => {
-    const { WealthSettingsPage } = await import('./settings')
-    renderPage(<WealthSettingsPage />)
+    const { WealthAlertsPage } = await import('./alerts')
+    renderPage(<WealthAlertsPage />)
     await settles('Sweep')
     await settles('Alert thresholds')
-    // The off-chain card shares the page and reads a different endpoint; if that route were
-    // missing this is where it would show, rather than in a passing mock render.
+  }, 60_000)
+
+  /** Settings is the other half of the split: the two lists the whole book is counted from. */
+  it('renders Settings with the wallet and off-chain lists', async () => {
+    const { WealthSettingsPage } = await import('./settings')
+    renderPage(<WealthSettingsPage />)
+    await settles('Wallets')
     await settles('Off-chain assets')
   }, 60_000)
 

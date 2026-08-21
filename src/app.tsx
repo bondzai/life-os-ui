@@ -31,6 +31,7 @@ const WealthBtcPage = lazy(() => import('@/pages/wealth/btc').then((m) => ({ def
 const WealthBotsPage = lazy(() => import('@/pages/wealth/bots').then((m) => ({ default: m.WealthBotsPage })))
 const WealthJournalPage = lazy(() => import('@/pages/wealth/journal').then((m) => ({ default: m.WealthJournalPage })))
 const WealthSettingsPage = lazy(() => import('@/pages/wealth/settings').then((m) => ({ default: m.WealthSettingsPage })))
+const WealthAlertsPage = lazy(() => import('@/pages/wealth/alerts').then((m) => ({ default: m.WealthAlertsPage })))
 
 
 const queryClient = new QueryClient({
@@ -74,6 +75,7 @@ export function App() {
                   <Route path="wealth/bots" element={<Suspense fallback={null}><WealthBotsPage /></Suspense>} />
                   <Route path="wealth/journal" element={<Suspense fallback={null}><WealthJournalPage /></Suspense>} />
                   <Route path="wealth/settings" element={<Suspense fallback={null}><WealthSettingsPage /></Suspense>} />
+                  <Route path="wealth/alerts" element={<Suspense fallback={null}><WealthAlertsPage /></Suspense>} />
                   <Route path="settings" element={<SettingsPage />} />
 
                   <Route path="*" element={<NotFoundPage />} />

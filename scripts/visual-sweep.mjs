@@ -31,7 +31,7 @@ const ROUTES = [
   '/', '/goals', '/tasks', '/calendar', '/notes', '/habits', '/review', '/inbox',
   '/dashboard', '/notifications', '/knowledge', '/deep-work', '/briefing', '/settings',
   '/wealth', '/wealth/holdings', '/wealth/defi', '/wealth/btc', '/wealth/bots',
-  '/wealth/journal', '/wealth/settings',
+  '/wealth/journal', '/wealth/settings', '/wealth/alerts',
 ]
 
 // Noise that is not a defect: a dev-server websocket that closes on navigation, and the
