@@ -20,6 +20,7 @@ import { notify } from '@/lib/notify'
 import { cn } from '@/lib/utils'
 import { formatRelativeTime } from './format'
 import { OffChainAssets } from './off-chain'
+import { WalletList } from './wallets'
 import { RowsSkeleton, WealthError } from './states'
 import type { AlertStatus } from './types'
 import { StatCard } from './wealth-ui'
@@ -280,6 +281,8 @@ function AlertSettings() {
 export function WealthSettingsPage() {
   return (
     <div className="space-y-4">
+      {/* Wallets first: it decides what every other number on every wealth page is counted from. */}
+      <WalletList />
       <OffChainAssets />
       <AlertSettings />
     </div>

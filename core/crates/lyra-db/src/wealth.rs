@@ -1471,6 +1471,130 @@ pub async fn manual_total_usd(
     Ok((total, assets.len()))
 }
 
+// ===========================================================================================
+// wallets — the address list
+// ===========================================================================================
+
+/// One address the book is built from.
+///
+/// `kind` is resolved by the caller (this crate knows nothing about chains) and stored, so the UI
+/// can group by chain without re-deriving it and a future chain cannot silently re-classify rows
+/// already on disk.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Wallet {
+    pub id: String,
+    pub address: String,
+    pub label: Option<String>,
+    /// `evm` | `bitcoin` | `solana`.
+    pub kind: String,
+    pub created_at: i64,
+}
+
+/// A rejected wallet write.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WalletError {
+    MissingAddress,
+    Duplicate,
+}
+
+impl std::fmt::Display for WalletError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingAddress => write!(f, "address is required"),
+            Self::Duplicate => write!(f, "that address is already on the list"),
+        }
+    }
+}
+
+impl std::error::Error for WalletError {}
+
+fn row_to_wallet(row: &sqlx::sqlite::SqliteRow) -> Result<Wallet> {
+    Ok(Wallet {
+        id: row.try_get("id")?,
+        address: row.try_get("address")?,
+        label: row.try_get("label")?,
+        kind: row.try_get("kind")?,
+        created_at: row.try_get("created_at")?,
+    })
+}
+
+/// Every configured wallet, oldest first.
+///
+/// Insertion order, not alphabetical: the first address you added is usually your main one, and a
+/// list that reorders itself when you add a wallet is disorienting.
+pub async fn list_wallets(pool: &SqlitePool) -> Result<Vec<Wallet>> {
+    let rows = sqlx::query("SELECT * FROM wallets ORDER BY created_at ASC, id ASC")
+        .fetch_all(pool)
+        .await
+        .context("listing wallets")?;
+    rows.iter().map(row_to_wallet).collect()
+}
+
+/// Just the addresses, in the same order — what the chain fan-out takes.
+pub async fn wallet_addresses(pool: &SqlitePool) -> Result<Vec<String>> {
+    Ok(list_wallets(pool)
+        .await?
+        .into_iter()
+        .map(|w| w.address)
+        .collect())
+}
+
+/// Adds one address. `kind` must already be resolved; the address is stored verbatim.
+///
+/// A duplicate is a named 409 rather than a raw UNIQUE violation, because "that address is already
+/// on the list" is a thing the user can act on and `SQLITE_CONSTRAINT` is not.
+pub async fn create_wallet(
+    pool: &SqlitePool,
+    address: &str,
+    label: Option<&str>,
+    kind: &str,
+    now: Option<i64>,
+) -> Result<Wallet> {
+    let address = address.trim();
+    if address.is_empty() {
+        return Err(WalletError::MissingAddress.into());
+    }
+
+    let wallet = Wallet {
+        id: new_id(),
+        address: address.to_string(),
+        label: label
+            .map(|l| l.trim().chars().take(64).collect::<String>())
+            .filter(|l| !l.is_empty()),
+        kind: kind.to_string(),
+        created_at: now_or(now),
+    };
+
+    let result = sqlx::query(
+        "INSERT INTO wallets (id, address, label, kind, created_at) VALUES (?, ?, ?, ?, ?)",
+    )
+    .bind(&wallet.id)
+    .bind(&wallet.address)
+    .bind(&wallet.label)
+    .bind(&wallet.kind)
+    .bind(wallet.created_at)
+    .execute(pool)
+    .await;
+
+    match result {
+        Ok(_) => Ok(wallet),
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => {
+            Err(WalletError::Duplicate.into())
+        }
+        Err(e) => Err(anyhow::Error::new(e).context("adding wallet")),
+    }
+}
+
+/// Returns `true` if a row was removed.
+pub async fn delete_wallet(pool: &SqlitePool, id: &str) -> Result<bool> {
+    let result = sqlx::query("DELETE FROM wallets WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("deleting wallet")?;
+    Ok(result.rows_affected() > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3133,6 +3257,95 @@ mod tests {
             manual_total_usd(&pool, Some(36.0), Some(60_000.0)).await.unwrap(),
             (0.0, 0)
         );
+    }
+
+
+    // ---- wallets ----
+
+    const EVM: &str = "0x7Fce9c293dBD6d050455B986cb6850114Aad71a8";
+    const BTC: &str = "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq";
+
+    #[tokio::test]
+    async fn wallets_round_trip_in_insertion_order() {
+        let (_dir, pool) = fresh().await;
+        create_wallet(&pool, EVM, Some("main"), "evm", Some(1_700_000_000))
+            .await
+            .unwrap();
+        create_wallet(&pool, BTC, Some("  cold  "), "bitcoin", Some(1_700_000_500))
+            .await
+            .unwrap();
+
+        let rows = list_wallets(&pool).await.unwrap();
+        assert_eq!(rows.len(), 2);
+        // Oldest first — the first address added is usually the main one.
+        assert_eq!(rows[0].address, EVM);
+        assert_eq!(rows[0].label.as_deref(), Some("main"));
+        assert_eq!(rows[1].kind, "bitcoin");
+        assert_eq!(rows[1].label.as_deref(), Some("cold"));
+        assert_eq!(
+            wallet_addresses(&pool).await.unwrap(),
+            vec![EVM.to_string(), BTC.to_string()]
+        );
+    }
+
+    /// EVM addresses are commonly written in two casings for the same wallet; counting one twice
+    /// would double the book.
+    #[tokio::test]
+    async fn the_same_address_cannot_be_added_twice_in_either_casing() {
+        let (_dir, pool) = fresh().await;
+        create_wallet(&pool, EVM, None, "evm", None).await.unwrap();
+
+        for variant in [EVM.to_string(), EVM.to_lowercase(), EVM.to_uppercase()] {
+            let e = create_wallet(&pool, &variant, None, "evm", None)
+                .await
+                .unwrap_err();
+            assert_eq!(
+                e.downcast_ref::<WalletError>(),
+                Some(&WalletError::Duplicate),
+                "{variant} should be a duplicate"
+            );
+        }
+        assert_eq!(list_wallets(&pool).await.unwrap().len(), 1);
+    }
+
+    /// Checksummed casing is meaningful to the eye, so it is kept exactly as entered even though
+    /// the uniqueness check ignores it.
+    #[tokio::test]
+    async fn the_address_is_stored_verbatim() {
+        let (_dir, pool) = fresh().await;
+        let stored = create_wallet(&pool, &format!("  {EVM}  "), None, "evm", None)
+            .await
+            .unwrap();
+        assert_eq!(stored.address, EVM);
+    }
+
+    #[tokio::test]
+    async fn an_empty_address_is_refused_and_an_unknown_delete_is_not_an_error() {
+        let (_dir, pool) = fresh().await;
+        let e = create_wallet(&pool, "   ", None, "evm", None).await.unwrap_err();
+        assert_eq!(
+            e.downcast_ref::<WalletError>(),
+            Some(&WalletError::MissingAddress)
+        );
+        assert!(!delete_wallet(&pool, "nope").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn deleting_a_wallet_takes_it_out_of_the_address_list() {
+        let (_dir, pool) = fresh().await;
+        let evm = create_wallet(&pool, EVM, None, "evm", None).await.unwrap();
+        create_wallet(&pool, BTC, None, "bitcoin", None).await.unwrap();
+
+        assert!(delete_wallet(&pool, &evm.id).await.unwrap());
+        assert_eq!(wallet_addresses(&pool).await.unwrap(), vec![BTC.to_string()]);
+    }
+
+    /// An empty table is the signal that the environment still owns the list, so it must read as
+    /// empty rather than as one blank address.
+    #[tokio::test]
+    async fn no_wallets_is_an_empty_list_not_a_blank_entry() {
+        let (_dir, pool) = fresh().await;
+        assert!(wallet_addresses(&pool).await.unwrap().is_empty());
     }
 
 }

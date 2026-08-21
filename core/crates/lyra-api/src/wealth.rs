@@ -766,6 +766,178 @@ fn addresses(
     parse_addresses(raw, max_wallets)
 }
 
+/* ─── The wallet list ─── */
+
+/// The addresses this box counts, from the database, falling back to the environment.
+///
+/// `ALERT_WALLETS` is the seed and the fallback, never the authority: an empty table means "use
+/// the environment", so a box that has never opened the wallet screen keeps working exactly as it
+/// did. Adding one address through the UI takes over completely — a half-and-half union would make
+/// "remove this wallet" impossible for anything the env still names.
+///
+/// Returned as the raw space-joined string [`addresses`] parses, so the query-parameter path and
+/// the fallback path go through the same validation.
+pub(crate) async fn configured_wallets(pool: &sqlx::SqlitePool) -> String {
+    match store::wallet_addresses(pool).await {
+        Ok(list) if !list.is_empty() => list.join(" "),
+        Ok(_) => DEFAULT_WALLETS.clone(),
+        Err(e) => {
+            // The env fallback is the safe answer here: reporting an empty book because a read
+            // failed would look exactly like a book that is genuinely empty.
+            tracing::error!(error = %e, "reading the wallet list; falling back to ALERT_WALLETS");
+            DEFAULT_WALLETS.clone()
+        }
+    }
+}
+
+fn wallet_json(wallet: &store::Wallet) -> Value {
+    json!({
+        "id": wallet.id,
+        "address": wallet.address,
+        "label": wallet.label,
+        "kind": wallet.kind,
+        "created_at": wallet.created_at,
+    })
+}
+
+/// `GET /api/wealth/wallets` — the configured address list.
+///
+/// `source` says where the list came from, because "you have no wallets" and "your wallets come
+/// from the environment" look identical in the array alone and want different UI.
+pub async fn wallets(State(state): State<AppState>, _user: AuthUser) -> Response {
+    match store::list_wallets(&state.pool).await {
+        Ok(rows) => {
+            let from_env = rows.is_empty() && !DEFAULT_WALLETS.trim().is_empty();
+            Json(json!({
+                "wallets": rows.iter().map(wallet_json).collect::<Vec<_>>(),
+                "source": if rows.is_empty() && from_env { "env" } else { "db" },
+                // What the fan-out will actually read, whichever source won.
+                "effective": parse_addresses(&configured_wallets(&state.pool).await, MAX_WALLETS)
+                    .unwrap_or_default(),
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "listing wallets");
+            error(StatusCode::INTERNAL_SERVER_ERROR, "Internal error")
+        }
+    }
+}
+
+/// Classify an address the way the chain fan-out does, or `None` if it cannot read it.
+fn wallet_kind(address: &str) -> Option<&'static str> {
+    use lyra_chain::address::AddressKind;
+    match lyra_chain::address::kind_of(address)? {
+        AddressKind::Evm => Some("evm"),
+        AddressKind::Bitcoin => Some("bitcoin"),
+        AddressKind::Solana => Some("solana"),
+    }
+}
+
+/// Move the environment's addresses into the table, once, just before it stops being consulted.
+///
+/// Without this, adding your first wallet would *silently drop* every address `ALERT_WALLETS`
+/// named — you would add a cold Bitcoin wallet and lose the EVM one that holds the actual book.
+/// The list takes over, so it has to take over carrying what was already there.
+///
+/// A no-op once anything is stored, and a best-effort import: an env entry the classifier cannot
+/// read is skipped with a warning rather than blocking the wallet the user actually asked for.
+async fn seed_wallets_from_env(pool: &sqlx::SqlitePool) {
+    match store::list_wallets(pool).await {
+        Ok(existing) if !existing.is_empty() => return,
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!(error = %e, "checking whether wallets need seeding");
+            return;
+        }
+    }
+
+    for address in parse_addresses(&DEFAULT_WALLETS, MAX_WALLETS).unwrap_or_default() {
+        let Some(kind) = wallet_kind(&address) else {
+            tracing::warn!(%address, "skipping an ALERT_WALLETS entry that is not a readable address");
+            continue;
+        };
+        if let Err(e) = store::create_wallet(pool, &address, Some("from ALERT_WALLETS"), kind, None).await {
+            tracing::warn!(error = %e, %address, "could not seed a wallet from the environment");
+        }
+    }
+}
+
+/// `POST /api/wealth/wallets` — add an address.
+///
+/// The address is validated by `lyra-chain`'s own classifier, so exactly the set the fan-out can
+/// actually read is the set that can be stored — a typo is refused here rather than becoming a
+/// wallet that silently contributes nothing.
+pub async fn create_wallet(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    body: String,
+) -> Response {
+    let body = read_json(&body);
+    let address = body
+        .get("address")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    let Some(kind) = wallet_kind(&address) else {
+        return error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "not an address this can read — expected 0x… (EVM), bc1…/1…/3… (Bitcoin) or a Solana address",
+        );
+    };
+
+    // Validate before seeding: a rejected address must not be the thing that flips the list from
+    // the environment to the database.
+    seed_wallets_from_env(&state.pool).await;
+
+    // The cap is the fan-out's, not a storage limit: past it the portfolio read would refuse the
+    // whole list, so the wallet that breaks it is refused instead of the book.
+    match store::list_wallets(&state.pool).await {
+        Ok(existing) if existing.len() >= MAX_WALLETS => {
+            return error(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                &format!("at most {MAX_WALLETS} wallets"),
+            );
+        }
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!(error = %e, "counting wallets");
+            return error(StatusCode::INTERNAL_SERVER_ERROR, "Internal error");
+        }
+    }
+
+    let label = body.get("label").and_then(Value::as_str);
+    match store::create_wallet(&state.pool, &address, label, kind, None).await {
+        Ok(wallet) => (StatusCode::CREATED, Json(wallet_json(&wallet))).into_response(),
+        Err(e) => match e.downcast_ref::<store::WalletError>() {
+            Some(store::WalletError::Duplicate) => error(StatusCode::CONFLICT, &e.to_string()),
+            Some(bad) => error(StatusCode::UNPROCESSABLE_ENTITY, &bad.to_string()),
+            None => {
+                tracing::error!(error = %e, "adding wallet");
+                error(StatusCode::INTERNAL_SERVER_ERROR, "Internal error")
+            }
+        },
+    }
+}
+
+/// `DELETE /api/wealth/wallets/{id}` — stop counting an address.
+pub async fn delete_wallet(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    Path(id): Path<String>,
+) -> Response {
+    match store::delete_wallet(&state.pool, &id).await {
+        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(false) => error(StatusCode::NOT_FOUND, "not found"),
+        Err(e) => {
+            tracing::error!(error = %e, "deleting wallet");
+            error(StatusCode::INTERNAL_SERVER_ERROR, "Internal error")
+        }
+    }
+}
+
 /// `GET /api/wealth/portfolio?address=` — every wallet, aggregated.
 ///
 /// Accepts several addresses separated by commas or spaces, up to `MAX_WALLETS`.
@@ -780,7 +952,8 @@ pub async fn portfolio(
     _user: AuthUser,
     Query(params): Query<AddressQuery>,
 ) -> Response {
-    let addresses = match addresses(params.address, MAX_WALLETS, &DEFAULT_WALLETS) {
+    let configured = configured_wallets(&state.pool).await;
+    let addresses = match addresses(params.address, MAX_WALLETS, &configured) {
         Ok(addresses) => addresses,
         Err(message) => return error(StatusCode::BAD_REQUEST, &message),
     };
@@ -1319,8 +1492,16 @@ pub async fn services(_user: AuthUser, Query(params): Query<ServicesQuery>) -> R
 
 /* ─── Alerts — awaiting a `lyra-alerts` dependency ─── */
 
-/// Watched wallets — the port of `notify._wallets`: `ALERT_WALLETS`, split on commas or spaces,
-/// keeping only `0x…` entries.
+/// Wallets the **alert sweep** watches: EVM only.
+///
+/// The `0x…` filter is the port of `notify._wallets` and is correct *here* — every alert this
+/// loop raises is about an EVM position (LP range, lending health factor), so a Bitcoin address
+/// would add nothing to watch.
+///
+/// It is **not** correct for anything that values the book. This function used to feed the
+/// net-worth snapshot too, which silently dropped every non-EVM address before it was counted —
+/// a `bc1…` wallet contributed to the portfolio page and not to the recorded series. Use
+/// [`counted_wallets`] for anything that adds up money.
 pub(crate) fn watched_wallets() -> Vec<String> {
     std::env::var("ALERT_WALLETS")
         .unwrap_or_default()
@@ -1329,6 +1510,13 @@ pub(crate) fn watched_wallets() -> Vec<String> {
         .filter(|a| a.starts_with("0x"))
         .map(str::to_string)
         .collect()
+}
+
+/// Every wallet whose value counts, of any chain — the stored list, else the environment.
+///
+/// The counterpart to [`watched_wallets`]: alerting is EVM-only by nature, valuation is not.
+pub(crate) async fn counted_wallets(pool: &sqlx::SqlitePool) -> Vec<String> {
+    parse_addresses(&configured_wallets(pool).await, MAX_WALLETS).unwrap_or_default()
 }
 
 /// Whether Telegram delivery is possible — `notify.can_send`.
@@ -1628,9 +1816,10 @@ pub(crate) async fn build_watched_wallet(
 /// not. The Python has no such check because it cannot tell the two apart.
 ///
 /// `None` also when the read came back empty, for the same reason.
-pub(crate) async fn collect_figures()
--> Option<(lyra_alerts::digest::DigestInput, lyra_chain::market::Rates)> {
-    let addresses = watched_wallets();
+pub(crate) async fn collect_figures(
+    pool: &sqlx::SqlitePool,
+) -> Option<(lyra_alerts::digest::DigestInput, lyra_chain::market::Rates)> {
+    let addresses = counted_wallets(pool).await;
     let snapshot = build_portfolios(Arc::clone(&UPSTREAMS.sources), &addresses, &AGGREGATE).await;
     log_health("alerts/snapshot", &snapshot.health);
 
@@ -1698,7 +1887,7 @@ mod tests {
     use axum::Router;
     use axum::body::Body;
     use axum::http::Request;
-    use axum::routing::{get, post, put};
+    use axum::routing::{delete, get, post, put};
     use http_body_util::BodyExt;
     use sqlx::SqlitePool;
     use tempfile::TempDir;
@@ -1727,6 +1916,8 @@ mod tests {
                 "/api/wealth/manual-assets/{id}",
                 put(update_manual_asset).delete(delete_manual_asset),
             )
+            .route("/api/wealth/wallets", get(wallets).post(create_wallet))
+            .route("/api/wealth/wallets/{id}", delete(delete_wallet))
             .route("/api/wealth/notes", post(create_note))
             .route("/api/wealth/notes/archive", post(archive_note))
             .route("/api/wealth/services", get(services))
@@ -1775,6 +1966,13 @@ mod tests {
             "/api/wealth/analyses",
             r#"{"scope":"strategy:main","kind":"general","title":"t","body_md":"b"}"#,
         ),
+        ("GET", "/api/wealth/wallets", ""),
+        (
+            "POST",
+            "/api/wealth/wallets",
+            r#"{"address":"bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"}"#,
+        ),
+        ("DELETE", "/api/wealth/wallets/does-not-exist", ""),
         ("GET", "/api/wealth/manual-assets", ""),
         (
             "POST",
@@ -2765,6 +2963,145 @@ mod tests {
 
         let (_, listed) = get_json(&router, "/api/wealth/manual-assets", &token).await;
         assert!(listed["assets"].as_array().unwrap().is_empty());
+    }
+
+
+    /* ─── The wallet list ─── */
+
+    const A_BTC_ADDRESS: &str = "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq";
+
+    /// The whole point of the feature: a Bitcoin address can be added, which `ALERT_WALLETS`
+    /// alone could never express to the sweep.
+    #[tokio::test]
+    async fn a_bitcoin_address_can_be_added_and_is_classified() {
+        let (_dir, _pool, router, token) = test_app().await;
+
+        let (status, created) = post_json(
+            &router,
+            "/api/wealth/wallets",
+            &token,
+            &format!(r#"{{"address":"{A_BTC_ADDRESS}","label":"cold"}}"#),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(created["kind"], "bitcoin");
+        assert_eq!(created["label"], "cold");
+
+        let (_, listed) = get_json(&router, "/api/wealth/wallets", &token).await;
+        assert_eq!(listed["wallets"].as_array().unwrap().len(), 1);
+        // Once anything is stored, the database is the authority.
+        assert_eq!(listed["source"], "db");
+        assert_eq!(listed["effective"][0], A_BTC_ADDRESS);
+    }
+
+    /// Adding your first wallet must not silently drop the addresses the environment named — you
+    /// would add a cold Bitcoin wallet and lose the EVM one holding the actual book.
+    #[tokio::test]
+    async fn the_first_wallet_added_brings_the_environment_list_with_it() {
+        // SAFETY: single-threaded test, and the value is read through `DEFAULT_WALLETS` below.
+        let evm = "0x7Fce9c293dBD6d050455B986cb6850114Aad71a8";
+        if DEFAULT_WALLETS.trim().is_empty() {
+            // The static is resolved once per process from the ambient environment; when the test
+            // runner has no ALERT_WALLETS there is nothing to seed and nothing to assert.
+            return;
+        }
+
+        let (_dir, _pool, router, token) = test_app().await;
+        let (status, _) = post_json(
+            &router,
+            "/api/wealth/wallets",
+            &token,
+            &format!(r#"{{"address":"{A_BTC_ADDRESS}","label":"cold"}}"#),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+
+        let (_, listed) = get_json(&router, "/api/wealth/wallets", &token).await;
+        let addresses: Vec<&str> = listed["wallets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|w| w["address"].as_str().unwrap())
+            .collect();
+        assert!(addresses.contains(&A_BTC_ADDRESS), "the new wallet: {addresses:?}");
+        assert!(
+            addresses.iter().any(|a| a.eq_ignore_ascii_case(evm)) || !DEFAULT_WALLETS.contains(evm),
+            "the environment's wallets should have come across: {addresses:?}"
+        );
+    }
+
+    /// A rejected address must not be the thing that flips the list from the environment to the
+    /// database — that would strand the book on an empty table.
+    #[tokio::test]
+    async fn a_refused_address_does_not_flip_the_list_to_the_database() {
+        let (_dir, _pool, router, token) = test_app().await;
+        let (status, _) =
+            post_json(&router, "/api/wealth/wallets", &token, r#"{"address":"nope"}"#).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+        let (_, listed) = get_json(&router, "/api/wealth/wallets", &token).await;
+        assert!(listed["wallets"].as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_address_the_fan_out_cannot_read_is_refused() {
+        let (_dir, _pool, router, token) = test_app().await;
+        for bad in [r#"{"address":"not-an-address"}"#, r#"{"address":""}"#, r#"{}"#] {
+            let (status, body) = post_json(&router, "/api/wealth/wallets", &token, bad).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{bad}");
+            assert!(
+                body["error"].as_str().unwrap_or_default().contains("address"),
+                "{bad} said {body}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn adding_the_same_address_twice_is_a_409() {
+        let (_dir, _pool, router, token) = test_app().await;
+        let body = format!(r#"{{"address":"{A_BTC_ADDRESS}"}}"#);
+        let (first, _) = post_json(&router, "/api/wealth/wallets", &token, &body).await;
+        assert_eq!(first, StatusCode::CREATED);
+
+        let (second, value) = post_json(&router, "/api/wealth/wallets", &token, &body).await;
+        assert_eq!(second, StatusCode::CONFLICT);
+        assert!(value["error"].as_str().unwrap().contains("already"));
+    }
+
+    #[tokio::test]
+    async fn a_wallet_can_be_removed_and_an_unknown_id_is_a_404() {
+        let (_dir, _pool, router, token) = test_app().await;
+        let (_, created) = post_json(
+            &router,
+            "/api/wealth/wallets",
+            &token,
+            &format!(r#"{{"address":"{A_BTC_ADDRESS}"}}"#),
+        )
+        .await;
+        let id = created["id"].as_str().unwrap();
+
+        let (status, _) = call(
+            &router,
+            "DELETE",
+            &format!("/api/wealth/wallets/{id}"),
+            Some(&token),
+            "",
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let (again, _) = call(
+            &router,
+            "DELETE",
+            &format!("/api/wealth/wallets/{id}"),
+            Some(&token),
+            "",
+        )
+        .await;
+        assert_eq!(again, StatusCode::NOT_FOUND);
+
+        let (_, listed) = get_json(&router, "/api/wealth/wallets", &token).await;
+        assert!(listed["wallets"].as_array().unwrap().is_empty());
     }
 
 }

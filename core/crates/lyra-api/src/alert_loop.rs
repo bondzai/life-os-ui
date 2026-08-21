@@ -342,7 +342,9 @@ pub fn snapshot_group() -> String {
 
 async fn maybe_snapshot(state: &AppState, config: &AlertConfig<'_>) {
     let meta = Arc::clone(&state.alert_meta);
-    if wealth::watched_wallets().is_empty() && !lyra_chain::kucoin::configured() {
+    // `counted_wallets`, not `watched_wallets`: a box holding only a Bitcoin address has nothing
+    // to *alert* on but plenty to value, and the EVM-only check skipped its snapshot entirely.
+    if wealth::counted_wallets(&state.pool).await.is_empty() && !lyra_chain::kucoin::configured() {
         return;
     }
 
@@ -360,7 +362,7 @@ async fn maybe_snapshot(state: &AppState, config: &AlertConfig<'_>) {
         }
     }
 
-    let Some((figures, rates)) = wealth::collect_figures().await else {
+    let Some((figures, rates)) = wealth::collect_figures(&state.pool).await else {
         record_error(
             &meta,
             "snapshot: the portfolio read returned nothing".into(),

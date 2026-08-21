@@ -19,6 +19,8 @@ import type {
   ManualAssetInput,
   NwPoint,
   PortfolioData,
+  WalletEntry,
+  WalletList,
 } from '@/pages/wealth/types'
 
 /** Where the browser used to keep off-chain assets. Now a queue of rows waiting to be imported. */
@@ -169,6 +171,19 @@ export class ApiWealthRepository implements WealthDataSource {
 
   async deleteManualAsset(id: string): Promise<void> {
     await send<null>('DELETE', `wealth/manual-assets/${encodeURIComponent(id)}`)
+  }
+
+  /** The configured address list, plus whether it still comes from `ALERT_WALLETS`. */
+  getWallets(): Promise<WalletList> {
+    return get<WalletList>('wealth/wallets')
+  }
+
+  addWallet(address: string, label?: string): Promise<WalletEntry> {
+    return post<WalletEntry>('wealth/wallets', { address, ...(label ? { label } : {}) })
+  }
+
+  async removeWallet(id: string): Promise<void> {
+    await send<null>('DELETE', `wealth/wallets/${encodeURIComponent(id)}`)
   }
 
   /** The LLM analysis journal — latest entry per scope unless `history` is asked for. */

@@ -166,6 +166,11 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
             "/api/wealth/manual-assets/{id}",
             put(wealth::update_manual_asset).delete(wealth::delete_manual_asset),
         )
+        .route(
+            "/api/wealth/wallets",
+            get(wealth::wallets).post(wealth::create_wallet),
+        )
+        .route("/api/wealth/wallets/{id}", delete(wealth::delete_wallet))
         .route("/api/wealth/notes", post(wealth::create_note))
         .route("/api/wealth/notes/archive", post(wealth::archive_note))
         .route("/api/wealth/services", get(wealth::services))

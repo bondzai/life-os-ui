@@ -171,6 +171,29 @@ export interface PortfolioData {
   fetched_at: number
 }
 
+/** One configured address the book is built from (`/api/wealth/wallets`). */
+export interface WalletEntry {
+  id: string
+  address: string
+  label: string | null
+  /** Resolved server-side by the same classifier the chain fan-out uses. */
+  kind: 'evm' | 'bitcoin' | 'solana'
+  created_at: number
+}
+
+/**
+ * The wallet list, and where it came from.
+ *
+ * `source` matters: an empty list plus `env` means the addresses still come from `ALERT_WALLETS`
+ * and adding one here takes over, which is a different thing to say than "you have no wallets".
+ */
+export interface WalletList {
+  wallets: WalletEntry[]
+  source: 'db' | 'env'
+  /** What the fan-out will actually read, whichever source won. */
+  effective: string[]
+}
+
 export interface ManualAsset extends ManualAssetInput {
   /** Server-assigned. Absent from the browser-local lists this replaced — see the repository. */
   id: string

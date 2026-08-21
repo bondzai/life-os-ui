@@ -169,6 +169,25 @@ pub const MIGRATIONS: &[&[&str]] = &[
            )"#,
         "CREATE INDEX IF NOT EXISTS idx_manual_assets_tier ON manual_assets(tier)",
     ],
+    // v4 -> v5: the wallet list becomes server state.
+    //
+    // It lived in `ALERT_WALLETS`, which made adding an address an ssh-and-restart job, and in the
+    // app it lived only in the browser. The environment stays as the seed and the fallback: an
+    // empty table means "use ALERT_WALLETS", so an existing box keeps working untouched.
+    //
+    // `address` is UNIQUE and stored verbatim — checksummed EVM casing is meaningful to the eye
+    // even though lookups are case-insensitive, and a Bitcoin bech32 address is case-sensitive
+    // in principle. Duplicates are caught by the index, not by a scan.
+    &[
+        r#"CREATE TABLE IF NOT EXISTS wallets (
+               id         TEXT PRIMARY KEY,
+               address    TEXT NOT NULL,
+               label      TEXT,               -- what you call it: "cold", "trading", NULL
+               kind       TEXT NOT NULL,      -- 'evm' | 'bitcoin' | 'solana', resolved on write
+               created_at INTEGER NOT NULL
+           )"#,
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallets_address ON wallets(address COLLATE NOCASE)",
+    ],
 ];
 
 /// Applies every migration the database has not seen yet. Returns the resulting `user_version`.
