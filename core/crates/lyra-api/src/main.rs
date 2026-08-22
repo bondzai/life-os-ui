@@ -6,6 +6,7 @@
 //! front end needs means the port was wrong.
 
 mod alert_loop;
+mod tgbot;
 mod auth;
 mod collect;
 mod common;
@@ -288,6 +289,10 @@ async fn main() -> Result<()> {
     // here and not in `app()` so that the router the tests build stays inert. It no-ops when
     // nothing is configured for it to do.
     alert_loop::spawn(state.clone());
+
+    // The other half of Telegram: `alert_loop` pushes, this pulls commands in. Idle unless a bot
+    // token and chat id are both configured.
+    tgbot::spawn(state.clone());
 
     axum::serve(listener, app(state, allowed_origins()))
         .with_graceful_shutdown(shutdown_signal())

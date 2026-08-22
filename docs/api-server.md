@@ -89,3 +89,30 @@ which diffs this server against the Python one endpoint by endpoint.
 See [Deployment §7](./deployment.md) for the full table. The short version: `JWT_SECRET` is
 required, `LYRA_DB` defaults to `data/lyra.db`, and everything wealth-related is optional — the
 server starts and serves every route without it, reporting an empty book.
+
+## The Telegram command bot — 2026-08-22
+
+`lyra-alerts` **pushes** alerts and the daily brief out; `tgbot.rs` **pulls** commands in. Both
+halves existed in the Python (`notify.py` and `tgbot.py`); only the pushing half was ported, which
+is why messaging the bot did nothing.
+
+Long polling (`getUpdates`), not a webhook: a webhook needs a public HTTPS endpoint, and the point
+of this box is that it sits behind a home router with nothing forwarded to it.
+
+`/nw` `/tiers` `/positions` `/rewards` `/risk` `/sats` `/bots` `/market` `/digest` `/status`
+`/help`, published to Telegram with `setMyCommands` at startup so the "/" menu offers them —
+without that the bot looks inert even while it is listening.
+
+**Only the pinned `TELEGRAM_CHAT_ID` is answered.** A bot token is a URL anyone holding it can
+message; the chat id is what makes the bot yours. Anything from another chat is counted and
+dropped — never answered, because a reply confirms the bot exists, and never echoed, because that
+would put a stranger's text in front of the owner. Position names are attacker-controlled on-chain
+data, so every label is stripped of control characters and capped before it goes into a message.
+
+The update offset is acknowledged **after** the reply is sent and stored in `alert_state`, so a
+restart mid-command re-runs at most that one command instead of replaying the backlog. A poll
+handles at most five commands, because after an outage Telegram returns everything queued at once
+and a week offline should not fire a week of portfolio reads back to back.
+
+**Do not call `getUpdates` by hand while the bot is running.** Telegram allows one consumer, and a
+manual call consumes the update the bot was waiting for — the message then never reaches it.

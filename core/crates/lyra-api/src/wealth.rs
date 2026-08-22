@@ -1881,6 +1881,231 @@ pub async fn alerts_config(
     }
 }
 
+/* ─── Answers for the Telegram command bot ─── */
+
+/// Money, for a chat message. Plain text — no Markdown, because a position name is untrusted
+/// on-chain data and one stray asterisk would corrupt the whole reply.
+fn chat_usd(value: f64) -> String {
+    if value.abs() >= 1000.0 {
+        format!("${:.0}", value)
+    } else {
+        format!("${value:.2}")
+    }
+}
+
+/// A position or token label, made safe to drop into a chat message.
+///
+/// On-chain names are attacker-controlled. Newlines would let one forge extra lines in the reply,
+/// so they collapse, and the whole thing is capped.
+fn chat_label(raw: &str) -> String {
+    raw.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect::<String>()
+        .trim()
+        .chars()
+        .take(48)
+        .collect()
+}
+
+/// The sweep's own state, as `/status` reports it.
+pub(crate) async fn bot_status_line(state: &AppState) -> String {
+    match alert_status(&state.pool, &state.alert_meta).await {
+        Ok(status) => {
+            let running = status["running"].as_bool().unwrap_or(false);
+            let watching = status["watching"].as_i64();
+            let last = status["last_check"].as_f64();
+            let mut out = String::from("Status\n");
+            out.push_str(&format!(
+                "sweep: {}\n",
+                if running { "running" } else { "not running" }
+            ));
+            out.push_str(&format!(
+                "interval: {}s\n",
+                status["interval"].as_i64().unwrap_or(0)
+            ));
+            match watching {
+                Some(n) => out.push_str(&format!("watching: {n} positions\n")),
+                None => out.push_str("watching: nothing swept yet\n"),
+            }
+            if last.is_none() {
+                out.push_str("last check: never\n");
+            }
+            if let Some(error) = status["last_error"].as_str() {
+                out.push_str(&format!("last error: {}\n", chat_label(error)));
+            }
+            out
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "telegram /status");
+            "Could not read the sweep state.".into()
+        }
+    }
+}
+
+/// `/market` — the same models Radar draws, as a list.
+pub(crate) async fn bot_market_line() -> String {
+    let sentiment = UPSTREAMS.sources.market().market_sentiment().await;
+    let sentiment = serde_json::to_value(&sentiment).unwrap_or_default();
+    if !sentiment.as_object().is_some_and(|o| !o.is_empty()) {
+        return "The valuation & mood models did not answer — they are keyless reads of public \
+                sources, so this is usually an upstream being down."
+            .into();
+    }
+    let mut out = String::from("Market\n");
+    let row = |out: &mut String, title: &str, value: String, label: Option<&str>| {
+        out.push_str(&format!("{title}: {value}"));
+        if let Some(label) = label {
+            out.push_str(&format!(" · {}", chat_label(label)));
+        }
+        out.push('\n');
+    };
+    if let Some(fng) = sentiment.get("fear_greed") {
+        row(
+            &mut out,
+            "fear & greed",
+            fng["value"].to_string(),
+            fng["classification"].as_str(),
+        );
+    }
+    for (key, title) in [
+        ("mvrv_zscore", "mvrv z-score"),
+        ("sopr", "sopr"),
+        ("puell", "puell"),
+    ] {
+        if let Some(model) = sentiment.get(key) {
+            row(&mut out, title, model["value"].to_string(), model["label"].as_str());
+        }
+    }
+    if let Some(rainbow) = sentiment.get("btc_rainbow") {
+        row(
+            &mut out,
+            "btc rainbow",
+            format!("{}x", rainbow["ratio"]),
+            rainbow["label"].as_str(),
+        );
+    }
+    out.push_str("\nnot advice");
+    out
+}
+
+/// Every command that needs a live read of the book. `None` for an unknown command.
+///
+/// One portfolio read serves whichever was asked for: the read is the expensive part (a cold
+/// multi-chain fan-out can take over a minute), so the commands differ only in what they say
+/// about it.
+pub(crate) async fn bot_book_line(state: &AppState, command: &str) -> Option<String> {
+    if !matches!(
+        command,
+        "nw" | "networth" | "tiers" | "positions" | "pos" | "rewards" | "risk" | "sats" | "bots"
+            | "digest"
+    ) {
+        return None;
+    }
+
+    let Some((figures, rates)) = collect_figures(&state.pool).await else {
+        return Some(
+            "The portfolio read came back empty or partial — nothing worth quoting. Try again in \
+             a minute."
+                .into(),
+        );
+    };
+    let off_chain = store::manual_total_usd(&state.pool, rates.thb, rates.btc_usd)
+        .await
+        .unwrap_or((0.0, 0));
+
+    Some(match command {
+        "nw" | "networth" => {
+            let net = figures.total + off_chain.0 - figures.debt;
+            let mut out = format!("Net worth: {}\n", chat_usd(net));
+            out.push_str(&format!("on chain: {}\n", chat_usd(figures.total)));
+            if off_chain.1 > 0 {
+                out.push_str(&format!(
+                    "off chain: {} across {}\n",
+                    chat_usd(off_chain.0),
+                    off_chain.1
+                ));
+            }
+            if figures.debt > 0.0 {
+                out.push_str(&format!("debt: {}\n", chat_usd(figures.debt)));
+            }
+            out.push_str(&format!("24h: {}\n", chat_usd(figures.contrib)));
+            out
+        }
+        "tiers" => {
+            let t = &figures.tiers;
+            let gross = t.store + t.business + t.trading;
+            let pct = |v: f64| if gross > 0.0 { v / gross * 100.0 } else { 0.0 };
+            format!(
+                "Tiers\nstore: {} ({:.0}%)\nbusiness: {} ({:.0}%)\ntrading: {} ({:.0}%)\n",
+                chat_usd(t.store),
+                pct(t.store),
+                chat_usd(t.business),
+                pct(t.business),
+                chat_usd(t.trading),
+                pct(t.trading),
+            )
+        }
+        "positions" | "pos" => {
+            if figures.pools.is_empty() {
+                return Some("No liquidity positions.".into());
+            }
+            let mut out = String::from("Positions\n");
+            for pool in &figures.pools {
+                let state = match pool.in_range {
+                    Some(true) => "in range",
+                    Some(false) => "OUT OF RANGE",
+                    None => "no range",
+                };
+                out.push_str(&format!(
+                    "{} · {} · {} · {}\n",
+                    chat_label(&pool.name),
+                    chat_label(&pool.protocol),
+                    chat_usd(pool.usd),
+                    state
+                ));
+            }
+            out
+        }
+        "rewards" => format!(
+            "Claimable: {}\nacross {} position(s)\n",
+            chat_usd(figures.claimable),
+            figures.pools.iter().filter(|p| p.fees > 0.0).count()
+        ),
+        "risk" => match figures.hf_min {
+            Some(hf) => format!(
+                "Borrow health\nlowest health factor: {hf:.2}\ndebt: {}\ncollateral: {}\n",
+                chat_usd(figures.debt),
+                chat_usd(figures.collateral)
+            ),
+            None => "No borrow positions — nothing to liquidate.".into(),
+        },
+        "sats" => match figures.btc_sats {
+            Some(sats) => format!(
+                "Bitcoin\n{sats:.0} sats\n{}\n",
+                chat_usd(figures.btc_usd)
+            ),
+            None => format!("Bitcoin reserves: {}\n", chat_usd(figures.btc_usd)),
+        },
+        "bots" => {
+            if !lyra_chain::kucoin::configured() {
+                return Some("No exchange key configured, so there are no bots to report.".into());
+            }
+            format!("Bot equity is included in the book: {}", chat_usd(figures.total))
+        }
+        // The same brief the daily digest sends, on demand. `render_digest` returns `None` for
+        // an empty book, which `collect_figures` has already ruled out — but saying so beats an
+        // unwrap that would take the bot down on the one day the book is empty.
+        _ => render_digest(
+            &figures,
+            &DigestSnapshot::default(),
+            &Money::usd(),
+            &header_date(&chrono::Utc::now()),
+            None,
+        )
+        .unwrap_or_else(|| "Nothing to brief on — the book reads empty.".into()),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
