@@ -34,6 +34,14 @@ import { RowsSkeleton, StaleBanner, WealthError } from './states'
 import type { LpRow } from './types'
 import { useWealth } from './use-wealth'
 import { ChangeText, MetaPill, RangeBadge, RangeBar, StatCard } from './wealth-ui'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 const ALL = 'all'
 
@@ -200,9 +208,12 @@ export function WealthDefiPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {rows.map((row) => <PositionCard key={row.key} row={row} />)}
-        </div>
+        <>
+          <PositionTable rows={rows} />
+          <div className="space-y-3 sm:hidden">
+            {rows.map((row) => <PositionCard key={row.key} row={row} />)}
+          </div>
+        </>
       )}
 
       {/* What the positions above pay out, and the debt taken against them. Both self-hide. */}
@@ -212,6 +223,127 @@ export function WealthDefiPage() {
   )
 }
 
+/**
+ * The positions table — one row per position, the way the original showed them.
+ *
+ * Cards were the original's *mobile* layout; on a desktop it was this table, and rendering the
+ * card everywhere is what turned six positions into two and a half screens. A book is a ledger:
+ * the comparison you make constantly is one position against another, and that only works when
+ * they share a row and columns line up.
+ *
+ * Everything the card carried is still here — the card keeps it below `sm`, and the two details
+ * that do not fit a cell (per-token fee and underlying breakdowns) hang off `title` attributes.
+ */
+/**
+ * A position's on-chain id, displayed.
+ *
+ * The engine hands these over **already carrying a `#`** (`"#73130974"`), inherited from the
+ * Python. Prefixing another one rendered every position as `##73130974`. Normalised here rather
+ * than at the two call sites, and tolerant of an id that arrives without one.
+ */
+function positionId(id: string): string {
+  return `#${id.replace(/^#+/, '')}`
+}
+
+function PositionTable({ rows }: { rows: LpRow[] }) {
+  const { money } = useMoney()
+
+  return (
+    <div className="hidden overflow-x-auto rounded-lg border sm:block">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>Position</TableHead>
+            <TableHead>Chain</TableHead>
+            <TableHead>Protocol</TableHead>
+            <TableHead className="min-w-[9rem]">Range</TableHead>
+            <TableHead className="text-right">Deposit</TableHead>
+            <TableHead className="text-right">Daily</TableHead>
+            <TableHead className="text-right">Earned</TableHead>
+            <TableHead className="text-right">APR</TableHead>
+            <TableHead>Last action</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => {
+            const range = rangeInfo(row)
+            const daily = earnings(row)
+            const perf = cyclePerf(row)
+            const out = row.in_range === false
+            // The two lists the card showed in full. A row cannot hold them, and dropping them
+            // would lose the only place the per-token split is visible.
+            const feeTitle = row.feeToks.map((t) => `${formatAmount(t.amount)} ${t.symbol}`).join(' · ')
+            const posTitle = row.toks.map((t) => `${formatAmount(t.amount)} ${t.symbol}`).join(' · ')
+
+            return (
+              <TableRow key={row.key} className={cn(out && 'bg-destructive/5')}>
+                <TableCell className="whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <SnowballToggle id={sbLpId(row.key)} name={row.pair} />
+                    <span className="font-medium" title={posTitle || undefined}>{row.pair}</span>
+                    <RangeBadge inRange={row.in_range} full={row.band?.full} />
+                    {row.poolType && <MetaPill>{row.poolType}</MetaPill>}
+                  </div>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{chainLabel(row.chain)}</TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {row.protocol}
+                  {row.id && <span className="text-xs"> {positionId(row.id)}</span>}
+                </TableCell>
+                <TableCell>
+                  {range ? (
+                    <div className="space-y-1">
+                      <RangeBar posPct={range.posPct} out={range.out} />
+                      <div className="flex justify-between gap-2 text-xs whitespace-nowrap">
+                        <span className={cn(range.out ? 'text-red-600 dark:text-red-500' : 'text-muted-foreground')}>
+                          {range.edge}
+                        </span>
+                        <span className="text-muted-foreground">{range.width.toFixed(0)}% wide</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">full range</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums">{money(row.value)}</TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {daily ? `≈${money(daily.perDay)}` : '—'}
+                </TableCell>
+                <TableCell
+                  className="text-right tabular-nums"
+                  title={feeTitle || undefined}
+                >
+                  {row.fees > 0 ? money(row.fees) : <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {row.apr !== null ? formatPct(row.apr, 1) : <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                  {row.lastAction && row.updatedAt ? (
+                    <>
+                      {row.lastAction} {formatRelativeTime(Date.parse(row.updatedAt) / 1000)}
+                    </>
+                  ) : (
+                    '—'
+                  )}
+                  {/* In-range time is the number that tells you whether a band is working, so it
+                      stays visible rather than moving into a tooltip. */}
+                  {perf?.pct !== null && perf !== null && (
+                    <div className="text-xs">in range {perf.pct.toFixed(0)}% this cycle</div>
+                  )}
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+/**
+ * One position as a card. **Below `sm` only** — see [[PositionTable]] for why.
+ */
 function PositionCard({ row }: { row: LpRow }) {
   const { money } = useMoney()
   const range = rangeInfo(row)
@@ -233,7 +365,7 @@ function PositionCard({ row }: { row: LpRow }) {
               <span>{row.protocol}</span>
               <span>·</span>
               <span>{chainLabel(row.chain)}</span>
-              {row.id && <><span>·</span><span>#{row.id}</span></>}
+              {row.id && <><span>·</span><span>{positionId(row.id)}</span></>}
               {row.lastAction && row.updatedAt && (
                 <>
                   <span>·</span>

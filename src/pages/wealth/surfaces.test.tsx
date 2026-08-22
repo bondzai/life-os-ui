@@ -70,15 +70,15 @@ describe('Holdings', () => {
 describe('DeFi', () => {
   it('renders LP positions and flags the out-of-range one', async () => {
     renderSurface(<WealthDefiPage />)
-    // A pair can legitimately appear twice: once as a position card, once in the harvest list
-    // below it. Assert the position heading specifically rather than page-wide uniqueness.
-    const headings = await screen.findAllByRole('heading', { name: 'AERO/USDC' })
-    expect(headings).toHaveLength(1)
-    expect(screen.getAllByRole('heading', { name: 'ETH/USDC' })).toHaveLength(1)
+    // Both layouts are in the DOM at once — a table from `sm` up, cards below it — and which one
+    // is visible is CSS, not React. So a pair appears twice by design, plus again in the harvest
+    // list. Assert it is *present*, and pin the count where the count is the point.
+    expect((await screen.findAllByText('AERO/USDC')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('ETH/USDC').length).toBeGreaterThan(0)
     // The phrase also appears in the status filter and the stat-card hint, so assert the badge
-    // specifically rather than that the words exist somewhere on the page.
+    // specifically. One out-of-range position, rendered in both layouts.
     const badges = screen.getAllByText('Out of range').filter((el) => el.dataset.slot === 'badge')
-    expect(badges).toHaveLength(1)
+    expect(badges).toHaveLength(2)
   })
 
   it('de-duplicates the shared campaign claim in the claimable summary', async () => {
@@ -115,9 +115,12 @@ describe('Snowball', () => {
 
   it('counts a position into the basket once it is tagged on DeFi', async () => {
     const defi = renderSurface(<WealthDefiPage />)
-    const toggle = await screen.findByRole('button', { name: /Add ETH\/USDC to snowball/ })
-    fireEvent.click(toggle)
-    expect(screen.getByRole('button', { name: /Remove ETH\/USDC from snowball/ })).toBeDefined()
+    // One toggle per layout, both wired to the same tag — click either.
+    const toggles = await screen.findAllByRole('button', { name: /Add ETH\/USDC to snowball/ })
+    fireEvent.click(toggles[0])
+    expect(screen.getAllByRole('button', { name: /Remove ETH\/USDC from snowball/ }).length).toBe(
+      toggles.length,
+    )
     defi.unmount()
 
     renderSurface(<WealthOverviewPage />)
