@@ -14,8 +14,9 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { EmptyState } from '@/core/components/empty-state'
 import { cn } from '@/lib/utils'
+import { useMoney } from './money'
 import { btcReserves, nextSatsMilestone, type BtcLocation } from './derive'
-import { formatRelativeTime, formatUsd } from './format'
+import { formatRelativeTime } from './format'
 import { StaleBanner, WealthError, WealthPageSkeleton } from './states'
 import { useWealth } from './use-wealth'
 import { StatCard } from './wealth-ui'
@@ -42,6 +43,7 @@ function formatSats(sats: number | null): string {
 }
 
 export function WealthBtcPage() {
+  const { money } = useMoney()
   const { ctx, isLoading, error, isRefreshing, isStale, refetch } = useWealth()
   const [target, setTarget] = useState<string>(() => localStorage.getItem(SATS_TARGET_KEY) ?? '')
 
@@ -88,7 +90,7 @@ export function WealthBtcPage() {
         />
         <StatCard
           label="Value"
-          value={formatUsd(usd)}
+          value={money(usd)}
           hint={whole !== null ? `${whole.toFixed(4)} ₿` : 'BTC price unavailable'}
         />
         <StatCard
@@ -155,7 +157,7 @@ export function WealthBtcPage() {
                     <p className="text-xs text-muted-foreground">{custody.note}</p>
                   </div>
                   <div className="shrink-0 text-right tabular-nums">
-                    <p className="text-sm font-medium">{formatUsd(location.usd)}</p>
+                    <p className="text-sm font-medium">{money(location.usd)}</p>
                     <p className="text-xs text-muted-foreground">{share.toFixed(0)}%</p>
                   </div>
                 </div>
@@ -179,7 +181,7 @@ export function WealthBtcPage() {
                   <Bitcoin className="size-4 shrink-0 text-amber-600 dark:text-amber-500" />
                   <p className="min-w-0 flex-1 truncate text-sm font-medium">{component.symbol}</p>
                   <div className="shrink-0 text-right tabular-nums">
-                    <p className="text-sm font-medium">{formatUsd(component.usd)}</p>
+                    <p className="text-sm font-medium">{money(component.usd)}</p>
                     <p className="text-xs text-muted-foreground">
                       {btcPrice ? `${formatSats((component.usd * 1e8) / btcPrice)} sats` : `${share.toFixed(0)}%`}
                     </p>

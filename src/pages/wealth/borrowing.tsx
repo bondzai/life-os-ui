@@ -11,8 +11,9 @@
 import { ArrowDownRight, ArrowUpRight, Shield, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { useMoney } from './money'
 import { lendingPositions } from './derive'
-import { formatAmount, formatUsd } from './format'
+import { formatAmount } from './format'
 import type { Ctx } from './derive'
 import type { LendRow, TokenAmt } from './types'
 import { StatCard } from './wealth-ui'
@@ -61,6 +62,7 @@ function Leg({ token }: { token: TokenAmt }) {
 }
 
 function HealthRow({ row }: { row: LendRow }) {
+  const { money } = useMoney()
   const tone = hfTone(row.hf)
   const ltv = row.collateral_usd > 0 ? row.debt_usd / row.collateral_usd : 0
   const used = row.liq_threshold > 0 ? Math.min(1, ltv / row.liq_threshold) : 0
@@ -82,7 +84,7 @@ function HealthRow({ row }: { row: LendRow }) {
           )}
         </div>
         <div className="ml-auto shrink-0 text-right">
-          <div className="text-sm font-medium tabular-nums">{formatUsd(row.net_usd)}</div>
+          <div className="text-sm font-medium tabular-nums">{money(row.net_usd)}</div>
           <div className="mt-0.5 flex items-center justify-end gap-1 text-xs">
             <span className="text-muted-foreground">HF</span>
             <span className={cn('font-medium tabular-nums', tone.text)}>
@@ -102,7 +104,7 @@ function HealthRow({ row }: { row: LendRow }) {
           </div>
           <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 text-xs text-muted-foreground">
             <span>
-              borrowed {formatUsd(row.debt_usd)} · LTV {(ltv * 100).toFixed(0)}% of {(row.liq_threshold * 100).toFixed(0)}% max
+              borrowed {money(row.debt_usd)} · LTV {(ltv * 100).toFixed(0)}% of {(row.liq_threshold * 100).toFixed(0)}% max
             </span>
             <span className={tone.text}>
               {room > 0 ? `${(room * 100).toFixed(0)}% price buffer` : 'no buffer'}
@@ -115,6 +117,7 @@ function HealthRow({ row }: { row: LendRow }) {
 }
 
 export function BorrowingPanel({ ctx }: { ctx: Ctx }) {
+  const { money } = useMoney()
   const rows = lendingPositions(ctx.data)
   if (!rows.length) return null
 
@@ -137,8 +140,8 @@ export function BorrowingPanel({ ctx }: { ctx: Ctx }) {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard label="Supplied" value={formatUsd(collateral)} hint="collateral" />
-          <StatCard label="Borrowed" value={formatUsd(debt)} hint="subtracted from net worth" />
+          <StatCard label="Supplied" value={money(collateral)} hint="collateral" />
+          <StatCard label="Borrowed" value={money(debt)} hint="subtracted from net worth" />
           <StatCard
             label="Health factor"
             value={<span className={tone.text}>{worst === null ? '∞' : worst.toFixed(2)}</span>}

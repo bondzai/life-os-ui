@@ -25,8 +25,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { notify } from '@/lib/notify'
+import { useMoney } from './money'
 import { manualUsd } from './derive'
-import { formatAmount, formatUsd } from './format'
+import { formatAmount } from './format'
 import { RowsSkeleton, WealthError } from './states'
 import type { Currency, ManualAsset, ManualAssetInput, Tier } from './types'
 import { useWealth, WEALTH_SOURCE } from './use-wealth'
@@ -220,6 +221,7 @@ function AssetForm({
 }
 
 export function OffChainAssets() {
+  const { money } = useMoney()
   const queryClient = useQueryClient()
   // Only for the rates — the same `Ctx` every other wealth surface reads, so the USD conversion
   // shown here is the one the totals were built from rather than a second opinion.
@@ -354,7 +356,7 @@ export function OffChainAssets() {
                 {/* Null until the portfolio (and with it the rates) has loaded — a dash, not a
                     zero, because zero is a number this asset could actually be worth. */}
                 <span className="mr-2 text-sm tabular-nums">
-                  {usd(asset) === null ? '—' : formatUsd(usd(asset))}
+                  {usd(asset) === null ? '—' : money(usd(asset))}
                 </span>
                 <Button
                   size="icon"
@@ -384,7 +386,7 @@ export function OffChainAssets() {
               {rows.length} asset{rows.length === 1 ? '' : 's'} off chain
             </span>
             <span className="font-medium tabular-nums">
-              {total === null ? '—' : formatUsd(total)}
+              {total === null ? '—' : money(total)}
             </span>
           </div>
         )}

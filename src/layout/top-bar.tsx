@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { Bell, MessageSquare, Search } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
@@ -13,6 +13,7 @@ import {
 import { useChatStore } from '@/stores/chat-store'
 import { useUiStore } from '@/stores/ui-store'
 import { useNotificationStore } from '@/stores/notification-store'
+import { CurrencySwitch } from '@/pages/wealth/currency-switch'
 
 interface TopBarProps {
   title: string
@@ -33,6 +34,9 @@ function formatRelativeTime(iso: string): string {
 
 export function TopBar({ title }: TopBarProps) {
   const navigate = useNavigate()
+  // Wealth routes only: a currency switch above a task list is noise, and the hook behind it
+  // subscribes to the portfolio query, which those pages have no reason to hold open.
+  const onWealth = useLocation().pathname.startsWith('/wealth')
   const toggleChat = useChatStore((s) => s.toggleOpen)
   const setCommandBarOpen = useUiStore((s) => s.setCommandBarOpen)
   const notifications = useNotificationStore((s) => s.notifications)
@@ -47,6 +51,7 @@ export function TopBar({ title }: TopBarProps) {
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-5" />
       <h2 className="text-sm font-medium shrink-0">{title}</h2>
+      {onWealth && <CurrencySwitch />}
 
       {/* Desktop: centered search bar trigger */}
       <button

@@ -11,8 +11,9 @@
 
 import { Coins, HandCoins } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useMoney } from './money'
 import { cashflow, lpPositions } from './derive'
-import { formatUsd } from './format'
+
 import type { Ctx } from './derive'
 import { MetaPill, StatCard } from './wealth-ui'
 
@@ -20,6 +21,7 @@ import { MetaPill, StatCard } from './wealth-ui'
 const MIN_HARVEST_USD = 1
 
 export function HarvestPanel({ ctx }: { ctx: Ctx }) {
+  const { money } = useMoney()
   const rows = lpPositions(ctx.data)
   if (!rows.length) return null
 
@@ -36,8 +38,8 @@ export function HarvestPanel({ ctx }: { ctx: Ctx }) {
           </p>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
-          <StatCard label="Per day" value={flow.perDay > 0 ? formatUsd(flow.perDay) : '—'} hint="projected" />
-          <StatCard label="Per year" value={flow.perYear > 0 ? formatUsd(flow.perYear) : '—'} hint="projected" />
+          <StatCard label="Per day" value={flow.perDay > 0 ? money(flow.perDay) : '—'} hint="projected" />
+          <StatCard label="Per year" value={flow.perYear > 0 ? money(flow.perYear) : '—'} hint="projected" />
         </CardContent>
       </Card>
 
@@ -45,7 +47,7 @@ export function HarvestPanel({ ctx }: { ctx: Ctx }) {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Ready to harvest</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Positions holding at least {formatUsd(MIN_HARVEST_USD)}, largest first
+            Positions holding at least {money(MIN_HARVEST_USD)}, largest first
           </p>
         </CardHeader>
         <CardContent>
@@ -70,7 +72,7 @@ export function HarvestPanel({ ctx }: { ctx: Ctx }) {
                     </div>
                     <div className="shrink-0 text-right tabular-nums">
                       <p className="text-sm font-medium text-emerald-600 dark:text-emerald-500">
-                        {formatUsd(row.fees)}
+                        {money(row.fees)}
                       </p>
                       <p className="text-xs text-muted-foreground">{share.toFixed(0)}% of total</p>
                     </div>

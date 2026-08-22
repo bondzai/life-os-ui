@@ -15,8 +15,9 @@ import { Bitcoin, Bot, ChevronDown, Coins, Droplets, Snowflake, Wallet } from 'l
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { useMoney } from './money'
 import { snowballCandidates, type Ctx, type SbKind, type SbMember } from './derive'
-import { formatUsd } from './format'
+
 import { useSnowball, useSnowballTags } from './use-snowball'
 
 const KIND_ICON: Record<SbKind, typeof Wallet> = {
@@ -68,6 +69,7 @@ export function SnowballToggle({ id, name, className }: { id: string; name: stri
 
 /** One row per tagged source, largest first — "what is actually inside the snowball". */
 function Sources({ members, total }: { members: SbMember[]; total: number }) {
+  const { money } = useMoney()
   const [open, setOpen] = useState(false)
 
   return (
@@ -111,7 +113,7 @@ function Sources({ members, total }: { members: SbMember[]; total: number }) {
                   <div className="truncate text-xs text-muted-foreground">{m.sub}</div>
                 </div>
                 <div className="shrink-0 text-right">
-                  <div className="text-sm font-medium tabular-nums">{formatUsd(m.usd)}</div>
+                  <div className="text-sm font-medium tabular-nums">{money(m.usd)}</div>
                   <div className="text-xs tabular-nums text-muted-foreground">{pct.toFixed(0)}%</div>
                 </div>
               </div>
@@ -131,6 +133,7 @@ function Sources({ members, total }: { members: SbMember[]; total: number }) {
  * and unreachable in the UI.
  */
 function SnowballPicker({ ctx }: { ctx: Ctx }) {
+  const { money } = useMoney()
   const { isTagged, toggle } = useSnowballTags()
   const groups = useMemo(() => {
     const all = snowballCandidates(ctx)
@@ -163,7 +166,7 @@ function SnowballPicker({ ctx }: { ctx: Ctx }) {
                 <Snowflake className={cn('size-3.5 shrink-0', on ? 'fill-current text-sky-500' : 'text-muted-foreground/40')} />
                 <Icon className="size-3 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1 truncate text-sm">{row.label}</span>
-                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatUsd(row.usd)}</span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{money(row.usd)}</span>
               </button>
             )
           })}
@@ -174,6 +177,7 @@ function SnowballPicker({ ctx }: { ctx: Ctx }) {
 }
 
 export function SnowballPanel({ ctx }: { ctx: Ctx }) {
+  const { money, compact } = useMoney()
   const { members, total, btcUsd, history, weekDelta, monthly } = useSnowball(ctx)
   const [picking, setPicking] = useState(false)
 
@@ -226,7 +230,7 @@ export function SnowballPanel({ ctx }: { ctx: Ctx }) {
         </div>
         <div className="flex items-start gap-2">
           <div className="text-right">
-            <div className="text-xl font-semibold tabular-nums">{formatUsd(total)}</div>
+            <div className="text-xl font-semibold tabular-nums">{money(total)}</div>
             {weekDelta !== null && weekDelta !== 0 && (
               <div
                 className={cn(
@@ -235,7 +239,7 @@ export function SnowballPanel({ ctx }: { ctx: Ctx }) {
                 )}
               >
                 {weekDelta > 0 ? '+' : '−'}
-                {formatUsd(Math.abs(weekDelta))} this week
+                {money(Math.abs(weekDelta))} this week
               </div>
             )}
           </div>
@@ -280,10 +284,10 @@ export function SnowballPanel({ ctx }: { ctx: Ctx }) {
                 axisLine={false}
                 tickLine={false}
                 width={52}
-                tickFormatter={(v) => formatUsd(Number(v), { compact: true })}
+                tickFormatter={(v) => compact(Number(v))}
               />
               <Tooltip
-                formatter={(v) => [formatUsd(Number(v)), 'Snowball']}
+                formatter={(v) => [money(Number(v)), 'Snowball']}
                 labelFormatter={(l) => String(l)}
                 contentStyle={{
                   background: 'var(--popover)',
@@ -299,10 +303,10 @@ export function SnowballPanel({ ctx }: { ctx: Ctx }) {
         )}
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          {monthly !== null && monthly > 0 && <span>feed ≈{formatUsd(monthly)}/mo</span>}
+          {monthly !== null && monthly > 0 && <span>feed ≈{money(monthly)}/mo</span>}
           {projected !== null && (
             <span title="Where the basket lands in three months at today's feed rate">
-              → 3mo {formatUsd(projected, { compact: true })}
+              → 3mo {compact(projected)}
             </span>
           )}
           {sats !== null && (

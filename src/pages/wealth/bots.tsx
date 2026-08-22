@@ -12,8 +12,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmptyState } from '@/core/components/empty-state'
 import { cn } from '@/lib/utils'
+import { useMoney } from './money'
 import { botTotals, sbBotId, tradingBots, type BotRow } from './derive'
-import { formatAmount, formatPct, formatRelativeTime, formatUsd } from './format'
+import { formatAmount, formatPct, formatRelativeTime } from './format'
 import { StaleBanner, WealthError, WealthPageSkeleton } from './states'
 import { SnowballToggle } from './snowball'
 import { useWealth } from './use-wealth'
@@ -21,18 +22,20 @@ import { ChangeText, MetaPill, StatCard } from './wealth-ui'
 
 /** Signed USD, coloured by direction. `null` is an em dash — unknown is not zero. */
 function Pnl({ usd }: { usd: number | null }) {
+  const { money } = useMoney()
   if (usd === null || !Number.isFinite(usd)) return <span className="text-muted-foreground">—</span>
   const up = usd >= 0
   return (
     <span className={cn('tabular-nums', up ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500')}>
       {up ? '+' : '−'}
-      {formatUsd(Math.abs(usd))}
+      {money(Math.abs(usd))}
     </span>
   )
 }
 
 /** The basket a rebalance bot holds, or the sub-bots a futures strategy is running. */
 function BotDetail({ row }: { row: BotRow }) {
+  const { money } = useMoney()
   const weights = row.info?.weights ?? []
   const subBots = row.info?.bots ?? []
 
@@ -43,7 +46,7 @@ function BotDetail({ row }: { row: BotRow }) {
           <span
             key={weight.symbol}
             className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs tabular-nums"
-            title={`${formatAmount(weight.amount)} ${weight.symbol} · ${formatUsd(weight.usd)}`}
+            title={`${formatAmount(weight.amount)} ${weight.symbol} · ${money(weight.usd)}`}
           >
             <span className="font-medium">{weight.symbol}</span>
             <span className="text-muted-foreground">{weight.pct.toFixed(0)}%</span>
@@ -73,6 +76,7 @@ function BotDetail({ row }: { row: BotRow }) {
 }
 
 export function WealthBotsPage() {
+  const { money } = useMoney()
   const { ctx, isLoading, error, isRefreshing, isStale, refetch } = useWealth()
 
   const { rows, totals } = useMemo(() => {
@@ -100,7 +104,7 @@ export function WealthBotsPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           label="Bot equity"
-          value={formatUsd(totals.equity)}
+          value={money(totals.equity)}
           accent
           hint={`${rows.length} ${rows.length === 1 ? 'strategy' : 'strategies'}${totals.subBots ? ` · ${totals.subBots} sub-bots` : ''}`}
         />
@@ -115,7 +119,7 @@ export function WealthBotsPage() {
         />
         <StatCard
           label="Margin in use"
-          value={totals.margin > 0 ? formatUsd(totals.margin) : '—'}
+          value={totals.margin > 0 ? money(totals.margin) : '—'}
           hint="futures collateral"
         />
       </div>
@@ -155,7 +159,7 @@ export function WealthBotsPage() {
                   <TableCell className="hidden max-w-xs md:table-cell">
                     <BotDetail row={row} />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatUsd(row.usd)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{money(row.usd)}</TableCell>
                   <TableCell className="text-right">
                     <Pnl usd={row.pnlUsd} />
                   </TableCell>

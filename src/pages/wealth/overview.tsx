@@ -29,7 +29,8 @@ import {
   tierTotals,
   windowPerf,
 } from './derive'
-import { formatPct, formatRelativeTime, formatUsd } from './format'
+import { useMoney } from './money'
+import { formatPct, formatRelativeTime } from './format'
 import { ChartSkeleton, StaleBanner, WealthError, WealthPageSkeleton } from './states'
 import type { Tier } from './types'
 import { useWealth, useWealthHistory } from './use-wealth'
@@ -48,6 +49,7 @@ const TIER_HINT: Record<Tier, string> = {
 }
 
 export function WealthOverviewPage() {
+  const { money, compact } = useMoney()
   const { ctx, isLoading, error, isEmpty, isRefreshing, ageSeconds, isStale, refetch } = useWealth()
   const history = useWealthHistory()
   const [windowDays, setWindowDays] = useState<number>(30)
@@ -115,8 +117,8 @@ export function WealthOverviewPage() {
         <StatCard
           label="Net worth"
           accent
-          value={formatUsd(metrics.net, { compact: true })}
-          hint={metrics.debt > 0 ? `after ${formatUsd(metrics.debt, { compact: true })} debt` : 'no outstanding debt'}
+          value={compact(metrics.net)}
+          hint={metrics.debt > 0 ? `after ${compact(metrics.debt)} debt` : 'no outstanding debt'}
         />
         <StatCard
           label="24h change"
@@ -125,12 +127,12 @@ export function WealthOverviewPage() {
         />
         <StatCard
           label="Capital at work"
-          value={formatUsd(metrics.atWork, { compact: true })}
+          value={compact(metrics.atWork)}
           hint={`${deployedPct.toFixed(0)}% of gross deployed`}
         />
         <StatCard
           label="Claimable"
-          value={formatUsd(metrics.claimable)}
+          value={money(metrics.claimable)}
           hint="uncollected LP fees & rewards"
         />
       </div>
@@ -142,10 +144,10 @@ export function WealthOverviewPage() {
             {perf && (
               <p className="mt-1 text-xs text-muted-foreground">
                 <span className={cn('font-medium', perf.delta >= 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500')}>
-                  {perf.delta >= 0 ? '+' : '−'}{formatUsd(Math.abs(perf.delta))}
+                  {perf.delta >= 0 ? '+' : '−'}{money(Math.abs(perf.delta))}
                 </span>
                 {perf.pct !== null && <> ({formatPct(perf.pct)})</>} over {perf.spanDays}d
-                {' · '}low {formatUsd(perf.low, { compact: true })} · high {formatUsd(perf.high, { compact: true })}
+                {' · '}low {compact(perf.low)} · high {compact(perf.high)}
               </p>
             )}
           </div>
@@ -194,10 +196,10 @@ export function WealthOverviewPage() {
                   axisLine={false}
                   tickLine={false}
                   width={52}
-                  tickFormatter={(v) => formatUsd(Number(v), { compact: true })}
+                  tickFormatter={(v) => compact(Number(v))}
                 />
                 <Tooltip
-                  formatter={(v) => [formatUsd(Number(v)), 'Net worth']}
+                  formatter={(v) => [money(Number(v)), 'Net worth']}
                   labelFormatter={(l) => String(l)}
                   contentStyle={{
                     background: 'var(--popover)',
@@ -241,7 +243,7 @@ export function WealthOverviewPage() {
                       <span className={cn('size-2 rounded-full', TIER_BAR[tier])} />
                       {TIER_LABELS[tier]}
                     </span>
-                    <span className="text-sm font-semibold tabular-nums">{formatUsd(usd, { compact: true })}</span>
+                    <span className="text-sm font-semibold tabular-nums">{compact(usd)}</span>
                   </div>
                   <Progress value={pct} className="h-1.5" />
                   <p className="text-xs text-muted-foreground">

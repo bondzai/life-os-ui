@@ -26,7 +26,8 @@ import {
   type FlatRow,
   type GroupBy,
 } from './derive'
-import { chainLabel, formatAmount, formatRelativeTime, formatUsd } from './format'
+import { useMoney } from './money'
+import { chainLabel, formatAmount, formatRelativeTime } from './format'
 import { RowsSkeleton, StaleBanner, WealthError } from './states'
 import type { Tier } from './types'
 import { useWealth } from './use-wealth'
@@ -35,6 +36,7 @@ import { ChangeText, MetaPill, StatCard } from './wealth-ui'
 const ALL = 'all'
 
 export function WealthHoldingsPage() {
+  const { compact } = useMoney()
   const { ctx, isLoading, error, isEmpty, isRefreshing, isStale, refetch } = useWealth()
 
   const [query, setQuery] = useState('')
@@ -101,12 +103,12 @@ export function WealthHoldingsPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
           label={hasFilters ? 'Filtered value' : 'Total book'}
-          value={formatUsd(total, { compact: true })}
+          value={compact(total)}
           hint={`${rows.length} position${rows.length === 1 ? '' : 's'}`}
         />
         <StatCard
           label="Largest position"
-          value={largest ? formatUsd(largest.usd, { compact: true }) : '—'}
+          value={largest ? compact(largest.usd) : '—'}
           hint={largest ? `${largest.label} · ${chainLabel(largest.chain)}` : undefined}
         />
         <StatCard
@@ -234,6 +236,7 @@ function GroupSection({
   change: number | null
   rows: FlatRow[]
 }) {
+  const { money, compact } = useMoney()
   return (
     <>
       {name && (
@@ -244,7 +247,7 @@ function GroupSection({
               {rows.length} position{rows.length === 1 ? '' : 's'}
             </span>
           </TableCell>
-          <TableCell className="text-right font-semibold tabular-nums">{formatUsd(usd, { compact: true })}</TableCell>
+          <TableCell className="text-right font-semibold tabular-nums">{compact(usd)}</TableCell>
           <TableCell className="text-right text-sm">
             <ChangeText value={change} />
           </TableCell>
@@ -277,7 +280,7 @@ function GroupSection({
               <span className="text-muted-foreground">—</span>
             )}
           </TableCell>
-          <TableCell className="text-right font-medium tabular-nums">{formatUsd(row.usd)}</TableCell>
+          <TableCell className="text-right font-medium tabular-nums">{money(row.usd)}</TableCell>
           <TableCell className="text-right text-sm">
             <ChangeText value={row.change} />
           </TableCell>

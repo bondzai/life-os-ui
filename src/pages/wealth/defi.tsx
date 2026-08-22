@@ -25,7 +25,8 @@ import {
   sortLp,
   type LpSortKey,
 } from './derive'
-import { chainLabel, formatAmount, formatDuration, formatPct, formatRelativeTime, formatUsd } from './format'
+import { useMoney } from './money'
+import { chainLabel, formatAmount, formatDuration, formatPct, formatRelativeTime } from './format'
 import { BorrowingPanel } from './borrowing'
 import { HarvestPanel } from './cashflow'
 import { SnowballToggle } from './snowball'
@@ -37,6 +38,7 @@ import { ChangeText, MetaPill, RangeBadge, RangeBar, StatCard } from './wealth-u
 const ALL = 'all'
 
 export function WealthDefiPage() {
+  const { money, compact } = useMoney()
   const { ctx, isLoading, error, isEmpty, isRefreshing, isStale, refetch } = useWealth()
 
   const [query, setQuery] = useState('')
@@ -112,16 +114,16 @@ export function WealthDefiPage() {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Position value" accent value={formatUsd(summary.value, { compact: true })} hint={`${rows.length} position${rows.length === 1 ? '' : 's'}`} />
+        <StatCard label="Position value" accent value={compact(summary.value)} hint={`${rows.length} position${rows.length === 1 ? '' : 's'}`} />
         <StatCard
           label="Claimable"
-          value={formatUsd(summary.claimable)}
+          value={money(summary.claimable)}
           hint={summary.byToken.length > 0 ? summary.byToken.slice(0, 3).map((t) => t.symbol).join(' · ') : 'nothing to collect'}
         />
         <StatCard
           label="Blended APR"
           value={summary.apr !== null ? `${summary.apr.toFixed(1)}%` : '—'}
-          hint={summary.perDay > 0 ? `≈ ${formatUsd(summary.perDay)}/day` : 'no APR reported'}
+          hint={summary.perDay > 0 ? `≈ ${money(summary.perDay)}/day` : 'no APR reported'}
         />
         <StatCard
           label="Out of range"
@@ -142,7 +144,7 @@ export function WealthDefiPage() {
             {summary.byToken.map((t) => (
               <div key={t.symbol} className="rounded-lg border px-3 py-1.5">
                 <span className="text-sm font-medium">{formatAmount(t.amount)} {t.symbol}</span>
-                <span className="ml-2 text-xs text-muted-foreground tabular-nums">{formatUsd(t.usd)}</span>
+                <span className="ml-2 text-xs text-muted-foreground tabular-nums">{money(t.usd)}</span>
               </div>
             ))}
           </CardContent>
@@ -211,6 +213,7 @@ export function WealthDefiPage() {
 }
 
 function PositionCard({ row }: { row: LpRow }) {
+  const { money } = useMoney()
   const range = rangeInfo(row)
   const perf = cyclePerf(row)
   const daily = earnings(row)
@@ -242,10 +245,10 @@ function PositionCard({ row }: { row: LpRow }) {
           <div className="flex items-start gap-1">
             <SnowballToggle id={sbLpId(row.key)} name={row.pair} className="mt-0.5" />
             <div className="text-right">
-              <div className="font-semibold tabular-nums">{formatUsd(row.value)}</div>
+              <div className="font-semibold tabular-nums">{money(row.value)}</div>
               <div className="text-xs text-muted-foreground">
                 {row.apr !== null ? <>{formatPct(row.apr, 1)} APR</> : 'APR n/a'}
-                {daily && <> · ≈{formatUsd(daily.perDay)}/day</>}
+                {daily && <> · ≈{money(daily.perDay)}/day</>}
               </div>
             </div>
           </div>
@@ -264,7 +267,7 @@ function PositionCard({ row }: { row: LpRow }) {
         )}
 
         <div className="grid gap-3 border-t pt-3 sm:grid-cols-3">
-          <Metric label="Claimable" value={formatUsd(row.fees)}>
+          <Metric label="Claimable" value={money(row.fees)}>
             {row.feeToks.length > 0 && (
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {row.feeToks.map((t) => `${formatAmount(t.amount)} ${t.symbol}`).join(' · ')}

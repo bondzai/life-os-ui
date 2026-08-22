@@ -18,6 +18,13 @@ import {
 } from '@/core/repositories/api-wealth-repository'
 import { mockWealthSource } from './data-source'
 import { OffChainAssets } from './off-chain'
+import { useMoney } from './money'
+
+/** A stand-in for any of the 55 places a wealth surface renders money. */
+function Denominated() {
+  const { money } = useMoney()
+  return <span data-testid="amount">{money(100)}</span>
+}
 
 function renderCard() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -146,5 +153,60 @@ describe('importing the browser list', () => {
     const fetchSpy = stubFetch([])
     await apiWealthRepository.getManualAssets()
     expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
+  })
+})
+
+describe('the currency switch', () => {
+  it('re-denominates every surface and survives a reload', async () => {
+    const { CurrencySwitch } = await import('./currency-switch')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    // The switch reads rates from the shared portfolio cache; seed it rather than fetch.
+    client.setQueryData(['wealth', 'portfolio'], {
+      wallets: [],
+      total: 0,
+      rates: { usd: 1, thb: 32.915, btc_usd: 74_815 },
+      fetched_at: 0,
+    })
+
+    render(
+      <QueryClientProvider client={client}>
+        <CurrencySwitch />
+        <Denominated />
+      </QueryClientProvider>,
+    )
+
+    expect((await screen.findByTestId('amount')).textContent).toBe('$100.00')
+    fireEvent.click(screen.getByText('thb'))
+    await waitFor(() => expect(screen.getByTestId('amount').textContent).toBe('฿3,292'))
+    // The choice is the session's, so it outlives the components that read it.
+    expect(localStorage.getItem('lyra:wealth:currency')).toBe('thb')
+
+    fireEvent.click(screen.getByText('sats'))
+    await waitFor(() => expect(screen.getByTestId('amount').textContent).toBe('133,663 sats'))
+
+    // Back to USD, so the module-level store does not leak into the next test.
+    fireEvent.click(screen.getByText('usd'))
+    await waitFor(() => expect(screen.getByTestId('amount').textContent).toBe('$100.00'))
+  })
+
+  /** With no rate there is nothing to switch to, and blanking every number would be worse. */
+  it('disables a currency whose rate the box has not got', async () => {
+    const { CurrencySwitch } = await import('./currency-switch')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(['wealth', 'portfolio'], {
+      wallets: [],
+      total: 0,
+      rates: { usd: 1 },
+      fetched_at: 0,
+    })
+
+    render(
+      <QueryClientProvider client={client}>
+        <CurrencySwitch />
+      </QueryClientProvider>,
+    )
+    expect(screen.getByText('thb').hasAttribute('disabled')).toBe(true)
+    expect(screen.getByText('sats').hasAttribute('disabled')).toBe(true)
+    expect(screen.getByText('usd').hasAttribute('disabled')).toBe(false)
   })
 })
