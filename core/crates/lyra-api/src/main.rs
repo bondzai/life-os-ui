@@ -22,13 +22,16 @@ use anyhow::{Context, Result};
 use axum::extract::State;
 use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{delete, get, patch, post, put};
+use axum::routing::{any, delete, get, patch, post, put};
 use axum::{Json, Router};
 use serde_json::json;
 use sqlx::SqlitePool;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
+
+use crate::common::error;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -183,7 +186,7 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
             auth::require_auth,
         ));
 
-    Router::new()
+    let router = Router::new()
         .route("/api/health", get(health))
         .route("/api/auth/login", post(auth::login))
         .route("/api/search", get(search::search))
@@ -196,7 +199,36 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
         .route("/api/gcal/{calendarId}/ical", get(gcal::public_ical))
         .merge(protected)
         .layer(cors)
-        .with_state(state)
+        .with_state(state);
+
+    // Serve the built front end from the same process, when it is there.
+    //
+    // Optional on purpose. In development the UI is Vite's dev server on another port and this is
+    // unset; for a self-hosted box `LYRA_UI_DIR=dist` makes one binary the whole application —
+    // no node at runtime, no second service to keep alive, and, because the app is then served
+    // from the API's own origin, no CORS configuration to get wrong.
+    //
+    // Unknown paths fall back to `index.html` rather than 404ing: the router is client-side, so
+    // a reload on `/wealth/holdings` asks the server for a file that was never meant to exist.
+    //
+    // Everything under `/api/` is carved out first. A fallback catches every unmatched path,
+    // `/api/typo` included, and answering that with a 200 and a page of HTML turns a mistyped
+    // request into "the JSON parser failed" three layers away from the cause.
+    let Ok(ui) = std::env::var("LYRA_UI_DIR") else {
+        return router;
+    };
+    let index = std::path::Path::new(&ui).join("index.html");
+    if !index.is_file() {
+        tracing::warn!(dir = %ui, "LYRA_UI_DIR has no index.html; serving the API only");
+        return router;
+    }
+    tracing::info!(dir = %ui, "serving the front end");
+    router
+        .route(
+            "/api/{*rest}",
+            any(|| async { error(StatusCode::NOT_FOUND, "not found") }),
+        )
+        .fallback_service(ServeDir::new(&ui).fallback(ServeFile::new(index)))
 }
 
 async fn health(State(state): State<AppState>) -> Response {
@@ -273,6 +305,25 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
+    /// The SPA fallback must not swallow `/api/`.
+    ///
+    /// A fallback catches every unmatched path, `/api/typo` included, and answering that with a
+    /// page of HTML turns a mistyped request into "the JSON parser failed" three layers from the
+    /// cause. This is the carve-out that keeps an API 404 an API 404.
+    #[test]
+    fn the_api_prefix_is_carved_out_of_the_static_fallback() {
+        let source = include_str!("main.rs");
+        let tail = source
+            .split("let Ok(ui) = std::env::var(\"LYRA_UI_DIR\")")
+            .nth(1)
+            .expect("the static-fallback block should exist");
+        let api_guard = tail.find("\"/api/{*rest}\"").expect("the /api guard should exist");
+        let fallback = tail.find("fallback_service").expect("the fallback should exist");
+        assert!(
+            api_guard < fallback,
+            "the /api catch-all must be registered before the static fallback"
+        );
+    }
     use super::*;
     use axum::body::Body;
     use axum::http::Request;

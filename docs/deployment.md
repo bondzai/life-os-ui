@@ -481,3 +481,59 @@ Schema migrations run automatically at API startup (forward-only, tracked by
 `PRAGMA user_version`). Take a backup before updating anyway — section 4.
 
 To free disk after several rebuilds: `docker image prune -f`.
+
+## Running it locally as a service — 2026-08-22
+
+`./ops/lyra-server.sh install`, or `make server-install`. Then **http://localhost:3030**.
+
+One launchd job running one binary. The release `lyra-api` serves the API *and* the built front
+end, so there is no node at runtime, no reverse proxy, and — because the app comes from the API's
+own origin — no CORS to configure. `LYRA_UI_DIR` turns that on; unset (as in development, where
+Vite serves the UI) the binary is an API and nothing else.
+
+    make server-install   build, install, (re)start — also the way to deploy a change
+    make server-status    loaded? answering?
+    make server-logs      tail ~/Library/Logs/lyra/server.log
+    make server-stop
+
+`RunAtLoad` + `KeepAlive` mean it starts when you log in and comes back if it dies; verified by
+`kill -9` on the pid and watching it answer again on a new one four seconds later.
+
+### It installs into a prefix, and that is not optional
+
+Everything the service runs from lives under `~/Library/Application Support/Lyra` — `bin/`, `ui/`,
+`data/lyra.db` — not in the checkout.
+
+**This repository is under `~/Desktop`, and macOS refuses a LaunchAgent access to Desktop,
+Documents and Downloads** unless the user grants Full Disk Access by hand. The symptom is a
+service that starts and instantly dies with `unable to open database file`, naming a file that is
+plainly there and readable from your own shell. Installing outside the protected tree avoids the
+whole question, which is where application data belongs anyway.
+
+`install` copies `core/data/lyra.db` to the prefix on first run, with `sqlite3 .backup` rather
+than `cp` — a plain copy of a WAL-mode database mid-write yields a torn file that opens fine and
+is missing rows. `.env.local`'s `LYRA_DB` is then pointed at the installed copy so `make dev-api`
+and the service share one database instead of drifting apart.
+
+### Three things that had to be got right
+
+**`VITE_API_URL=/api` at build time.** The default is the absolute `http://localhost:3001/api`
+the dev server needs. Baked into the served bundle, every request from :3030 goes to a port with
+nothing on it and every page renders its error state against a perfectly healthy server. The
+install script sets it; a hand-run `npm run build` does not.
+
+**`/api/*` is carved out of the SPA fallback.** A fallback catches every unmatched path,
+`/api/typo` included, and answering that with 200 and a page of HTML turns a mistyped request
+into "the JSON parser failed" three layers from the cause. A test asserts the catch-all is
+registered before the fallback.
+
+**The install script does not go through `nvm`.** `nvm.sh` is not safe under `set -u`: sourcing
+it killed the script mid-way with no output at all, which reads exactly like a build that
+succeeded. The script resolves the version in `.nvmrc` to a directory under
+`~/.nvm/versions/node` and puts that on `PATH` itself.
+
+### Docker is still there
+
+`make docker-up` and the compose stack are unchanged, and remain the path for the mini PC. This
+is the lighter answer for a Mac that is also your development machine — no VM, and Docker Desktop
+was not running.

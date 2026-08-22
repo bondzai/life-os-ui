@@ -1,4 +1,5 @@
 .PHONY: help dev dev-safe dev-ui dev-api install install-ui build build-ui build-api \
+       server-install server-status server-restart server-stop server-logs \
        lint typecheck typecheck-w check test clean docker-up docker-down docker-build docker-logs \
        preview core-build core-test core-check parity oracle oracle-clone mcp visual
 
@@ -127,6 +128,21 @@ parity: ## Diff the Rust port against the Python oracle (green with no endpoints
 # ──────────────────────────────────────────────
 # Docker
 # ──────────────────────────────────────────────
+server-install: ## Install Lyra as a local service (builds, then starts on login)
+	./ops/lyra-server.sh install
+
+server-status: ## Is the local service up?
+	@./ops/lyra-server.sh status
+
+server-restart: ## Rebuild and restart the local service
+	./ops/lyra-server.sh install
+
+server-stop: ## Stop the local service
+	@./ops/lyra-server.sh stop
+
+server-logs: ## Tail the local service log
+	@./ops/lyra-server.sh logs
+
 docker-up: ## Start all containers
 	$(COMPOSE) up -d
 
