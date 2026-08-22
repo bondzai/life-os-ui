@@ -638,12 +638,11 @@ export function TasksPage() {
     setEditingTask(null)
   }
 
-  if (isLoading) {
-    return <div className="p-4 text-muted-foreground">Loading...</div>
-  }
-
-  // ── Render helper for task list items ───────────────────────────────
-
+  // These four are declared **before** the loading guard below, and must stay there.
+  // React identifies a hook by call order, so an early `return` above a `useCallback` means
+  // the first render (data pending) registers four fewer hooks than the second — which throws
+  // "rendered more hooks than during the previous render" and takes the page to the error
+  // boundary the moment the query resolves.
   const handleSelect = useCallback((task: Entity, checked: boolean) => {
     setSelectedTasks((prev) => {
       const next = new Set(prev)
@@ -692,6 +691,10 @@ export function TasksPage() {
       updates: { metadata: { ...task.metadata, subtasks: updated }, updatedAt: new Date().toISOString() },
     })
   }, [tasks, update])
+
+  if (isLoading) {
+    return <div className="p-4 text-muted-foreground">Loading...</div>
+  }
 
   const renderTaskCard = (task: Entity, navIndex?: number) => (
     <TaskCard
