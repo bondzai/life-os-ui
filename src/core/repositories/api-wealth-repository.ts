@@ -19,6 +19,7 @@ import type {
   ManualAssetInput,
   NwPoint,
   PortfolioData,
+  Sentiment,
   WalletEntry,
   WalletList,
 } from '@/pages/wealth/types'
@@ -184,6 +185,11 @@ export class ApiWealthRepository implements WealthDataSource {
 
   async removeWallet(id: string): Promise<void> {
     await send<null>('DELETE', `wealth/wallets/${encodeURIComponent(id)}`)
+  }
+
+  /** Valuation & mood models — a keyless read of public sources, behind Radar. */
+  getSentiment(): Promise<Sentiment> {
+    return get<Sentiment>('wealth/sentiment')
   }
 
   /** The LLM analysis journal — latest entry per scope unless `history` is asked for. */

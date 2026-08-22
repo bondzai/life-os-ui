@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/core/components/empty-state'
 import { BorrowingPanel } from './borrowing'
+import { RadarPanel } from './radar'
 import { SnowballPanel } from './snowball'
 import { cn } from '@/lib/utils'
 import {
@@ -83,10 +84,26 @@ export function WealthOverviewPage() {
     [perf],
   )
 
-  if (isLoading) return <WealthPageSkeleton />
+  // Radar answers a question the portfolio is not part of, and its feed returns in a couple of
+  // seconds where a cold multi-chain read can take over a minute. Rendering it beside the
+  // skeleton — and beside the error state — means a slow or broken chain read no longer takes
+  // the market view down with it.
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <WealthPageSkeleton />
+        <RadarPanel />
+      </div>
+    )
+  }
 
   if (error) {
-    return <WealthError detail={error.message} onRetry={refetch} retrying={isRefreshing} />
+    return (
+      <div className="space-y-4">
+        <WealthError detail={error.message} onRetry={refetch} retrying={isRefreshing} />
+        <RadarPanel />
+      </div>
+    )
   }
 
   if (isEmpty || !ctx || !metrics) {
@@ -259,6 +276,10 @@ export function WealthOverviewPage() {
       {/* The slice the user chose to compound — a different question from net worth, which is why
           it gets its own series rather than a filter on the chart above. */}
       <SnowballPanel ctx={ctx} />
+
+      {/* Everything above answers "what do I hold". Radar answers "what is the market doing", and
+          sits last because it is context, not a holding — nothing here is acted on automatically. */}
+      <RadarPanel />
 
       {/* Debt is the other half of net worth, so it belongs on the page that leads with it.
           Self-hiding: a wallet that does not borrow never sees this. */}

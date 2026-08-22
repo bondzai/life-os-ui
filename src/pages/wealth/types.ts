@@ -260,6 +260,21 @@ export interface LpRow {
 
 export type Currency = 'usd' | 'thb' | 'sats'
 
+/**
+ * The valuation & mood models behind Radar (`/api/wealth/sentiment`).
+ *
+ * Every field is optional: each model is a separate keyless read of a public source, and one
+ * being down must not take the panel with it.
+ */
+export interface Sentiment {
+  fear_greed?: { value: number; classification: string }
+  mvrv_zscore?: { value: number; label: string; color?: string }
+  btc_rainbow?: { ratio: number; label: string; color?: string; fair_usd?: number }
+  sopr?: { value: number; label: string; color?: string }
+  puell?: { value: number; label: string; color?: string }
+  fetched_at?: number
+}
+
 /** One entry in the LLM analysis journal (`/api/wealth/analyses`). */
 export interface Analysis {
   id: string
