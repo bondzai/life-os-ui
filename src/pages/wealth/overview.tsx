@@ -11,7 +11,6 @@ import { Wallet } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
 import { EmptyState } from '@/core/components/empty-state'
 import { BorrowingPanel } from './borrowing'
 import { SnowballPanel } from './snowball'
@@ -175,7 +174,7 @@ export function WealthOverviewPage() {
               Not enough history yet — snapshots build up daily.
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={170}>
               <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
                 <defs>
                   <linearGradient id="nwFill" x1="0" y1="0" x2="0" y2="1">
@@ -223,7 +222,7 @@ export function WealthOverviewPage() {
             Gross of debt, so this always reconciles with Holdings.
           </p>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
             {(Object.keys(TIER_LABELS) as Tier[]).map((tier) => {
               const pct = gross > 0 ? (totals[tier] / gross) * 100 : 0
@@ -237,7 +236,7 @@ export function WealthOverviewPage() {
               const usd = totals[tier]
               const pct = gross > 0 ? (usd / gross) * 100 : 0
               return (
-                <div key={tier} className="space-y-1.5">
+                <div key={tier}>
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="flex items-center gap-1.5 text-sm font-medium">
                       <span className={cn('size-2 rounded-full', TIER_BAR[tier])} />
@@ -245,8 +244,9 @@ export function WealthOverviewPage() {
                     </span>
                     <span className="text-sm font-semibold tabular-nums">{compact(usd)}</span>
                   </div>
-                  <Progress value={pct} className="h-1.5" />
-                  <p className="text-xs text-muted-foreground">
+                  {/* No per-tier progress bar: the stacked bar above this grid already encodes
+                      exactly this split, and drawing it twice reads as two different facts. */}
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
                     {pct.toFixed(1)}% · {TIER_HINT[tier]}
                   </p>
                 </div>

@@ -27,12 +27,15 @@ export function StatCard({
   accent?: boolean
   children?: ReactNode
 }) {
+  // `py-0` cancels the Card's own `py-6`, which stacked with the content's padding and made a
+  // three-line tile 157px tall. These sit in a row above every wealth surface; a whole screen of
+  // headline before the first row of data is what pushed the real content below the fold.
   return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</p>
-        <p className={cn('mt-1 font-semibold tabular-nums', accent ? 'text-2xl' : 'text-xl')}>{value}</p>
-        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+    <Card className="gap-0 py-0">
+      <CardContent className="px-4 py-3">
+        <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{label}</p>
+        <p className={cn('mt-0.5 font-semibold tabular-nums', accent ? 'text-xl' : 'text-lg')}>{value}</p>
+        {hint && <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{hint}</p>}
         {children}
       </CardContent>
     </Card>

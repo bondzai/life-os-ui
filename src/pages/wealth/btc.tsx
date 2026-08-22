@@ -102,11 +102,11 @@ export function WealthBtcPage() {
 
       {sats !== null && goal !== null && (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Next milestone</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Next milestone</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <Progress value={pct} />
+          <CardContent className="space-y-2">
+            <Progress value={pct} className="h-1.5" />
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm tabular-nums">
               <span className="text-muted-foreground">
                 {pct.toFixed(0)}% of {formatSats(goal)} sats
@@ -115,7 +115,7 @@ export function WealthBtcPage() {
                 {formatSats(remaining)} sats to go
               </span>
             </div>
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex items-center gap-2">
               <Label htmlFor="sats-target" className="text-xs text-muted-foreground">
                 Custom target
               </Label>
@@ -138,28 +138,28 @@ export function WealthBtcPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Custody</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Custody</CardTitle>
             <p className="text-xs text-muted-foreground">Where it is, and who can move it</p>
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="space-y-0.5">
             {locations.map((location) => {
               const custody = CUSTODY[location.kind]
               const Icon = custody.icon
               const share = usd > 0 ? (location.usd / usd) * 100 : 0
               return (
-                <div key={location.label} className="flex items-center gap-3 rounded-md px-1 py-2">
+                <div key={location.label} className="flex items-center gap-2.5 px-1 py-1">
                   <Icon className={cn('size-4 shrink-0', custody.tone)} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{location.label}</p>
-                    <p className="text-xs text-muted-foreground">{custody.note}</p>
-                  </div>
-                  <div className="shrink-0 text-right tabular-nums">
-                    <p className="text-sm font-medium">{money(location.usd)}</p>
-                    <p className="text-xs text-muted-foreground">{share.toFixed(0)}%</p>
-                  </div>
+                  <p className="min-w-0 flex-1 truncate text-sm">
+                    {location.label}
+                    <span className="ml-1.5 text-xs text-muted-foreground">{custody.note}</span>
+                  </p>
+                  <span className="shrink-0 text-sm font-medium tabular-nums">{money(location.usd)}</span>
+                  <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                    {share.toFixed(0)}%
+                  </span>
                 </div>
               )
             })}
@@ -167,25 +167,23 @@ export function WealthBtcPage() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Composition</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Composition</CardTitle>
             <p className="text-xs text-muted-foreground">
               Which wrapper the exposure sits in — the total is the same either way
             </p>
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="space-y-0.5">
             {components.map((component) => {
               const share = usd > 0 ? (component.usd / usd) * 100 : 0
               return (
-                <div key={component.symbol} className="flex items-center gap-3 rounded-md px-1 py-2">
+                <div key={component.symbol} className="flex items-center gap-2.5 px-1 py-1">
                   <Bitcoin className="size-4 shrink-0 text-amber-600 dark:text-amber-500" />
-                  <p className="min-w-0 flex-1 truncate text-sm font-medium">{component.symbol}</p>
-                  <div className="shrink-0 text-right tabular-nums">
-                    <p className="text-sm font-medium">{money(component.usd)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {btcPrice ? `${formatSats((component.usd * 1e8) / btcPrice)} sats` : `${share.toFixed(0)}%`}
-                    </p>
-                  </div>
+                  <p className="min-w-0 flex-1 truncate text-sm">{component.symbol}</p>
+                  <span className="shrink-0 text-sm font-medium tabular-nums">{money(component.usd)}</span>
+                  <span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                    {btcPrice ? `${formatSats((component.usd * 1e8) / btcPrice)} sats` : `${share.toFixed(0)}%`}
+                  </span>
                 </div>
               )
             })}

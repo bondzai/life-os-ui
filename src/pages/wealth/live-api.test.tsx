@@ -5,8 +5,13 @@
  * on a machine with nothing listening. Run it with the API up:
  *
  * ```bash
- * LYRA_LIVE_API=1 npx vitest run src/pages/wealth/live-api.test.tsx
+ * LYRA_LIVE_API=1 npx vitest run src/pages/wealth/live-api.test.tsx          # dev API on :3001
+ * LYRA_LIVE_API=1 VITE_API_URL=http://localhost:3030/api npx vitest run …    # the local service
  * ```
+ *
+ * `VITE_API_URL` matters: without it `API_URL` resolves to the dev server's `:3001`, and against
+ * the installed service every test skips on a health probe that never answers — which reads as a
+ * pass, not a miss.
  *
  * Why this exists: `surfaces.test.tsx` proves the pages render *the mock*. It cannot catch a
  * front end asking for a route the server does not have, or typing a response as an array when
