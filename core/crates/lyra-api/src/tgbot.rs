@@ -27,6 +27,9 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::wealth;
 
+/// The Bot API root. A constant so the token is only ever interpolated in one place.
+const API_BASE: &str = "https://api.telegram.org";
+
 /// How long Telegram holds a `getUpdates` request open with nothing to say.
 const LONG_POLL_SECS: u64 = 25;
 
@@ -141,7 +144,7 @@ async fn publish_commands(client: &reqwest::Client, token: &str) {
         .map(|(command, description)| json!({ "command": command, "description": description }))
         .collect();
     let result = client
-        .post(format!("https://api.telegram.org/bot{token}/setMyCommands"))
+        .post(format!("{API_BASE}/bot{token}/setMyCommands"))
         .json(&json!({ "commands": commands }))
         .send()
         .await;
@@ -150,22 +153,36 @@ async fn publish_commands(client: &reqwest::Client, token: &str) {
             tracing::info!(count = COMMANDS.len(), "published the telegram command menu");
         }
         Ok(response) => tracing::warn!(status = %response.status(), "setMyCommands refused"),
-        Err(e) => tracing::warn!(error = %e, "could not publish the telegram command menu"),
+        Err(e) => tracing::warn!(error = %e.without_url(), "could not publish the telegram command menu"),
     }
+}
+
+/// The `getUpdates` URL.
+///
+/// Built here rather than inline so it can be asserted on. A `\`-continuation in the literal once
+/// left nine spaces in the path — `getUpdates%20%20%20…?timeout=` — and every poll failed for a
+/// day while messages queued unread, because a malformed URL fails exactly the way a network
+/// outage does. Nothing in the log said "bad URL"; it said "error sending request".
+fn updates_url(token: &str, offset: i64) -> String {
+    format!(
+        "{API_BASE}/bot{token}/getUpdates?timeout={LONG_POLL_SECS}&offset={offset}&allowed_updates=%5B%22message%22%5D"
+    )
 }
 
 async fn poll(client: &reqwest::Client, token: &str, offset: i64) -> anyhow::Result<Vec<Value>> {
     // Only messages: nothing here acts on edits, channel posts or inline queries, and asking for
     // them would mean paging through updates that can never be handled.
-    let url = format!(
-        "https://api.telegram.org/bot{token}/getUpdates         ?timeout={LONG_POLL_SECS}&offset={offset}&allowed_updates=%5B%22message%22%5D"
-    );
+    let url = updates_url(token, offset);
     let body = client
         .get(url)
         .send()
-        .await?
+        .await
+        // `reqwest::Error` renders the URL it failed on, and that URL carries the bot token —
+        // which would write the secret into the log on every transient network blip.
+        .map_err(|e| anyhow::anyhow!("{}", e.without_url()))?
         .json::<Value>()
-        .await?;
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e.without_url()))?;
 
     Ok(body
         .get("result")
@@ -255,6 +272,22 @@ mod tests {
             message_of(&stringly),
             Some(("12345".to_string(), "/nw".to_string()))
         );
+    }
+
+    /// The bug this file shipped with: a line-continuation left literal spaces in the path, so
+    /// every poll failed and looked like a network problem.
+    #[test]
+    fn the_updates_url_is_well_formed() {
+        let url = updates_url("123:ABC", 42);
+        assert_eq!(
+            url,
+            "https://api.telegram.org/bot123:ABC/getUpdates\
+             ?timeout=25&offset=42&allowed_updates=%5B%22message%22%5D"
+                .replace(' ', "")
+        );
+        assert!(!url.contains(' '), "a space in the path breaks every poll: {url}");
+        // The query has to start immediately after the method name.
+        assert!(url.contains("/getUpdates?timeout="), "{url}");
     }
 
     #[test]

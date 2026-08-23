@@ -114,5 +114,18 @@ restart mid-command re-runs at most that one command instead of replaying the ba
 handles at most five commands, because after an outage Telegram returns everything queued at once
 and a week offline should not fire a week of portfolio reads back to back.
 
+### A malformed URL fails exactly like an outage
+
+The first version of `poll` built its URL with a `\`-continuation and shipped nine literal spaces
+in the path — `getUpdates%20%20%20…?timeout=`. Every poll failed for a day while messages queued
+unread, and the log said `error sending request`, which is what a network problem says too. The
+URL is built by `updates_url`, on one line, with a test asserting it contains no space and that
+the query starts immediately after the method name.
+
+Related, and worse: `reqwest::Error` renders the URL it failed on, and that URL carries the bot
+token — so every transient blip wrote the secret into `~/Library/Logs/lyra/server.log` in plain
+text. Both call sites now log `e.without_url()`. **If a log from before 2026-08-23 was ever copied
+off this machine, rotate the token with @BotFather.**
+
 **Do not call `getUpdates` by hand while the bot is running.** Telegram allows one consumer, and a
 manual call consumes the update the bot was waiting for — the message then never reaches it.
