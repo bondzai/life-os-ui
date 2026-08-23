@@ -118,12 +118,21 @@ async fn run(state: AppState, sender: Arc<TelegramSender>, token: String, owner:
             let update_id = update.get("update_id").and_then(Value::as_i64).unwrap_or(0);
             if let Some((chat, text)) = message_of(&update) {
                 if chat == owner {
+                    let command = command_of(&text.to_lowercase()).to_string();
                     let reply = handle(&state, &text).await;
-                    sender.send(&reply).await;
+                    let delivered = sender.send(&reply).await;
+                    // Logged because "the bot does nothing" and "the bot answered and the reply
+                    // never arrived" look identical from the outside, and only one of them is a
+                    // problem with this process.
+                    tracing::info!(%command, delivered = delivered.is_sent(), "answered a command");
                 } else {
                     // Counted, not answered. Replying would confirm the bot exists to whoever
                     // found the token, and echoing their text would put it in front of the owner.
-                    tracing::warn!("telegram command from an unknown chat; ignored");
+                    //
+                    // The id *is* logged: the commonest way this goes wrong is a correct bot with
+                    // TELEGRAM_CHAT_ID pointing at a different chat, and without the id there is
+                    // no way to tell that apart from a stranger probing the token.
+                    tracing::warn!(from = %chat, "telegram command from an unpinned chat; ignored");
                 }
             }
             // Acknowledged only after the reply went out.
@@ -157,6 +166,28 @@ async fn publish_commands(client: &reqwest::Client, token: &str) {
     }
 }
 
+/// A `reqwest` error, said usefully and without the token.
+///
+/// Its `Display` is one line — "error sending request" — which reads the same for a DNS failure,
+/// a TLS handshake and a timeout. The cause chain is what distinguishes them, and the URL, which
+/// carries the bot token, is dropped first.
+fn describe(e: reqwest::Error) -> anyhow::Error {
+    let mut detail = String::new();
+    let mut source: Option<&dyn std::error::Error> = std::error::Error::source(&e);
+    while let Some(cause) = source {
+        detail.push_str(&format!(": {cause}"));
+        source = cause.source();
+    }
+    let kind = if e.is_timeout() {
+        " (timeout)"
+    } else if e.is_connect() {
+        " (connect)"
+    } else {
+        ""
+    };
+    anyhow::anyhow!("{}{kind}{detail}", e.without_url())
+}
+
 /// The `getUpdates` URL.
 ///
 /// Built here rather than inline so it can be asserted on. A `\`-continuation in the literal once
@@ -179,10 +210,10 @@ async fn poll(client: &reqwest::Client, token: &str, offset: i64) -> anyhow::Res
         .await
         // `reqwest::Error` renders the URL it failed on, and that URL carries the bot token —
         // which would write the secret into the log on every transient network blip.
-        .map_err(|e| anyhow::anyhow!("{}", e.without_url()))?
+        .map_err(describe)?
         .json::<Value>()
         .await
-        .map_err(|e| anyhow::anyhow!("{}", e.without_url()))?;
+        .map_err(describe)?;
 
     Ok(body
         .get("result")
