@@ -450,6 +450,17 @@ impl Spot {
             inputs.native_change = self.prices.key_change(native_key).await;
         }
 
+        // The indexer listed nothing. That is normal for a chain with no Blockscout at all, and
+        // it is *also* what a dead instance looks like — hyperscan started 404ing every address
+        // endpoint, and HyperEVM spot silently became "the native coin only". Where the chain
+        // names fallback tokens, read those over RPC before giving up on them.
+        let mut fallback = Vec::new();
+        if inputs.tokens_body.get("items").and_then(Value::as_array).is_none_or(|i| i.is_empty())
+            && !chain.spot_fallback.is_empty()
+        {
+            fallback = self.rpc_fallback_spot(chain, address, dust_usd).await;
+        }
+
         // Prices for whatever Blockscout could not price.
         let missing = missing_price_keys(&parse_tokens(chain, &inputs.tokens_body));
         if !missing.is_empty() {
@@ -458,6 +469,13 @@ impl Spot {
 
         // 24h changes for what actually survives, then seed the change cache from the same batch.
         let mut kept = valued_candidates(chain, &inputs, dust_usd);
+        // Appended after valuation because these arrive already priced, and deduped by symbol so
+        // a recovering indexer never yields the same token twice.
+        for token in fallback {
+            if !kept.iter().any(|c| c.symbol.eq_ignore_ascii_case(&token.symbol)) {
+                kept.push(token);
+            }
+        }
         let keys = change_keys(&kept);
         if !keys.is_empty() {
             let changes = self.llama_changes(&keys).await;
@@ -496,6 +514,97 @@ impl Spot {
             Ok(value) if value.is_object() => value,
             _ => json!({}),
         }
+    }
+
+    /// The tokens a chain names, read straight from its RPC.
+    ///
+    /// One `eth_call` per token — `balanceOf(address)`. This can only ever confirm holdings of
+    /// tokens someone thought to list, which is why it is a fallback and not the primary path: an
+    /// indexer enumerates what you hold, an RPC answers about what you ask for.
+    ///
+    /// Failures are per-token and silent-but-logged. A dead RPC should leave the chain reporting
+    /// its native coin, exactly as it did before this existed, rather than failing the whole read.
+    async fn rpc_fallback_spot(
+        &self,
+        chain: &Chain,
+        address: &str,
+        dust_usd: f64,
+    ) -> Vec<Candidate> {
+        let Some(rpc) = chain.rpc else {
+            return Vec::new();
+        };
+        let keys: Vec<String> = chain
+            .spot_fallback
+            .iter()
+            .map(|t| t.price_key.to_string())
+            .collect();
+        let prices = self.llama_prices(&keys).await;
+
+        let mut out = Vec::new();
+        for token in chain.spot_fallback {
+            let Some(amount) = self.erc20_balance(rpc, token, address).await else {
+                continue;
+            };
+            if amount <= 0.0 {
+                continue;
+            }
+            let price = prices.get(token.price_key).and_then(|p| p.price);
+            let usd = price.map(|p| amount * p);
+            // The same dust cut every other holding gets — a fallback should not be the one path
+            // that floods the ledger with sub-dollar remnants.
+            if usd.is_none_or(|v| v <= dust_usd) {
+                continue;
+            }
+            out.push(Candidate {
+                symbol: token.symbol.to_string(),
+                amount,
+                price,
+                usd,
+                kind: "token",
+                address: Some(token.address.to_string()),
+                coin: Some(token.price_key.to_string()),
+                change24h: None,
+            });
+        }
+        if !out.is_empty() {
+            tracing::info!(
+                chain = chain.name,
+                count = out.len(),
+                "read spot balances over RPC; the indexer listed nothing"
+            );
+        }
+        out
+    }
+
+    /// `balanceOf(address)` for one ERC-20. `None` on any failure, which the caller skips.
+    async fn erc20_balance(
+        &self,
+        rpc: &str,
+        token: &crate::chains::FallbackToken,
+        address: &str,
+    ) -> Option<f64> {
+        // `balanceOf(address)` — selector, then the address left-padded to 32 bytes.
+        let data = format!("0x70a08231000000000000000000000000{}", address.trim_start_matches("0x"));
+        let body = json!({
+            "jsonrpc": "2.0", "id": 1, "method": "eth_call",
+            "params": [{ "to": token.address, "data": data }, "latest"],
+        });
+        let recorded = match self.http().post_json(self.client(), rpc, &body).await {
+            Ok(recorded) => recorded,
+            Err(error) => {
+                tracing::warn!(symbol = token.symbol, error = format!("{error:#}"), "balanceOf failed");
+                return None;
+            }
+        };
+        let json: Value = serde_json::from_str(&recorded.body).ok()?;
+        let raw = json.get("result").and_then(Value::as_str)?;
+        let raw = raw.trim_start_matches("0x");
+        // An empty `0x` is a call to a contract that is not there — not a zero balance.
+        if raw.is_empty() {
+            return None;
+        }
+        let units = u128::from_str_radix(raw, 16).ok()?;
+        Some(units as f64 / 10f64.powi(token.decimals as i32))
     }
 
     /// Port of `_rpc_native_balance`. Unlike the Blockscout calls this one **propagates** its

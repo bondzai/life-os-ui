@@ -54,6 +54,22 @@ impl ChainKind {
     }
 }
 
+/// A token to read over RPC when the chain's indexer cannot list holdings.
+///
+/// Enumerating what an address holds is exactly what a Blockscout instance is for, and an RPC
+/// cannot do it — `balanceOf` answers about a token you already name. So this is a floor, not a
+/// replacement: the tokens worth naming are the ones a wallet on this chain is actually likely to
+/// hold, and anything else stays invisible while the indexer is down.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FallbackToken {
+    pub symbol: &'static str,
+    /// The ERC-20 contract.
+    pub address: &'static str,
+    pub decimals: u32,
+    /// DefiLlama key, so it prices through the same path as everything else.
+    pub price_key: &'static str,
+}
+
 /// The chain's own coin: what a bare balance is denominated in, and how to price it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Native {
@@ -114,6 +130,8 @@ pub struct Chain {
     pub vfat_api: bool,
     /// Fallback for when the vfat API is down: read the Sickle proxy's LP NFTs over RPC.
     pub sickle_rpc: bool,
+    /// Read over RPC when the indexer returns nothing. Empty for chains whose Blockscout works.
+    pub spot_fallback: &'static [FallbackToken],
     /// Chain-local SickleFactory (the global one is not deployed on HyperEVM).
     pub sickle_factory: Option<&'static str>,
 }
@@ -134,6 +152,7 @@ impl Chain {
 /// does. Without it every chain would carry ten `None`s and a real missing field would hide in
 /// the noise.
 const DEFAULT: Chain = Chain {
+    spot_fallback: &[],
     name: "",
     kind: ChainKind::Evm,
     blockscout: None,
@@ -287,6 +306,23 @@ pub static CHAINS: &[Chain] = &[
     // DEXes live behind vfat Sickle proxies that hyperscan does not index, so LP positions come
     // from the vfat API (chain id 999), with a direct-RPC Sickle read as the fallback.
     Chain {
+        // hyperscan.com — the Blockscout instance the Python named too — 404s on
+        // `/addresses/{a}` and `/addresses/{a}/tokens`, so nothing on this chain has a listable
+        // spot balance any more. These two are read over RPC instead.
+        spot_fallback: &[
+            FallbackToken {
+                symbol: "WHYPE",
+                address: "0x5555555555555555555555555555555555555555",
+                decimals: 18,
+                price_key: "coingecko:hyperliquid",
+            },
+            FallbackToken {
+                symbol: "UBTC",
+                address: "0x9FDBdA0A5e284c32744D2f17Ee5c74B284993463",
+                decimals: 8,
+                price_key: "coingecko:bitcoin",
+            },
+        ],
         name: "hyperevm",
         blockscout: Some("https://www.hyperscan.com"),
         rpc: Some("https://rpc.hyperliquid.xyz/evm"),
