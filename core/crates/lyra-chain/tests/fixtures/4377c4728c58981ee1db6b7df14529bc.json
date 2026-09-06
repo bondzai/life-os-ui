@@ -1,0 +1,6 @@
+{
+  "url": "https://api.vfat.io/v4/position-performance?adminAddress=0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+  "method": "GET",
+  "status": 200,
+  "body": "{\"positions\":[],\"count\":0,\"unavailableCount\":0,\"incompleteCount\":0,\"chainIds\":[],\"adminAddress\":\"0xd8da6bf26964af9d7eed9e03e53415d37aa96045\",\"pnlAvailability\":{\"status\":\"complete\",\"availableCount\":0,\"partialCount\":0,\"unavailableCount\":0},\"lineage\":{\"source\":\"vfat-metrics\",\"upstreamEndpoint\":\"open-positions-v2\",\"fetchedAt\":\"2026-09-06T04:18:13.217Z\"}}"
+}

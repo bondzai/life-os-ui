@@ -850,3 +850,73 @@ this: under one, a partial failure either duplicates rows or loses them. Three t
 so an agent reasoning about net worth cannot see the off-chain book. That is a real gap now that
 the book exists and is not one this change closes — it is an addition to a ported surface, not
 part of giving the assets a home.
+
+## Per-position PnL, from vfat — 2026-09-06
+
+The page could say what a position is worth and what is claimable on it, and nothing about whether
+it had made money. vfat now answers that: **`GET /v4/position-performance?adminAddress=<wallet>`**,
+undocumented until they published `https://api.vfat.io/openapi.json`, and unauthenticated.
+
+`adminAddress` is the **wallet**, not its Sickle — vfat resolves the proxies itself and answers for
+every chain at once. So this is *one request per wallet for the whole portfolio*, not one per chain
+and not one per position like `sickle-nft-actions`. `VfatApi::position_performance` singleflights it
+behind the same per-key lock `farm_balances` uses, so the parallel chain scans coalesce onto one
+fetch.
+
+**Verified against the real book before anything was written.** All four vfat positions matched ours
+on `tokenId`, 4 for 4, and vfat's `currentValueUsd` agreed with our own tick-math `usd` to within
+0.3% — drift between two fetches, not a different basis. Confirmed with it: `currentValueUsd`
+excludes pending rewards, exactly as our `usd` does.
+
+**Two numbers are taken, not derived.**
+
+* `totalPnlUsd` → `pnl_usd`. Current value plus cumulative external cash flow; vfat signs cash flow
+  from the position's side, so a deposit is negative and it reduces to "worth now, less what went
+  in". Checked: `4.088392 + (-3.002595) = 1.085798`, exact.
+* `roiPercent` → `pnl_pct`. **Its denominator is gross contributions, not net cash flow**, and the
+  summary endpoint does not return the gross figure. Recomputing gives 36.16% where vfat shows
+  36.07% — a plausible number that is not the one vfat's own UI puts next to the position. A test
+  pins the tempting wrong answer alongside the right one.
+
+The model already had `pnl_usd`/`pnl_pct` — KuCoin-only until now — and `DefiPosition` already
+declared them, so nothing new crosses the wire.
+
+**The join key is `(chainId, nftManagerAddress, tokenId)`.** The manager is in it because NFT ids
+are per-manager, not global; matching on id alone can stamp one protocol's PnL onto another
+protocol's position, and that failure is silent — the row renders, the number is simply someone
+else's. The manager comes from the farm-balances entry, which is also what pairs the entry to a
+position, so the stronger key costs nothing. `tokenId` and not `positionRootTokenId`: a rebalance
+mints a new NFT and the *current* id is what the balances feed holds.
+
+**Only `status: "available"` is stamped.** `partial` and `unavailable` mean vfat knows a leg is
+quarantined or unpriced — a PnL missing a leg looks exactly like a whole one, so it is dropped
+rather than shown.
+
+**A failure is cached, unlike `yield_opportunities`.** vfat answers `502` — with an HTML error page,
+not JSON — for a wallet holding only non-NFT positions, and it does so permanently rather than
+transiently: the second wallet here has one Equalizer gauge stake on Avalanche and 502s on every
+chain, including chains it holds nothing on. Retrying that once per chain per read buys nothing, so
+the empty index is cached for the 300s TTL. In practice it costs even less: `stamp_performance_all`
+returns before the fetch when no position on the chain pairs to the feed, so that wallet never asks
+at all.
+
+**Coverage is stated on screen.** vfat accounts for NFT positions held through a Sickle, so the
+"Net PnL" tile is a total over a *subset* of the page. `realizedPnl` returns the count with the sum
+and the tile says `4 of 6 positions` when they differ — a subset total sitting beside a whole-book
+"position value" otherwise reads as if it covered everything.
+
+**Found on the way in: the app shell scrolled sideways.** `<main>` is a flex item, so it defaulted
+to `min-width: auto` and refused to shrink below its content — a table wider than the viewport
+pushed the whole page sideways, sidebar and all, while the table's own `overflow-x-auto` wrapper sat
+there with nothing to scroll. Pre-existing (`scrollWidth` 1574 against a 1440 viewport on `master`),
+and the PnL column would have widened it to 1718 and broken 1600px screens too. `min-w-0` on
+`<main>` fixes it: seven routes across eight widths from 1920 down to 700 now report
+`scrollWidth == clientWidth`, and the table scrolls inside its own container as designed.
+
+Still open: **`position-performance-history`** returns a daily series per position lineage —
+`currentBalanceUsd`, `totalPnlUsd`, `roiPercent` and a `breakdown` the summary endpoint omits
+(`grossContributionsUsd`, `capitalExposureUsdDays`), following the lineage across rebalances. It is
+the natural input to a per-position PnL chart and nothing reads it yet. Note the two endpoints
+disagree on `aprPercent` and should not be mixed on one screen: the summary annualises simple ROI
+(`roiPercent × 365 / ageInDays`, 239.3% for the position above) where the history divides by
+capital-exposure days (408.4% for the same position on the same day).

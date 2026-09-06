@@ -245,6 +245,10 @@ export interface LpRow {
   toks: TokenAmt[]
   feeToks: TokenAmt[]
   apr: number | null
+  /** realized PnL in USD since the position opened — vfat's `totalPnlUsd`; null = not reported */
+  pnlUsd: number | null
+  /** the same as a return on gross contributions — vfat's `roiPercent`, not derived from pnlUsd */
+  pnlPct: number | null
   rangePct: { min: number; max: number; width: number } | null
   deployedAt: string | null
   updatedAt: string | null

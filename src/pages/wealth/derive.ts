@@ -450,6 +450,9 @@ export function lpPositions(data: PortfolioData): LpRow[] {
         toks: position.tokens.filter((t) => t.amount > 0),
         feeToks: (position.rewards ?? []).filter((t) => t.amount > 0),
         apr: position.apr ?? null,
+        // Both or neither: the backend writes the pair together, and half of it is half a column.
+        pnlUsd: position.pnl_usd ?? null,
+        pnlPct: position.pnl_pct ?? null,
         rangePct: position.range_pct ?? null,
         deployedAt: position.deployed_at ?? null,
         updatedAt: position.updated_at ?? null,
@@ -521,7 +524,7 @@ export function statusRank(row: LpRow): number {
   return 2
 }
 
-export type LpSortKey = 'health' | 'pair' | 'chain' | 'protocol' | 'value' | 'fees' | 'apr' | 'updated'
+export type LpSortKey = 'health' | 'pair' | 'chain' | 'protocol' | 'value' | 'fees' | 'apr' | 'pnl' | 'updated'
 
 export function sortLp(rows: LpRow[], key: LpSortKey, dir: 'asc' | 'desc'): LpRow[] {
   const sorted = [...rows]
@@ -538,6 +541,9 @@ export function sortLp(rows: LpRow[], key: LpSortKey, dir: 'asc' | 'desc'): LpRo
       case 'value': return row.value
       case 'fees': return row.fees
       case 'apr': return row.apr ?? -1
+      // `-Infinity`, not -1: a real loss is a negative number and must not sort above a position
+      // that simply has no PnL to report.
+      case 'pnl': return row.pnlUsd ?? -Infinity
       case 'updated': return row.updatedAt ? Date.parse(row.updatedAt) : -1
     }
   }
@@ -547,6 +553,25 @@ export function sortLp(rows: LpRow[], key: LpSortKey, dir: 'asc' | 'desc'): LpRo
     if (typeof av === 'string' && typeof bv === 'string') return sign * av.localeCompare(bv)
     return sign * (Number(av) - Number(bv))
   })
+}
+
+/**
+ * Realized PnL across the positions that report one, and how many that was.
+ *
+ * `covered` is not decoration. vfat answers for NFT positions held through a Sickle, so a book
+ * that also holds gauge stakes, lending or plain LPs gets a total over a *subset* — and a subset
+ * total sitting beside a whole-book "position value" reads as if it covered everything. The count
+ * is what lets the caller say which positions the number is about.
+ */
+export function realizedPnl(rows: LpRow[]): { usd: number; covered: number } {
+  let usd = 0
+  let covered = 0
+  for (const row of rows) {
+    if (row.pnlUsd === null || !Number.isFinite(row.pnlUsd)) continue
+    usd += row.pnlUsd
+    covered += 1
+  }
+  return { usd, covered }
 }
 
 /** Capital-weighted APR across positions that report one. */

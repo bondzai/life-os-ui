@@ -22,6 +22,7 @@ import {
   netWorth,
   portfolioChange,
   rangeInfo,
+  realizedPnl,
   sbBotId,
   sbLpId,
   sbManualId,
@@ -264,6 +265,55 @@ describe('LP positions', () => {
     const harvested = lpPositions(ctxOf([{ ...lp, last_harvest_at: '2026-01-01T00:00:00Z' }]).data)[0]
     expect(harvested.harvested).toBe(true)
   })
+
+  it('carries PnL through when vfat reports it, and null when it does not', () => {
+    const [absent] = lpPositions(ctxOf([lp]).data)
+    expect(absent.pnlUsd).toBeNull()
+    expect(absent.pnlPct).toBeNull()
+
+    const [row] = lpPositions(ctxOf([{ ...lp, pnl_usd: 54.46, pnl_pct: 18.17 }]).data)
+    expect(row.pnlUsd).toBe(54.46)
+    expect(row.pnlPct).toBe(18.17)
+  })
+
+  it('keeps a zero PnL distinct from an unreported one', () => {
+    // `?? null` and not `|| null`: breaking even is a fact, and rendering it as "—" would say
+    // the opposite of what happened.
+    const [row] = lpPositions(ctxOf([{ ...lp, pnl_usd: 0, pnl_pct: 0 }]).data)
+    expect(row.pnlUsd).toBe(0)
+    expect(row.pnlPct).toBe(0)
+  })
+})
+
+describe('realized PnL', () => {
+  const row = (pnlUsd: number | null): LpRow => ({
+    key: `k${pnlUsd}`, protocol: 'p', pair: 'ETH/USDC', chain: 'base', value: 100, fees: 0,
+    swapFees: 0, in_range: true, id: null, via: null, cl: null, band: null, toks: [], feeToks: [],
+    apr: null, pnlUsd, pnlPct: null, rangePct: null, deployedAt: null, updatedAt: null,
+    lastAction: null, poolType: null, inRangeSecs: null, cycleStart: null, harvested: false,
+  })
+
+  it('sums only the positions that report one, and says how many that was', () => {
+    expect(realizedPnl([row(54.46), row(-6.2), row(null)])).toEqual({ usd: 48.26, covered: 2 })
+  })
+
+  it('reports no coverage rather than zero when nothing is priced', () => {
+    // The distinction the caller renders as "not reported" instead of "+$0.00" — a book vfat
+    // cannot account for has not broken even, it is unmeasured.
+    expect(realizedPnl([row(null), row(null)])).toEqual({ usd: 0, covered: 0 })
+    expect(realizedPnl([])).toEqual({ usd: 0, covered: 0 })
+  })
+
+  it('ignores a non-finite figure', () => {
+    expect(realizedPnl([row(Number.NaN), row(10)])).toEqual({ usd: 10, covered: 1 })
+  })
+
+  it('sorts a loss below an unreported position, not above it', () => {
+    // `?? -1` would have put a −$40 loss *above* a position with no PnL at all. Descending, the
+    // biggest gain leads and the unmeasured ones settle at the bottom.
+    const rows = [row(null), row(-40), row(12)]
+    expect(sortLp(rows, 'pnl', 'desc').map((r) => r.pnlUsd)).toEqual([12, -40, null])
+  })
 })
 
 describe('claimable rewards', () => {
@@ -295,7 +345,8 @@ describe('range geometry', () => {
     key: 'k', protocol: 'p', pair: 'ETH/USDC', chain: 'ethereum', value: 100, fees: 0, swapFees: 0,
     in_range: true, id: null, via: null, cl: null,
     band: { lower: 100, upper: 200, cur: 150, base: 'ETH', quote: 'USDC', full: false },
-    toks: [], feeToks: [], apr: null, rangePct: null, deployedAt: null, updatedAt: null,
+    toks: [], feeToks: [], apr: null, pnlUsd: null, pnlPct: null, rangePct: null,
+    deployedAt: null, updatedAt: null,
     lastAction: null, poolType: null, inRangeSecs: null, cycleStart: null, harvested: false,
   }
 

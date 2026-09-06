@@ -21,6 +21,7 @@ import {
   earnings,
   lpPositions,
   rangeInfo,
+  realizedPnl,
   sbLpId,
   sortLp,
   type LpSortKey,
@@ -35,7 +36,7 @@ import { SnowballToggle } from './snowball'
 import { RowsSkeleton, StaleBanner, WealthError } from './states'
 import type { LpRow } from './types'
 import { useWealth } from './use-wealth'
-import { ChangeText, MetaPill, RangeBadge, RangeBar, StatCard } from './wealth-ui'
+import { ChangeText, MetaPill, Pnl, RangeBadge, RangeBar, StatCard } from './wealth-ui'
 import {
   Table,
   TableBody,
@@ -79,6 +80,7 @@ export function WealthDefiPage() {
       byToken: claimableByToken(rows),
       apr: blendedApr(rows),
       perDay,
+      pnl: realizedPnl(rows),
       outOfRange: rows.filter((r) => r.in_range === false).length,
     }
   }, [rows])
@@ -123,8 +125,21 @@ export function WealthDefiPage() {
         <StaleBanner age={formatRelativeTime(ctx.data.fetched_at)} onRefresh={refetch} refreshing={isRefreshing} />
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard label="Position value" accent value={compact(summary.value)} hint={`${rows.length} position${rows.length === 1 ? '' : 's'}`} />
+        <StatCard
+          label="Net PnL"
+          value={summary.pnl.covered > 0 ? <Pnl usd={summary.pnl.usd} /> : '—'}
+          // Says which positions the total is over, because it is rarely all of them: vfat
+          // accounts for NFT positions held through a Sickle, and nothing else on this page.
+          hint={
+            summary.pnl.covered === 0
+              ? 'not reported for these positions'
+              : summary.pnl.covered === rows.length
+                ? 'since each position opened'
+                : `since opening · ${summary.pnl.covered} of ${rows.length} positions`
+          }
+        />
         <StatCard
           label="Claimable"
           value={money(summary.claimable)}
@@ -197,6 +212,7 @@ export function WealthDefiPage() {
             <SelectItem value="value">Value</SelectItem>
             <SelectItem value="fees">Claimable</SelectItem>
             <SelectItem value="apr">APR</SelectItem>
+            <SelectItem value="pnl">PnL</SelectItem>
             <SelectItem value="updated">Last action</SelectItem>
           </SelectContent>
         </Select>
@@ -253,6 +269,19 @@ function positionId(id: string): string {
   return `#${id.replace(/^#+/, '')}`
 }
 
+/**
+ * What the PnL cell means, on hover.
+ *
+ * Worth spelling out because two plausible readings are both wrong: it is not the 24h move, and it
+ * is not the claimable balance in the next column. It is the whole life of the position, fees and
+ * rewards and price action together, against what was put in.
+ */
+function pnlTitle(row: LpRow): string | undefined {
+  if (row.pnlUsd === null) return 'vfat does not report performance for this position'
+  const since = row.deployedAt ? ` · opened ${new Date(row.deployedAt).toLocaleDateString()}` : ''
+  return `Value now, less everything paid in, since the position opened${since}`
+}
+
 function PositionTable({ rows }: { rows: LpRow[] }) {
   const { money } = useMoney()
 
@@ -266,6 +295,7 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
             <TableHead>Protocol</TableHead>
             <TableHead className="min-w-[9rem]">Range</TableHead>
             <TableHead className="text-right">Deposit</TableHead>
+            <TableHead className="text-right">PnL</TableHead>
             <TableHead className="text-right">Daily</TableHead>
             <TableHead className="text-right">Earned</TableHead>
             <TableHead className="text-right">APR</TableHead>
@@ -315,6 +345,17 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                   )}
                 </TableCell>
                 <TableCell className="text-right font-medium tabular-nums">{money(row.value)}</TableCell>
+                {/* Lifetime, not this cycle — "Earned" beside it is what is still claimable. The
+                    percentage is vfat's own return on contributions, so it is shown rather than
+                    left to be eyeballed against the deposit, which is a different denominator. */}
+                <TableCell className="text-right whitespace-nowrap" title={pnlTitle(row)}>
+                  <Pnl usd={row.pnlUsd} />
+                  {row.pnlPct !== null && (
+                    <div className="text-xs">
+                      <ChangeText value={row.pnlPct} />
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell className="text-right tabular-nums text-muted-foreground">
                   {daily ? `≈${money(daily.perDay)}` : '—'}
                 </TableCell>
@@ -395,6 +436,12 @@ function PositionCard({ row }: { row: LpRow }) {
                 {row.apr !== null ? <>{formatPct(row.apr, 1)} APR</> : 'APR n/a'}
                 {daily && <> · ≈{money(daily.perDay)}/day</>}
               </div>
+              {row.pnlUsd !== null && (
+                <div className="text-xs" title={pnlTitle(row)}>
+                  <Pnl usd={row.pnlUsd} />
+                  {row.pnlPct !== null && <> · <ChangeText value={row.pnlPct} /></>}
+                </div>
+              )}
             </div>
           </div>
         </div>

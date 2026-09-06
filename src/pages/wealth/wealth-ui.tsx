@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { formatPct } from './format'
+import { useMoney } from './money'
 
 /** A headline metric. `hint` carries the qualifier (timeframe, basis) that keeps it honest. */
 export function StatCard({
@@ -69,6 +70,25 @@ export function ChangeText({ value }: { value: number | null }) {
   return (
     <span className={cn('tabular-nums', value >= 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500')}>
       {formatPct(value)}
+    </span>
+  )
+}
+
+/**
+ * A signed amount of money — a profit, a loss, or "not reported".
+ *
+ * The sign is written out rather than left to the minus the locale would supply, so a gain and a
+ * loss are the same width and a column of them stays scannable. Colour repeats what the sign
+ * already says; it is never the only carrier.
+ */
+export function Pnl({ usd }: { usd: number | null }) {
+  const { money } = useMoney()
+  if (usd === null || !Number.isFinite(usd)) return <span className="text-muted-foreground">—</span>
+  const up = usd >= 0
+  return (
+    <span className={cn('tabular-nums', up ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500')}>
+      {up ? '+' : '−'}
+      {money(Math.abs(usd))}
     </span>
   )
 }

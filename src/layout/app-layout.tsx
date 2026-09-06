@@ -76,7 +76,11 @@ export function AppLayout() {
     <SidebarProvider open={focusMode ? false : undefined}>
       <div className="flex min-h-screen w-full">
         {!focusMode && <AppSidebar />}
-        <main className="flex-1 flex flex-col">
+        {/* `min-w-0` is load-bearing, not tidying. A flex item defaults to `min-width: auto`,
+            which refuses to shrink below its content — so a table wider than the viewport pushed
+            <main> out past the window and scrolled the whole page sideways, sidebar and all,
+            while its own `overflow-x-auto` wrapper sat there with nothing to scroll. */}
+        <main className="flex-1 min-w-0 flex flex-col">
           {!focusMode && <TopBar title={title} />}
           {/* Above the content, not inside a page: a stranded session shows invented tasks and
               notes too, not only invented money. */}

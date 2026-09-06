@@ -182,6 +182,10 @@ pub struct VfatApi {
     /// [`NFT_ACTIONS_TTL_SECS`]. Its own cache rather than a slot in `fresh`: the two are keyed
     /// differently (position vs wallet) and expire on different clocks.
     actions: SharedTtlCache<Arc<Vec<Value>>>,
+    /// Realized PnL per admin wallet, keyed `vfatperf:<address>` and held for
+    /// [`POSITION_PERFORMANCE_TTL_SECS`]. Unlike every other cache here it also holds *failures*,
+    /// as an empty index — see [`VfatApi::position_performance`].
+    performance: SharedTtlCache<Arc<PerfIndex>>,
 }
 
 impl VfatApi {
@@ -200,6 +204,7 @@ impl VfatApi {
             opportunities: SharedTtlCache::new(),
             merkl: SharedTtlCache::new(),
             actions: SharedTtlCache::new(),
+            performance: SharedTtlCache::new(),
         }
     }
 
@@ -690,6 +695,7 @@ pub async fn adapt_vfat_api(
             let merkl = api.merkl_rewards(&sickles, chain_id).await;
             attach_campaign_rewards(&mut positions, &entries, &pairs, &merkl);
         }
+        stamp_performance_all(&api, &entries, chain_id, owner, &mut positions).await;
         stamp_lifecycle_all(api, &entries, chain_id, &mut positions).await;
     }
     Ok(positions)
@@ -1037,6 +1043,10 @@ pub async fn enrich(
             attach_campaign_rewards(positions, &entries, &added_pairs, &merkl);
         }
     }
+
+    // `owner` here is the wallet, which is what `adminAddress` wants — vfat resolves the Sickles
+    // itself. Before the lifecycle pass because that one consumes the `Arc`.
+    stamp_performance_all(&api, &entries, chain_id, owner, positions).await;
 
     // Lifecycle covers **all** pairs, matched and added alike — `_vfat_enrich` stamps `pairs`,
     // not `added_pairs`. The two lists differ, which is why they are built separately.
@@ -1965,6 +1975,284 @@ pub async fn stamp_lifecycle_all(
             }
         }
     }
+}
+
+// ===========================================================================
+// position-performance — what each position has actually made
+// ===========================================================================
+
+/// Realized performance is memoised this long, per admin wallet.
+///
+/// Two and a half times the farm-balances TTL, because the upstream moves slower than a balance
+/// does: vfat recomputes this every four minutes or so (`computedAt` trails `dataThrough` by about
+/// that), so a shorter window would spend a request to be handed the same numbers back. And a
+/// realized PnL that is five minutes old is still true, where a balance that old is merely stale.
+pub const POSITION_PERFORMANCE_TTL_SECS: f64 = 300.0;
+
+/// The one `status` whose numbers are fit to put in front of someone.
+///
+/// The other two are `partial` and `unavailable`. vfat sets them when legs of the position are
+/// quarantined or unpriced, which means the PnL it computed is missing a piece — and a PnL that is
+/// quietly missing a leg is worse than no PnL at all, because it looks exactly like a real one.
+pub const PERF_STATUS_AVAILABLE: &str = "available";
+
+/// One position's realized performance, reduced to the fields a row can show.
+///
+/// The response carries about thirty more — freshness and price-status flags, block numbers, the
+/// analytics pipeline's own status. They are diagnostics for vfat's dashboard; [`status`] already
+/// summarises them into the only question this side has, which is whether to trust the number.
+///
+/// [`status`]: PositionPerf::status
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionPerf {
+    pub chain_id: u64,
+    /// The **current** NFT id. An auto-rebalance burns the NFT and mints a new one, and this
+    /// follows it — `positionRootTokenId` is what stays fixed across that. Joining on this one is
+    /// deliberate: it is what the live farm-balances feed holds, so it is what pairs to a
+    /// position. Arrives as a JSON string, but read as a `Value` for the same reason
+    /// [`id_text`] exists — the feed is not consistent about quoting ids.
+    #[serde(default)]
+    pub token_id: Option<Value>,
+    /// Lowercase. Part of the join key: NFT ids are per-manager, not global.
+    #[serde(default)]
+    pub nft_manager_address: Option<String>,
+    /// `available` | `partial` | `unavailable` — see [`PERF_STATUS_AVAILABLE`].
+    #[serde(default)]
+    pub status: String,
+    /// Current value **plus** cumulative external cash flow, in USD. vfat signs cash flow from the
+    /// position's point of view, so a deposit is negative and this reduces to the familiar
+    /// "worth now, less what went in".
+    #[serde(default)]
+    pub total_pnl_usd: Option<f64>,
+    /// [`total_pnl_usd`] over gross contributions, as a percentage.
+    ///
+    /// **Not** over `netCashflowUsd`, which is why it is taken rather than recomputed: the two
+    /// denominators differ once a position has been harvested or partially withdrawn, and dividing
+    /// by the wrong one is a plausible-looking number that is not the one vfat shows.
+    ///
+    /// [`total_pnl_usd`]: PositionPerf::total_pnl_usd
+    #[serde(default)]
+    pub roi_percent: Option<f64>,
+}
+
+impl PositionPerf {
+    /// The PnL pair, or `None` when this row is not fit to show.
+    ///
+    /// Every rejection here is a case where the alternative is a wrong number rather than a
+    /// missing one: a non-`available` status means vfat knows a leg is missing, and a non-finite
+    /// float would render as `NaN%`.
+    #[must_use]
+    pub fn usable(&self) -> Option<(f64, f64)> {
+        if self.status != PERF_STATUS_AVAILABLE {
+            return None;
+        }
+        let (Some(pnl), Some(roi)) = (self.total_pnl_usd, self.roi_percent) else {
+            return None;
+        };
+        (pnl.is_finite() && roi.is_finite()).then_some((pnl, roi))
+    }
+}
+
+/// One admin wallet's realized performance, keyed the way a farm-balances entry looks up:
+/// `(chainId, nftManagerAddress, tokenId)`.
+///
+/// The manager is in the key rather than just the id because NFT ids are per-manager, not global —
+/// the same reasoning [`reconcile`] gives for not matching on id alone. Here it costs nothing:
+/// both feeds carry the manager, so the stronger key is free.
+#[derive(Debug, Default)]
+pub struct PerfIndex {
+    rows: HashMap<String, PositionPerf>,
+}
+
+impl PerfIndex {
+    /// Build the index from a `/position-performance` body.
+    ///
+    /// Rows are decoded one at a time and a row that fails to decode is dropped, not fatal —
+    /// the same tolerance [`entries_of`] gives the farm-balances feed. One position vfat has
+    /// reshaped must not cost the wallet every other position's PnL.
+    #[must_use]
+    pub fn from_body(body: &Value) -> Self {
+        let mut rows = HashMap::new();
+        let items = body
+            .get("positions")
+            .and_then(Value::as_array)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        for item in items {
+            let Ok(perf) = serde_json::from_value::<PositionPerf>(item.clone()) else {
+                continue;
+            };
+            let (Some(token_id), Some(manager)) = (
+                perf.token_id.as_ref().map(id_text),
+                perf.nft_manager_address.clone(),
+            ) else {
+                continue; // a non-NFT position (a gauge stake); nothing to join it to
+            };
+            rows.insert(perf_key_for(perf.chain_id, &manager, &token_id), perf);
+        }
+        Self { rows }
+    }
+
+    /// The performance of one position, if this wallet has any for it.
+    #[must_use]
+    pub fn get(&self, chain_id: u64, manager: &str, token_id: &str) -> Option<&PositionPerf> {
+        self.rows.get(&perf_key_for(chain_id, manager, token_id))
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+}
+
+/// Both feeds lowercase their addresses already; this does not trust them to keep doing so.
+fn perf_key_for(chain_id: u64, manager: &str, token_id: &str) -> String {
+    format!("{chain_id}:{}:{token_id}", manager.to_lowercase())
+}
+
+impl VfatApi {
+    /// Realized PnL for every open position an admin wallet holds through vfat.
+    ///
+    /// `adminAddress` is the **wallet**, not its Sickle: vfat resolves the proxies itself and
+    /// answers for all chains at once, so this is one request per wallet for the whole portfolio
+    /// rather than one per chain or per position.
+    ///
+    /// **Never fails.** A miss yields an empty index and the positions keep every other field they
+    /// have. That is the whole contract: PnL is decoration on a row whose balance is already
+    /// correct, so there is no failure here worth propagating to a chain read.
+    ///
+    /// **A failure is cached, unlike [`yield_opportunities`].** The radar retries because it is
+    /// asked for once per portfolio read; this is asked for once per *chain*, so an admin whose
+    /// upstream is down would otherwise pay a failed round trip on every chain, every read. vfat
+    /// answers `502` for a wallet holding only non-NFT positions, which is a permanent state for
+    /// that wallet rather than an outage — retrying it five times a read buys nothing.
+    ///
+    /// [`yield_opportunities`]: VfatApi::yield_opportunities
+    pub async fn position_performance(&self, admin: &str) -> Arc<PerfIndex> {
+        let key = format!("vfatperf:{}", admin.to_lowercase());
+
+        // Singleflight, for the same reason `farm_balances` has it: a wallet's chains are scanned
+        // in parallel and each one asks. The TTL check is inside the lock so the waiters read the
+        // fetched result rather than each starting their own request.
+        let lock = self.lock_for(&key);
+        let _guard = lock.lock().await;
+
+        if let Some(hit) = self
+            .performance
+            .get(&key, POSITION_PERFORMANCE_TTL_SECS, self.now())
+        {
+            return hit;
+        }
+
+        let index = match self.fetch_performance(admin).await {
+            Ok(index) => index,
+            Err(error) => {
+                tracing::warn!(
+                    admin = admin.chars().take(8).collect::<String>(),
+                    error = format!("{error:#}"),
+                    "vfat position-performance unavailable; positions keep their balances but show no PnL"
+                );
+                Arc::new(PerfIndex::default())
+            }
+        };
+        self.performance.put(&key, index.clone(), self.now());
+        index
+    }
+
+    async fn fetch_performance(&self, admin: &str) -> Result<Arc<PerfIndex>> {
+        let url = format!("{VFAT_API}/position-performance?adminAddress={admin}");
+        let recorded = self.cache.get(&self.client, &url).await?;
+        if !(200..300).contains(&recorded.status) {
+            return Err(anyhow!(
+                "position-performance returned HTTP {}",
+                recorded.status
+            ));
+        }
+        // A 502 from vfat's edge is an HTML error page, not JSON, so this is a real path.
+        let body: Value = serde_json::from_str(&recorded.body)
+            .context("position-performance returned non-JSON")?;
+        Ok(Arc::new(PerfIndex::from_body(&body)))
+    }
+}
+
+/// Stamp realized PnL onto every position on this chain that vfat can account for.
+///
+/// Pairs are taken from [`lifecycle_pairs`], so this stamps exactly the positions the lifecycle
+/// pass does — a position vfat's feed knows about. The feed entry then supplies the manager and
+/// NFT id that key into the index.
+///
+/// Best-effort throughout: no pairs, no index, or no matching row all mean the positions keep
+/// their balances and simply carry no PnL.
+pub async fn stamp_performance_all(
+    api: &VfatApi,
+    entries: &[Value],
+    chain_id: u64,
+    admin: &str,
+    positions: &mut [Position],
+) {
+    let pairs = lifecycle_pairs(entries, chain_id, positions);
+    if pairs.is_empty() {
+        return;
+    }
+
+    let index = api.position_performance(admin).await;
+    if index.is_empty() {
+        return;
+    }
+
+    let stamped = stamp_performance_pairs(entries, &pairs, chain_id, &index, positions);
+    if stamped > 0 {
+        tracing::debug!(chain_id, count = stamped, "stamped vfat position PnL");
+    }
+}
+
+/// The pure half of [`stamp_performance_all`]: join the paired entries to the index and stamp what
+/// matches, returning how many positions were written.
+///
+/// The join key comes from the **entry**, not the position: a `Position` carries its NFT id but
+/// not the manager that minted it, and the manager is half the key.
+pub fn stamp_performance_pairs(
+    entries: &[Value],
+    pairs: &[(usize, usize)],
+    chain_id: u64,
+    index: &PerfIndex,
+    positions: &mut [Position],
+) -> usize {
+    let mut stamped = 0usize;
+    for &(position_index, entry_index) in pairs {
+        let entry = &entries[entry_index];
+        let (Some(token_id), Some(manager)) = (
+            entry.pointer("/nft/id").map(id_text),
+            non_empty_str(entry.pointer("/nft/managerAddress")),
+        ) else {
+            continue;
+        };
+        if let Some(perf) = index.get(chain_id, &manager, &token_id)
+            && stamp_performance(&mut positions[position_index], perf)
+        {
+            stamped += 1;
+        }
+    }
+    stamped
+}
+
+/// Write one position's PnL. Returns whether anything was written.
+///
+/// Both fields are written together or not at all — a value without its percentage, or the other
+/// way round, would render as half a column.
+pub fn stamp_performance(position: &mut Position, perf: &PositionPerf) -> bool {
+    let Some((pnl, roi)) = perf.usable() else {
+        return false;
+    };
+    position.pnl_usd = Some(pnl);
+    position.pnl_pct = Some(roi);
+    true
 }
 
 #[cfg(test)]
@@ -3459,5 +3747,308 @@ mod tests {
 
         assert_eq!(positions[0].rewards.as_ref().unwrap()[0].amount, 5.0);
         assert_eq!(positions[0].rewards_usd, Some(Some(10.0)));
+    }
+
+    // ---------------------------------------------------------------- position-performance (PnL)
+
+    /// The manager of the BNB position in the recorded shape, lowercased as vfat sends it.
+    const PERF_MANAGER: &str = "0x46a15b0b27311cedf172ab29e4f4766fbe7f4364";
+
+    /// A `/position-performance` body in the shape the live endpoint returns. The numbers are a
+    /// real position's, kept because they carry the arithmetic the parsing has to respect:
+    /// `totalPnlUsd == currentValueUsd + netCashflowUsd`, while `roiPercent` is over *gross*
+    /// contributions and so is not `totalPnlUsd / -netCashflowUsd`.
+    fn perf_body() -> Value {
+        json!({
+            "positions": [{
+                "chainId": 56,
+                "sickleAddress": "0x95b3cf86024995d165d9954c1a8c82b6756c1940",
+                "status": "available",
+                "quarantinedLegs": 0,
+                "unpricedLegs": 0,
+                "suspectedNftTransferOut": false,
+                "type": "nft",
+                "tokenId": "6955799",
+                "nftManagerAddress": PERF_MANAGER,
+                "positionRootTokenId": "46a15b0b27311cedf172ab29e4f4766fbe7f4364:6955799",
+                "netCashflowUsd": -3.0025945459607315,
+                "currentValueUsd": 4.088392124262185,
+                "totalPnlUsd": 1.0857975783014537,
+                "roiPercent": 36.067274970358746,
+                "aprPercent": 239.2574447567469,
+            }],
+            "count": 1,
+            "pnlAvailability": { "status": "complete" },
+        })
+    }
+
+    #[test]
+    fn the_index_joins_on_chain_manager_and_id() {
+        let index = PerfIndex::from_body(&perf_body());
+        assert_eq!(index.len(), 1);
+
+        let perf = index
+            .get(56, PERF_MANAGER, "6955799")
+            .expect("the recorded position");
+        assert_eq!(
+            perf.usable(),
+            Some((1.0857975783014537, 36.067274970358746))
+        );
+
+        assert!(
+            index.get(56, PERF_MANAGER, "6955799").is_some()
+                && index.get(8453, PERF_MANAGER, "6955799").is_none(),
+            "the same id on another chain is another position"
+        );
+        assert!(
+            index
+                .get(56, "0x0000000000000000000000000000000000000000", "6955799")
+                .is_none(),
+            "NFT ids are per-manager, so the manager is part of the key"
+        );
+    }
+
+    #[test]
+    fn the_join_key_is_case_insensitive() {
+        let index = PerfIndex::from_body(&perf_body());
+        assert!(
+            index
+                .get(56, &PERF_MANAGER.to_uppercase(), "6955799")
+                .is_some(),
+            "both feeds lowercase their addresses, but the key must not depend on it"
+        );
+    }
+
+    #[test]
+    fn roi_is_taken_from_vfat_not_recomputed() {
+        // The trap this guards: `totalPnlUsd / -netCashflowUsd` is 36.16%, and vfat says 36.07%.
+        // Its denominator is gross contributions, which the summary endpoint does not return — so
+        // recomputing the percentage here would produce a plausible number that is not the one
+        // vfat's own UI shows for the same position.
+        let index = PerfIndex::from_body(&perf_body());
+        let perf = index.get(56, PERF_MANAGER, "6955799").unwrap();
+        let recomputed = perf.total_pnl_usd.unwrap() / 3.0025945459607315 * 100.0;
+
+        assert!(
+            (recomputed - 36.16).abs() < 0.01,
+            "the tempting wrong answer"
+        );
+        assert_eq!(
+            perf.roi_percent,
+            Some(36.067274970358746),
+            "vfat's own answer"
+        );
+    }
+
+    #[test]
+    fn only_an_available_status_is_stamped() {
+        for status in ["partial", "unavailable", ""] {
+            let mut body = perf_body();
+            body["positions"][0]["status"] = json!(status);
+            let index = PerfIndex::from_body(&body);
+            let perf = index.get(56, PERF_MANAGER, "6955799").unwrap();
+
+            assert_eq!(
+                perf.usable(),
+                None,
+                "vfat says a leg is missing from this PnL ({status:?}); a half-counted number \
+                 looks exactly like a whole one, so it must not be shown"
+            );
+
+            let mut position = Position::new("PancakeSwap", "DeFi", "ZEC/BTCB", Some(4.09));
+            assert!(!stamp_performance(&mut position, perf));
+            assert_eq!(position.pnl_usd, None);
+            assert_eq!(position.pnl_pct, None);
+        }
+    }
+
+    #[test]
+    fn a_row_without_an_nft_is_not_indexed() {
+        // Gauge stakes (Equalizer, Aerodrome v2) have no NFT, so nothing in the balances feed
+        // could ever pair to them. Dropping them keeps the index a pure join table.
+        let mut body = perf_body();
+        body["positions"][0]["tokenId"] = Value::Null;
+        body["positions"][0]["nftManagerAddress"] = Value::Null;
+        assert!(PerfIndex::from_body(&body).is_empty());
+    }
+
+    #[test]
+    fn a_reshaped_row_costs_only_itself() {
+        let mut body = perf_body();
+        let good = body["positions"][0].clone();
+        // `chainId` as a string: one row vfat has reshaped must not cost the wallet the rest.
+        body["positions"] = json!([{ "chainId": "56", "status": "available" }, good]);
+
+        let index = PerfIndex::from_body(&body);
+        assert_eq!(index.len(), 1, "the decodable row survives");
+        assert!(index.get(56, PERF_MANAGER, "6955799").is_some());
+    }
+
+    #[test]
+    fn a_body_that_is_not_a_performance_response_is_an_empty_index() {
+        for body in [
+            json!({}),
+            json!([]),
+            json!({ "positions": null }),
+            Value::Null,
+        ] {
+            assert!(PerfIndex::from_body(&body).is_empty());
+        }
+    }
+
+    #[test]
+    fn a_non_finite_number_is_not_stamped() {
+        // Serde rejects a bare NaN in JSON, so this is the shape it actually arrives in: a field
+        // vfat omitted. Half a PnL would render as half a column.
+        let mut body = perf_body();
+        body["positions"][0]["roiPercent"] = Value::Null;
+        let index = PerfIndex::from_body(&body);
+        let perf = index.get(56, PERF_MANAGER, "6955799").unwrap();
+
+        assert_eq!(perf.usable(), None);
+        let mut position = Position::new("PancakeSwap", "DeFi", "ZEC/BTCB", Some(4.09));
+        assert!(!stamp_performance(&mut position, perf));
+    }
+
+    /// A farm-balances entry in the shape [`stamp_performance_pairs`] reads: the chain, and the
+    /// NFT's id and manager.
+    fn perf_entry(chain_id: u64, token_id: &str, manager: &str) -> Value {
+        json!({
+            "chainId": chain_id,
+            "nft": { "id": token_id, "managerAddress": manager },
+        })
+    }
+
+    #[test]
+    fn the_paired_position_is_the_one_stamped() {
+        let index = PerfIndex::from_body(&perf_body());
+        let entries = vec![
+            perf_entry(56, "6955799", PERF_MANAGER),
+            perf_entry(56, "999999", PERF_MANAGER),
+        ];
+        let mut positions = vec![
+            Position::new("PancakeSwap", "DeFi", "ZEC/BTCB", Some(4.09)),
+            Position::new("PancakeSwap", "DeFi", "OTHER/PAIR", Some(1.0)),
+        ];
+        positions[0].id = Some(Some("#6955799".into()));
+        positions[1].id = Some(Some("#999999".into()));
+
+        let pairs = lifecycle_pairs(&entries, 56, &positions);
+        assert_eq!(pairs.len(), 2, "both entries pair to a position");
+
+        let stamped = stamp_performance_pairs(&entries, &pairs, 56, &index, &mut positions);
+        assert_eq!(stamped, 1);
+        assert_eq!(positions[0].pnl_usd, Some(1.0857975783014537));
+        assert_eq!(positions[0].pnl_pct, Some(36.067274970358746));
+        assert_eq!(
+            positions[1].pnl_usd, None,
+            "a position vfat has no performance row for keeps its balance and gains no PnL"
+        );
+    }
+
+    #[test]
+    fn an_id_from_another_manager_is_not_stamped() {
+        // The failure this prevents is silent: the id matches, the row renders, and the number
+        // belongs to an unrelated protocol's position.
+        let index = PerfIndex::from_body(&perf_body());
+        let entries = vec![perf_entry(
+            56,
+            "6955799",
+            "0x0000000000000000000000000000000000000000",
+        )];
+        let mut positions = vec![Position::new("Uniswap", "DeFi", "WBTC/cbBTC", Some(200.5))];
+        positions[0].id = Some(Some("#6955799".into()));
+
+        let pairs = lifecycle_pairs(&entries, 56, &positions);
+        assert_eq!(
+            stamp_performance_pairs(&entries, &pairs, 56, &index, &mut positions),
+            0
+        );
+        assert_eq!(positions[0].pnl_usd, None);
+    }
+
+    #[test]
+    fn a_numeric_nft_id_pairs_to_a_string_token_id() {
+        // farm-balances is not consistent about quoting ids; position-performance always quotes.
+        let index = PerfIndex::from_body(&perf_body());
+        let entries = vec![json!({
+            "chainId": 56,
+            "nft": { "id": 6_955_799, "managerAddress": PERF_MANAGER },
+        })];
+        let mut positions = vec![Position::new("PancakeSwap", "DeFi", "ZEC/BTCB", Some(4.09))];
+        positions[0].id = Some(Some("#6955799".into()));
+
+        let pairs = lifecycle_pairs(&entries, 56, &positions);
+        assert_eq!(
+            stamp_performance_pairs(&entries, &pairs, 56, &index, &mut positions),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn a_wallet_with_no_nft_positions_gets_an_empty_index() {
+        // REAL fixture, recorded against api.vfat.io. This wallet has nothing behind a Sickle, so
+        // the endpoint answers `{"positions": []}` — the ordinary case for most addresses, and it
+        // must be an empty index rather than an error.
+        //
+        // Asserted through `fetch_performance` rather than `position_performance`, because the
+        // latter answers "empty" for a missing fixture too: the test would pass without ever
+        // reading the recording. This way a real 200 is the only thing that satisfies it.
+        //
+        // A *populated* response is exercised by `perf_body`, whose shape and numbers are copied
+        // from a live call — a recording of one would have to carry a real holder's address.
+        let clock = Arc::new(ManualClock::new(1_000.0));
+        let api = VfatApi::with_clock(reqwest::Client::new(), fixtures(), clock);
+
+        let index = api
+            .fetch_performance(WALLET)
+            .await
+            .expect("the recorded 200 parses");
+        assert!(index.is_empty(), "this wallet holds nothing through vfat");
+        assert!(api.position_performance(WALLET).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_failed_performance_fetch_is_cached_as_empty() {
+        // The deliberate divergence from `yield_opportunities`, which does not cache its failures.
+        // vfat answers 502 for a wallet holding only non-NFT positions — a permanent state, not an
+        // outage — and this is asked once per chain, so retrying would cost a failed round trip on
+        // every chain of every read.
+        let clock = Arc::new(ManualClock::new(1_000.0));
+        let api = broken_api(clock.clone());
+
+        let first = api.position_performance(WALLET).await;
+        assert!(first.is_empty());
+
+        clock.advance(POSITION_PERFORMANCE_TTL_SECS - 1.0);
+        let second = api.position_performance(WALLET).await;
+        assert!(
+            Arc::ptr_eq(&first, &second),
+            "inside the window the failure is served from the cache, not retried"
+        );
+
+        clock.advance(2.0);
+        let third = api.position_performance(WALLET).await;
+        assert!(
+            !Arc::ptr_eq(&first, &third),
+            "past the window it must try again — an outage has to be able to end"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_chains_share_one_performance_fetch() {
+        let clock = Arc::new(ManualClock::new(1_000.0));
+        let api = VfatApi::with_clock(reqwest::Client::new(), fixtures(), clock);
+
+        // Uppercased: the cache key lowercases, so a wallet's chains coalesce however they spell it.
+        let shouted = WALLET.to_uppercase();
+        let (a, b) = tokio::join!(
+            api.position_performance(WALLET),
+            api.position_performance(&shouted),
+        );
+        assert!(
+            Arc::ptr_eq(&a, &b),
+            "one request per wallet, not one per chain"
+        );
     }
 }

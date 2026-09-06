@@ -11,7 +11,6 @@ import { Bot } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmptyState } from '@/core/components/empty-state'
-import { cn } from '@/lib/utils'
 import { useMoney } from './money'
 import { botTotals, sbBotId, tradingBots, type BotRow } from './derive'
 import { formatAmount, formatPct, formatRelativeTime } from './format'
@@ -19,20 +18,7 @@ import { TokenMark } from './marks'
 import { StaleBanner, WealthError, WealthPageSkeleton } from './states'
 import { SnowballToggle } from './snowball'
 import { useWealth } from './use-wealth'
-import { ChangeText, MetaPill, StatCard } from './wealth-ui'
-
-/** Signed USD, coloured by direction. `null` is an em dash — unknown is not zero. */
-function Pnl({ usd }: { usd: number | null }) {
-  const { money } = useMoney()
-  if (usd === null || !Number.isFinite(usd)) return <span className="text-muted-foreground">—</span>
-  const up = usd >= 0
-  return (
-    <span className={cn('tabular-nums', up ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500')}>
-      {up ? '+' : '−'}
-      {money(Math.abs(usd))}
-    </span>
-  )
-}
+import { ChangeText, MetaPill, Pnl, StatCard } from './wealth-ui'
 
 /** The basket a rebalance bot holds, or the sub-bots a futures strategy is running. */
 function BotDetail({ row }: { row: BotRow }) {
