@@ -26,7 +26,9 @@ import {
   type LpSortKey,
 } from './derive'
 import { useMoney } from './money'
-import { chainLabel, formatAmount, formatDuration, formatPct, formatRelativeTime } from './format'
+import { formatAmount, formatDuration, formatPct, formatRelativeTime } from './format'
+import { chainLabel } from './identity'
+import { ChainMark, ChainTag, TokenMark, TokenPairMark } from './marks'
 import { BorrowingPanel } from './borrowing'
 import { HarvestPanel } from './cashflow'
 import { SnowballToggle } from './snowball'
@@ -150,7 +152,8 @@ export function WealthDefiPage() {
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {summary.byToken.map((t) => (
-              <div key={t.symbol} className="rounded-lg border px-3 py-1.5">
+              <div key={t.symbol} className="flex items-center gap-2 rounded-lg border px-3 py-1.5">
+                <TokenMark symbol={t.symbol} />
                 <span className="text-sm font-medium">{formatAmount(t.amount)} {t.symbol}</span>
                 <span className="ml-2 text-xs text-muted-foreground tabular-nums">{money(t.usd)}</span>
               </div>
@@ -169,7 +172,12 @@ export function WealthDefiPage() {
           <SelectTrigger className="w-[140px]"><SelectValue placeholder="Chain" /></SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All chains</SelectItem>
-            {chains.map((c) => <SelectItem key={c} value={c}>{chainLabel(c)}</SelectItem>)}
+            {chains.map((c) => (
+              <SelectItem key={c} value={c}>
+                <ChainMark chain={c} />
+                {chainLabel(c)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -280,12 +288,13 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                 <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <SnowballToggle id={sbLpId(row.key)} name={row.pair} />
+                    <TokenPairMark tokens={row.toks} />
                     <span className="font-medium" title={posTitle || undefined}>{row.pair}</span>
                     <RangeBadge inRange={row.in_range} full={row.band?.full} />
                     {row.poolType && <MetaPill>{row.poolType}</MetaPill>}
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{chainLabel(row.chain)}</TableCell>
+                <TableCell><ChainTag chain={row.chain} /></TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">
                   {row.protocol}
                   {row.id && <span className="text-xs"> {positionId(row.id)}</span>}
@@ -357,6 +366,7 @@ function PositionCard({ row }: { row: LpRow }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
+              <TokenPairMark tokens={row.toks} />
               <h3 className="font-medium">{row.pair}</h3>
               <RangeBadge inRange={row.in_range} full={row.band?.full} />
               {row.poolType && <MetaPill>{row.poolType}</MetaPill>}
@@ -364,7 +374,10 @@ function PositionCard({ row }: { row: LpRow }) {
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
               <span>{row.protocol}</span>
               <span>·</span>
-              <span>{chainLabel(row.chain)}</span>
+              <span className="inline-flex items-center gap-1">
+                <ChainMark chain={row.chain} />
+                {chainLabel(row.chain)}
+              </span>
               {row.id && <><span>·</span><span>{positionId(row.id)}</span></>}
               {row.lastAction && row.updatedAt && (
                 <>

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useMoney } from './money'
 import { botTotals, sbBotId, tradingBots, type BotRow } from './derive'
 import { formatAmount, formatPct, formatRelativeTime } from './format'
+import { TokenMark } from './marks'
 import { StaleBanner, WealthError, WealthPageSkeleton } from './states'
 import { SnowballToggle } from './snowball'
 import { useWealth } from './use-wealth'
@@ -45,9 +46,10 @@ function BotDetail({ row }: { row: BotRow }) {
         {weights.map((weight) => (
           <span
             key={weight.symbol}
-            className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs tabular-nums"
+            className="inline-flex items-center gap-1 rounded-md bg-muted py-0.5 pr-1.5 pl-0.5 text-xs tabular-nums"
             title={`${formatAmount(weight.amount)} ${weight.symbol} · ${money(weight.usd)}`}
           >
+            <TokenMark symbol={weight.symbol} />
             <span className="font-medium">{weight.symbol}</span>
             <span className="text-muted-foreground">{weight.pct.toFixed(0)}%</span>
           </span>

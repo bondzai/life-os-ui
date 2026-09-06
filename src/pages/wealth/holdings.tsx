@@ -27,7 +27,9 @@ import {
   type GroupBy,
 } from './derive'
 import { useMoney } from './money'
-import { chainLabel, formatAmount, formatRelativeTime } from './format'
+import { formatAmount, formatRelativeTime } from './format'
+import { chainLabel } from './identity'
+import { ChainMark, ChainTag, TokenMark, TokenPairMark } from './marks'
 import { RowsSkeleton, StaleBanner, WealthError } from './states'
 import type { Tier } from './types'
 import { useWealth } from './use-wealth'
@@ -109,7 +111,7 @@ export function WealthHoldingsPage() {
         <StatCard
           label="Largest position"
           value={largest ? compact(largest.usd) : '—'}
-          hint={largest ? `${largest.label} · ${chainLabel(largest.chain)}` : undefined}
+          hint={largest ? `${largest.label} on ${chainLabel(largest.chain)}` : undefined}
         />
         <StatCard
           label="Accounts"
@@ -136,7 +138,10 @@ export function WealthHoldingsPage() {
           <SelectContent>
             <SelectItem value={ALL}>All chains</SelectItem>
             {chains.map((c) => (
-              <SelectItem key={c} value={c}>{chainLabel(c)}</SelectItem>
+              <SelectItem key={c} value={c}>
+                <ChainMark chain={c} />
+                {chainLabel(c)}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -211,6 +216,7 @@ export function WealthHoldingsPage() {
               {groups.map((group) => (
                 <GroupSection
                   key={group.key}
+                  groupBy={groupBy}
                   name={groupBy === 'none' ? null : group.key}
                   usd={group.usd}
                   change={group.change}
@@ -226,11 +232,13 @@ export function WealthHoldingsPage() {
 }
 
 function GroupSection({
+  groupBy,
   name,
   usd,
   change,
   rows,
 }: {
+  groupBy: GroupBy
   name: string | null
   usd: number
   change: number | null
@@ -242,7 +250,11 @@ function GroupSection({
       {name && (
         <TableRow className="bg-muted/50 hover:bg-muted/50">
           <TableCell colSpan={3} className="font-medium">
-            {chainLabel(name)}
+            {/* `groupRows` already labels tier and account groups; only the chain key is raw. */}
+            <span className="inline-flex items-center gap-2">
+              {groupBy === 'chain' && <ChainMark chain={name} />}
+              {groupBy === 'chain' ? chainLabel(name) : name}
+            </span>
             <span className="ml-2 text-xs text-muted-foreground">
               {rows.length} position{rows.length === 1 ? '' : 's'}
             </span>
@@ -256,12 +268,17 @@ function GroupSection({
       {rows.map((row) => (
         <TableRow key={row.key}>
           <TableCell>
-            <div className="font-medium">{row.label}</div>
-            {row.sub && <div className="text-xs text-muted-foreground">{row.sub}</div>}
+            <div className="flex items-center gap-2.5">
+              <AssetMark row={row} />
+              <div className="min-w-0">
+                <div className="truncate font-medium">{row.label}</div>
+                {row.sub && <div className="truncate text-xs text-muted-foreground">{row.sub}</div>}
+              </div>
+            </div>
           </TableCell>
           <TableCell>
             <div className="flex flex-wrap items-center gap-1">
-              <MetaPill>{chainLabel(row.chain)}</MetaPill>
+              <ChainTag chain={row.chain} />
               <MetaPill>{row.account}</MetaPill>
               {row.kind === 'defi' && <MetaPill>DeFi</MetaPill>}
             </div>
@@ -288,4 +305,16 @@ function GroupSection({
       ))}
     </>
   )
+}
+
+/**
+ * The disc beside a row's name.
+ *
+ * A spot balance is its token, an LP is its pair, and a manual asset has no token at all — it
+ * borrows the neutral off-chain mark rather than inventing initials from the name the user typed.
+ */
+function AssetMark({ row }: { row: FlatRow }) {
+  if (row.symbol) return <TokenMark symbol={row.symbol} size="md" />
+  if (row.tokens && row.tokens.length > 0) return <TokenPairMark tokens={row.tokens} size="md" />
+  return <ChainMark chain={row.chain} size="md" />
 }

@@ -9,12 +9,13 @@
  * here — one number, one place, or the two drift.
  */
 
-import { Coins, HandCoins } from 'lucide-react'
+import { Coins } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useMoney } from './money'
 import { cashflow, lpPositions } from './derive'
 
 import type { Ctx } from './derive'
+import { ChainTag, TokenPairMark } from './marks'
 import { MetaPill, StatCard } from './wealth-ui'
 
 /** Below this, a position is not worth the gas to harvest. */
@@ -62,12 +63,13 @@ export function HarvestPanel({ ctx }: { ctx: Ctx }) {
                 const share = flow.claimable > 0 ? (row.fees / flow.claimable) * 100 : 0
                 return (
                   <div key={row.key} className="flex items-center gap-3 border-t py-2 first:border-t-0">
-                    <HandCoins className="size-4 shrink-0 text-muted-foreground" />
+                    <TokenPairMark tokens={row.toks} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{row.pair}</p>
                       <div className="mt-0.5 flex flex-wrap items-center gap-1">
                         <MetaPill>{row.protocol}</MetaPill>
-                        <MetaPill>{row.chain}</MetaPill>
+                        {/* Was the raw slug — this panel is where "hyperevm" was still leaking through. */}
+                        <ChainTag chain={row.chain} />
                       </div>
                     </div>
                     <div className="shrink-0 text-right tabular-nums">

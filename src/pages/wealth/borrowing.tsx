@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils'
 import { useMoney } from './money'
 import { lendingPositions } from './derive'
 import { formatAmount } from './format'
+import { ChainMark } from './marks'
+import { chainLabel } from './identity'
 import type { Ctx } from './derive'
 import type { LendRow, TokenAmt } from './types'
 import { StatCard } from './wealth-ui'
@@ -72,9 +74,10 @@ function HealthRow({ row }: { row: LendRow }) {
   return (
     <div className="border-t px-1 py-3 first:border-t-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-1.5">
           <span className="text-sm font-medium">{row.protocol}</span>
-          <span className="ml-1.5 text-xs text-muted-foreground">{row.chain}</span>
+          <ChainMark chain={row.chain} />
+          <span className="text-xs text-muted-foreground">{chainLabel(row.chain)}</span>
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           {row.tokens.length ? (

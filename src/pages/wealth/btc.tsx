@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import { useMoney } from './money'
 import { btcReserves, nextSatsMilestone, type BtcLocation } from './derive'
 import { formatRelativeTime } from './format'
+import { TokenMark } from './marks'
 import { StaleBanner, WealthError, WealthPageSkeleton } from './states'
 import { useWealth } from './use-wealth'
 import { StatCard } from './wealth-ui'
@@ -178,7 +179,8 @@ export function WealthBtcPage() {
               const share = usd > 0 ? (component.usd / usd) * 100 : 0
               return (
                 <div key={component.symbol} className="flex items-center gap-2.5 px-1 py-1">
-                  <Bitcoin className="size-4 shrink-0 text-amber-600 dark:text-amber-500" />
+                  {/* Per-wrapper, not the same ₿ on every line — the column exists to tell them apart. */}
+                  <TokenMark symbol={component.symbol} />
                   <p className="min-w-0 flex-1 truncate text-sm">{component.symbol}</p>
                   <span className="shrink-0 text-sm font-medium tabular-nums">{money(component.usd)}</span>
                   <span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground">

@@ -55,12 +55,6 @@ export function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`
 }
 
-/** `ethereum` → `Ethereum`. Chain keys arrive lowercase from the API. */
-export function chainLabel(chain: string): string {
-  if (!chain) return '—'
-  return chain.charAt(0).toUpperCase() + chain.slice(1)
-}
-
 /**
  * USD converted into the display currency. Returns null when the rate is missing rather than
  * falling back to the USD number — silently showing USD figures under a THB label would
