@@ -46,7 +46,28 @@ export function formatAmount(amount: number | null | undefined): string {
   if (abs >= 1_000_000) return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(amount)
   if (abs >= 1) return amount.toLocaleString('en-US', { maximumFractionDigits: 4 })
   if (abs >= 0.0001) return amount.toFixed(6)
-  return amount.toExponential(2)
+  return tinyAmount(amount, abs)
+}
+
+/**
+ * A sub-0.0001 balance, written out rather than in scientific notation.
+ *
+ * `9.06e-6` is not a quantity anyone reads, and it was firing exactly where reading matters: a
+ * wrapped-BTC reward is routinely that small, so the *largest* row of Claimable by token — the one
+ * worth looking at — was the least legible thing on the card. Holdings had the same problem
+ * (`2.46e-5 UBTC`).
+ *
+ * Three significant figures, trailing zeros trimmed. Past ten decimal places the digits stop
+ * telling anyone anything, so it degrades to a bound instead of a screenful of noise; the USD
+ * column beside it is what carries the meaning at that size anyway.
+ */
+function tinyAmount(amount: number, abs: number): string {
+  const decimals = Math.ceil(-Math.log10(abs)) + 2
+  if (decimals > 10) return amount < 0 ? '>−0.0000000001' : '<0.0000000001'
+  // `toFixed` and not `toPrecision`: the latter returns exponential below 1e-6, which is the
+  // notation this exists to avoid.
+  const fixed = amount.toFixed(decimals)
+  return fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed
 }
 
 /** Shortens `0xabcd…1234` for display without losing the identifying ends. */
