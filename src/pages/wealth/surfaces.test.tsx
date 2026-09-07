@@ -9,7 +9,7 @@
  * data source, so mounting them here would test a `fetch` mock rather than the page.
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useAuthStore } from '@/stores/auth-store'
@@ -84,8 +84,33 @@ describe('DeFi', () => {
   it('de-duplicates the shared campaign claim in the claimable summary', async () => {
     renderSurface(<WealthDefiPage />)
     await screen.findByText('Claimable by token')
-    // The OP claim appears on two positions but is one reward: 120 OP, not 240.
-    expect(screen.getByText('120 OP')).toBeDefined()
+    // The OP claim appears on two positions but is one reward: 120 OP at $84, not 240 at $168.
+    // The panel is a ranked list now, so symbol and amount are separate cells — and the token's
+    // mark carries the symbol as its monogram, so the row is located among the list items rather
+    // than by a text query that would match both.
+    const card = screen.getByText('Claimable by token').closest('[data-slot="card"]')
+    expect(card).not.toBeNull()
+    const row = within(card as HTMLElement)
+      .getAllByRole('listitem')
+      .find((li) => li.textContent?.includes('OP'))
+    expect(row?.textContent).toContain('120')
+    expect(row?.textContent).toContain('$84.00')
+    expect(row?.textContent).not.toContain('240')
+  })
+
+  it('shows the snowball total and what this page contributes to it', async () => {
+    renderSurface(<WealthDefiPage />)
+    await screen.findByText('Snowball')
+    // Nothing tagged: the card stays, because the ❄ that fills it is on every row below.
+    expect(screen.getByText(/No LP position is tagged yet/)).toBeDefined()
+
+    // Tag the first position and the card should account for it.
+    const toggles = screen.getAllByRole('button', { name: /Add .* to snowball/ })
+    expect(toggles.length).toBeGreaterThan(0)
+    fireEvent.click(toggles[0])
+
+    await waitFor(() => expect(screen.getByText(/LP here · 1 of/)).toBeDefined())
+    expect(screen.getByText(/Nothing tagged outside this page/)).toBeDefined()
   })
 })
 

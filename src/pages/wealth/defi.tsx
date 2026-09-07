@@ -6,7 +6,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { Layers, Search, X } from 'lucide-react'
+import { Layers, Search, Snowflake, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -24,6 +24,8 @@ import {
   realizedPnl,
   sbLpId,
   sortLp,
+  type ClaimableToken,
+  type Ctx,
   type LpSortKey,
 } from './derive'
 import { useMoney } from './money'
@@ -33,6 +35,7 @@ import { ChainMark, ChainTag, TokenMark, TokenPairMark } from './marks'
 import { BorrowingPanel } from './borrowing'
 import { HarvestPanel } from './cashflow'
 import { SnowballToggle } from './snowball'
+import { useSnowball, useSnowballTags } from './use-snowball'
 import { RowsSkeleton, StaleBanner, WealthError } from './states'
 import type { LpRow } from './types'
 import { useWealth } from './use-wealth'
@@ -157,25 +160,15 @@ export function WealthDefiPage() {
         />
       </div>
 
-      {summary.byToken.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Claimable by token</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Wallet-level campaign claims are counted once, not once per position.
-            </p>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {summary.byToken.map((t) => (
-              <div key={t.symbol} className="flex items-center gap-2 rounded-lg border px-3 py-1.5">
-                <TokenMark symbol={t.symbol} />
-                <span className="text-sm font-medium">{formatAmount(t.amount)} {t.symbol}</span>
-                <span className="ml-2 text-xs text-muted-foreground tabular-nums">{money(t.usd)}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      {/* Two panels that answer different questions about the same book — what a harvest pays out,
+          and what is set aside to compound. Side by side on a wide screen; whichever one has
+          something to say takes the full width when the other does not. */}
+      <div className={cn('grid items-start gap-3', summary.byToken.length > 0 && 'lg:grid-cols-2')}>
+        {summary.byToken.length > 0 && (
+          <ClaimablePanel tokens={summary.byToken} total={summary.claimable} />
+        )}
+        <SnowballCard ctx={ctx} rows={all} />
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[180px] flex-1">
@@ -501,5 +494,159 @@ function Metric({ label, value, children }: { label: string; value: React.ReactN
       <p className="mt-0.5 font-medium tabular-nums">{value}</p>
       {children}
     </div>
+  )
+}
+
+/**
+ * Claimable by token — what a harvest of everything would actually hand you.
+ *
+ * It used to be a wrapping row of equal-weight pills, which answered none of that: seven identical
+ * chips gave no sense of which one mattered, the amount was the biggest text when the *value* is
+ * what you compare, and a wrapped-BTC balance rendered as `9.06e-6`, so the top row by value was
+ * the least readable thing on the card.
+ *
+ * A ranked list instead, each row filled to its share of the total. Length is the only variable —
+ * one fill colour, not seven brand tints — so "one token is most of this and the rest is dust"
+ * lands before any number is read. The fill is share of *total*, not of the largest, because that
+ * is the honest proportion: a sliver should look like a sliver.
+ */
+function ClaimablePanel({ tokens, total }: { tokens: ClaimableToken[]; total: number }) {
+  const { money } = useMoney()
+
+  return (
+    <Card className="gap-0 py-0">
+      <CardHeader className="flex flex-row items-start justify-between gap-2 px-4 py-3">
+        <div>
+          <CardTitle className="text-sm font-medium">Claimable by token</CardTitle>
+          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            What harvesting everything would pay out. Wallet-level campaign claims are counted once,
+            not once per position.
+          </p>
+        </div>
+        <span className="shrink-0 text-lg font-semibold tabular-nums">{money(total)}</span>
+      </CardHeader>
+      <CardContent className="px-4 pt-0 pb-3">
+        <ul className="grid gap-1 sm:grid-cols-2 sm:gap-x-3">
+          {tokens.map((t) => (
+            <li key={t.symbol} className="relative overflow-hidden rounded-md">
+              {/* Behind the label rather than beside it: a separate bar column would cost width the
+                  amount needs, and the row is only 28px tall. */}
+              <div
+                aria-hidden
+                className="absolute inset-y-0 left-0 rounded-md bg-primary/15"
+                style={{ width: `${total > 0 ? Math.max((t.usd / total) * 100, 1.5) : 0}%` }}
+              />
+              <div className="relative flex items-center gap-2 px-1.5 py-1">
+                <TokenMark symbol={t.symbol} />
+                <span className="text-sm font-medium">{t.symbol}</span>
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                  {formatAmount(t.amount)}
+                </span>
+                <span className="w-20 shrink-0 text-right text-sm font-medium tabular-nums">
+                  {money(t.usd)}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * The snowball, as it looks from this page.
+ *
+ * The full panel — chart, picker, projection — lives on Overview. What belongs *here* is the
+ * question this page can act on, because the ❄ button is on every row of the table below: how much
+ * of the basket is LP, and how much of the LP book is in it.
+ *
+ * Deliberately reads the whole LP book, not the filtered rows. A total that shrinks when you filter
+ * by chain is not a total.
+ */
+function SnowballCard({ ctx, rows }: { ctx: Ctx; rows: LpRow[] }) {
+  const { money } = useMoney()
+  const { total, weekDelta } = useSnowball(ctx)
+  const { isTagged } = useSnowballTags()
+
+  const here = useMemo(() => {
+    const tagged = rows.filter((r) => isTagged(sbLpId(r.key)))
+    return { usd: tagged.reduce((sum, r) => sum + r.value, 0), count: tagged.length }
+  }, [rows, isTagged])
+
+  const share = total > 0 ? Math.min((here.usd / total) * 100, 100) : 0
+  // Clamped at zero: the basket total and this page's slice are summed from the same members, but
+  // a stale render between them should show nothing rather than a negative remainder.
+  const elsewhere = Math.max(total - here.usd, 0)
+
+  return (
+    <Card className="gap-0 py-0">
+      <CardHeader className="flex flex-row items-start justify-between gap-2 px-4 py-3">
+        <div>
+          <CardTitle className="flex items-center gap-1.5 text-sm font-medium">
+            <Snowflake className={cn('size-3.5', here.count > 0 ? 'text-sky-500' : 'text-muted-foreground')} />
+            Snowball
+          </CardTitle>
+          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            The slice you tagged to compound, across the whole book.
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          {/* No em dash on an empty basket. Elsewhere "—" means a number we could not read; here
+              there is simply nothing tagged yet, and the body says so in words. */}
+          {total > 0 && <div className="text-lg font-semibold tabular-nums">{money(total)}</div>}
+          {weekDelta !== null && weekDelta !== 0 && (
+            <div
+              className={cn(
+                'text-[11px] font-medium tabular-nums',
+                weekDelta > 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500',
+              )}
+            >
+              {weekDelta > 0 ? '+' : '−'}
+              {money(Math.abs(weekDelta))} this week
+            </div>
+          )}
+        </div>
+      </CardHeader>
+
+      <CardContent className="px-4 pt-0 pb-3">
+        {here.count === 0 ? (
+          // Not hidden when empty: the ❄ that fills this is on every row of the table below, so
+          // the nudge is one line away from the thing it is asking for.
+          <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+            No LP position is tagged yet — press
+            <Snowflake className="size-3.5" aria-hidden />
+            on a row below to start compounding one.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {/* Two segments, and the second one is the point: a bar that is 100% full says nothing
+                on its own. Naming what the remainder is turns it into "all of my snowball is LP",
+                which is a fact worth knowing. */}
+            <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+              <div className="bg-sky-500" style={{ width: `${share}%` }} />
+            </div>
+            <dl className="space-y-1 text-xs">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="flex items-center gap-1.5 text-muted-foreground">
+                  <span className="size-2 shrink-0 rounded-full bg-sky-500" aria-hidden />
+                  LP here · {here.count} of {rows.length} position{rows.length === 1 ? '' : 's'}
+                </dt>
+                <dd className="font-medium tabular-nums">{money(here.usd)}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="flex items-center gap-1.5 text-muted-foreground">
+                  <span className="size-2 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden />
+                  {elsewhere > 0.005 ? 'Wallets, bots and off-chain' : 'Nothing tagged outside this page'}
+                </dt>
+                {/* `$0.00` and not an em dash: the dash is this app's "we could not read this",
+                    and an empty remainder is a number we know exactly. */}
+                <dd className="tabular-nums text-muted-foreground">{money(elsewhere)}</dd>
+              </div>
+            </dl>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
