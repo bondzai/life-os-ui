@@ -14,6 +14,7 @@ import {
   Repeat,
   SlidersHorizontal,
   Target,
+  Telescope,
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
@@ -61,6 +62,7 @@ export const modules: ModuleConfig[] = [
     children: [
       { id: 'wealth-holdings', label: 'Holdings', icon: Wallet, path: '/wealth/holdings' },
       { id: 'wealth-defi', label: 'DeFi', icon: Layers, path: '/wealth/defi' },
+      { id: 'wealth-opportunities', label: 'Opportunities', icon: Telescope, path: '/wealth/opportunities' },
       { id: 'wealth-btc', label: 'BTC', icon: Bitcoin, path: '/wealth/btc' },
       { id: 'wealth-bots', label: 'Bots', icon: Bot, path: '/wealth/bots' },
       { id: 'wealth-journal', label: 'Journal', icon: BookOpen, path: '/wealth/journal' },

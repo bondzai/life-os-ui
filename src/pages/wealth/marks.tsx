@@ -16,7 +16,6 @@ import type { ReactNode } from 'react'
 import { Bitcoin, Landmark } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { chainAccent, chainLabel, chainMono, readableInk, tokenAccent, tokenMono } from './identity'
-import type { TokenAmt } from './types'
 
 type MarkSize = 'sm' | 'md' | 'lg'
 
@@ -184,7 +183,9 @@ export function TokenPairMark({
   size = 'sm',
   className,
 }: {
-  tokens: TokenAmt[]
+  // Only the symbol is read, so this takes the narrowest shape that carries one: a `TokenAmt` from
+  // a held position and a bare symbol from the discovery feed are the same thing to a mark.
+  tokens: { symbol: string }[]
   size?: MarkSize
   className?: string
 }) {
