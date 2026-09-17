@@ -27,6 +27,7 @@ const KnowledgePage = lazy(() => import('@/pages/knowledge').then((m) => ({ defa
 const WealthOverviewPage = lazy(() => import('@/pages/wealth/overview').then((m) => ({ default: m.WealthOverviewPage })))
 const WealthHoldingsPage = lazy(() => import('@/pages/wealth/holdings').then((m) => ({ default: m.WealthHoldingsPage })))
 const WealthDefiPage = lazy(() => import('@/pages/wealth/defi').then((m) => ({ default: m.WealthDefiPage })))
+const WealthOpportunitiesPage = lazy(() => import('@/pages/wealth/opportunities').then((m) => ({ default: m.WealthOpportunitiesPage })))
 const WealthBtcPage = lazy(() => import('@/pages/wealth/btc').then((m) => ({ default: m.WealthBtcPage })))
 const WealthBotsPage = lazy(() => import('@/pages/wealth/bots').then((m) => ({ default: m.WealthBotsPage })))
 const WealthJournalPage = lazy(() => import('@/pages/wealth/journal').then((m) => ({ default: m.WealthJournalPage })))
@@ -71,6 +72,7 @@ export function App() {
                   <Route path="wealth" element={<Suspense fallback={null}><WealthOverviewPage /></Suspense>} />
                   <Route path="wealth/holdings" element={<Suspense fallback={null}><WealthHoldingsPage /></Suspense>} />
                   <Route path="wealth/defi" element={<Suspense fallback={null}><WealthDefiPage /></Suspense>} />
+                  <Route path="wealth/opportunities" element={<Suspense fallback={null}><WealthOpportunitiesPage /></Suspense>} />
                   <Route path="wealth/btc" element={<Suspense fallback={null}><WealthBtcPage /></Suspense>} />
                   <Route path="wealth/bots" element={<Suspense fallback={null}><WealthBotsPage /></Suspense>} />
                   <Route path="wealth/journal" element={<Suspense fallback={null}><WealthJournalPage /></Suspense>} />

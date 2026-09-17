@@ -18,8 +18,10 @@ import type {
   ManualAsset,
   ManualAssetInput,
   NwPoint,
+  OpportunityBoard,
   PortfolioData,
   Sentiment,
+  VfatStatus,
   WalletEntry,
   WalletList,
 } from '@/pages/wealth/types'
@@ -201,6 +203,23 @@ export class ApiWealthRepository implements WealthDataSource {
   /** Alert configuration plus the live state of the background sweep. */
   getAlertStatus(): Promise<AlertStatus> {
     return get<AlertStatus>('wealth/alerts')
+  }
+
+  /**
+   * Pools worth looking at, whether or not the wallet holds them.
+   *
+   * The envelope is kept rather than unwrapped the way `getHistory` unwraps `points`: `filters`
+   * reports the floor the server applied when the caller did not set one, so it is content, not
+   * packaging.
+   */
+  getOpportunities(params: Record<string, string>): Promise<OpportunityBoard> {
+    const query = new URLSearchParams(params).toString()
+    return get<OpportunityBoard>(`wealth/opportunities${query ? `?${query}` : ''}`)
+  }
+
+  /** How far behind vfat's own aggregation is, per chain — worst first. */
+  getVfatStatus(): Promise<VfatStatus> {
+    return get<VfatStatus>('wealth/vfat-status')
   }
 
   /**

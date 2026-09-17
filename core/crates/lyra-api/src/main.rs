@@ -150,6 +150,10 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
         .route("/api/wealth/fund", get(wealth::fund))
         .route("/api/wealth/sentiment", get(wealth::sentiment))
         .route("/api/wealth/yield-radar", get(wealth::yield_radar))
+        // Neither of these is in `parity.toml`, and neither may be: they answer questions the
+        // Python was never asked. See the note on `wealth::vfat_status`.
+        .route("/api/wealth/opportunities", get(wealth::opportunities))
+        .route("/api/wealth/vfat-status", get(wealth::vfat_status))
         .route("/api/wealth/kucoin", get(wealth::kucoin))
         .route("/api/wealth/price-history", get(wealth::price_history))
         .route(

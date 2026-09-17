@@ -186,6 +186,12 @@ pub struct VfatApi {
     /// [`POSITION_PERFORMANCE_TTL_SECS`]. Unlike every other cache here it also holds *failures*,
     /// as an empty index — see [`VfatApi::position_performance`].
     performance: SharedTtlCache<Arc<PerfIndex>>,
+    /// Discovery results, keyed by the whole query string and held for [`BROWSE_TTL_SECS`].
+    /// Keyed that way because two filter sets are two different questions — sharing a slot would
+    /// serve one caller's filters to another.
+    browse: SharedTtlCache<Arc<Vec<Value>>>,
+    /// vfat's own aggregation delay, one slot, held for [`AGGREGATION_DELAY_TTL_SECS`].
+    delay: SharedTtlCache<Arc<Vec<Value>>>,
 }
 
 impl VfatApi {
@@ -205,6 +211,8 @@ impl VfatApi {
             merkl: SharedTtlCache::new(),
             actions: SharedTtlCache::new(),
             performance: SharedTtlCache::new(),
+            browse: SharedTtlCache::new(),
+            delay: SharedTtlCache::new(),
         }
     }
 
@@ -778,7 +786,32 @@ const ID_CHAIN: [(u64, &str); 7] = [
     (999, "hyperevm"),
 ];
 
+/// One strand of an advertised APR — swap fees, staking emissions, off-chain rewards.
+///
+/// The distinction is the point. Fee yield is paid by traders and persists as long as volume does;
+/// emission yield is paid by a token printer and stops when the programme does. Two pools quoting
+/// 80% are not the same pool.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AprComponent {
+    /// vfat's own label: `swapFees`, `staking`, `offChainRewards`.
+    pub kind: String,
+    /// Percent, on the same scale as [`YieldOpportunity::apr`].
+    pub apr: f64,
+}
+
+/// Above this, a reported TVL is a unit error rather than a number.
+///
+/// vfat normally reports `totalLiquidity` in USD, but at least one live pool (WETH/YFX on Base)
+/// reports a raw liquidity integer around 1.3e17 instead. A trillion dollars is several times the
+/// whole of DeFi, so nothing real is lost by refusing to believe it, and the alternative is a board
+/// that quotes a pool at a hundred thousand trillion dollars.
+pub const TVL_CEILING: f64 = 1e12;
+
 /// One pool the radar suggests. Field names match the Python dict, which the API serves verbatim.
+///
+/// The provenance fields below it carry no Python counterpart and are written only by
+/// [`browse_opportunity`]. They are `skip_serializing_if`-absent otherwise, so the parity-gated
+/// `/api/wealth/yield-radar` response is byte-for-byte what it was.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct YieldOpportunity {
     pub chain_id: Option<u64>,
@@ -791,6 +824,27 @@ pub struct YieldOpportunity {
     pub apr: f64,
     pub tvl: f64,
     pub fee: Option<f64>,
+
+    /// What the advertised APR is actually made of. Empty on the radar path.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub apr_components: Vec<AprComponent>,
+
+    /// vfat's `assumesFullTimeInRange`. When true — which is every row observed so far — the
+    /// quoted APR is what the pool pays a position that is never out of range. A concentrated
+    /// position that drifts out earns nothing while the headline number keeps reading high, which
+    /// is exactly the trap the DeFi surfaces already warn about for held positions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assumes_full_range: Option<bool>,
+
+    /// The window vfat says it measured fees over, in days.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fee_window_days: Option<f64>,
+
+    /// The window it *could* measure, which is shorter when the pool is young or thin. Seen at
+    /// 1.04 days behind a declared 7-day window on live rows — a number resting on one day of
+    /// data, quoted as a week's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective_fee_window_days: Option<f64>,
 }
 
 /// What the user already has, which is what the radar compares against.
@@ -936,9 +990,45 @@ pub fn radar_candidates(
                 apr,
                 tvl,
                 fee: number(pool.get("currentFee")),
+                // Provenance is the discovery board's concern. Leaving these empty keeps this
+                // response identical to the Python's, which the parity gate compares field by
+                // field.
+                apr_components: Vec::new(),
+                assumes_full_range: None,
+                fee_window_days: None,
+                effective_fee_window_days: None,
             })
         })
         .collect()
+}
+
+/// Pull the APR's provenance out of an option's `aprBasis`.
+///
+/// Absent or malformed basis yields empty components and no flags rather than a guess: an APR we
+/// cannot explain is reported as an APR we cannot explain.
+fn apr_basis(best: &Value) -> (Vec<AprComponent>, Option<bool>, Option<f64>, Option<f64>) {
+    let Some(basis) = best.get("aprBasis").filter(|b| b.is_object()) else {
+        return (Vec::new(), None, None, None);
+    };
+    let components = basis
+        .get("components")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|component| {
+            Some(AprComponent {
+                kind: non_empty_str(component.get("kind"))?,
+                apr: number(component.get("aprPercent")).unwrap_or(0.0),
+            })
+        })
+        .collect();
+    (
+        components,
+        basis.get("assumesFullTimeInRange").and_then(Value::as_bool),
+        number(basis.get("feeWindowDays")),
+        number(basis.get("effectiveFeeWindowDays")),
+    )
 }
 
 /// Highest APR first, one row per (chain, pair, protocol), truncated to `limit`.
@@ -965,6 +1055,267 @@ pub fn rank_radar(mut found: Vec<YieldOpportunity>, limit: usize) -> Vec<YieldOp
         }
     }
     out
+}
+
+// ===========================================================================
+// Discovery and freshness — Lyra additions with no Python counterpart
+// ===========================================================================
+//
+// Both of these read endpoints the radar port never touched, and both deliberately sit *outside*
+// the parity-gated responses: `/yield-opportunities` here is asked a different question than
+// `_vfat_yield_opportunities` asks, and `/aggregation-delay` has no Python caller at all. Adding
+// either to `portfolio` or `yield-radar` would change a gated shape; they belong on their own
+// routes.
+
+/// vfat's aggregation delay, cached briefly and never shielded.
+///
+/// This is diagnostic data about *their* pipeline rather than money the user owns, so it takes the
+/// radar's posture, not farm-balances': when the endpoint cannot be read the caller is told
+/// nothing is known and the next call retries. A stale freshness report is worse than none — it
+/// would vouch for data it never saw.
+pub const AGGREGATION_DELAY_TTL_SECS: f64 = 60.0;
+
+/// Past this lag a chain is reported as behind rather than current.
+///
+/// vfat publishes a `delayedChainCount` of its own but not the threshold behind it, so this is
+/// ours: two minutes is several blocks on every chain in [`ID_CHAIN`] and well past normal jitter.
+pub const DELAY_WARN_SECS: f64 = 120.0;
+
+/// How fresh vfat's view of one chain is.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChainFreshness {
+    pub chain_id: u64,
+    pub chain: String,
+    pub block_lag: f64,
+    pub time_lag_secs: f64,
+    /// Which of their pipelines is furthest behind — absent when they name none.
+    pub lagging_pipeline: Option<String>,
+    pub behind: bool,
+}
+
+/// Map the `/aggregation-delay` feed, keeping only the chains this box actually reads.
+///
+/// Their feed covers every chain they support; carrying rows for chains no adapter here touches
+/// would make the board read as alarming about data nobody consumes. Sorted worst-first, because
+/// the only reason to look at this list is to find what is lagging.
+#[must_use]
+pub fn chain_freshness(items: &[Value]) -> Vec<ChainFreshness> {
+    let mut out: Vec<ChainFreshness> = items
+        .iter()
+        .filter_map(|item| {
+            let chain_id = item.get("chainId").and_then(Value::as_u64)?;
+            let (_, name) = ID_CHAIN.iter().find(|(known, _)| *known == chain_id)?;
+            let time_lag_secs = number(item.get("timeLagSeconds")).unwrap_or(0.0);
+            Some(ChainFreshness {
+                chain_id,
+                chain: (*name).to_string(),
+                block_lag: number(item.get("blockLag")).unwrap_or(0.0),
+                time_lag_secs,
+                lagging_pipeline: non_empty_str(item.get("laggingPipeline")),
+                behind: time_lag_secs >= DELAY_WARN_SECS,
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| b.time_lag_secs.total_cmp(&a.time_lag_secs));
+    out
+}
+
+/// Discovery results are cached this long — long enough that tweaking one filter does not re-fetch
+/// the others, short enough that a pool which has already been arbitraged away drops off.
+pub const BROWSE_TTL_SECS: f64 = 300.0;
+
+/// What one page of discovery asks for. vfat caps `pageSize` at 200; we take one page and never
+/// paginate, because past the first hundred rows sorted by APR the tail is dust pools.
+pub const BROWSE_PAGE_SIZE: u32 = 100;
+
+/// Hard ceiling on what one browse returns, whatever the caller asks for.
+pub const BROWSE_MAX_LIMIT: usize = 50;
+
+/// The `assetCorrelation` values vfat accepts.
+pub const CORRELATIONS: [&str; 3] = ["correlated", "uncorrelated", "unknown"];
+
+/// The `sortKey` values vfat accepts.
+pub const SORT_KEYS: [&str; 7] = [
+    "tvl",
+    "inRangeTvl",
+    "activeTvl",
+    "fees",
+    "rewards",
+    "apr",
+    "range",
+];
+
+/// A discovery query — the half of vfat's filter set worth exposing.
+///
+/// Every APR here is a **percent**, the same scale the feed reports and `minAPR` takes: the top of
+/// an unfiltered APR sort is a three-million-percent pool holding two hundred dollars, which is why
+/// [`Self::min_tvl`] defaults to [`RADAR_TVL_FLOOR`] rather than zero.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BrowseFilters {
+    /// Empty asks vfat for every chain it covers, rather than for none.
+    pub chain_ids: Vec<u64>,
+    pub min_apr: Option<f64>,
+    pub max_apr: Option<f64>,
+    /// Applied by us as well as upstream — see [`browse_opportunity`].
+    pub min_tvl: f64,
+    pub protocols: Option<String>,
+    pub search: Option<String>,
+    pub correlation: Option<String>,
+    pub sort_key: String,
+    pub limit: usize,
+}
+
+impl Default for BrowseFilters {
+    fn default() -> Self {
+        Self {
+            chain_ids: Vec::new(),
+            min_apr: None,
+            max_apr: None,
+            min_tvl: RADAR_TVL_FLOOR,
+            protocols: None,
+            search: None,
+            correlation: None,
+            sort_key: "apr".to_string(),
+            limit: 20,
+        }
+    }
+}
+
+impl BrowseFilters {
+    /// The query string for one chain; `None` asks for every chain vfat covers.
+    ///
+    /// `minTVL` goes upstream as well as being re-applied locally. Sending it lets vfat drop dust
+    /// before it fills our page of a hundred, which is the difference between a hundred real pools
+    /// and ninety dust ones plus ten real.
+    #[must_use]
+    pub fn query(&self) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        if !self.chain_ids.is_empty() {
+            // `chains` takes the whole set in one request, where `chainId` takes one. Asking for
+            // seven chains was seven round trips and about eight seconds; this is one and about
+            // one. Ids only — `chains=base,ethereum` came back carrying chain 999 as well, so the
+            // name form does not filter reliably and the handler resolves names before this point.
+            let ids: Vec<String> = self.chain_ids.iter().map(u64::to_string).collect();
+            parts.push(format!("chains={}", ids.join("%2C")));
+        }
+        parts.push(format!("pageSize={BROWSE_PAGE_SIZE}"));
+        parts.push(format!("sortKey={}", encode_param(&self.sort_key)));
+        parts.push("sortDirection=desc".to_string());
+        if self.min_tvl > 0.0 {
+            parts.push(format!("minTVL={}", self.min_tvl));
+        }
+        if let Some(apr) = self.min_apr {
+            parts.push(format!("minAPR={apr}"));
+        }
+        if let Some(apr) = self.max_apr {
+            parts.push(format!("maxAPR={apr}"));
+        }
+        if let Some(protocols) = self.protocols.as_deref() {
+            parts.push(format!("protocols={}", encode_param(protocols)));
+        }
+        if let Some(search) = self.search.as_deref() {
+            parts.push(format!("search={}", encode_param(search)));
+        }
+        if let Some(correlation) = self.correlation.as_deref() {
+            parts.push(format!("assetCorrelation={}", encode_param(correlation)));
+        }
+        parts.join("&")
+    }
+}
+
+/// Percent-encode one query value.
+///
+/// Only the unreserved set survives: a search term carrying `&` or `#` is escaped rather than
+/// stripped, so the URL cannot be split by user input and the term still reaches vfat intact.
+fn encode_param(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char);
+            }
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    out
+}
+
+/// Map one feed row, taking its chain from the row itself.
+///
+/// [`radar_candidates`] cannot be reused here, and the duplication is the point: that function is
+/// *defined* by what the wallet holds — the majors gate, the `held` test and the `best_apr`
+/// comparison all read a profile this path has no business building. The row shape is the only
+/// thing the two share.
+///
+/// A chain outside [`ID_CHAIN`] keeps its id as its name. Discovery deliberately reaches chains no
+/// adapter here reads, so there is nothing better to call them until one does.
+#[must_use]
+pub fn browse_opportunity(item: &Value, min_tvl: f64) -> Option<YieldOpportunity> {
+    let empty = Value::Object(Default::default());
+    let chain_id = item.get("chainId").and_then(Value::as_u64);
+    let pool = item.get("pool").filter(|p| p.is_object()).unwrap_or(&empty);
+    let symbols: Vec<String> = pool
+        .get("underlying")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+        .iter()
+        .map(|token| {
+            token
+                .get("symbol")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_uppercase()
+        })
+        .collect();
+    if symbols.len() != 2 {
+        return None;
+    }
+
+    // The same fold as the radar: the first maximal option wins a tie.
+    let best = item
+        .get("options")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+        .iter()
+        .fold(None::<&Value>, |best, option| match best {
+            Some(current)
+                if number(current.get("apr")).unwrap_or(0.0)
+                    >= number(option.get("apr")).unwrap_or(0.0) =>
+            {
+                Some(current)
+            }
+            _ => Some(option),
+        })
+        .unwrap_or(&empty);
+
+    let apr = number(best.get("apr")).unwrap_or(0.0);
+    let tvl = number(best.get("totalLiquidity")).unwrap_or(0.0);
+    // Re-applied rather than trusted: `minTVL` filters the pool's own liquidity upstream, while
+    // what we rank on is the chosen option's. They are not always the same number — and the
+    // ceiling catches the rows where it is not even the same *unit*. See [`TVL_CEILING`].
+    if tvl < min_tvl || tvl > TVL_CEILING || apr <= 0.0 {
+        return None;
+    }
+    let (apr_components, assumes_full_range, fee_window_days, effective_fee_window_days) =
+        apr_basis(best);
+    let protocol = best.get("protocol").filter(|p| p.is_object());
+    Some(YieldOpportunity {
+        chain_id,
+        chain: chain_name(chain_id),
+        pair: symbols.join("/"),
+        tokens: symbols,
+        protocol: protocol.and_then(|p| non_empty_str(p.get("name"))),
+        url: protocol.and_then(|p| non_empty_str(p.get("url"))),
+        apr,
+        tvl,
+        fee: number(pool.get("currentFee")),
+        apr_components,
+        assumes_full_range,
+        fee_window_days,
+        effective_fee_window_days,
+    })
 }
 
 /// The portfolio's chain name -> vfat chain id (`_EVM_CHAIN_IDS`, portfolio.py L1330).
@@ -1218,6 +1569,97 @@ impl VfatApi {
                 .cloned()
                 .unwrap_or_default(),
         ))
+    }
+
+    /// How far behind vfat's own aggregation is, per chain. Empty on any miss.
+    ///
+    /// Empty rather than `Err` because every caller of this is reporting *about* an outage: a
+    /// freshness board that fails when the freshness endpoint fails tells the user nothing they
+    /// could not already see. The failure is logged and not cached, so the next call retries.
+    pub async fn aggregation_delay(&self) -> Arc<Vec<Value>> {
+        const KEY: &str = "vfatdelay";
+        if let Some(hit) = self.delay.get(KEY, AGGREGATION_DELAY_TTL_SECS, self.now()) {
+            return hit;
+        }
+        let url = format!("{VFAT_API}/aggregation-delay");
+        match self.fetch_array(&url).await {
+            Ok(items) => {
+                self.delay.put(KEY, items.clone(), self.now());
+                items
+            }
+            Err(error) => {
+                tracing::warn!(
+                    url,
+                    error = format!("{error:#}"),
+                    "vfat aggregation-delay failed; freshness is unknown"
+                );
+                Arc::new(Vec::new())
+            }
+        }
+    }
+
+    /// One live call returning a bare JSON array — `/aggregation-delay` is not paginated, so it
+    /// has no `items` envelope for [`Self::fetch_items`] to unwrap.
+    async fn fetch_array(&self, url: &str) -> Result<Arc<Vec<Value>>> {
+        let recorded = self.cache.get(&self.client, url).await?;
+        if !(200..300).contains(&recorded.status) {
+            return Err(anyhow!(
+                "aggregation-delay returned HTTP {}",
+                recorded.status
+            ));
+        }
+        let body: Value =
+            serde_json::from_str(&recorded.body).context("aggregation-delay returned non-JSON")?;
+        Ok(Arc::new(body.as_array().cloned().unwrap_or_default()))
+    }
+
+    /// Pools matching a filter set, independent of what the wallet already holds.
+    ///
+    /// The radar answers "is there anything better than what I am already in"; this answers "what
+    /// is out there". Same feed, no profile — so a wallet with no vfat LPs gets results here, where
+    /// the radar correctly gives it none.
+    ///
+    /// Staleness follows [`Self::yield_opportunities`] exactly: a 300s cache and no last-good
+    /// shield — a stale suggestion is worse than no suggestion.
+    ///
+    /// **One request, whatever the chain count.** This used to loop the chain list and fetch each
+    /// separately, which made a seven-chain board seven round trips and about eight seconds.
+    /// `chains=` takes the whole set at once, so the page is ranked upstream across every chain
+    /// asked for rather than merged out of per-chain pages here.
+    pub async fn browse_opportunities(&self, filters: &BrowseFilters) -> Vec<YieldOpportunity> {
+        let query = filters.query();
+        let key = format!("vfatbrowse:{query}");
+
+        let items = match self.browse.get(&key, BROWSE_TTL_SECS, self.now()) {
+            Some(hit) => hit,
+            None => {
+                let url = format!("{VFAT_API}/yield-opportunities?{query}");
+                match self.fetch_items(&url).await {
+                    Ok(items) => {
+                        self.browse.put(&key, items.clone(), self.now());
+                        items
+                    }
+                    Err(error) => {
+                        tracing::warn!(
+                            url,
+                            error = format!("{error:#}"),
+                            "vfat discovery failed; the board is empty for this query"
+                        );
+                        return Vec::new();
+                    }
+                }
+            }
+        };
+
+        let found: Vec<YieldOpportunity> = items
+            .iter()
+            .filter_map(|item| browse_opportunity(item, filters.min_tvl))
+            .collect();
+
+        // Ranked and deduped by the radar's own function: one row per (chain, pair, protocol),
+        // highest APR first. The same pair is listed on several chains, and the caller wants the
+        // best one rather than all of them.
+        rank_radar(found, filters.limit.min(BROWSE_MAX_LIMIT))
     }
 
     /// Higher-APR pools for the tokens this wallet already LPs — port of `vfat_yield_radar`.
@@ -3314,6 +3756,256 @@ mod tests {
         for (id, name) in ID_CHAIN {
             assert_eq!(evm_chain_id(name), Some(id), "{name}");
         }
+    }
+
+    // ---------------------------------------------------------------- discovery (browse)
+
+    #[test]
+    fn discovery_keeps_a_pool_the_wallet_has_never_touched() {
+        // The same row the radar rejects for a wallet holding nothing — no profile, no held
+        // tokens, no majors gate. That difference is the whole reason this path exists.
+        let found = browse_opportunity(&opportunity("PEPE", "WETH", 90.0, 50_000.0), 10_000.0)
+            .expect("a well-formed row maps");
+        assert_eq!(found.pair, "PEPE/WETH");
+        assert_eq!(found.apr, 90.0);
+        assert_eq!(found.chain_id, Some(999));
+        assert_eq!(found.chain, "hyperevm", "a known id is named, not numbered");
+        assert_eq!(found.protocol.as_deref(), Some("Hyperswap"));
+    }
+
+    #[test]
+    fn discovery_drops_the_dust_pool_behind_a_headline_apr() {
+        // A three-million-percent pool holding two hundred dollars is the top of an unfiltered
+        // APR sort on a real chain. The TVL floor is the only thing standing between that and
+        // the board.
+        assert!(
+            browse_opportunity(&opportunity("WHYPE", "USDC", 3_129_115.0, 275.0), 10_000.0)
+                .is_none()
+        );
+        assert!(
+            browse_opportunity(&opportunity("WHYPE", "USDC", 3_129_115.0, 275.0), 100.0).is_some(),
+            "a caller who deliberately lowers the floor gets it back"
+        );
+    }
+
+    #[test]
+    fn discovery_drops_a_pool_paying_nothing() {
+        // The feed carries `apr: 0` rows; sorted by APR they land at the bottom, but a caller
+        // sorting by TVL would otherwise see them at the top.
+        assert!(
+            browse_opportunity(&opportunity("WHYPE", "USDC", 0.0, 50_000.0), 10_000.0).is_none()
+        );
+    }
+
+    #[test]
+    fn an_unknown_chain_keeps_its_id_as_its_name() {
+        let mut row = opportunity("WETH", "USDC", 60.0, 50_000.0);
+        row["chainId"] = json!(146); // Sonic — real to vfat, unknown to this box.
+        let found = browse_opportunity(&row, 10_000.0).expect("still a valid row");
+        assert_eq!(found.chain, "146");
+    }
+
+    #[test]
+    fn a_filter_set_becomes_the_query_vfat_documents() {
+        let filters = BrowseFilters {
+            chain_ids: vec![8453],
+            min_apr: Some(50.0),
+            min_tvl: 25_000.0,
+            correlation: Some("correlated".to_string()),
+            ..BrowseFilters::default()
+        };
+        let query = filters.query();
+        assert!(query.starts_with("chains=8453&"));
+        assert!(query.contains("sortKey=apr"));
+        assert!(query.contains("sortDirection=desc"));
+        assert!(query.contains("minTVL=25000"));
+        assert!(query.contains("minAPR=50"));
+        assert!(query.contains("assetCorrelation=correlated"));
+        assert!(
+            !query.contains("maxAPR"),
+            "an unset filter is absent, not sent empty"
+        );
+    }
+
+    #[test]
+    fn no_chain_asks_for_every_chain_rather_than_none() {
+        let query = BrowseFilters::default().query();
+        assert!(
+            !query.contains("chains="),
+            "vfat reads a missing chain filter as all of them"
+        );
+    }
+
+    #[test]
+    fn every_chain_asked_for_rides_in_one_request() {
+        // The whole point of `chains=` over `chainId=`: seven chains was seven round trips.
+        let filters = BrowseFilters {
+            chain_ids: vec![1, 8453, 42161],
+            ..BrowseFilters::default()
+        };
+        let query = filters.query();
+        assert!(
+            query.starts_with("chains=1%2C8453%2C42161&"),
+            "one encoded list, not one request each: {query}"
+        );
+        assert_eq!(query.matches("chains=").count(), 1);
+    }
+
+    #[test]
+    fn a_search_term_cannot_split_the_url() {
+        let filters = BrowseFilters {
+            search: Some("weth btc&minAPR=0#".to_string()),
+            ..BrowseFilters::default()
+        };
+        let query = filters.query();
+        assert!(
+            query.contains("search=weth%20btc%26minAPR%3D0%23"),
+            "the whole term is one encoded value: {query}"
+        );
+        // `minAPR` still appears as literal text inside the encoded value — that is fine and is
+        // the point. What must not appear is a *separator* in front of it, which is what would
+        // turn it into a parameter of its own.
+        assert!(
+            !query.contains("&minAPR="),
+            "the injected parameter never became one: {query}"
+        );
+    }
+
+    // ---------------------------------------------------------------- APR provenance
+
+    /// An opportunity carrying the `aprBasis` shape the live feed sends.
+    fn with_basis(components: Value, full_range: bool, window: f64, effective: f64) -> Value {
+        let mut row = opportunity("WETH", "USDC", 80.0, 50_000.0);
+        row["options"][0]["aprBasis"] = json!({
+            "feeWindowDays": window,
+            "effectiveFeeWindowDays": effective,
+            "clippedByPoolAge": false,
+            "assumesFullTimeInRange": full_range,
+            "components": components,
+        });
+        row
+    }
+
+    #[test]
+    fn an_apr_is_split_into_what_pays_it() {
+        // Fee yield is paid by traders, emission yield by a printer. Two pools quoting 80% are not
+        // the same pool, and this is the only field that says which one you are looking at.
+        let row = with_basis(
+            json!([
+                {"kind": "swapFees", "aprPercent": 61.2},
+                {"kind": "offChainRewards", "aprPercent": 18.8},
+            ]),
+            true,
+            7.0,
+            7.0,
+        );
+        let found = browse_opportunity(&row, 10_000.0).expect("maps");
+
+        assert_eq!(found.apr_components.len(), 2);
+        assert_eq!(found.apr_components[0].kind, "swapFees");
+        assert_eq!(found.apr_components[0].apr, 61.2);
+        assert_eq!(found.apr_components[1].kind, "offChainRewards");
+        assert_eq!(found.assumes_full_range, Some(true));
+    }
+
+    #[test]
+    fn a_week_of_apr_measured_over_a_day_says_so() {
+        // Observed live: `feeWindowDays: 7` alongside `effectiveFeeWindowDays: 1.04`. The headline
+        // is quoted as a week's and rests on one day.
+        let row = with_basis(json!([{"kind": "swapFees", "aprPercent": 80.0}]), true, 7.0, 1.04);
+        let found = browse_opportunity(&row, 10_000.0).expect("maps");
+
+        assert_eq!(found.fee_window_days, Some(7.0));
+        assert_eq!(found.effective_fee_window_days, Some(1.04));
+    }
+
+    #[test]
+    fn an_apr_we_cannot_explain_is_reported_as_unexplained() {
+        // No `aprBasis` at all: empty provenance and no flags, never an invented breakdown.
+        let found = browse_opportunity(&opportunity("WETH", "USDC", 80.0, 50_000.0), 10_000.0)
+            .expect("maps");
+        assert!(found.apr_components.is_empty());
+        assert_eq!(found.assumes_full_range, None);
+        assert_eq!(found.fee_window_days, None);
+    }
+
+    #[test]
+    fn the_radar_path_carries_no_provenance_so_the_gate_sees_no_new_fields() {
+        // `/api/wealth/yield-radar` is diffed against the Python field by field. These fields must
+        // serialise away entirely on that path.
+        let found = radar(&[opportunity("WHYPE", "USDC", 90.0, 50_000.0)]);
+        assert_eq!(found.len(), 1);
+        let wire = serde_json::to_value(&found[0]).expect("serialises");
+        for absent in [
+            "apr_components",
+            "assumes_full_range",
+            "fee_window_days",
+            "effective_fee_window_days",
+        ] {
+            assert!(
+                wire.get(absent).is_none(),
+                "{absent} must not appear on the gated response: {wire}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_tvl_in_the_wrong_unit_is_refused() {
+        // WETH/YFX on Base reports `totalLiquidity` around 1.3e17 where every other row reports
+        // USD. Believing it would quote a pool at a hundred thousand trillion dollars.
+        let row = opportunity("WETH", "YFX", 80.0, 1.3e17);
+        assert!(browse_opportunity(&row, 10_000.0).is_none());
+
+        // The ceiling is the only thing rejecting it — a real pool just under stays.
+        let real = opportunity("WETH", "YFX", 80.0, TVL_CEILING - 1.0);
+        assert!(browse_opportunity(&real, 10_000.0).is_some());
+    }
+
+    // ---------------------------------------------------------------- aggregation freshness
+
+    fn delay_row(chain_id: u64, time_lag: f64, pipeline: &str) -> Value {
+        json!({
+            "chainId": chain_id,
+            "blockLag": 3,
+            "timeLagSeconds": time_lag,
+            "laggingPipeline": pipeline,
+            "computedAt": "2026-09-17T01:17:00.253Z",
+        })
+    }
+
+    #[test]
+    fn freshness_reports_only_the_chains_this_box_reads() {
+        let rows = vec![
+            delay_row(1, 0.0, "token-balances"),
+            delay_row(146, 900.0, "uniswap-v4-cache"), // Sonic: vfat reads it, we do not.
+            delay_row(999, 300.0, "uniswap-v4-cache"),
+        ];
+        let fresh = chain_freshness(&rows);
+
+        assert_eq!(fresh.len(), 2, "Sonic is dropped");
+        assert_eq!(fresh[0].chain, "hyperevm", "worst lag first");
+        assert!(fresh[0].behind);
+        assert_eq!(
+            fresh[0].lagging_pipeline.as_deref(),
+            Some("uniswap-v4-cache")
+        );
+        assert_eq!(fresh[1].chain, "ethereum");
+        assert!(!fresh[1].behind, "no lag is not behind");
+    }
+
+    #[test]
+    fn the_behind_threshold_is_the_documented_one() {
+        let just_under = chain_freshness(&[delay_row(1, DELAY_WARN_SECS - 1.0, "db")]);
+        let at_it = chain_freshness(&[delay_row(1, DELAY_WARN_SECS, "db")]);
+        assert!(!just_under[0].behind);
+        assert!(at_it[0].behind);
+    }
+
+    #[test]
+    fn an_unreadable_freshness_feed_reports_nothing_rather_than_health() {
+        // The empty case must stay distinguishable from "every chain current" — the route says so
+        // with its `checked` flag, and this is the half of it that lives here.
+        assert!(chain_freshness(&[]).is_empty());
     }
 
     // ---------------------------------------------------------------- lifecycle stamping

@@ -125,6 +125,15 @@ describe.skipIf(!LIVE)('wealth surfaces against the live API', () => {
     await settles(/Position value|No positions/)
   }, 60_000)
 
+  it('renders Opportunities from the live vfat feed', async () => {
+    const { WealthOpportunitiesPage } = await import('./opportunities')
+    renderPage(<WealthOpportunitiesPage />)
+    // "Pools found" is the stat card; the alternative is the filtered-to-zero card, which is a
+    // legitimate answer from a feed that is up — both mean the request succeeded.
+    await settles(/Pools found|No pools match/)
+    await settles(/TVL floor|No pools match/)
+  }, 60_000)
+
   it('renders BTC reserves', async () => {
     const { WealthBtcPage } = await import('./btc')
     renderPage(<WealthBtcPage />)

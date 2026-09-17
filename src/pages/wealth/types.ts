@@ -214,6 +214,85 @@ export interface ManualAssetInput {
   custody?: 'cold' | 'custodial'
 }
 
+/**
+ * One pool from vfat's discovery feed — `GET /api/wealth/opportunities`.
+ *
+ * The same shape the yield radar serves, deliberately: a suggestion is a suggestion whether it was
+ * found by comparing against what the wallet holds or by asking what exists.
+ */
+export interface YieldOpportunity {
+  chain_id: number | null
+  chain: string
+  pair: string
+  tokens: string[]
+  protocol: string | null
+  url: string | null
+  /** Percent, on vfat's own scale — `72.4` is 72.4%, not 0.724. */
+  apr: number
+  tvl: number
+  /** Hundredths of a basis point, as the pool reports it: `3000` is a 0.3% pool. */
+  fee: number | null
+
+  /**
+   * What the advertised APR is made of. Absent on the yield radar, which serves the same type.
+   *
+   * Fee yield is paid by traders and lasts as long as volume does; emission yield is paid by a
+   * token printer and stops when the programme does. Two pools quoting 80% are not the same pool.
+   */
+  apr_components?: AprComponent[]
+  /** Whether the quote assumes the position never drifts out of range. */
+  assumes_full_range?: boolean
+  /** The fee window vfat declares, in days. */
+  fee_window_days?: number
+  /** The window it could actually measure — shorter for a young or thin pool. */
+  effective_fee_window_days?: number
+}
+
+/** One strand of an advertised APR — `swapFees`, `staking`, `offChainRewards`. */
+export interface AprComponent {
+  kind: string
+  /** Percent, on the same scale as `YieldOpportunity.apr`. */
+  apr: number
+}
+
+/**
+ * The filters the server actually applied, echoed back.
+ *
+ * Worth carrying because most of them are defaults the page never sent — `min_tvl` in particular
+ * is a server-side floor, and a board that hides its own floor invites "why is this pool missing".
+ */
+export interface OpportunityFilters {
+  chains: number[]
+  min_apr: number | null
+  max_apr: number | null
+  min_tvl: number
+  sort: string
+  limit: number
+}
+
+export interface OpportunityBoard {
+  opportunities: YieldOpportunity[]
+  filters: OpportunityFilters
+}
+
+/** How far behind vfat's own view of one chain is — `GET /api/wealth/vfat-status`. */
+export interface ChainFreshness {
+  chain_id: number
+  chain: string
+  block_lag: number
+  time_lag_secs: number
+  lagging_pipeline: string | null
+  behind: boolean
+}
+
+export interface VfatStatus {
+  /** `false` means the endpoint could not be read — which is not the same as every chain current. */
+  checked: boolean
+  behind: number
+  worst_lag_secs: number | null
+  chains: ChainFreshness[]
+}
+
 // ---- flattened views used by the UI ----
 
 export interface Holding {
