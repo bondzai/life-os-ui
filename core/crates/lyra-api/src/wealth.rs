@@ -1137,6 +1137,155 @@ pub async fn yield_radar(_user: AuthUser, Query(params): Query<AddressQuery>) ->
 /// How many suggestions the board shows, across every wallet — `radar[:8]` in `server.py`.
 const RADAR_TOTAL: usize = 8;
 
+/* ─── Discovery and freshness — new surface, deliberately outside the parity gate ─── */
+
+/// `GET /api/wealth/vfat-status` — how far behind vfat's own view of each chain is.
+///
+/// Its own route rather than a row on [`services`] for two reasons. The board is parity-gated
+/// against the Python, so a new row fails the diff; and it answers a different question anyway —
+/// reachable or not, which is not vfat's actual failure mode. Farm-balances answers 200 with data
+/// that is quietly hours old, which is the thing `LAST_GOOD_MAX_AGE_SECS` was written to survive
+/// without ever being able to name. This names it.
+pub async fn vfat_status(_user: AuthUser) -> Response {
+    let items = UPSTREAMS.sources.vfat().aggregation_delay().await;
+    let chains = vfat::chain_freshness(&items);
+    let behind = chains.iter().filter(|chain| chain.behind).count();
+
+    Json(json!({
+        // Distinguishes "the endpoint could not be read" from "every chain is current" — both
+        // otherwise render as an empty list, and they mean opposite things.
+        "checked": !items.is_empty(),
+        "behind": behind,
+        "worst_lag_secs": chains.first().map(|chain| chain.time_lag_secs),
+        "chains": chains,
+    }))
+    .into_response()
+}
+
+/// How many pools discovery returns when the caller does not say.
+const BROWSE_DEFAULT_LIMIT: usize = 20;
+
+/// Longest `search` or `protocols` term accepted, before it is a bug rather than a query.
+const MAX_TERM_LEN: usize = 120;
+
+/// The filter set `GET /api/wealth/opportunities` accepts.
+#[derive(Debug, Deserialize)]
+pub struct OpportunityQuery {
+    /// Chain ids or the names this box uses (`base`, `hyperevm`), comma- or space-separated.
+    /// Absent asks vfat for every chain it covers.
+    pub chains: Option<String>,
+    pub min_apr: Option<f64>,
+    pub max_apr: Option<f64>,
+    pub min_tvl: Option<f64>,
+    pub protocols: Option<String>,
+    pub search: Option<String>,
+    pub correlation: Option<String>,
+    pub sort: Option<String>,
+    pub limit: Option<usize>,
+}
+
+/// `GET /api/wealth/opportunities` — pools worth looking at, whether or not you hold them.
+///
+/// The complement to [`yield_radar`], not a replacement: the radar is relative to the wallet and
+/// silent when it holds nothing, which is right for "should I move?" and useless for "what is out
+/// there?". A wallet is never consulted here.
+///
+/// Every filter is validated against what vfat documents rather than forwarded blind, so a typo
+/// comes back as a 400 naming the accepted values instead of an empty board that looks like an
+/// answer.
+pub async fn opportunities(_user: AuthUser, Query(params): Query<OpportunityQuery>) -> Response {
+    let mut filters = vfat::BrowseFilters::default();
+
+    if let Some(raw) = params.chains.as_deref() {
+        let mut ids = Vec::new();
+        for token in raw.replace(',', " ").split_whitespace() {
+            match token
+                .parse::<u64>()
+                .ok()
+                .or_else(|| vfat::evm_chain_id(token))
+            {
+                Some(id) => ids.push(id),
+                None => {
+                    return error(
+                        StatusCode::BAD_REQUEST,
+                        &format!(
+                            "unknown chain '{token}' — use a chain id or a name this box knows"
+                        ),
+                    );
+                }
+            }
+        }
+        filters.chain_ids = ids;
+    }
+
+    if let Some(sort) = params.sort.as_deref() {
+        if !vfat::SORT_KEYS.contains(&sort) {
+            return error(
+                StatusCode::BAD_REQUEST,
+                &format!("sort must be one of: {}", vfat::SORT_KEYS.join(", ")),
+            );
+        }
+        filters.sort_key = sort.to_string();
+    }
+
+    if let Some(correlation) = params.correlation.as_deref() {
+        for term in correlation.split(',').map(str::trim) {
+            if !vfat::CORRELATIONS.contains(&term) {
+                return error(
+                    StatusCode::BAD_REQUEST,
+                    &format!(
+                        "correlation must be one of: {}",
+                        vfat::CORRELATIONS.join(", ")
+                    ),
+                );
+            }
+        }
+        filters.correlation = Some(correlation.to_string());
+    }
+
+    for (name, term) in [("search", &params.search), ("protocols", &params.protocols)] {
+        if term.as_deref().is_some_and(|t| t.len() > MAX_TERM_LEN) {
+            return error(
+                StatusCode::BAD_REQUEST,
+                &format!("{name} must be {MAX_TERM_LEN} characters or fewer"),
+            );
+        }
+    }
+
+    filters.search = params.search;
+    filters.protocols = params.protocols;
+    filters.min_apr = params.min_apr;
+    filters.max_apr = params.max_apr;
+    // Floored at the radar's own TVL threshold unless the caller lowers it deliberately: an
+    // unfiltered APR sort puts a three-million-percent pool holding two hundred dollars on top.
+    filters.min_tvl = params.min_tvl.unwrap_or(vfat::RADAR_TVL_FLOOR).max(0.0);
+    filters.limit = params
+        .limit
+        .unwrap_or(BROWSE_DEFAULT_LIMIT)
+        .clamp(1, vfat::BROWSE_MAX_LIMIT);
+
+    let found = UPSTREAMS
+        .sources
+        .vfat()
+        .browse_opportunities(&filters)
+        .await;
+
+    Json(json!({
+        "opportunities": found,
+        // Echoed back because most of them are defaults the caller never sent, and a board that
+        // hides its own floor invites "why is this pool missing".
+        "filters": {
+            "chains": filters.chain_ids,
+            "min_apr": filters.min_apr,
+            "max_apr": filters.max_apr,
+            "min_tvl": filters.min_tvl,
+            "sort": filters.sort_key,
+            "limit": filters.limit,
+        },
+    }))
+    .into_response()
+}
+
 /* ─── Service health board — the port of `services.py` ─── */
 
 /// Over this, a reachable upstream is reported `slow` rather than `up` — `SLOW_MS`.
@@ -2127,6 +2276,8 @@ mod tests {
             .route("/api/wealth/fund", get(fund))
             .route("/api/wealth/sentiment", get(sentiment))
             .route("/api/wealth/yield-radar", get(yield_radar))
+            .route("/api/wealth/opportunities", get(opportunities))
+            .route("/api/wealth/vfat-status", get(vfat_status))
             .route("/api/wealth/kucoin", get(kucoin))
             .route("/api/wealth/price-history", get(price_history))
             .route("/api/wealth/history", get(history).post(save_history))
