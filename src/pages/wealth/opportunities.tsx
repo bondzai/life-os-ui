@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { AlertTriangle, ExternalLink, Search, Telescope } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -40,7 +40,13 @@ import { EmptyState } from '@/core/components/empty-state'
 import { USE_API } from '@/core/repositories'
 import { apiWealthRepository } from '@/core/repositories/api-wealth-repository'
 import { formatDuration, formatUsd } from './format'
-import { formatApr, formatFee } from './opportunities-format'
+import {
+  emissionShare,
+  formatApr,
+  formatAprMix,
+  formatFee,
+  windowCaveat,
+} from './opportunities-format'
 import { chainLabel } from './identity'
 import { ChainMark, TokenPairMark } from './marks'
 import { useMoney } from './money'
@@ -136,6 +142,49 @@ function FreshnessStrip() {
   )
 }
 
+/**
+ * What pays this APR, and whether the window behind it holds up.
+ *
+ * Both come free with the rows already fetched — vfat sends `aprBasis` on every option, so this
+ * costs no request. Emission-heavy yield is tinted because that is the part that stops when a
+ * programme ends, which is the difference between two pools both quoting 80%.
+ *
+ * `assumesFullTimeInRange` is true on every row observed, so it is stated once in the page
+ * footnote rather than repeated on each line, where it would be noise instead of a warning.
+ */
+function AprProvenance({ row }: { row: YieldOpportunity }) {
+  const mix = formatAprMix(row.apr_components)
+  const caveat = windowCaveat(row)
+  const emissions = emissionShare(row.apr_components)
+  if (!mix && !caveat) return null
+
+  return (
+    <>
+      {mix && (
+        <div
+          className={
+            emissions !== null && emissions >= 0.6
+              ? 'text-xs text-amber-600 dark:text-amber-500'
+              : 'text-xs text-muted-foreground'
+          }
+          title={
+            emissions !== null && emissions >= 0.6
+              ? 'Mostly emissions — this yield stops when the programme does'
+              : undefined
+          }
+        >
+          {mix}
+        </div>
+      )}
+      {caveat && (
+        <div className="text-xs text-muted-foreground" title={caveat}>
+          short window
+        </div>
+      )}
+    </>
+  )
+}
+
 function PoolRow({ row, compact }: { row: YieldOpportunity; compact: (usd: number) => string }) {
   return (
     <TableRow>
@@ -152,7 +201,10 @@ function PoolRow({ row, compact }: { row: YieldOpportunity; compact: (usd: numbe
         </div>
       </TableCell>
       <TableCell className="text-muted-foreground">{row.protocol ?? '—'}</TableCell>
-      <TableCell className="text-right tabular-nums">{formatApr(row.apr)}</TableCell>
+      <TableCell className="text-right">
+        <div className="tabular-nums">{formatApr(row.apr)}</div>
+        <AprProvenance row={row} />
+      </TableCell>
       <TableCell className="text-right tabular-nums">{compact(row.tvl)}</TableCell>
       <TableCell className="text-right tabular-nums text-muted-foreground">{formatFee(row.fee)}</TableCell>
       <TableCell className="text-right">
@@ -182,7 +234,10 @@ function PoolCard({ row, compact }: { row: YieldOpportunity; compact: (usd: numb
             <TokenPairMark tokens={row.tokens.map((symbol) => ({ symbol }))} size="sm" />
             <span>{row.pair}</span>
           </div>
-          <span className="tabular-nums font-medium">{formatApr(row.apr)}</span>
+          <div className="text-right">
+            <span className="tabular-nums font-medium">{formatApr(row.apr)}</span>
+            <AprProvenance row={row} />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
@@ -228,6 +283,10 @@ export function WealthOpportunitiesPage() {
     // Discovery data, not the user's book: the server already caches it for five minutes, and
     // re-asking on every focus change would spend a request to redraw the same rows.
     staleTime: 5 * 60 * 1000,
+    // Every filter change is a new query key, so without this the table is torn down to a skeleton
+    // and rebuilt on each keystroke. Keeping the previous rows in place while the next ones land
+    // turns a blank-and-flash into a refine, and `isFetching` already says work is happening.
+    placeholderData: keepPreviousData,
     enabled: USE_API,
     retry: false,
   })
@@ -432,8 +491,10 @@ export function WealthOpportunitiesPage() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        APR is what the protocol advertises, not what a position realized. Nothing here reads your
-        wallet — see DeFi for what you actually hold.
+        APR is what the protocol advertises, not what a position realized, and vfat quotes it
+        assuming the position never drifts out of range. The line under each figure says what pays
+        it: fees come from traders, rewards from an emissions programme that can stop. Nothing here
+        reads your wallet — see DeFi for what you actually hold.
       </p>
     </div>
   )

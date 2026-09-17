@@ -14,7 +14,13 @@
 import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
-import { formatApr, formatFee } from './opportunities-format'
+import {
+  emissionShare,
+  formatApr,
+  formatAprMix,
+  formatFee,
+  windowCaveat,
+} from './opportunities-format'
 import { WealthOpportunitiesPage } from './opportunities'
 
 function renderSurface(ui: React.ReactElement) {
@@ -58,6 +64,65 @@ describe('formatFee', () => {
   it('renders missing as a dash', () => {
     expect(formatFee(null)).toBe('—')
     expect(formatFee(undefined)).toBe('—')
+  })
+})
+
+describe('formatAprMix', () => {
+  it('names what pays the yield, in feed order', () => {
+    expect(
+      formatAprMix([
+        { kind: 'swapFees', apr: 61.2 },
+        { kind: 'offChainRewards', apr: 18.8 },
+      ]),
+    ).toBe('fees 61% · rewards 19%')
+  })
+
+  it('passes an unknown component kind through rather than hiding it', () => {
+    expect(formatAprMix([{ kind: 'somethingNew', apr: 5 }])).toBe('somethingNew 5%')
+  })
+
+  it('says nothing when the feed explained nothing', () => {
+    expect(formatAprMix(undefined)).toBe('')
+    expect(formatAprMix([])).toBe('')
+  })
+})
+
+describe('emissionShare', () => {
+  it('measures the part that stops when a programme does', () => {
+    const share = emissionShare([
+      { kind: 'swapFees', apr: 60 },
+      { kind: 'offChainRewards', apr: 40 },
+    ])
+    expect(share).toBeCloseTo(0.4)
+  })
+
+  it('counts staking as an emission, not a fee', () => {
+    expect(emissionShare([{ kind: 'staking', apr: 106 }])).toBe(1)
+  })
+
+  it('is null when unknowable — never zero, which would claim it is all fees', () => {
+    expect(emissionShare(undefined)).toBeNull()
+    expect(emissionShare([])).toBeNull()
+    expect(emissionShare([{ kind: 'swapFees', apr: 0 }])).toBeNull()
+  })
+})
+
+describe('windowCaveat', () => {
+  it('flags a week of APR measured over a day', () => {
+    // The live shape: a declared 7-day window with 1.04 days behind it.
+    expect(windowCaveat({ fee_window_days: 7, effective_fee_window_days: 1.04 })).toBe(
+      '7-day APR measured over 1.0 days',
+    )
+  })
+
+  it('stays quiet when the window is honest, or nearly so', () => {
+    expect(windowCaveat({ fee_window_days: 7, effective_fee_window_days: 7 })).toBeNull()
+    // A tenth of a day is rounding, not a caveat.
+    expect(windowCaveat({ fee_window_days: 7, effective_fee_window_days: 6.95 })).toBeNull()
+  })
+
+  it('stays quiet when the feed said nothing about the window', () => {
+    expect(windowCaveat({})).toBeNull()
   })
 })
 

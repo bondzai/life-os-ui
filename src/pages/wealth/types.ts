@@ -232,6 +232,27 @@ export interface YieldOpportunity {
   tvl: number
   /** Hundredths of a basis point, as the pool reports it: `3000` is a 0.3% pool. */
   fee: number | null
+
+  /**
+   * What the advertised APR is made of. Absent on the yield radar, which serves the same type.
+   *
+   * Fee yield is paid by traders and lasts as long as volume does; emission yield is paid by a
+   * token printer and stops when the programme does. Two pools quoting 80% are not the same pool.
+   */
+  apr_components?: AprComponent[]
+  /** Whether the quote assumes the position never drifts out of range. */
+  assumes_full_range?: boolean
+  /** The fee window vfat declares, in days. */
+  fee_window_days?: number
+  /** The window it could actually measure — shorter for a young or thin pool. */
+  effective_fee_window_days?: number
+}
+
+/** One strand of an advertised APR — `swapFees`, `staking`, `offChainRewards`. */
+export interface AprComponent {
+  kind: string
+  /** Percent, on the same scale as `YieldOpportunity.apr`. */
+  apr: number
 }
 
 /**
