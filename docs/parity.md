@@ -163,6 +163,27 @@ export LYRA_PARITY_JWT="$(curl -s -X POST localhost:3001/api/auth/login \
 Every referenced variable must be set even when `--only` names one endpoint: expansion happens when
 the config loads, before the filter runs. An unset one is a hard error, never an empty string.
 
+### An endpoint that is *not* a port — 2026-09-17
+
+The block above is for endpoints the Python also serves. A new surface with no Python counterpart
+belongs nowhere in `parity.toml`: there is nothing to diff it against, and adding it would gate a
+response against an oracle that cannot produce one.
+
+The constraint that bites is the other direction — **a gated response cannot grow a field.** The
+harness compares field by field, so enriching `portfolio` or `yield-radar` with anything new fails
+the run even when the new data is correct. Three ways out, in order of preference:
+
+1. **A new route**, which is what `/api/wealth/vfat-status` and `/api/wealth/opportunities` are.
+2. **The MCP desk**, which is verified by the session table below rather than by `parity.toml`.
+3. **The ignore list**, which is [a hole in the gate](#the-ignore-list-is-a-hole-in-the-gate) and
+   should stay the last resort.
+
+When a new route reuses a *type* the gated one serves, the field has to disappear on the old path
+rather than merely being empty on it. `YieldOpportunity` carries four APR-provenance fields written
+only by the discovery path; they are `#[serde(skip_serializing_if = ...)]` so `yield-radar` remains
+byte-for-byte what it was, and `the_radar_path_carries_no_provenance_so_the_gate_sees_no_new_fields`
+asserts it — serialising the radar's own output and checking each field is absent, not null.
+
 ## First live run — 2026-08-18
 
 The gate ran against real wallets for the first time. Twelve endpoints; **nine green**, and the

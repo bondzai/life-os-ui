@@ -45,7 +45,8 @@ One Rust binary that owns the database. The UI and OpenClaw both talk to it.
   startup.
 - **Scope**: CRUD for entities, trackers, schedules and relations; git-backed knowledge notes;
   Google Calendar; and the whole wealth surface — multi-chain portfolio, LP and borrow positions,
-  trading bots, market data, the analysis journal and alert configuration.
+  trading bots, market data, yield discovery, upstream freshness, the analysis journal and alert
+  configuration.
 - **Also in-process**: the chain fan-out and the alert sweep, so their upstream caches are shared
   with the request path rather than duplicated, and an alert can never disagree with the page it
   points at.
