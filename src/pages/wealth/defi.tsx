@@ -31,7 +31,7 @@ import {
 import { useMoney } from './money'
 import { formatAmount, formatDuration, formatPct, formatRelativeTime } from './format'
 import { chainLabel } from './identity'
-import { ChainMark, ChainTag, TokenMark, TokenPairMark } from './marks'
+import { ChainMark, TokenMark, TokenPairMark } from './marks'
 import { BorrowingPanel } from './borrowing'
 import { HarvestPanel } from './cashflow'
 import { SnowballToggle } from './snowball'
@@ -39,7 +39,7 @@ import { useSnowball, useSnowballTags } from './use-snowball'
 import { RowsSkeleton, StaleBanner, WealthError } from './states'
 import type { LpRow } from './types'
 import { useWealth } from './use-wealth'
-import { ChangeText, MetaPill, Pnl, RangeBadge, RangeBar, StatCard } from './wealth-ui'
+import { ChangeText, MetaPill, Pnl, RangeBadge, RangeBar } from './wealth-ui'
 import {
   Table,
   TableBody,
@@ -52,7 +52,6 @@ import {
 const ALL = 'all'
 
 export function WealthDefiPage() {
-  const { money, compact } = useMoney()
   const { ctx, isLoading, error, isEmpty, isRefreshing, isStale, refetch } = useWealth()
 
   const [query, setQuery] = useState('')
@@ -128,47 +127,12 @@ export function WealthDefiPage() {
         <StaleBanner age={formatRelativeTime(ctx.data.fetched_at)} onRefresh={refetch} refreshing={isRefreshing} />
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <StatCard label="Position value" accent value={compact(summary.value)} hint={`${rows.length} position${rows.length === 1 ? '' : 's'}`} />
-        <StatCard
-          label="Net PnL"
-          value={summary.pnl.covered > 0 ? <Pnl usd={summary.pnl.usd} /> : '—'}
-          // Says which positions the total is over, because it is rarely all of them: vfat
-          // accounts for NFT positions held through a Sickle, and nothing else on this page.
-          hint={
-            summary.pnl.covered === 0
-              ? 'not reported for these positions'
-              : summary.pnl.covered === rows.length
-                ? 'since each position opened'
-                : `since opening · ${summary.pnl.covered} of ${rows.length} positions`
-          }
-        />
-        <StatCard
-          label="Claimable"
-          value={money(summary.claimable)}
-          hint={summary.byToken.length > 0 ? summary.byToken.slice(0, 3).map((t) => t.symbol).join(' · ') : 'nothing to collect'}
-        />
-        <StatCard
-          label="Blended APR"
-          value={summary.apr !== null ? `${summary.apr.toFixed(1)}%` : '—'}
-          hint={summary.perDay > 0 ? `≈ ${money(summary.perDay)}/day` : 'no APR reported'}
-        />
-        <StatCard
-          label="Out of range"
-          value={summary.outOfRange}
-          hint={summary.outOfRange > 0 ? 'not earning fees' : 'all positions earning'}
-        />
-      </div>
-
-      {/* Two panels that answer different questions about the same book — what a harvest pays out,
-          and what is set aside to compound. Side by side on a wide screen; whichever one has
-          something to say takes the full width when the other does not. */}
-      <div className={cn('grid items-start gap-3', summary.byToken.length > 0 && 'lg:grid-cols-2')}>
-        {summary.byToken.length > 0 && (
-          <ClaimablePanel tokens={summary.byToken} total={summary.claimable} />
-        )}
-        <SnowballCard ctx={ctx} rows={all} />
-      </div>
+      <SummaryBar
+        summary={summary}
+        count={rows.length}
+        outOfRangeActive={status === 'inactive'}
+        onToggleOutOfRange={() => setStatus(status === 'inactive' ? 'all' : 'inactive')}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[180px] flex-1">
@@ -233,6 +197,18 @@ export function WealthDefiPage() {
         </>
       )}
 
+      {/* Two panels that answer different questions about the same book — what a harvest pays out,
+          and what is set aside to compound. Below the ledger rather than above it: the positions
+          are what the page is for, and two cards between the filters and the first row pushed them
+          under the fold on a laptop. Side by side on a wide screen; whichever one has something to
+          say takes the full width when the other does not. */}
+      <div className={cn('grid items-start gap-3', summary.byToken.length > 0 && 'lg:grid-cols-2')}>
+        {summary.byToken.length > 0 && (
+          <ClaimablePanel tokens={summary.byToken} total={summary.claimable} />
+        )}
+        <SnowballCard ctx={ctx} rows={all} />
+      </div>
+
       {/* What the positions above pay out, and the debt taken against them. Both self-hide. */}
       <HarvestPanel ctx={ctx} />
       <BorrowingPanel ctx={ctx} />
@@ -251,6 +227,129 @@ export function WealthDefiPage() {
  * Everything the card carried is still here — the card keeps it below `sm`, and the two details
  * that do not fit a cell (per-token fee and underlying breakdowns) hang off `title` attributes.
  */
+/**
+ * The book in one line: one figure to read first, four to compare against it.
+ *
+ * This was five equal stat cards, which gave five numbers the same weight and left the eye no
+ * entry point — and at `lg` they wrapped 3 + 2, so the row was visibly ragged on exactly the
+ * screen most of this is read on. One primary figure with the rest set inline is two levels of
+ * emphasis instead of one, and it costs about a third of the height.
+ *
+ * Out of range is the only one that is a *state* rather than a quantity, so it doubles as the
+ * filter for itself — the number you want to act on is one click from the number that told you to.
+ * It stays plain text rather than a badge: the badges on the rows below are load-bearing, and a
+ * sixth one up here would dilute what they mean.
+ */
+function SummaryBar({
+  summary,
+  count,
+  outOfRangeActive,
+  onToggleOutOfRange,
+}: {
+  summary: {
+    value: number
+    claimable: number
+    byToken: ClaimableToken[]
+    apr: number | null
+    perDay: number
+    pnl: { usd: number; covered: number }
+    outOfRange: number
+  }
+  count: number
+  outOfRangeActive: boolean
+  onToggleOutOfRange: () => void
+}) {
+  const { money, compact } = useMoney()
+
+  return (
+    <Card>
+      <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-4 py-4">
+        <div className="min-w-[8rem]">
+          <p className="text-xs tracking-wide text-muted-foreground uppercase">Position value</p>
+          <p className="text-2xl leading-tight font-semibold tabular-nums">
+            {compact(summary.value)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {count} position{count === 1 ? '' : 's'}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+          <Figure
+            label="Net PnL"
+            value={summary.pnl.covered > 0 ? <Pnl usd={summary.pnl.usd} /> : '—'}
+            // Says which positions the total is over, because it is rarely all of them: vfat
+            // accounts for NFT positions held through a Sickle, and nothing else on this page.
+            hint={
+              summary.pnl.covered === 0
+                ? 'not reported'
+                : summary.pnl.covered === count
+                  ? 'since opening'
+                  : `${summary.pnl.covered} of ${count} positions`
+            }
+          />
+          <Figure
+            label="Claimable"
+            value={money(summary.claimable)}
+            hint={
+              summary.byToken.length > 0
+                ? summary.byToken.slice(0, 3).map((t) => t.symbol).join(' · ')
+                : 'nothing to collect'
+            }
+          />
+          <Figure
+            label="Blended APR"
+            value={summary.apr !== null ? `${summary.apr.toFixed(1)}%` : '—'}
+            hint={summary.perDay > 0 ? `≈ ${money(summary.perDay)}/day` : 'no APR reported'}
+          />
+
+          {summary.outOfRange > 0 ? (
+            <button
+              type="button"
+              onClick={onToggleOutOfRange}
+              aria-pressed={outOfRangeActive}
+              className={cn(
+                'rounded-md px-2 py-1 text-left transition-colors',
+                'hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive focus-visible:outline-none',
+                outOfRangeActive && 'bg-destructive/10',
+              )}
+            >
+              <p className="text-xs tracking-wide text-muted-foreground uppercase">Out of range</p>
+              <p className="font-medium tabular-nums text-red-600 dark:text-red-500">
+                {summary.outOfRange}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {outOfRangeActive ? 'showing only these' : 'not earning fees · filter'}
+              </p>
+            </button>
+          ) : (
+            <Figure label="Out of range" value="0" hint="all positions earning" />
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** One secondary figure on the summary bar. Label, value, and the caveat the value needs. */
+function Figure({
+  label,
+  value,
+  hint,
+}: {
+  label: string
+  value: React.ReactNode
+  hint: string
+}) {
+  return (
+    <div>
+      <p className="text-xs tracking-wide text-muted-foreground uppercase">{label}</p>
+      <p className="font-medium tabular-nums">{value}</p>
+      <p className="text-xs text-muted-foreground">{hint}</p>
+    </div>
+  )
+}
+
 /**
  * A position's on-chain id, displayed.
  *
@@ -280,19 +379,21 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
 
   return (
     <div className="hidden overflow-x-auto rounded-lg border sm:block">
-      <Table>
+      {/* Ten columns scrolled sideways on a laptop, and four of them answered two questions
+          between them: *where* is this (chain, protocol) and *what does it pay* (APR, daily).
+          Merged into one cell each, stacked, so the row is eight columns and fits. Cell padding
+          is tightened here rather than in the shared table, which other surfaces rely on. */}
+      <Table className="[&_td]:py-2 [&_th]:py-2">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead>Position</TableHead>
-            <TableHead>Chain</TableHead>
-            <TableHead>Protocol</TableHead>
+            <TableHead>Venue</TableHead>
             <TableHead className="min-w-[9rem]">Range</TableHead>
-            <TableHead className="text-right">Deposit</TableHead>
+            <TableHead className="text-right">Value</TableHead>
             <TableHead className="text-right">PnL</TableHead>
-            <TableHead className="text-right">Daily</TableHead>
-            <TableHead className="text-right">Earned</TableHead>
+            <TableHead className="text-right">Claimable</TableHead>
             <TableHead className="text-right">APR</TableHead>
-            <TableHead>Last action</TableHead>
+            <TableHead>Activity</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -317,10 +418,18 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                     {row.poolType && <MetaPill>{row.poolType}</MetaPill>}
                   </div>
                 </TableCell>
-                <TableCell><ChainTag chain={row.chain} /></TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
-                  {row.protocol}
-                  {row.id && <span className="text-xs"> {positionId(row.id)}</span>}
+                {/* Where this position lives — chain and protocol were two columns asking one
+                    question. The id rides under the protocol rather than beside it, since it is
+                    for copying into an explorer, not for scanning. */}
+                <TableCell className="whitespace-nowrap">
+                  <div className="flex items-center gap-1.5">
+                    <ChainMark chain={row.chain} />
+                    <span>{chainLabel(row.chain)}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {row.protocol}
+                    {row.id && <span> {positionId(row.id)}</span>}
+                  </div>
                 </TableCell>
                 <TableCell>
                   {range ? (
@@ -349,17 +458,23 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                     </div>
                   )}
                 </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {daily ? `≈${money(daily.perDay)}` : '—'}
-                </TableCell>
                 <TableCell
                   className="text-right tabular-nums"
                   title={feeTitle || undefined}
                 >
                   {row.fees > 0 ? money(row.fees) : <span className="text-muted-foreground">—</span>}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {row.apr !== null ? formatPct(row.apr, 1) : <span className="text-muted-foreground">—</span>}
+                {/* Rate and the money that rate implies, in one cell: the daily figure is derived
+                    from the APR beside it, so two columns spent width restating one number. */}
+                <TableCell className="text-right whitespace-nowrap tabular-nums">
+                  {row.apr !== null ? (
+                    formatPct(row.apr, 1)
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                  {daily && (
+                    <div className="text-xs text-muted-foreground">≈{money(daily.perDay)}/day</div>
+                  )}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                   {row.lastAction && row.updatedAt ? (
