@@ -22,11 +22,14 @@
 
 use std::fmt;
 use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use serde_json::{Value, json};
 
 use crate::config::EnvSource;
+use crate::digest::strip_markdown;
+use crate::message::{Markup, Message};
 
 /// Telegram's API host. A constant, not configuration: a "which host do we post the token to"
 /// setting is a credential-exfiltration switch.
@@ -179,8 +182,16 @@ impl Delivery {
 ///
 /// The seam that keeps the test suite off the network: tests drive a recording double, and no
 /// test in this crate can reach `api.telegram.org` even by accident.
+///
+/// **Boxed rather than `impl Future`,** which costs an allocation per send and buys dyn-safety.
+/// A return-position `impl Trait` cannot be held as `Box<dyn MessageSender>`, and fanning one
+/// alert out to several channels is exactly a list of senders. At one message per alert on a
+/// 15-minute sweep, the allocation is not worth a thought.
 pub trait MessageSender: Send + Sync {
-    fn send(&self, text: &str) -> impl Future<Output = Delivery> + Send;
+    fn send<'a>(
+        &'a self,
+        message: &'a Message,
+    ) -> Pin<Box<dyn Future<Output = Delivery> + Send + 'a>>;
 }
 
 /// The real sender.
@@ -231,10 +242,24 @@ impl TelegramSender {
 
     /// The "is this thing on?" ping behind the settings test button.
     pub async fn send_test(&self) -> Delivery {
-        self.send(TEST_MESSAGE).await
+        self.send(&Message::telegram_markup(TEST_MESSAGE)).await
     }
 
-    async fn post(&self, text: &str) -> Delivery {
+    /// The text as this transport will actually send it.
+    ///
+    /// [`Markup::None`] goes through [`strip_markdown`] rather than backslash-escaping: removal
+    /// cannot produce an unbalanced entity, and Telegram's legacy parser is unforgiving enough
+    /// that "cannot fail" beats "keeps every character". A dropped `*` costs a glyph; a rejected
+    /// message costs the whole alert.
+    fn rendered(message: &Message) -> String {
+        match message.markup() {
+            Markup::Telegram => message.text().to_string(),
+            Markup::None => strip_markdown(message.text()),
+        }
+    }
+
+    async fn post(&self, message: &Message) -> Delivery {
+        let text = &Self::rendered(message);
         let Some(credentials) = self.credentials.as_ref() else {
             return Delivery::NotConfigured;
         };
@@ -265,13 +290,18 @@ impl TelegramSender {
 }
 
 impl MessageSender for TelegramSender {
-    async fn send(&self, text: &str) -> Delivery {
-        let delivery = self.post(text).await;
-        if let Delivery::Failed(error) = &delivery {
-            // Configured-but-failing is worth a line. Unconfigured stays silent for months.
-            tracing::warn!(reason = %error, "telegram send failed");
-        }
-        delivery
+    fn send<'a>(
+        &'a self,
+        message: &'a Message,
+    ) -> Pin<Box<dyn Future<Output = Delivery> + Send + 'a>> {
+        Box::pin(async move {
+            let delivery = self.post(message).await;
+            if let Delivery::Failed(error) = &delivery {
+                // Configured-but-failing is worth a line. Unconfigured stays silent for months.
+                tracing::warn!(reason = %error, "telegram send failed");
+            }
+            delivery
+        })
     }
 }
 
@@ -344,10 +374,62 @@ mod tests {
     }
 
     impl MessageSender for RecordingSender {
-        async fn send(&self, text: &str) -> Delivery {
-            self.sent.lock().unwrap().push(text.to_string());
-            self.outcome.clone().unwrap_or(Delivery::Sent)
+        fn send<'a>(
+            &'a self,
+            message: &'a Message,
+        ) -> Pin<Box<dyn Future<Output = Delivery> + Send + 'a>> {
+            Box::pin(async move {
+                // Records what the *author* handed over, not what a transport made of it — the
+                // escaping is TelegramSender's job and is asserted against that sender directly.
+                self.sent.lock().unwrap().push(message.text().to_string());
+                self.outcome.clone().unwrap_or(Delivery::Sent)
+            })
         }
+    }
+
+    // ---------- escaping is the transport's job ----------
+
+    #[test]
+    fn a_pool_name_carrying_markdown_cannot_break_the_message() {
+        // The live failure this type exists for: `/positions` builds its reply from on-chain
+        // names, the reply went out with `parse_mode: Markdown`, and one `*` made Telegram
+        // reject the whole request with `can't parse entities` — so the answer was silently
+        // never delivered.
+        let reply = Message::plain("WETH/USD*C out of range [pool] _v3_");
+        let rendered = TelegramSender::rendered(&reply);
+
+        for meta in ['*', '_', '`', '[', ']', '(', ')', '~'] {
+            assert!(
+                !rendered.contains(meta),
+                "{meta:?} survived into a Markdown message: {rendered}"
+            );
+        }
+        assert!(
+            rendered.contains("WETH/USDC out of range"),
+            "the name itself must still be readable: {rendered}"
+        );
+    }
+
+    #[test]
+    fn authored_emphasis_still_reaches_telegram() {
+        // The other half: the digest means its `*bold*`, and escaping that would turn every
+        // brief into literal asterisks.
+        let brief = Message::telegram_markup("*Net worth* $1,234\n_since yesterday_");
+        assert_eq!(
+            TelegramSender::rendered(&brief),
+            "*Net worth* $1,234\n_since yesterday_"
+        );
+    }
+
+    #[test]
+    fn the_sender_can_be_held_as_a_trait_object() {
+        // Dyn-safety is the whole point of boxing the future: fanning one alert out to Telegram
+        // and Discord is a list of senders, and a list needs `dyn`.
+        let senders: Vec<Box<dyn MessageSender>> = vec![
+            Box::new(TelegramSender::new(None)),
+            Box::new(RecordingSender::default()),
+        ];
+        assert_eq!(senders.len(), 2);
     }
 
     // ---------- the token never escapes ----------
@@ -424,13 +506,16 @@ mod tests {
         assert!(!sender.can_send());
         // Repeated calls stay quiet — this is the mini PC's normal state for months.
         for _ in 0..3 {
-            assert_eq!(sender.send("anything").await, Delivery::NotConfigured);
+            assert_eq!(
+                sender.send(&Message::plain("anything")).await,
+                Delivery::NotConfigured
+            );
             assert_eq!(sender.send_test().await, Delivery::NotConfigured);
         }
-        assert!(!sender.send("x").await.is_sent());
+        assert!(!sender.send(&Message::plain("x")).await.is_sent());
         assert!(
             sender
-                .send("x")
+                .send(&Message::plain("x"))
                 .await
                 .reason()
                 .unwrap()
@@ -512,15 +597,15 @@ mod tests {
     #[tokio::test]
     async fn the_recording_double_captures_what_would_have_been_sent() {
         let sender = RecordingSender::default();
-        assert_eq!(sender.send("first").await, Delivery::Sent);
-        assert_eq!(sender.send("second").await, Delivery::Sent);
+        assert_eq!(sender.send(&Message::plain("first")).await, Delivery::Sent);
+        assert_eq!(sender.send(&Message::plain("second")).await, Delivery::Sent);
         assert_eq!(sender.messages(), vec!["first", "second"]);
 
         let failing = RecordingSender {
             outcome: Some(Delivery::Failed(SendError::new(None, "boom"))),
             ..Default::default()
         };
-        assert!(!failing.send("nope").await.is_sent());
+        assert!(!failing.send(&Message::plain("nope")).await.is_sent());
         assert_eq!(failing.messages(), vec!["nope"]);
     }
 }

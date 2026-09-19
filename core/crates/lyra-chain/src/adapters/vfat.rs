@@ -3912,7 +3912,12 @@ mod tests {
     fn a_week_of_apr_measured_over_a_day_says_so() {
         // Observed live: `feeWindowDays: 7` alongside `effectiveFeeWindowDays: 1.04`. The headline
         // is quoted as a week's and rests on one day.
-        let row = with_basis(json!([{"kind": "swapFees", "aprPercent": 80.0}]), true, 7.0, 1.04);
+        let row = with_basis(
+            json!([{"kind": "swapFees", "aprPercent": 80.0}]),
+            true,
+            7.0,
+            1.04,
+        );
         let found = browse_opportunity(&row, 10_000.0).expect("maps");
 
         assert_eq!(found.fee_window_days, Some(7.0));

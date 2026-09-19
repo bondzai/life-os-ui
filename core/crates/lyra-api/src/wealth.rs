@@ -53,6 +53,7 @@ use crate::alert_loop;
 use crate::auth::AuthUser;
 use crate::collect;
 use crate::common::error;
+use lyra_alerts::message::Message;
 
 /// Write rate limit for the journal, 20 per 60s — the port of `journal._rate_ok`.
 ///
@@ -1911,7 +1912,8 @@ pub(crate) async fn deliver_digest(
         return Ok(DigestOutcome::Nothing("the brief rendered empty"));
     };
 
-    if !sender.send(&text).await.is_sent() {
+    // `render_digest` authors its own emphasis and strips the untrusted parts on the way in.
+    if !sender.send(&Message::telegram_markup(text)).await.is_sent() {
         return Ok(DigestOutcome::Refused);
     }
 

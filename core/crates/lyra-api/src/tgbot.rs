@@ -26,6 +26,7 @@ use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::wealth;
+use lyra_alerts::message::Message;
 
 /// The Bot API root. A constant so the token is only ever interpolated in one place.
 const API_BASE: &str = "https://api.telegram.org";
@@ -120,7 +121,10 @@ async fn run(state: AppState, sender: Arc<TelegramSender>, token: String, owner:
                 if chat == owner {
                     let command = command_of(&text.to_lowercase()).to_string();
                     let reply = handle(&state, &text).await;
-                    let delivered = sender.send(&reply).await;
+                    // Plain, so the sender escapes it. These replies are built from on-chain
+                    // names — one `*` in a pool used to make Telegram reject the whole message
+                    // and the answer vanished, visible only as `delivered = false` below.
+                    let delivered = sender.send(&Message::plain(reply)).await;
                     // Logged because "the bot does nothing" and "the bot answered and the reply
                     // never arrived" look identical from the outside, and only one of them is a
                     // problem with this process.

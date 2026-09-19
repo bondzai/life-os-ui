@@ -37,6 +37,7 @@ use lyra_db::wealth::{self as store, PerfSample, SnapshotInput};
 
 use crate::AppState;
 use crate::wealth;
+use lyra_alerts::message::Message;
 
 /// The four fields `notify.py` keeps in its module-level `_META`, reported by `/alerts`.
 ///
@@ -200,7 +201,10 @@ async fn sweep(state: &AppState, config: &AlertConfig<'_>) {
     let evaluation = rules::evaluate(&positions, &previous, &thresholds);
 
     for alert in &evaluation.alerts {
-        let text = lyra_alerts::digest::render_alert(alert, None);
+        // Still Telegram-flavoured: `render_alert` writes `*bold*` and runs the untrusted
+        // half through `strip_markdown` itself. Converting it to fields is what a Discord
+        // embed will want, and is the next slice rather than this one.
+        let text = Message::telegram_markup(lyra_alerts::digest::render_alert(alert, None));
         if let lyra_alerts::telegram::Delivery::Failed(e) = sender.send(&text).await {
             record_error(&meta, format!("telegram: {e}"));
         }
