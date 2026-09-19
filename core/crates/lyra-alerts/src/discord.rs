@@ -250,6 +250,10 @@ impl DiscordSender {
 }
 
 impl MessageSender for DiscordSender {
+    fn name(&self) -> &'static str {
+        "discord"
+    }
+
     fn send<'a>(
         &'a self,
         message: &'a Message,

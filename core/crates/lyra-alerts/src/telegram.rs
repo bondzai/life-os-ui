@@ -198,6 +198,9 @@ impl Delivery {
 /// alert out to several channels is exactly a list of senders. At one message per alert on a
 /// 15-minute sweep, the allocation is not worth a thought.
 pub trait MessageSender: Send + Sync {
+    /// What to call this channel in a log line. Never the credential, obviously.
+    fn name(&self) -> &'static str;
+
     fn send<'a>(
         &'a self,
         message: &'a Message,
@@ -300,6 +303,10 @@ impl TelegramSender {
 }
 
 impl MessageSender for TelegramSender {
+    fn name(&self) -> &'static str {
+        "telegram"
+    }
+
     fn send<'a>(
         &'a self,
         message: &'a Message,
@@ -384,6 +391,10 @@ mod tests {
     }
 
     impl MessageSender for RecordingSender {
+        fn name(&self) -> &'static str {
+            "recording"
+        }
+
         fn send<'a>(
             &'a self,
             message: &'a Message,
