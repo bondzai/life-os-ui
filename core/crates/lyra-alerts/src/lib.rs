@@ -5,6 +5,7 @@
 //! Lyra's in-app notification store.
 pub mod config;
 pub mod digest;
+pub mod discord;
 pub mod message;
 pub mod rules;
 pub mod state;

@@ -117,13 +117,23 @@ impl fmt::Debug for Credentials {
 pub struct SendError(String);
 
 impl SendError {
+    /// Build a failure message, running it through a channel's own scrubber first.
+    ///
+    /// Generalised from the original Telegram-only constructor once a second channel arrived with
+    /// a differently shaped credential. The invariant it was written to hold is unchanged: making
+    /// one *requires* handing over the scrubber, so an unscrubbed message still cannot exist.
+    /// Text that never touched a credential passes [`str::to_string`] and says so at the call
+    /// site.
+    pub(crate) fn scrubbed(scrub: impl FnOnce(&str) -> String, message: impl Into<String>) -> Self {
+        Self(scrub(&message.into()))
+    }
+
     /// Build a failure message, stripping the token if the source text carries it.
     fn new(credentials: Option<&Credentials>, message: impl Into<String>) -> Self {
-        let message = message.into();
-        Self(match credentials {
-            Some(credentials) => credentials.scrub(&message),
-            None => message,
-        })
+        match credentials {
+            Some(credentials) => Self::scrubbed(|text| credentials.scrub(text), message),
+            None => Self::scrubbed(str::to_string, message),
+        }
     }
 
     pub fn message(&self) -> &str {
