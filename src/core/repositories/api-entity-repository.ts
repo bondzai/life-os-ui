@@ -7,7 +7,7 @@ export class ApiEntityRepository extends ApiRepository<Entity> {
   }
 
   async getByType(type: EntityType): Promise<Entity[]> {
-    const res = await fetch(`${this.baseUrl}/entities?type=${type}`, {
+    const res = await fetch(`${this.baseUrl}/entities?type=${encodeURIComponent(type)}`, {
       headers: this.getHeaders(),
     })
     if (!res.ok) throw new Error(`Failed to fetch entities by type: ${type}`)
