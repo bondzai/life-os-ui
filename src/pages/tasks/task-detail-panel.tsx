@@ -43,7 +43,9 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -56,8 +58,8 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { Entity, EntityPriority, EntityStatus, Relation } from '@/core/types'
-import { isGoal } from '@/core/types'
 import { useEntities, useRelations } from '@/core/hooks'
+import { assignmentGroups } from './task-assignment'
 import { AIAction } from '@/components/ai-action'
 import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, subtaskStatus, subtaskDone, getRecurrence, RECURRENCE_OPTIONS, RECURRENCE_LABELS, type Subtask, type SubtaskStatus } from './task-helpers'
 
@@ -565,11 +567,14 @@ export function TaskDetailPanel({
   // -- Relations (blocks, supports, relates) --------------------------------
   const { items: allRelations, create: createRelation, remove: removeRelation } = useRelations(task?.id)
 
-  // -- Goals for goal picker (covers old 'project' entities too) ─────────────
-  const { items: allEntitiesForPicker } = useEntities()
-  const activeProjects = useMemo(
-    () => allEntitiesForPicker.filter((p) => isGoal(p) && p.status !== 'archived'),
-    [allEntitiesForPicker],
+  // -- What this task can belong to: a project or a goal, one field ─────────
+  // Two scoped reads rather than one unscoped one — this panel used to pull every entity in the
+  // database to populate a dropdown.
+  const { items: pickerProjects } = useEntities('project')
+  const { items: pickerGoals } = useEntities('goal')
+  const assignment = useMemo(
+    () => assignmentGroups(pickerProjects, pickerGoals),
+    [pickerProjects, pickerGoals],
   )
 
   // -- Local editing state --------------------------------------------------
@@ -1256,11 +1261,11 @@ export function TaskDetailPanel({
               </Select>
             </div>
 
-            {/* Goal */}
+            {/* Project or goal — one field, see task-assignment.ts */}
             <div className="grid grid-cols-[120px_1fr] items-center gap-2">
               <span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
                 <FolderKanban className="h-3 w-3" />
-                Goal
+                Belongs to
               </span>
               <Select
                 value={(task.metadata.projectId as string) ?? 'none'}
@@ -1275,13 +1280,26 @@ export function TaskDetailPanel({
                 }}
               >
                 <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="No goal" />
+                  <SelectValue placeholder="Nothing yet" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No goal</SelectItem>
-                  {activeProjects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                  ))}
+                  <SelectItem value="none">No project or goal</SelectItem>
+                  {assignment.projects.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Projects</SelectLabel>
+                      {assignment.projects.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {assignment.goals.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Goals</SelectLabel>
+                      {assignment.goals.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>{g.title}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
                 </SelectContent>
               </Select>
             </div>
