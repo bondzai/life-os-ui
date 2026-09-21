@@ -245,6 +245,9 @@ pub struct Worker {
     lanes: Vec<Lane>,
     lease_secs: i64,
     clock: Clock,
+    /// Where this worker announces itself. `None` in tests, which is why every call goes through
+    /// [`Worker::tell`] rather than unwrapping here.
+    fleet: Option<crate::agents::Fleet>,
 }
 
 impl Worker {
@@ -261,6 +264,23 @@ impl Worker {
             lanes,
             lease_secs: DEFAULT_LEASE_SECS,
             clock: Arc::new(now_secs),
+            fleet: None,
+        }
+    }
+
+    /// Report to the fleet view, so the Agents page can see this worker.
+    pub fn watched_by(mut self, fleet: crate::agents::Fleet) -> Self {
+        self.fleet = Some(fleet);
+        self
+    }
+
+    /// Announce something, if anyone is listening.
+    ///
+    /// Observability must not be able to change what the queue does, so this deliberately has no
+    /// failure path: a fleet that is absent, poisoned or full loses a frame and the job runs on.
+    fn tell(&self, report: crate::agents::Report) {
+        if let Some(fleet) = &self.fleet {
+            fleet.report(report);
         }
     }
 
@@ -330,8 +350,23 @@ impl Worker {
             follow_ups: Mutex::new(Vec::new()),
         };
 
+        self.tell(crate::agents::Report::Claimed {
+            id: self.name.clone(),
+            job: crate::agents::CurrentJob {
+                id: id.clone(),
+                kind: kind.clone(),
+                attempt,
+                started_at: now,
+            },
+        });
         tracing::info!(worker = %self.name, %kind, job = %id, attempt, "running a job");
-        match self.run_with_lease(&handler, &ctx, &id).await {
+        let outcome = self.run_with_lease(&handler, &ctx, &id).await;
+        self.tell(crate::agents::Report::Finished {
+            id: self.name.clone(),
+            ok: matches!(outcome, Outcome::Done),
+            at: (self.clock)(),
+        });
+        match outcome {
             Outcome::Done => {
                 let follow_ups = ctx.take_follow_ups();
                 match self
@@ -426,6 +461,17 @@ impl Worker {
 
     /// Claim, run, repeat. Never returns.
     pub async fn run_forever(self) {
+        // Announced here rather than in `spawn` so a supervised restart re-announces: the page
+        // should show a worker that came back, not one that silently stopped reporting.
+        self.tell(crate::agents::Report::Started {
+            id: self.name.clone(),
+            lane: self
+                .lanes
+                .first()
+                .map(|l| l.as_str().to_string())
+                .unwrap_or_else(|| "any".into()),
+            at: (self.clock)(),
+        });
         let mut idle = IDLE_MIN;
         loop {
             if self.tick().await {
@@ -495,8 +541,11 @@ pub fn spawn(state: AppState) {
             let name = worker_name(lane, n);
             let queue = queue.clone();
             let handlers = Arc::clone(&handlers);
+            let fleet = state.fleet.clone();
             supervise(name, move |name| {
-                Worker::new(queue.clone(), Arc::clone(&handlers), name, vec![lane]).run_forever()
+                Worker::new(queue.clone(), Arc::clone(&handlers), name, vec![lane])
+                    .watched_by(fleet.clone())
+                    .run_forever()
             });
         }
     }

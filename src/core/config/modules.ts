@@ -65,6 +65,7 @@ export const modules: ModuleConfig[] = [
   { id: 'focus', label: 'Focus', icon: LayoutDashboard, path: '/', goKey: 'f', group: 'Now', entityTypes: [] },
   { id: 'deep-work', label: 'Deep Work', icon: Timer, path: '/deep-work', goKey: 'd', group: 'Now', entityTypes: [] },
   { id: 'inbox', label: 'Inbox', icon: Inbox, path: '/inbox', goKey: 'i', group: 'Now', entityTypes: [] },
+  { id: 'agents', label: 'Agents', icon: Bot, path: '/agents', goKey: 'a', group: 'Now', entityTypes: [] },
 
   // Plan — what you are working towards, and the surfaces that review it
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', goKey: 't', group: 'Plan', entityTypes: ['task', 'chore'] },

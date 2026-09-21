@@ -5,6 +5,7 @@
 //! so the existing React client runs against this binary with no front-end change. Any change the
 //! front end needs means the port was wrong.
 
+mod agents;
 mod alert_loop;
 mod tgbot;
 mod auth;
@@ -45,6 +46,11 @@ pub struct AppState {
     /// Live state of the background sweep, so `/api/wealth/alerts` can report it. Shared with
     /// [`alert_loop`]; inert (`running: false`) when the loop was never started.
     pub alert_meta: alert_loop::SharedMeta,
+    /// Live state of the agent fleet, and the channel the Agents page listens on.
+    pub fleet: agents::Fleet,
+    /// One-shot tickets for the fleet socket. See [`agents::Tickets`] for why the JWT is not
+    /// simply passed in the query string.
+    pub tickets: agents::Tickets,
 }
 
 impl AppState {
@@ -55,6 +61,8 @@ impl AppState {
             rate_limiter: Arc::new(auth::RateLimiter::default()),
             gcal_states: Arc::new(gcal::OAuthStates::default()),
             alert_meta: alert_loop::SharedMeta::default(),
+            fleet: agents::Fleet::new(),
+            tickets: agents::Tickets::default(),
         }
     }
 }
@@ -95,6 +103,8 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
     // Everything behind the JWT gate. auth.ts applies `jwtMiddleware()` per prefix
     // (`api/src/index.ts:36-47`); grouping them here is the same thing with less repetition.
     let protected = Router::new()
+        .route("/api/agents", get(agents::list))
+        .route("/api/agents/ticket", post(agents::ticket))
         .route("/api/entities", get(entities::list).post(entities::create))
         .route(
             "/api/entities/{id}",
@@ -195,6 +205,10 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
     let router = Router::new()
         .route("/api/health", get(health))
         .route("/api/auth/login", post(auth::login))
+        // Outside the JWT gate on purpose, and not unauthenticated: a browser cannot put an
+        // `Authorization` header on a WebSocket upgrade, so the credential is the one-shot ticket
+        // in the query string, minted by the authenticated POST above. See [`agents::Tickets`].
+        .route("/api/agents/stream", get(agents::stream))
         .route("/api/search", get(search::search))
         // Google redirects a browser here with no Authorization header; CSRF is covered by the
         // one-time `state` token instead.

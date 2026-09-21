@@ -33,6 +33,7 @@ const WealthBotsPage = lazy(() => import('@/pages/wealth/bots').then((m) => ({ d
 const WealthJournalPage = lazy(() => import('@/pages/wealth/journal').then((m) => ({ default: m.WealthJournalPage })))
 const WealthSettingsPage = lazy(() => import('@/pages/wealth/settings').then((m) => ({ default: m.WealthSettingsPage })))
 const WealthAlertsPage = lazy(() => import('@/pages/wealth/alerts').then((m) => ({ default: m.WealthAlertsPage })))
+const AgentsPage = lazy(() => import('@/pages/agents').then((m) => ({ default: m.AgentsPage })))
 
 
 const queryClient = new QueryClient({
@@ -57,6 +58,7 @@ export function App() {
                 <Route path="briefing" element={<Suspense fallback={null}><BriefingPage /></Suspense>} />
                 <Route element={<AppLayout />}>
                   <Route index element={<TodayPage />} />
+                  <Route path="agents" element={<Suspense fallback={null}><AgentsPage /></Suspense>} />
                   <Route path="projects" element={<Suspense fallback={null}><ProjectsPage /></Suspense>} />
                   <Route path="goals" element={<GoalsPage />} />
                   <Route path="tasks" element={<TasksPage />} />

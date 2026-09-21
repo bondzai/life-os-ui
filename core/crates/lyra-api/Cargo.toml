@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
-axum = "0.8.9"
+axum = { version = "0.8.9", features = ["ws"] }
 bcrypt = "0.19.3"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
