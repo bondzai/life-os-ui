@@ -29,7 +29,7 @@ import {
   type LpSortKey,
 } from './derive'
 import { useMoney } from './money'
-import { formatAmount, formatDuration, formatPct, formatRelativeTime } from './format'
+import { formatAmount, formatDuration, formatRelativeTime } from './format'
 import { chainLabel } from './identity'
 import { ChainMark, TokenMark, TokenPairMark } from './marks'
 import { BorrowingPanel } from './borrowing'
@@ -299,7 +299,7 @@ function SummaryBar({
           />
           <Figure
             label="Blended APR"
-            value={summary.apr !== null ? `${summary.apr.toFixed(1)}%` : '—'}
+            value={rate(summary.apr) ?? '—'}
             hint={summary.perDay > 0 ? `≈ ${money(summary.perDay)}/day` : 'no APR reported'}
           />
 
@@ -351,14 +351,44 @@ function Figure({
 }
 
 /**
- * A position's on-chain id, displayed.
+ * A position's on-chain id.
  *
  * The engine hands these over **already carrying a `#`** (`"#73130974"`), inherited from the
  * Python. Prefixing another one rendered every position as `##73130974`. Normalised here rather
- * than at the two call sites, and tolerant of an id that arrives without one.
+ * than at the call sites, and tolerant of an id that arrives without one.
+ *
+ * **Not rendered as text any more.** An NFT token id is not a fact about the position: you cannot
+ * compare two positions by it, sort by it or judge anything from it, and it was taking a line in
+ * the column you scan to answer "where is this". It survives in a `title` for the one job it has —
+ * matching a row against an explorer — and the deep link carries it without anyone reading digits.
  */
 function positionId(id: string): string {
   return `#${id.replace(/^#+/, '')}`
+}
+
+/**
+ * Where a position lives, as one line of hover text.
+ *
+ * Carries the id that used to sit under the protocol, so nothing is lost — only moved out of the
+ * way of the numbers you actually read.
+ */
+function venueTitle(row: LpRow): string | undefined {
+  const parts = [chainLabel(row.chain), row.protocol].filter(Boolean)
+  if (row.id) parts.push(positionId(row.id))
+  return parts.length > 0 ? parts.join(' · ') : undefined
+}
+
+/**
+ * A yield rate, unsigned.
+ *
+ * [`formatPct`] prefixes `+` on anything positive, which is right for a *change* and wrong for a
+ * rate: an APR of 12.4% rendered as "+12.4%" reads as a gain of twelve percent on something. It
+ * also disagreed with the summary bar, which has always printed the blended figure plain. One
+ * helper so the row and the headline cannot drift apart again.
+ */
+function rate(value: number | null | undefined): string | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null
+  return `${value.toFixed(1)}%`
 }
 
 /**
@@ -419,17 +449,13 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                   </div>
                 </TableCell>
                 {/* Where this position lives — chain and protocol were two columns asking one
-                    question. The id rides under the protocol rather than beside it, since it is
-                    for copying into an explorer, not for scanning. */}
-                <TableCell className="whitespace-nowrap">
+                    question. The token id is in the title, not the cell: see [[positionId]]. */}
+                <TableCell className="whitespace-nowrap" title={venueTitle(row)}>
                   <div className="flex items-center gap-1.5">
                     <ChainMark chain={row.chain} />
                     <span>{chainLabel(row.chain)}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {row.protocol}
-                    {row.id && <span> {positionId(row.id)}</span>}
-                  </div>
+                  <div className="text-xs text-muted-foreground">{row.protocol}</div>
                 </TableCell>
                 <TableCell>
                   {range ? (
@@ -467,11 +493,7 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                 {/* Rate and the money that rate implies, in one cell: the daily figure is derived
                     from the APR beside it, so two columns spent width restating one number. */}
                 <TableCell className="text-right whitespace-nowrap tabular-nums">
-                  {row.apr !== null ? (
-                    formatPct(row.apr, 1)
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
+                  {rate(row.apr) ?? <span className="text-muted-foreground">—</span>}
                   {daily && (
                     <div className="text-xs text-muted-foreground">≈{money(daily.perDay)}/day</div>
                   )}
@@ -485,8 +507,12 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                     '—'
                   )}
                   {/* In-range time is the number that tells you whether a band is working, so it
-                      stays visible rather than moving into a tooltip. */}
-                  {perf?.pct !== null && perf !== null && (
+                      stays visible rather than moving into a tooltip.
+
+                      Order matters: this read `perf?.pct !== null && perf !== null`, which only
+                      worked because the second test caught what the first let through — a null
+                      `perf` makes `perf?.pct` undefined, and undefined is not null. */}
+                  {perf !== null && perf.pct !== null && (
                     <div className="text-xs">in range {perf.pct.toFixed(0)}% this cycle</div>
                   )}
                 </TableCell>
@@ -520,14 +546,16 @@ function PositionCard({ row }: { row: LpRow }) {
               <RangeBadge inRange={row.in_range} full={row.band?.full} />
               {row.poolType && <MetaPill>{row.poolType}</MetaPill>}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <div
+              className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
+              title={venueTitle(row)}
+            >
               <span>{row.protocol}</span>
               <span>·</span>
               <span className="inline-flex items-center gap-1">
                 <ChainMark chain={row.chain} />
                 {chainLabel(row.chain)}
               </span>
-              {row.id && <><span>·</span><span>{positionId(row.id)}</span></>}
               {row.lastAction && row.updatedAt && (
                 <>
                   <span>·</span>
@@ -541,7 +569,7 @@ function PositionCard({ row }: { row: LpRow }) {
             <div className="text-right">
               <div className="font-semibold tabular-nums">{money(row.value)}</div>
               <div className="text-xs text-muted-foreground">
-                {row.apr !== null ? <>{formatPct(row.apr, 1)} APR</> : 'APR n/a'}
+                {rate(row.apr) ? <>{rate(row.apr)} APR</> : 'APR n/a'}
                 {daily && <> · ≈{money(daily.perDay)}/day</>}
               </div>
               {row.pnlUsd !== null && (
