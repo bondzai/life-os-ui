@@ -29,6 +29,7 @@
 
 pub mod deliver;
 pub mod digest;
+pub mod schedule;
 pub mod snapshot;
 
 use std::collections::HashMap;
@@ -250,7 +251,8 @@ pub fn handlers(state: AppState) -> Handlers {
     let mut handlers = Handlers::new().with(Arc::new(deliver::DeliverTelegram::from_env()));
     for handler in digest::all(state.clone())
         .into_iter()
-        .chain(snapshot::all(state))
+        .chain(snapshot::all(state.clone()))
+        .chain(schedule::all(state))
     {
         handlers = handlers.with(handler);
     }
@@ -988,7 +990,12 @@ mod tests {
         kinds.sort();
         assert_eq!(
             kinds,
-            vec!["deliver.telegram", "digest.daily", "snapshot.networth"]
+            vec![
+                "deliver.telegram",
+                "digest.daily",
+                "schedule.tick",
+                "snapshot.networth"
+            ]
         );
     }
 

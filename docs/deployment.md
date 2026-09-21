@@ -391,6 +391,8 @@ book; the sweep runs and finds nothing to say.
 | `ALERT_INTERVAL` | `900` | Seconds between sweeps |
 | `SNAPSHOT_INTERVAL` | — | Seconds between net-worth snapshots |
 | `SNAPSHOT_GROUP` | — | Group the snapshot cron writes under |
+| `HABITS_NUDGE_HOUR` | — | Hour (0–23) to message you about recurrences that are due. **Unset means never**, which is the default: the daily brief already arrives, and a second unsolicited message is a choice rather than a setting to find and turn off. Reads `schedules`; writes nothing, and in particular never touches `nextDue` — see [Core engine](./core-engine.md) |
+| `TELEGRAM_OWNER_USER_ID` | — | Which row in `users` the life commands read, for `/today`, `/next`, `/inbox`, `/week` and the nudge above. Unset with exactly one user is fine — it is inferred. Unset with several, or naming a user that does not exist, leaves the money commands working and the life commands declining |
 | `DIGEST_HOUR` | — | Local hour for the daily brief. **Unset means no digest is ever sent** |
 | `ALERT_FEE_USD` | — | Claimable threshold that triggers a harvest nudge |
 | `ALERT_HF` | — | Health factor below which a borrow is called out |

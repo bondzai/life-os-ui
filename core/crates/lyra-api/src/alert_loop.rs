@@ -38,7 +38,6 @@ use lyra_db::wealth::{self as store, PerfSample, SnapshotInput};
 
 use crate::AppState;
 use crate::wealth;
-use lyra_alerts::message::Message;
 
 /// The four fields `notify.py` keeps in its module-level `_META`, reported by `/alerts`.
 ///
@@ -145,6 +144,7 @@ async fn run(state: AppState) {
         sweep(&state, &config).await;
         maybe_digest(&state, &config).await;
         maybe_snapshot(&state, &config).await;
+        maybe_nudge(&state).await;
 
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -201,13 +201,33 @@ async fn sweep(state: &AppState, config: &AlertConfig<'_>) {
 
     let evaluation = rules::evaluate(&positions, &previous, &thresholds);
 
+    // Queued, not sent, and the ordering below is the whole point.
+    //
+    // This used to send inline and then save the new position state **regardless of whether the
+    // send worked**. A range alert that hit a router reboot was therefore lost permanently: the
+    // transition that produced it had already been consumed, so the next sweep saw no change and
+    // said nothing. `delivered = false` in the log was the only trace, and nothing ever retried.
+    //
+    // Enqueueing commits to the same database the state lives in, so "we owe you this alert"
+    // survives a crash the way "we sent it" never could. It stays *before* `save_positions` for
+    // the same reason it always did: a crash between the two re-detects the transition and queues
+    // a second copy, and a duplicate alert is a great deal better than a silent one.
+    let queue = SqliteQueue::new(state.pool.clone());
     for alert in &evaluation.alerts {
         // Still Telegram-flavoured: `render_alert` writes `*bold*` and runs the untrusted
         // half through `strip_markdown` itself. Converting it to fields is what a Discord
         // embed will want, and is the next slice rather than this one.
-        let text = Message::telegram_markup(lyra_alerts::digest::render_alert(alert, None));
-        if let lyra_alerts::telegram::Delivery::Failed(e) = sender.send(&text).await {
-            record_error(&meta, format!("telegram: {e}"));
+        let text = lyra_alerts::digest::render_alert(alert, None);
+        // No idempotency key. The dedupe that matters already happened — `rules::evaluate` only
+        // emits an alert on a *transition* — and a key would be actively wrong: a position that
+        // goes out of range, comes back, and goes out again has two things to say, not one.
+        let job = NewJob::new("deliver.telegram", Lane::Deliver)
+            .payload(serde_json::json!({ "text": text, "markup": "telegram" }));
+
+        if let Err(e) = queue.enqueue(&job, wealth::now_secs()).await {
+            // Queueing failing is the database failing, which is worth the same line the send
+            // failing used to get — and unlike the send, it is not something a retry fixes here.
+            record_error(&meta, format!("alert: queueing: {e}"));
         }
     }
 
@@ -346,6 +366,44 @@ async fn maybe_digest(state: &AppState, config: &AlertConfig<'_>) {
         // hour, and not worth a line.
         Ok(_) => {}
         Err(e) => record_error(&meta, format!("digest: queueing: {e}")),
+    }
+}
+
+/// Queue the habits nudge, if one is configured and this is its hour.
+///
+/// Silent by default — `HABITS_NUDGE_HOUR` unset means this returns immediately and nothing is
+/// ever sent. See [`crate::jobs::schedule`] for why that is the default rather than a setting
+/// somebody has to find and turn off.
+async fn maybe_nudge(state: &AppState) {
+    let Some(hour) = crate::jobs::schedule::nudge_hour() else {
+        return;
+    };
+    if !Channels::from_env(&ProcessEnv).can_send() {
+        return;
+    }
+
+    let now = chrono::Local::now();
+    if chrono::Timelike::hour(&now) != hour {
+        return;
+    }
+
+    let today = day_key(&now);
+    // Keyed by the day, so every tick this hour is the same single nudge. Unlike the digest there
+    // is no "already sent" flag anywhere else — the key is the whole of the bookkeeping.
+    let job = NewJob::new(crate::jobs::schedule::KIND, Lane::Interactive)
+        .payload(serde_json::json!({ "day": today }))
+        .key(crate::jobs::schedule::key_for(&today))
+        .max_attempts(crate::jobs::schedule::ATTEMPTS);
+
+    match SqliteQueue::new(state.pool.clone())
+        .enqueue(&job, wealth::now_secs())
+        .await
+    {
+        Ok(enqueued) if enqueued.created => {
+            tracing::info!(day = %today, job = %enqueued.id, "the habits nudge is queued")
+        }
+        Ok(_) => {}
+        Err(e) => record_error(&Arc::clone(&state.alert_meta), format!("nudge: queueing: {e}")),
     }
 }
 
@@ -656,6 +714,61 @@ mod tests {
             !snapshot(&meta).running,
             "degrades to inert, does not panic"
         );
+    }
+
+    #[tokio::test]
+    async fn a_queued_alert_outlives_the_sweep_that_found_it() {
+        // The bug this closes. The sweep used to send inline and then call `save_positions`
+        // **regardless of the result**, so an alert that met a router reboot was gone for good:
+        // the transition that produced it had already been consumed, the next sweep saw no
+        // change, and nothing ever retried. Enqueueing commits to the same database the state
+        // lives in, so the debt survives a crash the way "we sent it" never could.
+        use lyra_db::jobs::{Lane, NewJob, Queue, SqliteQueue};
+        let dir = tempfile::TempDir::new().unwrap();
+        let pool = lyra_db::open_and_migrate(&dir.path().join("lyra.db"))
+            .await
+            .unwrap();
+        let queue = SqliteQueue::new(pool);
+
+        let job = NewJob::new("deliver.telegram", Lane::Deliver)
+            .payload(serde_json::json!({ "text": "WETH/USDC is out of range", "markup": "telegram" }));
+        let queued = queue.enqueue(&job, 1000).await.unwrap();
+        assert!(queued.created);
+
+        // A worker takes it and the send fails, the way a router reboot fails.
+        let claimed = queue.claim("w", &[Lane::Deliver], 60, 1100).await.unwrap().unwrap();
+        queue
+            .fail("w", &claimed.id, "connection reset", lyra_db::jobs::Failure::Retry, 1200)
+            .await
+            .unwrap();
+
+        // Still owed, and still queued — which is the entire difference.
+        let after = queue.get(&queued.id).await.unwrap().unwrap();
+        assert_eq!(after.status, lyra_db::jobs::Status::Queued);
+        assert!(after.run_at > 1200, "and it is waiting out a backoff");
+    }
+
+    #[tokio::test]
+    async fn two_alerts_in_a_day_are_two_messages() {
+        // Why alerts carry no idempotency key. A position that goes out of range, comes back, and
+        // goes out again has two things to say; a key would collapse them and the second — the one
+        // you would actually act on — would never arrive.
+        use lyra_db::jobs::{Lane, NewJob, Queue, SqliteQueue};
+        let dir = tempfile::TempDir::new().unwrap();
+        let pool = lyra_db::open_and_migrate(&dir.path().join("lyra.db"))
+            .await
+            .unwrap();
+        let queue = SqliteQueue::new(pool);
+
+        let alert = |text: &str| {
+            NewJob::new("deliver.telegram", Lane::Deliver)
+                .payload(serde_json::json!({ "text": text, "markup": "telegram" }))
+        };
+        let first = queue.enqueue(&alert("out of range"), 1000).await.unwrap();
+        let second = queue.enqueue(&alert("out of range"), 5000).await.unwrap();
+
+        assert!(first.created && second.created);
+        assert_ne!(first.id, second.id, "the same alert twice is two messages");
     }
 
     #[test]
