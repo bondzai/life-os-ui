@@ -19,6 +19,7 @@ import {
   claimableUsd,
   cyclePerf,
   earnings,
+  lendingPositions,
   lpPositions,
   rangeInfo,
   realizedPnl,
@@ -32,12 +33,11 @@ import { useMoney } from './money'
 import { formatAmount, formatDuration, formatRelativeTime } from './format'
 import { chainLabel } from './identity'
 import { ChainMark, TokenMark, TokenPairMark } from './marks'
-import { BorrowingPanel } from './borrowing'
-import { HarvestPanel } from './cashflow'
+import { hfTone, HF_SAFE } from './borrowing'
 import { SnowballToggle } from './snowball'
 import { useSnowball, useSnowballTags } from './use-snowball'
 import { RowsSkeleton, StaleBanner, WealthError } from './states'
-import type { LpRow } from './types'
+import type { LendRow, LpRow } from './types'
 import { useWealth } from './use-wealth'
 import { ChangeText, Pnl, PoolTypeMark, RangeBadge, RangeBar } from './wealth-ui'
 import {
@@ -50,6 +50,9 @@ import {
 } from '@/components/ui/table'
 
 const ALL = 'all'
+
+/** Below this, a position is not worth the gas to harvest — the same floor the old panel used. */
+const MIN_HARVEST_USD = 1
 
 export function WealthDefiPage() {
   const { ctx, isLoading, error, isEmpty, isRefreshing, isStale, refetch } = useWealth()
@@ -84,8 +87,32 @@ export function WealthDefiPage() {
       perDay,
       pnl: realizedPnl(rows),
       outOfRange: rows.filter((r) => r.in_range === false).length,
+      // What a harvest would actually collect right now, and from how many positions. Unlike the
+      // projected per-day figure this is not modelled — it is on-chain this second.
+      harvest: rows.filter((r) => r.fees >= MIN_HARVEST_USD),
     }
   }, [rows])
+
+  /**
+   * Debt and the worst health factor across it.
+   *
+   * Deliberately read from the whole book rather than the filtered rows: liquidation does not care
+   * which chain you are looking at, and a risk figure that disappears when you filter is worse
+   * than no figure. The same reason `SnowballCard` reads `all`.
+   */
+  const lending = useMemo(() => {
+    if (!ctx) return null
+    const rows = lendingPositions(ctx.data).filter((r) => r.debt_usd > 0)
+    if (rows.length === 0) return null
+    const withHf = rows.filter((r): r is LendRow & { hf: number } => r.hf !== null)
+    return {
+      debt: rows.reduce((sum, r) => sum + r.debt_usd, 0),
+      // The worst one, because an average health factor is a number that cannot hurt you while
+      // one position underneath it is being liquidated.
+      worstHf: withHf.length > 0 ? Math.min(...withHf.map((r) => r.hf)) : null,
+      count: rows.length,
+    }
+  }, [ctx])
 
   const chains = useMemo(() => [...new Set(all.map((r) => r.chain))].sort(), [all])
   const hasFilters = query !== '' || chain !== ALL || status !== 'all'
@@ -131,6 +158,7 @@ export function WealthDefiPage() {
         summary={summary}
         count={rows.length}
         total={all.length}
+        lending={lending}
         outOfRangeActive={status === 'inactive'}
         onToggleOutOfRange={() => setStatus(status === 'inactive' ? 'all' : 'inactive')}
       />
@@ -210,9 +238,6 @@ export function WealthDefiPage() {
         <SnowballCard ctx={ctx} rows={all} />
       </div>
 
-      {/* What the positions above pay out, and the debt taken against them. Both self-hide. */}
-      <HarvestPanel ctx={ctx} />
-      <BorrowingPanel ctx={ctx} />
     </div>
   )
 }
@@ -245,6 +270,7 @@ function SummaryBar({
   summary,
   count,
   total,
+  lending,
   outOfRangeActive,
   onToggleOutOfRange,
 }: {
@@ -254,6 +280,7 @@ function SummaryBar({
     byToken: ClaimableToken[]
     apr: number | null
     perDay: number
+    harvest: LpRow[]
     pnl: { usd: number; covered: number }
     outOfRange: number
   }
@@ -261,6 +288,8 @@ function SummaryBar({
   count: number
   /** Positions before filtering, so the bar can say when it is showing a subset. */
   total: number
+  /** Debt and its worst health factor, or `null` on a book that does not borrow. */
+  lending: { debt: number; worstHf: number | null; count: number } | null
   outOfRangeActive: boolean
   onToggleOutOfRange: () => void
 }) {
@@ -308,10 +337,45 @@ function SummaryBar({
             }
           />
           <Figure
+            label="Ready to harvest"
+            value={
+              summary.harvest.length > 0
+                ? money(summary.harvest.reduce((sum, r) => sum + r.fees, 0))
+                : '—'
+            }
+            hint={
+              summary.harvest.length > 0
+                ? `${summary.harvest.length} position${summary.harvest.length === 1 ? '' : 's'} above ${money(MIN_HARVEST_USD)}`
+                : 'nothing worth the gas'
+            }
+          />
+          <Figure
             label="Blended APR"
             value={rate(summary.apr) ?? '—'}
             hint={summary.perDay > 0 ? `≈ ${money(summary.perDay)}/day` : 'no APR reported'}
           />
+
+          {/* Debt and how close it is to liquidating you, from the whole book rather than the
+              filtered rows. Absent entirely on a wallet that does not borrow — the panel this
+              replaces self-hid for the same reason, and an empty "Debt —" is a row of nothing. */}
+          {lending && (
+            <Figure
+              label="Borrowed"
+              value={money(lending.debt)}
+              hint={
+                lending.worstHf === null
+                  ? `${lending.count} position${lending.count === 1 ? '' : 's'} · health unknown`
+                  : `health ${lending.worstHf.toFixed(2)} · ${hfTone(lending.worstHf).label}`
+              }
+              // Only when it is not healthy. A risk figure that is always coloured is decoration;
+              // one that colours when the number moves is a warning.
+              tone={
+                lending.worstHf !== null && lending.worstHf < HF_SAFE
+                  ? hfTone(lending.worstHf).text
+                  : undefined
+              }
+            />
+          )}
 
           {summary.outOfRange > 0 ? (
             <button
@@ -361,15 +425,18 @@ function Figure({
   label,
   value,
   hint,
+  tone,
 }: {
   label: string
   value: React.ReactNode
   hint: string
+  /** Text colour for a value that needs attention. Left off, the figure is just a figure. */
+  tone?: string
 }) {
   return (
     <div>
       <p className="text-xs tracking-wide text-muted-foreground uppercase">{label}</p>
-      <p className="font-medium tabular-nums">{value}</p>
+      <p className={cn('font-medium tabular-nums', tone)}>{value}</p>
       <p className="text-xs text-muted-foreground">{hint}</p>
     </div>
   )
