@@ -39,7 +39,7 @@ import { useSnowball, useSnowballTags } from './use-snowball'
 import { RowsSkeleton, StaleBanner, WealthError } from './states'
 import type { LpRow } from './types'
 import { useWealth } from './use-wealth'
-import { ChangeText, MetaPill, Pnl, RangeBadge, RangeBar } from './wealth-ui'
+import { ChangeText, Pnl, PoolTypeMark, RangeBadge, RangeBar } from './wealth-ui'
 import {
   Table,
   TableBody,
@@ -499,7 +499,7 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                       {row.pair}
                     </span>
                     <RangeBadge inRange={row.in_range} full={row.band?.full} />
-                    {row.poolType && <MetaPill>{row.poolType}</MetaPill>}
+                    {row.poolType && <PoolTypeMark type={row.poolType} />}
                   </div>
                 </TableCell>
                 {/* Where this position lives — chain and protocol were two columns asking one
@@ -606,7 +606,7 @@ function PositionCard({ row }: { row: LpRow }) {
               <TokenPairMark tokens={row.toks} />
               <h3 className="font-medium">{row.pair}</h3>
               <RangeBadge inRange={row.in_range} full={row.band?.full} />
-              {row.poolType && <MetaPill>{row.poolType}</MetaPill>}
+              {row.poolType && <PoolTypeMark type={row.poolType} />}
             </div>
             <div
               className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"

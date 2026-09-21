@@ -7,7 +7,7 @@
  */
 
 import type { ReactNode } from 'react'
-import { TrendingUp, TrendingDown } from 'lucide-react'
+import { Droplets, Sprout, TrendingUp, TrendingDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -94,19 +94,22 @@ export function Pnl({ usd }: { usd: number | null }) {
 }
 
 /**
- * In-range / out-of-range / unknown.
+ * Out-of-range / unknown / full-range — and **nothing at all when the position is fine**.
  *
- * Three states, never two: a position whose range the server could not determine must not be
- * shown as healthy, so `null` gets its own neutral badge.
+ * A badge on the healthy majority is noise. It was the loudest thing in the row — solid green,
+ * white text — repeating what the green marker in the Range column already said, on every row that
+ * needed no attention, which made the one row that did need attention harder to find. Badging the
+ * exception is the whole job.
+ *
+ * The other three states stay. `null` is not "fine": a position whose range the server could not
+ * determine must never render as healthy, so it keeps its neutral badge. `full` is not a health
+ * state at all — it says this is a different kind of position, which is worth a word.
  */
 export function RangeBadge({ inRange, full }: { inRange: boolean | null; full?: boolean }) {
   if (full) return <Badge variant="secondary">Full range</Badge>
   if (inRange === null) return <Badge variant="outline">Unknown</Badge>
-  return inRange ? (
-    <Badge className="bg-emerald-600 text-white hover:bg-emerald-600/90 dark:bg-emerald-600">In range</Badge>
-  ) : (
-    <Badge variant="destructive">Out of range</Badge>
-  )
+  if (inRange) return null
+  return <Badge variant="destructive">Out of range</Badge>
 }
 
 /**
@@ -135,6 +138,42 @@ export function RangeBar({
         style={{ left: `calc(${Math.min(100, Math.max(0, posPct))}% - 2px)` }}
       />
     </div>
+  )
+}
+
+/**
+ * Whether a position is a plain pool or staked into a farm, as a glyph.
+ *
+ * It was the literal word `pool` or `farm` in a grey pill, which is a lot of row for a binary that
+ * repeats on every line. vfat draws it: a droplet for liquidity sitting in a pool, a sprout for
+ * liquidity staked and growing. The distinction is worth keeping — a farm earns emissions a pool
+ * does not — it just does not need six characters and a border to say so.
+ *
+ * The label is on the element, not implied by the picture: an icon alone is unreadable to a screen
+ * reader and ambiguous to anyone who has not learned the convention, so `aria-label` carries the
+ * word and `title` shows it on hover. An unrecognised value keeps its text rather than being
+ * guessed at or dropped.
+ */
+export function PoolTypeMark({ type }: { type: string }) {
+  const known =
+    type === 'pool'
+      ? { Icon: Droplets, label: 'Pool — earns swap fees' }
+      : type === 'farm'
+        ? { Icon: Sprout, label: 'Farm — staked, also earns rewards' }
+        : null
+
+  if (!known) return <MetaPill>{type}</MetaPill>
+
+  const { Icon, label } = known
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="inline-flex shrink-0 text-muted-foreground"
+    >
+      <Icon className="size-3.5" aria-hidden="true" />
+    </span>
   )
 }
 
