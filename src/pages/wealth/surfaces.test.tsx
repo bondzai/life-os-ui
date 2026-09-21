@@ -98,6 +98,17 @@ describe('DeFi', () => {
     expect(row?.textContent).not.toContain('240')
   })
 
+  it('carries lending in the same ledger rather than a panel of its own', async () => {
+    renderSurface(<WealthDefiPage />)
+    // The mock borrows USDC against ETH on Aave. A loan is a position — same venue, same value,
+    // same "how close is this to going wrong" — so it belongs in the table with the LP rows.
+    // Table and cards are both in the DOM at once, so assert presence, not a count.
+    expect((await screen.findAllByText(/borrowing USDC/)).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Aave v3').length).toBeGreaterThan(0)
+    // Health takes the Range column's place: the same question, in the same spot on the row.
+    expect(screen.getAllByText('1.94').length).toBeGreaterThan(0)
+  })
+
   it('shows the snowball total and what this page contributes to it', async () => {
     renderSurface(<WealthDefiPage />)
     // It is a figure on the summary bar now, not a card of its own — but it still shows when
@@ -115,6 +126,20 @@ describe('DeFi', () => {
     fireEvent.click(toggles[0])
 
     await waitFor(() => expect(screen.getByText(/1 LP here/)).toBeDefined())
+  })
+
+  it('opens the snowball chart in a dialog rather than shrinking it into the bar', async () => {
+    renderSurface(<WealthDefiPage />)
+    // Nothing tagged means no history to plot, and the figure stays a plain figure rather than
+    // offering a chart of nothing. Tag one position and it becomes the trigger.
+    const toggles = await screen.findAllByRole('button', { name: /Add .* to snowball/ })
+    fireEvent.click(toggles[0])
+
+    const open = await screen.findByRole('button', { name: /Snowball . open the chart/ })
+    fireEvent.click(open)
+    // The full panel — picker, projection and all — is what the dialog is for; a sparkline in a
+    // summary bar was forty days of shape at a size nobody could read.
+    expect(await screen.findByRole('dialog')).toBeDefined()
   })
 })
 

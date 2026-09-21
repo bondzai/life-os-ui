@@ -6,7 +6,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { Layers, Search, X } from 'lucide-react'
+import { Landmark, Layers, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -33,13 +33,20 @@ import { useMoney } from './money'
 import { formatAmount, formatDuration, formatRelativeTime } from './format'
 import { chainLabel } from './identity'
 import { hfTone, HF_SAFE } from './borrowing'
-import { SnowballToggle } from './snowball'
+import { SnowballPanel, SnowballToggle } from './snowball'
 import { useSnowball, useSnowballTags } from './use-snowball'
 import { StaleBanner, WealthError } from './states'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { LendRow, LpRow } from './types'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import type { LendRow, LpRow, TokenAmt } from './types'
 import { useWealth } from './use-wealth'
-import { ChangeText, Pnl, PoolTypeMark, RangeBadge, RangeBar, Sparkline } from './wealth-ui'
+import { ChangeText, Pnl, PoolTypeMark, RangeBadge, RangeBar } from './wealth-ui'
 import {
   Table,
   TableBody,
@@ -63,6 +70,7 @@ export function WealthDefiPage() {
   const [sortKey, setSortKey] = useState<LpSortKey>('health')
 
   const all = useMemo(() => (ctx ? lpPositions(ctx.data) : []), [ctx])
+  const lendAll = useMemo(() => (ctx ? lendingPositions(ctx.data) : []), [ctx])
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -75,6 +83,32 @@ export function WealthDefiPage() {
     })
     return sortLp(filtered, sortKey, 'desc')
   }, [all, chain, status, query, sortKey])
+
+  /**
+   * The same filters, applied to the lending book.
+   *
+   * These share the table below rather than living in a panel of their own. A borrow is a position:
+   * it has a venue, a value, and a number that says how close it is to going wrong — the same three
+   * questions the LP rows answer, in the same three columns. Splitting them across two surfaces
+   * meant the one row on the page that can liquidate you was the one row you had to scroll for.
+   *
+   * Sorted worst-health-first and always last in the table, so the ledger stays sorted by whatever
+   * the LP sort says while the borrow that needs attention is still the first lending row.
+   */
+  const lendRows = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    // In range / out of range is a question about a price band, and a loan does not have one.
+    // Rather than answer it wrongly, lending steps aside whenever that filter is applied.
+    if (status !== 'all') return []
+    return lendAll
+      .filter((r) => {
+        if (chain !== ALL && r.chain !== chain) return false
+        const haystack = `${r.protocol} ${r.chain} ${r.tokens.map((t) => t.symbol).join(' ')}`
+        if (q && !haystack.toLowerCase().includes(q)) return false
+        return true
+      })
+      .sort((a, b) => (a.hf ?? Number.POSITIVE_INFINITY) - (b.hf ?? Number.POSITIVE_INFINITY))
+  }, [lendAll, chain, status, query])
 
   const summary = useMemo(() => {
     const value = rows.reduce((sum, r) => sum + r.value, 0)
@@ -101,8 +135,7 @@ export function WealthDefiPage() {
    * than no figure. The same reason `SnowballCard` reads `all`.
    */
   const lending = useMemo(() => {
-    if (!ctx) return null
-    const rows = lendingPositions(ctx.data).filter((r) => r.debt_usd > 0)
+    const rows = lendAll.filter((r) => r.debt_usd > 0)
     if (rows.length === 0) return null
     const withHf = rows.filter((r): r is LendRow & { hf: number } => r.hf !== null)
     return {
@@ -112,9 +145,12 @@ export function WealthDefiPage() {
       worstHf: withHf.length > 0 ? Math.min(...withHf.map((r) => r.hf)) : null,
       count: rows.length,
     }
-  }, [ctx])
+  }, [lendAll])
 
-  const chains = useMemo(() => [...new Set(all.map((r) => r.chain))].sort(), [all])
+  const chains = useMemo(
+    () => [...new Set([...all, ...lendAll].map((r) => r.chain))].sort(),
+    [all, lendAll],
+  )
   const hasFilters = query !== '' || chain !== ALL || status !== 'all'
   const clearFilters = () => {
     setQuery('')
@@ -141,12 +177,12 @@ export function WealthDefiPage() {
     return <EmptyState icon={Layers} title="No wallets connected" description="Connect a wallet to track LP positions." />
   }
 
-  if (!loading && all.length === 0) {
+  if (!loading && all.length === 0 && lendAll.length === 0) {
     return (
       <EmptyState
         icon={Layers}
         title="No DeFi positions"
-        description="Liquidity positions and farms will appear here once you open one."
+        description="Liquidity positions, farms and loans will appear here once you open one."
       />
     )
   }
@@ -161,6 +197,7 @@ export function WealthDefiPage() {
         summary={summary}
         count={rows.length}
         total={all.length}
+        lendCount={lendRows.length}
         lending={lending}
         loading={loading}
         ctx={ctx}
@@ -216,8 +253,8 @@ export function WealthDefiPage() {
       </div>
 
       {loading ? (
-        <PositionTable rows={[]} loading />
-      ) : rows.length === 0 ? (
+        <PositionTable rows={[]} lend={[]} loading />
+      ) : rows.length === 0 && lendRows.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center">
             <p className="text-sm font-medium">No positions match these filters</p>
@@ -226,9 +263,10 @@ export function WealthDefiPage() {
         </Card>
       ) : (
         <>
-          <PositionTable rows={rows} />
+          <PositionTable rows={rows} lend={lendRows} />
           <div className="space-y-3 sm:hidden">
             {rows.map((row) => <PositionCard key={row.key} row={row} />)}
+            {lendRows.map((row) => <LendCard key={row.key} row={row} />)}
           </div>
         </>
       )}
@@ -274,6 +312,7 @@ function SummaryBar({
   summary,
   count,
   total,
+  lendCount,
   lending,
   loading,
   ctx,
@@ -295,6 +334,8 @@ function SummaryBar({
   count: number
   /** Positions before filtering, so the bar can say when it is showing a subset. */
   total: number
+  /** Lending rows currently in the table, so the count line matches what is on screen. */
+  lendCount: number
   /** Debt and its worst health factor, or `null` on a book that does not borrow. */
   lending: { debt: number; worstHf: number | null; count: number } | null
   /** The first fetch has not landed. Figures draw placeholders instead of inventing zeros. */
@@ -322,10 +363,15 @@ function SummaryBar({
           {/* Every figure on this bar is computed over the *filtered* rows, so the headline drops
               when you narrow the table. That is the right behaviour — a summary of what you are
               looking at — but only if it admits it. "3 of 7 positions" is the whole disclosure. */}
+          {/* The table below holds two kinds of row and this figure only covers one of them —
+              collateral is already counted as spot holdings, so folding a loan into "position
+              value" would count it twice. Naming both counts is what keeps the headline and the
+              row count from looking like they disagree. */}
           <p className={cn('text-xs text-muted-foreground', loading && 'invisible')}>
             {count === total
               ? `${count} position${count === 1 ? '' : 's'}`
               : `${count} of ${total} positions`}
+            {lendCount > 0 && ` · ${lendCount} lending`}
           </p>
         </div>
 
@@ -570,7 +616,16 @@ function actionAge(row: LpRow): number | null {
   return Number.isFinite(parsed) ? parsed / 1000 : null
 }
 
-function PositionTable({ rows, loading }: { rows: LpRow[]; loading?: boolean }) {
+function PositionTable({
+  rows,
+  lend,
+  loading,
+}: {
+  rows: LpRow[]
+  /** Loans, rendered as rows of the same ledger — see [[LendTableRow]]. */
+  lend: LendRow[]
+  loading?: boolean
+}) {
   const { money } = useMoney()
 
   return (
@@ -703,9 +758,186 @@ function PositionTable({ rows, loading }: { rows: LpRow[]; loading?: boolean }) 
               </TableRow>
             )
           })}
+          {lend.map((row) => (
+            <LendTableRow key={row.key} row={row} />
+          ))}
         </TableBody>
       </Table>
     </div>
+  )
+}
+
+/**
+ * The legs of a loan, split by side and summarised as symbols.
+ *
+ * The exact amounts go in a `title`: a row has space for "what did I put in and what did I take
+ * out", not for six token balances.
+ */
+function lendLegs(tokens: TokenAmt[]): {
+  supplied: string
+  borrowed: string
+  title: string | undefined
+} {
+  const symbols = (side: TokenAmt['side']) =>
+    tokens.filter((t) => t.side === side).map((t) => t.symbol)
+  const detail = tokens
+    .map((t) => `${t.side === 'borrow' ? '−' : '+'}${formatAmount(t.amount)} ${t.symbol}`)
+    .join(' · ')
+  return {
+    supplied: symbols('supply').join(' / '),
+    borrowed: symbols('borrow').join(' / '),
+    title: detail || undefined,
+  }
+}
+
+/**
+ * A loan as a row of the positions table.
+ *
+ * The columns already ask the right questions, so it answers the ones that apply and says nothing
+ * where they do not — an em dash, never a zero, because a loan has no PnL and no APR rather than
+ * one of zero.
+ *
+ * **Range becomes health.** Both columns answer "how close to the edge is this": an LP marker
+ * approaching the end of its band and a health factor approaching 1 are the same shape of warning,
+ * so they share the position on the row where you look for it. The fill carries the health band's
+ * own colour, which has three steps rather than the LP bar's two — "watch" is a real state between
+ * healthy and at risk, and flattening it to green would lose the only warning you get in advance.
+ *
+ * **Value is net.** Collateral is already counted as spot aTokens on Holdings; showing it here
+ * would double it. What this row adds to net worth is collateral minus debt, and the gross figures
+ * sit under it in smaller type.
+ */
+function LendTableRow({ row }: { row: LendRow }) {
+  const { money } = useMoney()
+  const tone = hfTone(row.hf)
+  const legs = lendLegs(row.tokens)
+  const ltv = row.collateral_usd > 0 ? row.debt_usd / row.collateral_usd : 0
+  const used = row.liq_threshold > 0 ? Math.min(1, ltv / row.liq_threshold) : 0
+  const danger = row.hf !== null && row.hf < 1
+  // `net_usd` is protocol-aware — see [[lendingPositions]]. On Aave the collateral is already in
+  // the book as spot aTokens, so what the position *adds* is the debt alone and the cell shows a
+  // negative number next to a five-figure collateral balance. That reads as a bug unless it says
+  // why, so the arithmetic is spelled out rather than left to be inferred from the two figures.
+  const netTitle =
+    row.net_usd < 0 && row.collateral_usd > 0
+      ? `The ${money(row.collateral_usd)} collateral is already counted as spot holdings, so what this position adds to net worth is the ${money(row.debt_usd)} debt`
+      : `${money(row.collateral_usd)} collateral, less ${money(row.debt_usd)} debt`
+
+  return (
+    <TableRow className={cn(danger && 'bg-destructive/5')}>
+      <TableCell className="whitespace-nowrap" title={legs.title}>
+        <div className="flex items-center gap-2">
+          <span
+            role="img"
+            aria-label="Lending — supplied as collateral against a borrow"
+            title="Lending — supplied as collateral against a borrow"
+            className="inline-flex shrink-0 text-muted-foreground"
+          >
+            <Landmark className="size-3.5" aria-hidden="true" />
+          </span>
+          <span className={cn('font-medium', legs.title && HAS_MORE)}>{legs.supplied || '—'}</span>
+        </div>
+        {legs.borrowed && (
+          <div className="text-xs text-muted-foreground">borrowing {legs.borrowed}</div>
+        )}
+      </TableCell>
+      <TableCell className="whitespace-nowrap">
+        <div>{chainLabel(row.chain)}</div>
+        <div className="text-xs text-muted-foreground">{row.protocol}</div>
+      </TableCell>
+      <TableCell title={healthTitle(row, ltv)}>
+        {row.debt_usd > 0 ? (
+          <div className="flex items-center gap-2">
+            <div className="relative h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn('absolute inset-y-0 left-0 rounded-full', tone.bar)}
+                style={{ width: `${Math.max(used * 100, 2)}%` }}
+              />
+            </div>
+            <span className={cn('text-xs tabular-nums', HAS_MORE, tone.text)}>
+              {row.hf === null ? '—' : row.hf.toFixed(2)}
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">no debt</span>
+        )}
+      </TableCell>
+      <TableCell className="text-right font-medium tabular-nums" title={netTitle}>
+        <span className={HAS_MORE}>{money(row.net_usd)}</span>
+        {row.collateral_usd > 0 && (
+          <div className="text-xs font-normal text-muted-foreground">
+            {money(row.collateral_usd)} collateral
+          </div>
+        )}
+      </TableCell>
+      <TableCell className="text-right text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-muted-foreground">—</TableCell>
+      <TableCell className="text-xs text-muted-foreground">
+        {row.hf === null ? 'health unknown' : tone.label}
+      </TableCell>
+    </TableRow>
+  )
+}
+
+/**
+ * What the health cell stops showing, on hover.
+ *
+ * The bar is "how much of the liquidation budget is spent" and the number is the health factor;
+ * neither says what the budget was. Both loan-to-value figures go here, which is also the only
+ * place the threshold this position is actually judged against is written down.
+ */
+function healthTitle(row: LendRow, ltv: number): string {
+  const pct = (n: number) => `${(n * 100).toFixed(0)}%`
+  const hf = row.hf === null ? 'unknown' : row.hf.toFixed(2)
+  return `Health ${hf} — liquidated at 1.00 · LTV ${pct(ltv)} of ${pct(row.liq_threshold)} allowed`
+}
+
+/**
+ * A loan as a card. **Below `sm` only**, for the same reason as [[PositionCard]].
+ */
+function LendCard({ row }: { row: LendRow }) {
+  const { money } = useMoney()
+  const tone = hfTone(row.hf)
+  const legs = lendLegs(row.tokens)
+  const danger = row.hf !== null && row.hf < 1
+
+  return (
+    <Card className={cn(danger && 'border-destructive/40')}>
+      <CardContent className="space-y-3 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Landmark className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <h3 className="font-medium">{legs.supplied || 'Lending'}</h3>
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {row.protocol} · {chainLabel(row.chain)}
+              {legs.borrowed && <> · borrowing {legs.borrowed}</>}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="font-semibold tabular-nums">{money(row.net_usd)}</div>
+            {/* Not "net of debt": on Aave it is the debt, because the collateral beside it is
+                already in the book as spot aTokens. */}
+            <div className="text-xs text-muted-foreground">to net worth</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 border-t pt-3">
+          <Metric label="Supplied" value={money(row.collateral_usd)} />
+          <Metric label="Borrowed" value={money(row.debt_usd)} />
+          {/* The label carries the state in words, so the colour is never the only thing saying
+              this loan is in trouble. */}
+          <Metric
+            label={`Health · ${tone.label}`}
+            value={
+              <span className={tone.text}>{row.hf === null ? '—' : row.hf.toFixed(2)}</span>
+            }
+          />
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -903,7 +1135,7 @@ function SnowballFigure({
   loading: boolean
 }) {
   const { money } = useMoney()
-  const { total, history, weekDelta } = useSnowball(ctx)
+  const { total, weekDelta } = useSnowball(ctx)
   const { isTagged } = useSnowballTags()
 
   const here = useMemo(
@@ -913,28 +1145,48 @@ function SnowballFigure({
 
   if (loading) return <Figure loading label="Snowball" value="" hint="" />
 
-  // Not hidden when empty: the ❄ that fills it is on every row of the table below, so the nudge
-  // sits one line from the thing it is asking for.
-  if (total <= 0) {
-    return <Figure label="Snowball" value="—" hint="press ❄ on a row to start one" />
-  }
-
   const delta =
     weekDelta !== null && weekDelta !== 0
       ? `${weekDelta > 0 ? '+' : '−'}${money(Math.abs(weekDelta))} this week`
       : null
 
-  return (
-    <div>
+  const hint =
+    total > 0
+      ? `${here > 0 ? `${here} LP here` : 'none from this page'}${delta ? ` · ${delta}` : ''}`
+      : 'press ❄ on a row to start one'
+
+  const figure = (
+    <div className="text-left">
       <p className="text-xs tracking-wide text-muted-foreground uppercase">Snowball</p>
-      <div className="flex items-center gap-2">
-        <p className="font-medium tabular-nums">{money(total)}</p>
-        <Sparkline points={history} label="Snowball" className="text-sky-500" />
-      </div>
-      <p className="text-xs text-muted-foreground">
-        {here > 0 ? `${here} LP here` : 'none from this page'}
-        {delta ? ` · ${delta}` : ''}
-      </p>
+      <p className="font-medium tabular-nums">{total > 0 ? money(total) : '—'}</p>
+      <p className="text-xs text-muted-foreground">{hint}</p>
     </div>
+  )
+
+  // Nothing tagged yet means there is no history to plot, so the figure stays a figure rather
+  // than offering a dialog that would open on an empty chart.
+  if (total <= 0) return figure
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          aria-label="Snowball — open the chart"
+          className="rounded-md px-2 py-1 transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          {figure}
+        </button>
+      </DialogTrigger>
+      {/* The chart lives here rather than in the bar. A 56px line can say "rising" and nothing
+          else; the question you open a chart to ask — rising since when, and how steadily — needs
+          axes and a scale, which is exactly what the Overview panel already draws. */}
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Snowball</DialogTitle>
+        </DialogHeader>
+        {ctx && <SnowballPanel ctx={ctx} />}
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -177,67 +177,6 @@ export function PoolTypeMark({ type }: { type: string }) {
   )
 }
 
-/**
- * A line, small enough to sit beside a number.
- *
- * Hand-drawn rather than a charting library: this is forty points and one polyline, and pulling
- * recharts into a flex row for it would cost a `ResponsiveContainer`, a resize observer and a
- * wrapper that fights the baseline it is meant to sit on.
- *
- * Shape only — no axes, no grid, no labels. The figure beside it carries the value, so all this
- * has to answer is "which way, and how steadily". A flat series draws down the middle instead of
- * along the floor, because a line pinned to the bottom edge reads as zero rather than as level.
- */
-export function Sparkline({
-  points,
-  className,
-  label,
-}: {
-  points: { v: number }[]
-  className?: string
-  /** What the line is of. Required: an unlabelled graphic is invisible to a screen reader. */
-  label: string
-}) {
-  if (points.length < 2) return null
-
-  const values = points.map((p) => p.v)
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const span = max - min
-  const width = 56
-  const height = 16
-
-  const path = values
-    .map((v, i) => {
-      const x = (i / (values.length - 1)) * width
-      const y = span === 0 ? height / 2 : height - ((v - min) / span) * height
-      return `${x.toFixed(1)},${y.toFixed(1)}`
-    })
-    .join(' ')
-
-  const direction = values[values.length - 1] >= values[0] ? 'rising' : 'falling'
-
-  return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      width={width}
-      height={height}
-      role="img"
-      aria-label={`${label}, ${direction} over ${values.length} days`}
-      className={cn('shrink-0 overflow-visible', className)}
-    >
-      <polyline
-        points={path}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
 /** Chain / account pill used in dense rows. */
 export function MetaPill({ children }: { children: ReactNode }) {
   return (
