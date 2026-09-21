@@ -50,6 +50,23 @@ export function formatAmount(amount: number | null | undefined): string {
 }
 
 /**
+ * How many leading zeros a run has to reach before it is written as a subscript.
+ *
+ * Below this the plain form is shorter or the same, and switching notation for `0.0012` would be
+ * change for its own sake.
+ */
+const SUBSCRIPT_FROM = 3
+
+const SUBSCRIPT_DIGITS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
+
+function subscript(n: number): string {
+  return String(n)
+    .split('')
+    .map((d) => SUBSCRIPT_DIGITS[Number(d)])
+    .join('')
+}
+
+/**
  * A sub-0.0001 balance, written out rather than in scientific notation.
  *
  * `9.06e-6` is not a quantity anyone reads, and it was firing exactly where reading matters: a
@@ -57,9 +74,17 @@ export function formatAmount(amount: number | null | undefined): string {
  * worth looking at — was the least legible thing on the card. Holdings had the same problem
  * (`2.46e-5 UBTC`).
  *
- * Three significant figures, trailing zeros trimmed. Past ten decimal places the digits stop
- * telling anyone anything, so it degrades to a bound instead of a screenful of noise; the USD
- * column beside it is what carries the meaning at that size anyway.
+ * Three significant figures, trailing zeros trimmed.
+ *
+ * # Why the zeros collapse
+ *
+ * `0.00000906` and `0.0000906` differ by a factor of ten and by one character, in the middle of a
+ * run nobody counts. vfat writes the same number as `0.0₅906` — the subscript *is* the count, so
+ * the magnitude is read rather than tallied, and a column of them sorts by eye. Same precision,
+ * less width, and the digits that carry meaning sit where the eye lands.
+ *
+ * Past ten decimal places the digits stop telling anyone anything, so it degrades to a bound
+ * instead of a screenful of noise; the USD column beside it carries the meaning at that size.
  */
 function tinyAmount(amount: number, abs: number): string {
   const decimals = Math.ceil(-Math.log10(abs)) + 2
@@ -67,7 +92,20 @@ function tinyAmount(amount: number, abs: number): string {
   // `toFixed` and not `toPrecision`: the latter returns exponential below 1e-6, which is the
   // notation this exists to avoid.
   const fixed = amount.toFixed(decimals)
-  return fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed
+  const trimmed = fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed
+  return collapseZeros(trimmed)
+}
+
+/**
+ * `0.00000906` → `0.0₅906`, leaving anything shorter alone.
+ *
+ * Deliberately operates on the rendered string rather than the number: whatever precision and
+ * trimming decided above is exactly what gets collapsed, so the two cannot disagree.
+ */
+export function collapseZeros(text: string): string {
+  return text.replace(/^(-?)0\.(0+)(\d+)$/, (whole, sign: string, zeros: string, rest: string) =>
+    zeros.length >= SUBSCRIPT_FROM ? `${sign}0.0${subscript(zeros.length)}${rest}` : whole,
+  )
 }
 
 /** Shortens `0xabcd…1234` for display without losing the identifying ends. */

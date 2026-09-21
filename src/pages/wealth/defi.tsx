@@ -341,6 +341,21 @@ function SummaryBar({
   )
 }
 
+/**
+ * Marks a value that is hiding something behind hover.
+ *
+ * Lifted from vfat, which underlines every figure carrying a tooltip with a dotted rule. The
+ * problem it solves is not that tooltips are bad — it is that ours were *undiscoverable*: a
+ * `title` gives no sign it exists, so the per-token fee split, the underlying amounts and the
+ * whole meaning of the PnL column were sitting one hover away from someone with no reason to
+ * hover. A dotted underline costs a pixel and turns a secret into an offer.
+ *
+ * `decoration-dotted underline-offset-4` and a muted rule, so it reads as an affordance rather
+ * than as a link. Still invisible on touch — that is what a detail panel is for, and this is not
+ * a substitute for one.
+ */
+const HAS_MORE = 'underline decoration-dotted decoration-muted-foreground/50 underline-offset-4'
+
 /** One secondary figure on the summary bar. Label, value, and the caveat the value needs. */
 function Figure({
   label,
@@ -467,7 +482,9 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                   <div className="flex items-center gap-2">
                     <SnowballToggle id={sbLpId(row.key)} name={row.pair} />
                     <TokenPairMark tokens={row.toks} />
-                    <span className="font-medium" title={posTitle || undefined}>{row.pair}</span>
+                    <span className={cn('font-medium', posTitle && HAS_MORE)} title={posTitle || undefined}>
+                      {row.pair}
+                    </span>
                     <RangeBadge inRange={row.in_range} full={row.band?.full} />
                     {row.poolType && <MetaPill>{row.poolType}</MetaPill>}
                   </div>
@@ -479,7 +496,9 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                     <ChainMark chain={row.chain} />
                     <span>{chainLabel(row.chain)}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">{row.protocol}</div>
+                  <div className={cn('text-xs text-muted-foreground w-fit', HAS_MORE)}>
+                    {row.protocol}
+                  </div>
                 </TableCell>
                 <TableCell>
                   {range ? (
@@ -501,7 +520,9 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                     percentage is vfat's own return on contributions, so it is shown rather than
                     left to be eyeballed against the deposit, which is a different denominator. */}
                 <TableCell className="text-right whitespace-nowrap" title={pnlTitle(row)}>
-                  <Pnl usd={row.pnlUsd} />
+                  <span className={cn(row.pnlUsd !== null && HAS_MORE)}>
+                    <Pnl usd={row.pnlUsd} />
+                  </span>
                   {row.pnlPct !== null && (
                     <div className="text-xs">
                       <ChangeText value={row.pnlPct} />
@@ -512,7 +533,11 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                   className="text-right tabular-nums"
                   title={feeTitle || undefined}
                 >
-                  {row.fees > 0 ? money(row.fees) : <span className="text-muted-foreground">—</span>}
+                  {row.fees > 0 ? (
+                    <span className={cn(feeTitle && HAS_MORE)}>{money(row.fees)}</span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 {/* Rate and the money that rate implies, in one cell: the daily figure is derived
                     from the APR beside it, so two columns spent width restating one number. */}
