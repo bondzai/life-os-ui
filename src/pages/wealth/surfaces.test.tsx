@@ -83,19 +83,29 @@ describe('DeFi', () => {
 
   it('de-duplicates the shared campaign claim in the claimable summary', async () => {
     renderSurface(<WealthDefiPage />)
-    await screen.findByText('Claimable by token')
+    // The breakdown is behind the Claimable figure now, not a card below the table.
+    fireEvent.click(await screen.findByRole('button', { name: /Claimable . open details/ }))
+    const dialog = await screen.findByRole('dialog')
+
     // The OP claim appears on two positions but is one reward: 120 OP at $84, not 240 at $168.
-    // The panel is a ranked list now, so symbol and amount are separate cells — and the token's
-    // mark carries the symbol as its monogram, so the row is located among the list items rather
-    // than by a text query that would match both.
-    const card = screen.getByText('Claimable by token').closest('[data-slot="card"]')
-    expect(card).not.toBeNull()
-    const row = within(card as HTMLElement)
+    // The panel is a ranked list, so symbol and amount are separate cells — the row is located
+    // among the list items rather than by a text query that would match both.
+    const row = within(dialog)
       .getAllByRole('listitem')
       .find((li) => li.textContent?.includes('OP'))
     expect(row?.textContent).toContain('120')
     expect(row?.textContent).toContain('$84.00')
     expect(row?.textContent).not.toContain('240')
+  })
+
+  it('marks the figures that open, so a click is offered rather than guessed at', async () => {
+    renderSurface(<WealthDefiPage />)
+    // Hover is undiscoverable and on a touch screen does not exist, so the affordance has to be
+    // drawn. Both openers carry the same glyph and the same accessible name.
+    const opener = await screen.findByRole('button', { name: /Claimable . open details/ })
+    // The glyph is decoration, not information — the accessible name above already carries
+    // "open details" — so it is `aria-hidden` and has to be found in the DOM, not by role.
+    expect(opener.querySelector('svg')).not.toBeNull()
   })
 
   it('carries lending in the same ledger rather than a panel of its own', async () => {
@@ -135,7 +145,7 @@ describe('DeFi', () => {
     const toggles = await screen.findAllByRole('button', { name: /Add .* to snowball/ })
     fireEvent.click(toggles[0])
 
-    const open = await screen.findByRole('button', { name: /Snowball . open the chart/ })
+    const open = await screen.findByRole('button', { name: /Snowball . open details/ })
     fireEvent.click(open)
     // The full panel — picker, projection and all — is what the dialog is for; a sparkline in a
     // summary bar was forty days of shape at a size nobody could read.

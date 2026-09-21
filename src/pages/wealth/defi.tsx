@@ -6,9 +6,9 @@
  */
 
 import { useMemo, useState } from 'react'
-import { Landmark, Layers, Search, X } from 'lucide-react'
+import { Expand, Landmark, Layers, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/core/components/empty-state'
@@ -40,6 +40,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -271,15 +272,6 @@ export function WealthDefiPage() {
         </>
       )}
 
-      {/* Two panels that answer different questions about the same book — what a harvest pays out,
-          and what is set aside to compound. Below the ledger rather than above it: the positions
-          are what the page is for, and two cards between the filters and the first row pushed them
-          under the fold on a laptop. Side by side on a wide screen; whichever one has something to
-          say takes the full width when the other does not. */}
-      {summary.byToken.length > 0 && (
-        <ClaimablePanel tokens={summary.byToken} total={summary.claimable} />
-      )}
-
     </div>
   )
 }
@@ -390,16 +382,28 @@ function SummaryBar({
                   : `${summary.pnl.covered} of ${count} positions`
             }
           />
-          <Figure
-            loading={loading}
-            label="Claimable"
-            value={money(summary.claimable)}
-            hint={
-              summary.byToken.length > 0
-                ? summary.byToken.slice(0, 3).map((t) => t.symbol).join(' · ')
-                : 'nothing to collect'
-            }
-          />
+          {/* The per-token split used to be a card below the table — a second place to look for
+              the same money, on a page whose whole redesign was about fitting in one screen. It
+              is the detail behind this figure, so it hangs off this figure. Nothing to collect
+              means nothing to open, and it stays a plain figure. */}
+          {!loading && summary.byToken.length > 0 ? (
+            <FigureDialog
+              label="Claimable"
+              value={money(summary.claimable)}
+              hint={summary.byToken.slice(0, 3).map((t) => t.symbol).join(' · ')}
+              title="Claimable by token"
+              description="What harvesting everything would pay out. Wallet-level campaign claims are counted once, not once per position."
+            >
+              <ClaimableBreakdown tokens={summary.byToken} total={summary.claimable} />
+            </FigureDialog>
+          ) : (
+            <Figure
+              loading={loading}
+              label="Claimable"
+              value={money(summary.claimable)}
+              hint="nothing to collect"
+            />
+          )}
           <Figure
             loading={loading}
             label="Ready to harvest"
@@ -496,6 +500,64 @@ function SummaryBar({
  * a substitute for one.
  */
 const HAS_MORE = 'underline decoration-dotted decoration-muted-foreground/50 underline-offset-4'
+
+/**
+ * A summary figure that opens something bigger.
+ *
+ * The affordance is the whole point. A figure that *happens* to be clickable is indistinguishable
+ * from the five beside it that are not: hover is undiscoverable, and on a touch screen it does not
+ * exist at all. So the label carries a small expand glyph, and the same glyph marks every figure
+ * that opens — "this label has a mark" reads as a rule rather than as two unrelated decorations.
+ *
+ * The negative margin cancels the button's own padding, so a figure that opens still lines up with
+ * the ones that do not; the hit area grows without the row going ragged.
+ */
+function FigureDialog({
+  label,
+  value,
+  hint,
+  title,
+  description,
+  children,
+}: {
+  label: string
+  value: React.ReactNode
+  hint: string
+  /** Dialog heading, when the panel inside is called something longer than the figure. */
+  title?: string
+  /** One line under the heading. Also what a screen reader announces for the dialog. */
+  description?: string
+  children: React.ReactNode
+}) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${label} — open details`}
+          className={cn(
+            '-mx-2 -my-1 rounded-md px-2 py-1 text-left transition-colors',
+            'hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+          )}
+        >
+          <p className="flex items-center gap-1 text-xs tracking-wide text-muted-foreground uppercase">
+            {label}
+            <Expand className="size-3 shrink-0 opacity-60" aria-hidden="true" />
+          </p>
+          <p className="font-medium tabular-nums">{value}</p>
+          <p className="text-xs text-muted-foreground">{hint}</p>
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{title ?? label}</DialogTitle>
+          {description && <DialogDescription>{description}</DialogDescription>}
+        </DialogHeader>
+        {children}
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 /** One secondary figure on the summary bar. Label, value, and the caveat the value needs. */
 function Figure({
@@ -1061,6 +1123,9 @@ function Metric({ label, value, children }: { label: string; value: React.ReactN
 /**
  * Claimable by token — what a harvest of everything would actually hand you.
  *
+ * Dialog content rather than a card: it is the detail behind the Claimable figure on the bar, and
+ * a second card below the table was a second place to look for the same money.
+ *
  * It used to be a wrapping row of equal-weight pills, which answered none of that: seven identical
  * chips gave no sense of which one mattered, the amount was the biggest text when the *value* is
  * what you compare, and a wrapped-BTC balance rendered as `9.06e-6`, so the top row by value was
@@ -1071,22 +1136,18 @@ function Metric({ label, value, children }: { label: string; value: React.ReactN
  * lands before any number is read. The fill is share of *total*, not of the largest, because that
  * is the honest proportion: a sliver should look like a sliver.
  */
-function ClaimablePanel({ tokens, total }: { tokens: ClaimableToken[]; total: number }) {
+function ClaimableBreakdown({ tokens, total }: { tokens: ClaimableToken[]; total: number }) {
   const { money } = useMoney()
 
   return (
-    <Card className="gap-0 py-0">
-      <CardHeader className="flex flex-row items-start justify-between gap-2 px-4 py-3">
-        <div>
-          <CardTitle className="text-sm font-medium">Claimable by token</CardTitle>
-          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-            What harvesting everything would pay out. Wallet-level campaign claims are counted once,
-            not once per position.
-          </p>
-        </div>
-        <span className="shrink-0 text-lg font-semibold tabular-nums">{money(total)}</span>
-      </CardHeader>
-      <CardContent className="px-4 pt-0 pb-3">
+    <div className="space-y-3">
+      {/* The total repeats the figure that opened this, on purpose: the dialog covers the bar, and
+          a list of parts with the whole missing makes you close it to check. */}
+      <div className="flex items-baseline justify-between gap-2 border-b pb-2">
+        <span className="text-xs tracking-wide text-muted-foreground uppercase">Total</span>
+        <span className="text-xl font-semibold tabular-nums">{money(total)}</span>
+      </div>
+      <div>
         <ul className="grid gap-1 sm:grid-cols-2 sm:gap-x-3">
           {tokens.map((t) => (
             <li key={t.symbol} className="relative overflow-hidden rounded-md">
@@ -1109,8 +1170,8 @@ function ClaimablePanel({ tokens, total }: { tokens: ClaimableToken[]; total: nu
             </li>
           ))}
         </ul>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
@@ -1155,38 +1216,17 @@ function SnowballFigure({
       ? `${here > 0 ? `${here} LP here` : 'none from this page'}${delta ? ` · ${delta}` : ''}`
       : 'press ❄ on a row to start one'
 
-  const figure = (
-    <div className="text-left">
-      <p className="text-xs tracking-wide text-muted-foreground uppercase">Snowball</p>
-      <p className="font-medium tabular-nums">{total > 0 ? money(total) : '—'}</p>
-      <p className="text-xs text-muted-foreground">{hint}</p>
-    </div>
-  )
-
   // Nothing tagged yet means there is no history to plot, so the figure stays a figure rather
-  // than offering a dialog that would open on an empty chart.
-  if (total <= 0) return figure
+  // than offering a dialog that would open on an empty chart — and, with it, no expand glyph,
+  // which is what keeps the glyph meaning "there is something behind this".
+  if (total <= 0) return <Figure label="Snowball" value="—" hint={hint} />
 
+  // The chart lives in the dialog rather than in the bar. A 56px line can say "rising" and
+  // nothing else; the question you open a chart to ask — rising since when, and how steadily —
+  // needs axes and a scale, which is exactly what the Overview panel already draws.
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <button
-          type="button"
-          aria-label="Snowball — open the chart"
-          className="rounded-md px-2 py-1 transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        >
-          {figure}
-        </button>
-      </DialogTrigger>
-      {/* The chart lives here rather than in the bar. A 56px line can say "rising" and nothing
-          else; the question you open a chart to ask — rising since when, and how steadily — needs
-          axes and a scale, which is exactly what the Overview panel already draws. */}
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Snowball</DialogTitle>
-        </DialogHeader>
-        {ctx && <SnowballPanel ctx={ctx} />}
-      </DialogContent>
-    </Dialog>
+    <FigureDialog label="Snowball" value={money(total)} hint={hint}>
+      {ctx && <SnowballPanel ctx={ctx} />}
+    </FigureDialog>
   )
 }
