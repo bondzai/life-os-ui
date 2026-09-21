@@ -19,7 +19,6 @@ import { notify } from '@/lib/notify'
 import { useEntities } from '@/core/hooks'
 import { getSubtasks, subtaskDone, subtaskStatus, getLastWorkday } from './task-helpers'
 import { getTodayPriorities } from '@/pages/today/today-helpers'
-import { CaptureBar } from '@/pages/today/capture-bar'
 import { filterNoteTemplates, type NoteTemplate } from '@/core/config/capture-protocol'
 import type { Entity, EntityPriority } from '@/core/types'
 import { isTask } from '@/core/types'
@@ -854,7 +853,7 @@ export function BriefingPage({ embedded }: { embedded?: boolean }) {
       {/* Bottom capture bar — dropup */}
       <footer className="shrink-0 border-t bg-background/95 backdrop-blur px-8 py-3">
         <div className="max-w-7xl mx-auto">
-          <CaptureBar direction="up" noGlobalShortcut />
+
         </div>
       </footer>
     </div>

@@ -26,7 +26,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useEntities } from '@/core/hooks'
 import { notify } from '@/lib/notify'
-import { CaptureBar } from '@/pages/today/capture-bar'
 import type { Entity, EntityType } from '@/core/types'
 
 const TYPE_META: Record<string, { icon: LucideIcon; label: string; color: string }> = {
@@ -170,7 +169,7 @@ export function InboxPage({ embedded }: { embedded?: boolean }) {
       </div>
 
       {/* Capture bar */}
-      <CaptureBar />
+
 
       {/* Filters */}
       <div className="flex items-center gap-1">
