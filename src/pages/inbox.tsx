@@ -168,8 +168,13 @@ export function InboxPage({ embedded }: { embedded?: boolean }) {
         )}
       </div>
 
-      {/* Capture bar */}
-
+      {/* Capture moved to ⌘K, so the page that is *about* capture has to say where it went —
+          an Inbox with no visible way to add to it reads as broken, not as tidied. */}
+      <p className="text-xs text-muted-foreground">
+        Press <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[10px]">⌘K</kbd> and
+        start with <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[10px]">/</kbd> to
+        capture something here.
+      </p>
 
       {/* Filters */}
       <div className="flex items-center gap-1">

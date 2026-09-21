@@ -16,6 +16,7 @@ import { useLyraPulse } from '@/hooks/use-lyra-pulse'
 import { useSessionSummary } from '@/hooks/use-session-summary'
 import { useCelebrations } from '@/hooks/use-celebrations'
 import { useGlobalShortcuts } from '@/hooks/use-keybindings'
+import { useGoTo } from '@/hooks/use-go-to'
 
 function getPageTitle(pathname: string): string {
   const mod = modules.find((m) => m.path === pathname)
@@ -71,6 +72,7 @@ export function AppLayout() {
   }), [setCommandBarOpen, toggleFocusMode, openCommandBar, navigate])
 
   useGlobalShortcuts(shortcutHandlers)
+  useGoTo()
 
   return (
     <SidebarProvider open={focusMode ? false : undefined}>

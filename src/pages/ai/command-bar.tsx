@@ -355,6 +355,7 @@ function Hints() {
         ['@', 'a goal'],
         ['#', 'a habit'],
         ['/ask', 'ask Lyra about your data'],
+        ['g then t', 'jump straight to Tasks — every item has a letter'],
       ].map(([key, what]) => (
         <div key={key} className="contents">
           <dt className="text-right font-mono text-foreground">{key}</dt>

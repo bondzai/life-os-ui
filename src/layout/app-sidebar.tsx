@@ -197,7 +197,7 @@ export function AppSidebar() {
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {/* Paused focus session reminder — always first */}
-                    {group === 'Core' && hasActiveSession && location.pathname !== '/deep-work' && (
+                    {group === 'Now' && hasActiveSession && location.pathname !== '/deep-work' && (
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           onClick={() => handleNav('/deep-work')}
@@ -247,7 +247,16 @@ export function AppSidebar() {
                                 <span className="ml-auto text-xs bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center">
                                   {badges[mod.id]}
                                 </span>
-                              ) : null}
+                              ) : (
+                                /* `g` then this letter. A shortcut nobody can see is a shortcut
+                                   nobody uses, and the sidebar is where you already look for the
+                                   destination — so it teaches itself on the way past. It shows on
+                                   hover only, because a column of grey letters beside every item
+                                   is noise once you have learned them. */
+                                <kbd className="ml-auto hidden font-mono text-[10px] text-muted-foreground/50 group-hover/menu-item:inline">
+                                  g {mod.goKey}
+                                </kbd>
+                              )}
                               {hasChildren && (
                                 <CollapsibleTrigger asChild>
                                   <span

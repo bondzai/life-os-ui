@@ -850,12 +850,9 @@ export function BriefingPage({ embedded }: { embedded?: boolean }) {
         />
       </main>
 
-      {/* Bottom capture bar — dropup */}
-      <footer className="shrink-0 border-t bg-background/95 backdrop-blur px-8 py-3">
-        <div className="max-w-7xl mx-auto">
-
-        </div>
-      </footer>
+      {/* This held a capture bar of its own. The briefing is a full-screen read — the point is to
+          look at it, not to type into a strip at the bottom — and anything it prompts you to write
+          down is one ⌘K away. */}
     </div>
   )
 }

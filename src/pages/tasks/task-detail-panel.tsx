@@ -62,6 +62,7 @@ import { useEntities, useRelations } from '@/core/hooks'
 import { assignmentGroups } from './task-assignment'
 import { AIAction } from '@/components/ai-action'
 import { isStory as checkIsStory, getSubtasks, isOverdue as checkIsOverdue, subtaskStatus, subtaskDone, getRecurrence, RECURRENCE_OPTIONS, RECURRENCE_LABELS, type Subtask, type SubtaskStatus } from './task-helpers'
+import { relativeTime } from '@/lib/dates'
 
 export interface TaskDetailPanelProps {
   task: Entity | null
@@ -177,20 +178,6 @@ function updateNoteText(metadata: Record<string, unknown>, noteId: string, text:
 function removeNote(metadata: Record<string, unknown>, noteId: string): Record<string, unknown> {
   const notes = getNotes(metadata).filter((n) => n.id !== noteId)
   return { ...metadata, notes: notes.length > 0 ? notes : undefined }
-}
-
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return 'just now'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days === 1) return 'yesterday'
-  if (days < 7) return `${days}d ago`
-  return formatDetailDate(iso)
 }
 
 // Pretty JSON renderer for structured notes
@@ -527,7 +514,7 @@ function SortableSubtaskRow({
                 <div className="flex-1 min-w-0">
                   <p className="whitespace-pre-wrap text-foreground/80">{n.text}</p>
                   <span className="text-[9px] text-muted-foreground/50 tabular-nums">
-                    {formatRelativeTime(n.timestamp)}
+                    {relativeTime(n.timestamp, formatDetailDate)}
                   </span>
                 </div>
                 <div className="flex gap-0.5 shrink-0 opacity-0 group-hover/note:opacity-100 transition-opacity self-start">
@@ -1689,7 +1676,7 @@ export function TaskDetailPanel({
                           <p className="whitespace-pre-wrap text-foreground/90">{note.text}</p>
                         )}
                         <span className="text-[10px] text-muted-foreground/50 tabular-nums mt-1 block">
-                          {formatRelativeTime(note.timestamp)}
+                          {relativeTime(note.timestamp, formatDetailDate)}
                         </span>
                       </div>
                       <div className="flex flex-col gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1834,7 +1821,7 @@ export function TaskDetailPanel({
                     {getActivity(task.metadata).map((entry) => (
                       <div key={entry.id} className="flex items-start gap-2 text-xs">
                         <span className="text-muted-foreground/50 tabular-nums shrink-0">
-                          {formatRelativeTime(entry.timestamp)}
+                          {relativeTime(entry.timestamp, formatDetailDate)}
                         </span>
                         <span
                           className="text-muted-foreground"
