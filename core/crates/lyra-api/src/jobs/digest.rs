@@ -69,6 +69,18 @@ impl DailyDigest {
     }
 }
 
+impl DailyDigest {
+    /// A retryable failure, recorded where the settings page can see it as well as on the job.
+    ///
+    /// The job row is the better record — attempts, backoff, history — but
+    /// `/api/wealth/alerts` has surfaced digest failures since before this queue existed, and
+    /// quietly moving them out from under it would leave a working page blind.
+    fn note(&self, why: &str) -> HandlerError {
+        crate::alert_loop::record_error(&self.state.alert_meta, format!("digest: {why}"));
+        HandlerError::Retry(anyhow!("{why}"))
+    }
+}
+
 impl Handler for DailyDigest {
     fn kind(&self) -> &'static str {
         KIND
@@ -109,17 +121,15 @@ impl Handler for DailyDigest {
                     Ok(())
                 }
                 // Reachable and refused. The world, not the job.
-                Ok(DigestOutcome::Refused) => {
-                    Err(HandlerError::Retry(anyhow!("the channel refused the brief")))
-                }
+                Ok(DigestOutcome::Refused) => Err(self.note("the channel refused the brief")),
                 // Retryable, and this is the interesting case. "Nothing to report" at 08:00 is
                 // almost always an upstream that flaked, not a portfolio that vanished, and the
                 // loop version retried it every tick for exactly this reason. Five attempts with
                 // backoff is that same intent, no longer stopping at the top of the hour.
                 Ok(DigestOutcome::Nothing(why)) => {
-                    Err(HandlerError::Retry(anyhow!("nothing to send yet: {why}")))
+                    Err(self.note(&format!("nothing to send yet: {why}")))
                 }
-                Err(e) => Err(HandlerError::Retry(e)),
+                Err(e) => Err(self.note(&format!("{e:#}"))),
             }
         })
     }

@@ -29,6 +29,7 @@
 
 pub mod deliver;
 pub mod digest;
+pub mod snapshot;
 
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -247,7 +248,10 @@ impl Handlers {
 /// restart of anything but the send.
 pub fn handlers(state: AppState) -> Handlers {
     let mut handlers = Handlers::new().with(Arc::new(deliver::DeliverTelegram::from_env()));
-    for handler in digest::all(state) {
+    for handler in digest::all(state.clone())
+        .into_iter()
+        .chain(snapshot::all(state))
+    {
         handlers = handlers.with(handler);
     }
     handlers
@@ -982,7 +986,10 @@ mod tests {
         // "no handler", and dead-letters — quietly.
         let mut kinds = handlers(test_state().await).kinds();
         kinds.sort();
-        assert_eq!(kinds, vec!["deliver.telegram", "digest.daily"]);
+        assert_eq!(
+            kinds,
+            vec!["deliver.telegram", "digest.daily", "snapshot.networth"]
+        );
     }
 
     #[test]

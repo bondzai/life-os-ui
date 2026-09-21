@@ -73,7 +73,7 @@ fn update(meta: &SharedMeta, f: impl FnOnce(&mut Meta)) {
     }
 }
 
-fn record_error(meta: &SharedMeta, message: String) {
+pub(crate) fn record_error(meta: &SharedMeta, message: String) {
     tracing::warn!(error = %message, "alert loop");
     update(meta, |m| m.last_error = Some(message));
 }
@@ -383,12 +383,42 @@ async fn maybe_snapshot(state: &AppState, config: &AlertConfig<'_>) {
         }
     }
 
+    // The tick decides a sample is *due*; the queue takes it.
+    //
+    // The relative check above stays, and it is not redundant with the key below. It reads
+    // `last_snapshot_ts`, which only moves when a sample is *recorded* — so between enqueueing a
+    // job and that job running, every tick still thinks a sample is due. The key is what makes
+    // those ticks one job instead of eight.
+    let bucket = wealth::now_secs() / interval.max(1);
+    let job = NewJob::new(crate::jobs::snapshot::KIND, Lane::Batch)
+        .payload(serde_json::json!({ "group": group, "interval": interval }))
+        .key(crate::jobs::snapshot::key_for(bucket))
+        .max_attempts(crate::jobs::snapshot::ATTEMPTS);
+
+    match SqliteQueue::new(state.pool.clone())
+        .enqueue(&job, wealth::now_secs())
+        .await
+    {
+        Ok(enqueued) if enqueued.created => {
+            tracing::info!(%group, bucket, job = %enqueued.id, "a net-worth sample is queued")
+        }
+        Ok(_) => {}
+        Err(e) => record_error(&meta, format!("snapshot: queueing: {e}")),
+    }
+}
+
+/// Take one net-worth sample and store it.
+///
+/// Lifted out of the tick so a job can call it. The caller owns the *decision* to sample — an
+/// interval check, or a button — and this owns everything after it, which is the same split
+/// `deliver_digest` already uses for the brief.
+pub(crate) async fn take_snapshot(
+    state: &AppState,
+    group: &str,
+    interval: i64,
+) -> anyhow::Result<()> {
     let Some((figures, rates)) = wealth::collect_figures(&state.pool).await else {
-        record_error(
-            &meta,
-            "snapshot: the portfolio read returned nothing".into(),
-        );
-        return;
+        anyhow::bail!("the portfolio read returned nothing");
     };
 
     // The off-chain book, added in.
@@ -404,7 +434,10 @@ async fn maybe_snapshot(state: &AppState, config: &AlertConfig<'_>) {
         match store::manual_total_usd(&state.pool, rates.thb, rates.btc_usd).await {
             Ok(totals) => totals,
             Err(e) => {
-                record_error(&meta, format!("snapshot: reading off-chain assets: {e}"));
+                // Logged and skipped rather than returned: returning would retry the whole
+                // portfolio read to recover a number that is usually zero, and an on-chain-only
+                // point is a known understatement where no point at all is a gap in the chart.
+                tracing::warn!(error = %e, "snapshot: reading off-chain assets");
                 (0.0, 0)
             }
         };
@@ -425,9 +458,8 @@ async fn maybe_snapshot(state: &AppState, config: &AlertConfig<'_>) {
             })
         }),
     };
-    if let Err(e) = store::record_snapshot(&state.pool, &group, &input, interval, None).await {
-        record_error(&meta, format!("snapshot: {e}"));
-    }
+    store::record_snapshot(&state.pool, group, &input, interval, None).await?;
+    Ok(())
 }
 
 #[cfg(test)]
