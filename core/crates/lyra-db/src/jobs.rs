@@ -268,6 +268,16 @@ pub enum Failure {
     Permanent,
 }
 
+/// What a retry did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Retried {
+    /// A new job, carrying the old one's work.
+    Queued(Enqueued),
+    /// Nothing to retry: the job is still queued, running, or finished well.
+    NotRetryable(Status),
+    NotFound,
+}
+
 /// What one reaper tick recovered.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Reaped {
@@ -382,6 +392,10 @@ pub trait Queue {
     /// Take a queued job off the queue. A running job is left alone: cancelling it would mean
     /// lying to whoever holds the lease, and they will finish or lose it soon enough.
     fn cancel(&self, id: &str, now: i64) -> impl Future<Output = Result<bool>> + Send;
+
+    /// Ask for a finished-badly job's work again. See [`SqliteQueue::retry`] for why this is a
+    /// new row and not a resurrected one.
+    fn retry(&self, id: &str, now: i64) -> impl Future<Output = Result<Retried>> + Send;
 
     /// What `key` produced the first time, or `None` if it has not run.
     fn recall(
@@ -723,6 +737,38 @@ impl Queue for SqliteQueue {
         .context("cancelling a job")?;
 
         Ok(result.rows_affected() == 1)
+    }
+
+    /// Retry by **copying**, not by resetting the failed row.
+    ///
+    /// Resetting would be the obvious build and it destroys the one thing a dead job is kept for:
+    /// its `last_error`, its attempt count, the fact that it happened at all. Dead rows are kept
+    /// far longer than done ones precisely because they are evidence, and a retry that overwrote
+    /// them would make "why did this fail on Tuesday" unanswerable by Wednesday.
+    ///
+    /// So the copy carries the work — kind, lane, payload, priority, attempt budget — and points
+    /// back at the original through `parent_id`. It is keyed `retry:<original id>`, so a button
+    /// pressed twice, or a `/retry` sent twice from a phone on a bad connection, is one retry.
+    ///
+    /// **It does not inherit the original's idempotency key**, because there is none left to
+    /// inherit: a failed job releases its key on the way into `failed`. The one consequence worth
+    /// knowing is the digest — retrying a dead brief *during* the digest hour can race the tick's
+    /// own enqueue and send it twice. Outside that hour it cannot.
+    async fn retry(&self, id: &str, now: i64) -> Result<Retried> {
+        let Some(job) = self.get(id).await? else {
+            return Ok(Retried::NotFound);
+        };
+        if !matches!(job.status, Status::Failed | Status::Cancelled) {
+            return Ok(Retried::NotRetryable(job.status));
+        }
+
+        let copy = NewJob::new(job.kind.clone(), job.lane)
+            .payload(job.payload.clone())
+            .priority(job.priority)
+            .max_attempts(job.max_attempts)
+            .key(format!("retry:{}", job.id))
+            .child_of(job.id.clone());
+        Ok(Retried::Queued(self.enqueue(&copy, now).await?))
     }
 
     async fn recall(&self, job_id: &str, key: &str) -> Result<Option<JsonValue>> {
@@ -1475,6 +1521,64 @@ mod tests {
             q.get(&live).await.unwrap().is_some(),
             "a queued job is not history"
         );
+    }
+
+    #[tokio::test]
+    async fn a_retry_is_a_new_job_and_the_dead_one_is_kept_as_evidence() {
+        let (_dir, q) = fresh().await;
+        let dead = q.enqueue(&job("deliver.telegram").max_attempts(1), 1000).await.unwrap();
+        let claimed = q.claim("w", &[Lane::Interactive], 60, 1100).await.unwrap().unwrap();
+        q.fail("w", &claimed.id, "telegram is down", Failure::Retry, 1200).await.unwrap();
+
+        let Retried::Queued(copy) = q.retry(&dead.id, 2000).await.unwrap() else {
+            panic!("a failed job must be retryable");
+        };
+        assert_ne!(copy.id, dead.id, "a copy, not a resurrection");
+
+        // The evidence survives the retry — the whole reason it is a copy.
+        let original = q.get(&dead.id).await.unwrap().unwrap();
+        assert_eq!(original.status, Status::Failed);
+        assert_eq!(original.last_error.as_deref(), Some("telegram is down"));
+
+        let fresh_job = q.get(&copy.id).await.unwrap().unwrap();
+        assert_eq!(fresh_job.status, Status::Queued);
+        assert_eq!(fresh_job.kind, "deliver.telegram");
+        assert_eq!(fresh_job.attempts, 0, "a retry starts with a full budget");
+        assert_eq!(fresh_job.parent_id.as_deref(), Some(dead.id.as_str()));
+    }
+
+    #[tokio::test]
+    async fn retrying_twice_is_one_retry() {
+        // A button double-clicked, or `/retry` sent twice from a phone on a bad connection.
+        let (_dir, q) = fresh().await;
+        let dead = q.enqueue(&job("x").max_attempts(1), 1000).await.unwrap();
+        let claimed = q.claim("w", &[Lane::Interactive], 60, 1100).await.unwrap().unwrap();
+        q.fail("w", &claimed.id, "boom", Failure::Retry, 1200).await.unwrap();
+
+        let Retried::Queued(a) = q.retry(&dead.id, 2000).await.unwrap() else { panic!() };
+        let Retried::Queued(b) = q.retry(&dead.id, 2001).await.unwrap() else { panic!() };
+        assert_eq!(a.id, b.id);
+        assert!(a.created && !b.created);
+    }
+
+    #[tokio::test]
+    async fn only_work_that_went_badly_can_be_retried() {
+        let (_dir, q) = fresh().await;
+        let queued = q.enqueue(&job("x"), 1000).await.unwrap();
+        assert_eq!(
+            q.retry(&queued.id, 1100).await.unwrap(),
+            Retried::NotRetryable(Status::Queued),
+            "retrying a job that has not run yet would run it twice"
+        );
+        assert_eq!(q.retry("no-such-job", 1100).await.unwrap(), Retried::NotFound);
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_job_can_be_asked_for_again() {
+        let (_dir, q) = fresh().await;
+        let queued = q.enqueue(&job("x"), 1000).await.unwrap();
+        assert!(q.cancel(&queued.id, 1100).await.unwrap());
+        assert!(matches!(q.retry(&queued.id, 1200).await.unwrap(), Retried::Queued(_)));
     }
 
     #[tokio::test]

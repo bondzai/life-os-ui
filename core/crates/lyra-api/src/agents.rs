@@ -255,25 +255,108 @@ pub async fn jobs(State(state): State<AppState>, _user: AuthUser) -> Response {
             // The oldest runnable wait, which is the one number that answers "are the workers
             // keeping up". A job scheduled for tomorrow is not a backlog and is not counted.
             "oldest_queued_secs": age.oldest_queued_secs,
-            "recent": recent
-                .iter()
-                .map(|job| serde_json::json!({
-                    "id": job.id,
-                    "kind": job.kind,
-                    "lane": job.lane.as_str(),
-                    "status": job.status.as_str(),
-                    "attempts": job.attempts,
-                    "max_attempts": job.max_attempts,
-                    "updated_at": job.updated_at,
-                    // The reason a job is dead is the whole value of keeping the row.
-                    "last_error": job.last_error,
-                }))
-                .collect::<Vec<_>>(),
+            "recent": recent.iter().map(job_json).collect::<Vec<_>>(),
         }))
         .into_response(),
         _ => crate::common::error(
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             "could not read the queue",
+        ),
+    }
+}
+
+/// One job as the page sees it. Shared by the list and the detail so they cannot drift apart.
+///
+/// The payload is deliberately **not** here. It is the handler's arguments, and for a
+/// `deliver.telegram` that is the full text of a message about your money — fine to hold in your
+/// own database, not something every refresh of a list should carry across the wire.
+fn job_json(job: &lyra_db::jobs::Job) -> serde_json::Value {
+    serde_json::json!({
+        "id": job.id,
+        "kind": job.kind,
+        "lane": job.lane.as_str(),
+        "status": job.status.as_str(),
+        "attempts": job.attempts,
+        "max_attempts": job.max_attempts,
+        "run_at": job.run_at,
+        "updated_at": job.updated_at,
+        "parent_id": job.parent_id,
+        // The reason a job is dead is the whole value of keeping the row.
+        "last_error": job.last_error,
+    })
+}
+
+/// `GET /api/jobs/{id}` — one job.
+pub async fn job_one(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Response {
+    use lyra_db::jobs::{Queue, SqliteQueue};
+    match SqliteQueue::new(state.pool.clone()).get(&id).await {
+        Ok(Some(job)) => axum::Json(job_json(&job)).into_response(),
+        Ok(None) => crate::common::not_found("no such job"),
+        Err(_) => crate::common::error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "could not read the job",
+        ),
+    }
+}
+
+/// `POST /api/jobs/{id}/retry` — ask for a failed or cancelled job's work again.
+///
+/// Answers with the *new* job, because that is the one worth watching; the old one is kept
+/// unchanged as the record of what went wrong. See `SqliteQueue::retry`.
+pub async fn job_retry(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Response {
+    use lyra_db::jobs::{Queue, Retried, SqliteQueue, now_secs};
+    match SqliteQueue::new(state.pool.clone()).retry(&id, now_secs()).await {
+        Ok(Retried::Queued(enqueued)) => axum::Json(serde_json::json!({
+            "id": enqueued.id,
+            // False when this retry was already asked for — a double click, not a second job.
+            "created": enqueued.created,
+        }))
+        .into_response(),
+        // 409, not 400: the request was fine, the job is in the wrong state for it. The message
+        // says which state, so the page can say something more useful than "error".
+        Ok(Retried::NotRetryable(status)) => crate::common::error(
+            axum::http::StatusCode::CONFLICT,
+            &format!("only failed or cancelled jobs can be retried; this one is {}", status.as_str()),
+        ),
+        Ok(Retried::NotFound) => crate::common::not_found("no such job"),
+        Err(_) => crate::common::error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "could not retry the job",
+        ),
+    }
+}
+
+/// `POST /api/jobs/{id}/cancel` — take a job off the queue before it runs.
+///
+/// Queued jobs only. A running job is left to finish: pulling the rug mid-handler would leave a
+/// half-sent message or a half-written row, which is worse than letting it complete.
+pub async fn job_cancel(
+    State(state): State<AppState>,
+    _user: AuthUser,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Response {
+    use lyra_db::jobs::{Queue, SqliteQueue, now_secs};
+    let queue = SqliteQueue::new(state.pool.clone());
+    match queue.cancel(&id, now_secs()).await {
+        Ok(true) => crate::common::ok_true(),
+        Ok(false) => match queue.get(&id).await {
+            Ok(Some(job)) => crate::common::error(
+                axum::http::StatusCode::CONFLICT,
+                &format!("only queued jobs can be cancelled; this one is {}", job.status.as_str()),
+            ),
+            _ => crate::common::not_found("no such job"),
+        },
+        Err(_) => crate::common::error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "could not cancel the job",
         ),
     }
 }

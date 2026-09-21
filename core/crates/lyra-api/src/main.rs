@@ -107,6 +107,9 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
     let protected = Router::new()
         .route("/api/agents", get(agents::list))
         .route("/api/jobs", get(agents::jobs))
+        .route("/api/jobs/{id}", get(agents::job_one))
+        .route("/api/jobs/{id}/retry", post(agents::job_retry))
+        .route("/api/jobs/{id}/cancel", post(agents::job_cancel))
         .route("/api/agents/ticket", post(agents::ticket))
         .route("/api/entities", get(entities::list).post(entities::create))
         .route(
@@ -555,6 +558,96 @@ mod tests {
 
     fn token_for(user: &str) -> String {
         auth::issue_token("test-secret", user, "admin").unwrap()
+    }
+
+    #[tokio::test]
+    async fn job_controls_sit_behind_the_token() {
+        // They change what the box does next. Anyone who can reach the port must not be able to
+        // cancel your brief or re-fire an alert.
+        let (_dir, _pool, router) = test_app(&[]).await;
+        for (method, uri) in [
+            ("GET", "/api/jobs/x"),
+            ("POST", "/api/jobs/x/retry"),
+            ("POST", "/api/jobs/x/cancel"),
+        ] {
+            let (status, _) = authed(router.clone(), method, uri, None, None).await;
+            assert_eq!(status, StatusCode::UNAUTHORIZED, "{method} {uri}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_failed_job_can_be_retried_through_the_api_and_the_old_row_survives() {
+        use lyra_db::jobs::{Failure, Lane, NewJob, Queue, SqliteQueue};
+        let (_dir, pool, router) = test_app(&[]).await;
+        let token = token_for("user-jb");
+
+        let queue = SqliteQueue::new(pool);
+        let dead = queue
+            .enqueue(&NewJob::new("deliver.telegram", Lane::Deliver).max_attempts(1), 1000)
+            .await
+            .unwrap();
+        let claimed = queue.claim("w", &[Lane::Deliver], 60, 1100).await.unwrap().unwrap();
+        queue.fail("w", &claimed.id, "connection reset", Failure::Retry, 1200).await.unwrap();
+
+        let (status, body) = authed(
+            router.clone(),
+            "POST",
+            &format!("/api/jobs/{}/retry", dead.id),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["created"], true);
+        let new_id = body["id"].as_str().unwrap().to_string();
+        assert_ne!(new_id, dead.id);
+
+        // The new one points back at what it replaces.
+        let (_, fresh) =
+            authed(router.clone(), "GET", &format!("/api/jobs/{new_id}"), Some(&token), None).await;
+        assert_eq!(fresh["status"], "queued");
+        assert_eq!(fresh["parent_id"], dead.id.as_str());
+
+        // And the dead one still says why it died.
+        let (_, old) =
+            authed(router, "GET", &format!("/api/jobs/{}", dead.id), Some(&token), None).await;
+        assert_eq!(old["status"], "failed");
+        assert_eq!(old["last_error"], "connection reset");
+    }
+
+    #[tokio::test]
+    async fn the_wrong_state_is_a_conflict_that_says_which_state() {
+        use lyra_db::jobs::{Lane, NewJob, Queue, SqliteQueue};
+        let (_dir, pool, router) = test_app(&[]).await;
+        let token = token_for("user-jb");
+        let queued = SqliteQueue::new(pool)
+            .enqueue(&NewJob::new("x", Lane::Batch), 1000)
+            .await
+            .unwrap();
+
+        // Retrying a job that has not run yet would run it twice.
+        let (status, body) = authed(
+            router.clone(),
+            "POST",
+            &format!("/api/jobs/{}/retry", queued.id),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert!(body["error"].as_str().unwrap().contains("queued"), "{body}");
+
+        // Cancelling it works, once.
+        let cancel = format!("/api/jobs/{}/cancel", queued.id);
+        let (first, _) = authed(router.clone(), "POST", &cancel, Some(&token), None).await;
+        let (second, body) = authed(router.clone(), "POST", &cancel, Some(&token), None).await;
+        assert_eq!(first, StatusCode::OK);
+        assert_eq!(second, StatusCode::CONFLICT, "{body}");
+        assert!(body["error"].as_str().unwrap().contains("cancelled"));
+
+        let (missing, _) =
+            authed(router, "POST", "/api/jobs/nope/retry", Some(&token), None).await;
+        assert_eq!(missing, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

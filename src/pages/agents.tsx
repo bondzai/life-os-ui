@@ -19,7 +19,7 @@ import { EmptyState } from '@/core/components/empty-state'
 import { cn } from '@/lib/utils'
 import { relativeTime } from '@/lib/dates'
 import { useAgentStream, type Agent, type Link } from '@/core/hooks/use-agent-stream'
-import { useQueue, type QueuedJob } from '@/core/hooks/use-queue'
+import { useJobAction, useQueue, type QueuedJob } from '@/core/hooks/use-queue'
 
 /** How the link badge reads. Colour repeats the word; it never carries it alone. */
 const LINK_COPY: Record<Link, { label: string; tone: string }> = {
@@ -137,9 +137,16 @@ const JOB_TONE: Record<QueuedJob['status'], string> = {
 }
 
 function RecentJobs({ jobs }: { jobs: QueuedJob[] }) {
+  const action = useJobAction()
+
   return (
     <section className="space-y-2">
       <h2 className="text-xs tracking-wide text-muted-foreground uppercase">Recent work</h2>
+      {action.isError && (
+        <p role="alert" className="text-xs text-red-700 dark:text-red-400">
+          {action.error.message}
+        </p>
+      )}
       <ul className="divide-y rounded-lg border">
         {jobs.map((job) => (
           <li key={job.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2">
@@ -153,6 +160,22 @@ function RecentJobs({ jobs }: { jobs: QueuedJob[] }) {
               </span>
             )}
             <span className={cn('text-xs font-medium', JOB_TONE[job.status])}>{job.status}</span>
+            {/* Only the action that makes sense for this state, and never both. A Retry on a
+                queued job would run it twice; a Cancel on a running one cannot be honoured. */}
+            {(job.status === 'failed' || job.status === 'cancelled') && (
+              <JobButton
+                label="Retry"
+                busy={action.isPending && action.variables?.id === job.id}
+                onClick={() => action.mutate({ id: job.id, action: 'retry' })}
+              />
+            )}
+            {job.status === 'queued' && (
+              <JobButton
+                label="Cancel"
+                busy={action.isPending && action.variables?.id === job.id}
+                onClick={() => action.mutate({ id: job.id, action: 'cancel' })}
+              />
+            )}
             {/* Why it died is the whole reason the row is kept rather than pruned. */}
             {job.last_error && job.status === 'failed' && (
               <p className="w-full truncate text-xs text-muted-foreground" title={job.last_error}>
@@ -233,4 +256,24 @@ function Elapsed({ since }: { since: number }) {
   const mins = Math.floor(secs / 60)
   if (mins < 60) return <>running {mins}m {secs % 60}s</>
   return <>running {Math.floor(mins / 60)}h {mins % 60}m</>
+}
+
+/**
+ * A small text button for a row action.
+ *
+ * Deliberately quiet: these sit on every failed or queued row, and a column of solid buttons would
+ * shout louder than the statuses they act on. The hit area is padded out to a usable size anyway,
+ * because a small target on a phone is a mis-tap on the row below.
+ */
+function JobButton({ label, busy, onClick }: { label: string; busy: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className="-my-1 rounded px-2 py-1 text-xs font-medium text-primary hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50"
+    >
+      {busy ? `${label}…` : label}
+    </button>
+  )
 }
