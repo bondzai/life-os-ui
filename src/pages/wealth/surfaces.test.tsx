@@ -100,17 +100,17 @@ describe('DeFi', () => {
 
   it('shows the snowball total and what this page contributes to it', async () => {
     renderSurface(<WealthDefiPage />)
+    // It is a figure on the summary bar now, not a card of its own — but it still shows when
+    // nothing is tagged, because the ❄ that fills it is on every row below.
     await screen.findByText('Snowball')
-    // Nothing tagged: the card stays, because the ❄ that fills it is on every row below.
-    expect(screen.getByText(/No LP position is tagged yet/)).toBeDefined()
+    expect(screen.getByText(/press ❄ on a row to start one/)).toBeDefined()
 
-    // Tag the first position and the card should account for it.
+    // Tag the first position and the figure should account for it.
     const toggles = screen.getAllByRole('button', { name: /Add .* to snowball/ })
     expect(toggles.length).toBeGreaterThan(0)
     fireEvent.click(toggles[0])
 
-    await waitFor(() => expect(screen.getByText(/LP here · 1 of/)).toBeDefined())
-    expect(screen.getByText(/Nothing tagged outside this page/)).toBeDefined()
+    await waitFor(() => expect(screen.getByText(/1 LP here/)).toBeDefined())
   })
 })
 

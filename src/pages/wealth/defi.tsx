@@ -6,7 +6,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { Layers, Search, Snowflake, X } from 'lucide-react'
+import { Layers, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -32,14 +32,13 @@ import {
 import { useMoney } from './money'
 import { formatAmount, formatDuration, formatRelativeTime } from './format'
 import { chainLabel } from './identity'
-import { ChainMark, TokenMark, TokenPairMark } from './marks'
 import { hfTone, HF_SAFE } from './borrowing'
 import { SnowballToggle } from './snowball'
 import { useSnowball, useSnowballTags } from './use-snowball'
 import { RowsSkeleton, StaleBanner, WealthError } from './states'
 import type { LendRow, LpRow } from './types'
 import { useWealth } from './use-wealth'
-import { ChangeText, Pnl, PoolTypeMark, RangeBadge, RangeBar } from './wealth-ui'
+import { ChangeText, Pnl, PoolTypeMark, RangeBadge, RangeBar, Sparkline } from './wealth-ui'
 import {
   Table,
   TableBody,
@@ -159,6 +158,8 @@ export function WealthDefiPage() {
         count={rows.length}
         total={all.length}
         lending={lending}
+        ctx={ctx}
+        rows={all}
         outOfRangeActive={status === 'inactive'}
         onToggleOutOfRange={() => setStatus(status === 'inactive' ? 'all' : 'inactive')}
       />
@@ -175,7 +176,6 @@ export function WealthDefiPage() {
             <SelectItem value={ALL}>All chains</SelectItem>
             {chains.map((c) => (
               <SelectItem key={c} value={c}>
-                <ChainMark chain={c} />
                 {chainLabel(c)}
               </SelectItem>
             ))}
@@ -231,12 +231,9 @@ export function WealthDefiPage() {
           are what the page is for, and two cards between the filters and the first row pushed them
           under the fold on a laptop. Side by side on a wide screen; whichever one has something to
           say takes the full width when the other does not. */}
-      <div className={cn('grid items-start gap-3', summary.byToken.length > 0 && 'lg:grid-cols-2')}>
-        {summary.byToken.length > 0 && (
-          <ClaimablePanel tokens={summary.byToken} total={summary.claimable} />
-        )}
-        <SnowballCard ctx={ctx} rows={all} />
-      </div>
+      {summary.byToken.length > 0 && (
+        <ClaimablePanel tokens={summary.byToken} total={summary.claimable} />
+      )}
 
     </div>
   )
@@ -271,6 +268,8 @@ function SummaryBar({
   count,
   total,
   lending,
+  ctx,
+  rows,
   outOfRangeActive,
   onToggleOutOfRange,
 }: {
@@ -290,6 +289,9 @@ function SummaryBar({
   total: number
   /** Debt and its worst health factor, or `null` on a book that does not borrow. */
   lending: { debt: number; worstHf: number | null; count: number } | null
+  /** For the snowball line, which reads the whole book rather than the filtered rows. */
+  ctx: Ctx
+  rows: LpRow[]
   outOfRangeActive: boolean
   onToggleOutOfRange: () => void
 }) {
@@ -352,7 +354,15 @@ function SummaryBar({
           <Figure
             label="Blended APR"
             value={rate(summary.apr) ?? '—'}
-            hint={summary.perDay > 0 ? `≈ ${money(summary.perDay)}/day` : 'no APR reported'}
+            hint="advertised, not realised"
+          />
+          {/* Modelled from each position's own APR — one reporting none contributes nothing, so
+              this errs low rather than guessing. The figure beside it is what is actually on
+              chain right now; these two must not be confused, hence the word "projected". */}
+          <Figure
+            label="Projected yield"
+            value={summary.perDay > 0 ? `${money(summary.perDay)}/day` : '—'}
+            hint={summary.perDay > 0 ? `≈ ${money(summary.perDay * 365)}/year` : 'no APR reported'}
           />
 
           {/* Debt and how close it is to liquidating you, from the whole book rather than the
@@ -376,6 +386,8 @@ function SummaryBar({
               }
             />
           )}
+
+          <SnowballFigure ctx={ctx} rows={rows} />
 
           {summary.outOfRange > 0 ? (
             <button
@@ -561,7 +573,6 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                 <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <SnowballToggle id={sbLpId(row.key)} name={row.pair} />
-                    <TokenPairMark tokens={row.toks} />
                     <span className={cn('font-medium', posTitle && HAS_MORE)} title={posTitle || undefined}>
                       {row.pair}
                     </span>
@@ -572,10 +583,7 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                 {/* Where this position lives — chain and protocol were two columns asking one
                     question. The token id is in the title, not the cell: see [[positionId]]. */}
                 <TableCell className="whitespace-nowrap" title={venueTitle(row)}>
-                  <div className="flex items-center gap-1.5">
-                    <ChainMark chain={row.chain} />
-                    <span>{chainLabel(row.chain)}</span>
-                  </div>
+                  <div>{chainLabel(row.chain)}</div>
                   <div className={cn('text-xs text-muted-foreground w-fit', HAS_MORE)}>
                     {row.protocol}
                   </div>
@@ -670,7 +678,6 @@ function PositionCard({ row }: { row: LpRow }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <TokenPairMark tokens={row.toks} />
               <h3 className="font-medium">{row.pair}</h3>
               <RangeBadge inRange={row.in_range} full={row.band?.full} />
               {row.poolType && <PoolTypeMark type={row.poolType} />}
@@ -681,10 +688,7 @@ function PositionCard({ row }: { row: LpRow }) {
             >
               <span>{row.protocol}</span>
               <span>·</span>
-              <span className="inline-flex items-center gap-1">
-                <ChainMark chain={row.chain} />
-                {chainLabel(row.chain)}
-              </span>
+              <span>{chainLabel(row.chain)}</span>
               {age !== null && (
                 <>
                   <span>·</span>
@@ -814,7 +818,6 @@ function ClaimablePanel({ tokens, total }: { tokens: ClaimableToken[]; total: nu
                 style={{ width: `${total > 0 ? Math.max((t.usd / total) * 100, 1.5) : 0}%` }}
               />
               <div className="relative flex items-center gap-2 px-1.5 py-1">
-                <TokenMark symbol={t.symbol} />
                 <span className="text-sm font-medium">{t.symbol}</span>
                 <span className="ml-auto text-xs tabular-nums text-muted-foreground">
                   {formatAmount(t.amount)}
@@ -832,98 +835,48 @@ function ClaimablePanel({ tokens, total }: { tokens: ClaimableToken[]; total: nu
 }
 
 /**
- * The snowball, as it looks from this page.
+ * The snowball, as one figure and a line.
  *
- * The full panel — chart, picker, projection — lives on Overview. What belongs *here* is the
- * question this page can act on, because the ❄ button is on every row of the table below: how much
- * of the basket is LP, and how much of the LP book is in it.
+ * It was a card with a title, a subtitle, a two-segment bar and a paragraph — for a basket whose
+ * only real question is "is it growing". A number and forty days of shape answer that in the space
+ * the label alone used to take, and the full panel with the picker and the projection still lives
+ * on Overview.
  *
- * Deliberately reads the whole LP book, not the filtered rows. A total that shrinks when you filter
+ * Reads the whole book rather than the filtered rows: a basket total that shrinks when you filter
  * by chain is not a total.
  */
-function SnowballCard({ ctx, rows }: { ctx: Ctx; rows: LpRow[] }) {
+function SnowballFigure({ ctx, rows }: { ctx: Ctx; rows: LpRow[] }) {
   const { money } = useMoney()
-  const { total, weekDelta } = useSnowball(ctx)
+  const { total, history, weekDelta } = useSnowball(ctx)
   const { isTagged } = useSnowballTags()
 
-  const here = useMemo(() => {
-    const tagged = rows.filter((r) => isTagged(sbLpId(r.key)))
-    return { usd: tagged.reduce((sum, r) => sum + r.value, 0), count: tagged.length }
-  }, [rows, isTagged])
+  const here = useMemo(
+    () => rows.filter((r) => isTagged(sbLpId(r.key))).length,
+    [rows, isTagged],
+  )
 
-  const share = total > 0 ? Math.min((here.usd / total) * 100, 100) : 0
-  // Clamped at zero: the basket total and this page's slice are summed from the same members, but
-  // a stale render between them should show nothing rather than a negative remainder.
-  const elsewhere = Math.max(total - here.usd, 0)
+  // Not hidden when empty: the ❄ that fills it is on every row of the table below, so the nudge
+  // sits one line from the thing it is asking for.
+  if (total <= 0) {
+    return <Figure label="Snowball" value="—" hint="press ❄ on a row to start one" />
+  }
+
+  const delta =
+    weekDelta !== null && weekDelta !== 0
+      ? `${weekDelta > 0 ? '+' : '−'}${money(Math.abs(weekDelta))} this week`
+      : null
 
   return (
-    <Card className="gap-0 py-0">
-      <CardHeader className="flex flex-row items-start justify-between gap-2 px-4 py-3">
-        <div>
-          <CardTitle className="flex items-center gap-1.5 text-sm font-medium">
-            <Snowflake className={cn('size-3.5', here.count > 0 ? 'text-sky-500' : 'text-muted-foreground')} />
-            Snowball
-          </CardTitle>
-          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-            The slice you tagged to compound, across the whole book.
-          </p>
-        </div>
-        <div className="shrink-0 text-right">
-          {/* No em dash on an empty basket. Elsewhere "—" means a number we could not read; here
-              there is simply nothing tagged yet, and the body says so in words. */}
-          {total > 0 && <div className="text-lg font-semibold tabular-nums">{money(total)}</div>}
-          {weekDelta !== null && weekDelta !== 0 && (
-            <div
-              className={cn(
-                'text-[11px] font-medium tabular-nums',
-                weekDelta > 0 ? 'text-emerald-700 dark:text-emerald-500' : 'text-red-700 dark:text-red-400',
-              )}
-            >
-              {weekDelta > 0 ? '+' : '−'}
-              {money(Math.abs(weekDelta))} this week
-            </div>
-          )}
-        </div>
-      </CardHeader>
-
-      <CardContent className="px-4 pt-0 pb-3">
-        {here.count === 0 ? (
-          // Not hidden when empty: the ❄ that fills this is on every row of the table below, so
-          // the nudge is one line away from the thing it is asking for.
-          <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-            No LP position is tagged yet — press
-            <Snowflake className="size-3.5" aria-hidden />
-            on a row below to start compounding one.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {/* Two segments, and the second one is the point: a bar that is 100% full says nothing
-                on its own. Naming what the remainder is turns it into "all of my snowball is LP",
-                which is a fact worth knowing. */}
-            <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
-              <div className="bg-sky-500" style={{ width: `${share}%` }} />
-            </div>
-            <dl className="space-y-1 text-xs">
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="flex items-center gap-1.5 text-muted-foreground">
-                  <span className="size-2 shrink-0 rounded-full bg-sky-500" aria-hidden />
-                  LP here · {here.count} of {rows.length} position{rows.length === 1 ? '' : 's'}
-                </dt>
-                <dd className="font-medium tabular-nums">{money(here.usd)}</dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="flex items-center gap-1.5 text-muted-foreground">
-                  <span className="size-2 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden />
-                  {elsewhere > 0.005 ? 'Wallets, bots and off-chain' : 'Nothing tagged outside this page'}
-                </dt>
-                {/* `$0.00` and not an em dash: the dash is this app's "we could not read this",
-                    and an empty remainder is a number we know exactly. */}
-                <dd className="tabular-nums text-muted-foreground">{money(elsewhere)}</dd>
-              </div>
-            </dl>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div>
+      <p className="text-xs tracking-wide text-muted-foreground uppercase">Snowball</p>
+      <div className="flex items-center gap-2">
+        <p className="font-medium tabular-nums">{money(total)}</p>
+        <Sparkline points={history} label="Snowball" className="text-sky-500" />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {here > 0 ? `${here} LP here` : 'none from this page'}
+        {delta ? ` · ${delta}` : ''}
+      </p>
+    </div>
   )
 }
