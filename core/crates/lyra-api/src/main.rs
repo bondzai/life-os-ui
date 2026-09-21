@@ -5,6 +5,7 @@
 //! so the existing React client runs against this binary with no front-end change. Any change the
 //! front end needs means the port was wrong.
 
+mod bot_life;
 mod agents;
 mod alert_loop;
 mod tgbot;

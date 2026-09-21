@@ -80,6 +80,26 @@ pub fn spawn(state: AppState) {
 }
 
 async fn run(state: AppState, sender: Arc<TelegramSender>, token: String, owner: String) {
+    // Resolved once, at startup, not per message: it cannot change while the process runs, and a
+    // failure is worth exactly one loud line rather than one per command for the rest of the day.
+    let configured = std::env::var("TELEGRAM_OWNER_USER_ID").ok();
+    let user_id = match lyra_db::life::resolve_owner(&state.pool, configured.as_deref()).await {
+        Ok(id) => {
+            tracing::info!(user = %id, "telegram command bot: reading this user's life");
+            Some(id)
+        }
+        Err(why) => {
+            // Read-only degrade rather than refusing to start. The money commands need no user
+            // row, and half a bot is worth more than none — but the log says which half and why.
+            tracing::warn!(
+                %why,
+                "telegram command bot: no user resolved; life commands will decline. \
+                 Set TELEGRAM_OWNER_USER_ID."
+            );
+            None
+        }
+    };
+
     let Ok(client) = reqwest::Client::builder()
         // Comfortably longer than the long poll itself, or every idle poll would look like a
         // timeout and the loop would spin.
@@ -120,7 +140,7 @@ async fn run(state: AppState, sender: Arc<TelegramSender>, token: String, owner:
             if let Some((chat, text)) = message_of(&update) {
                 if chat == owner {
                     let command = command_of(&text.to_lowercase()).to_string();
-                    let reply = handle(&state, &text).await;
+                    let reply = handle(&state, user_id.as_deref(), &text).await;
                     // Plain, so the sender escapes it. These replies are built from on-chain
                     // names — one `*` in a pool used to make Telegram reject the whole message
                     // and the answer vanished, visible only as `delivered = false` below.
@@ -247,15 +267,49 @@ fn command_of(text: &str) -> &str {
 }
 
 fn help() -> String {
-    let mut out = String::from("Lyra — what I can tell you\n\n");
+    let mut out = String::from("Lyra — what I can tell you\n\nYour day\n");
+    for (name, description) in crate::bot_life::COMMANDS {
+        out.push_str(&format!("/{name} — {description}\n"));
+    }
+    out.push_str("\nYour money\n");
     for (name, description) in COMMANDS {
         out.push_str(&format!("/{name} — {description}\n"));
     }
     out
 }
 
-async fn handle(state: &AppState, text: &str) -> String {
-    match command_of(&text.to_lowercase()) {
+/// `user_id` is the row in `users` whose life to read — **not** the Telegram chat id. The two
+/// are both "the owner" in ordinary speech and mean entirely different things here: the chat id
+/// says who may talk to the bot, the user id says whose tasks come back.
+async fn handle(state: &AppState, user_id: Option<&str>, text: &str) -> String {
+    let lowered = text.to_lowercase();
+    let command = command_of(&lowered);
+
+    // Life commands first, because they are the ones you will actually type.
+    if crate::bot_life::handles(command) {
+        let Some(user_id) = user_id else {
+            // Degrade rather than refuse: the wealth commands do not need a user row, so a box
+            // with no resolvable owner is still worth talking to. Saying which variable would fix
+            // it is the difference between a bug report and a five-second change.
+            return "I don't know whose life to read. Set TELEGRAM_OWNER_USER_ID and restart."
+                .into();
+        };
+        // The day is computed here, not inside the store: `digest::day_key` is the same clock the
+        // daily brief uses, so "today" on your phone and "today" in the brief agree.
+        if let Some(reply) =
+            crate::bot_life::reply(
+                state,
+                command,
+                user_id,
+                &lyra_alerts::digest::day_key(&chrono::Local::now()),
+            )
+            .await
+        {
+            return reply;
+        }
+    }
+
+    match command {
         "start" | "help" | "menu" => help(),
         "status" => wealth::bot_status_line(state).await,
         "market" => wealth::bot_market_line().await,
