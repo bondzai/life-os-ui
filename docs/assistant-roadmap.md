@@ -208,9 +208,9 @@ four designs used them.
 
 | # | Item | Size | Status |
 |---|---|---|---|
-| **A1** | **Chunking and a reply formatter.** `chunk(text, 3500)` splitting on line boundaries with `(1/3)` markers, wired into the tgbot reply path and the alert sender. A `Reply` type with list / echo / error shapes and a seven-row cap. | S | DECISION-INDEPENDENT |
-| **A2** | **The shared life store.** New `lyra-db/src/life.rs`, sibling to `wealth.rs`: `Entity` / `Tracker` / `Relation` / `Schedule` row types and their JSON projections, the owned-or-shared visibility rule in **one** implementation, keyset-paginated list queries, and `resolve_owner()`. `lyra-api` handlers keep their zod-port validation and delegate the rest. One new migration adds `idx_entities_owner_due`. | M | DECISION-INDEPENDENT |
-| **A3** | **The jobs table and its store.** `MIGRATIONS[5]` creating `jobs` and `job_effects` with four indexes. `lyra-db/src/jobs.rs` behind a `Queue` trait: enqueue, claim, heartbeat, complete-with-follow-ups, fail-with-backoff, reap, prune, age. Nothing consumes it yet — it ships fully green with zero behaviour change. | M | DECISION-INDEPENDENT |
+| **A1** | **Chunking and a reply formatter.** `chunk(text, 3500)` splitting on line boundaries with `(1/3)` markers, wired into the tgbot reply path and the alert sender. A `Reply` type with list / echo / error shapes and a seven-row cap. | S | **SHIPPED** `7b3571f` — split on a line boundary, not clamped |
+| **A2** | **The shared life store.** New `lyra-db/src/life.rs`, sibling to `wealth.rs`: `Entity` / `Tracker` / `Relation` / `Schedule` row types and their JSON projections, the owned-or-shared visibility rule in **one** implementation, keyset-paginated list queries, and `resolve_owner()`. `lyra-api` handlers keep their zod-port validation and delegate the rest. One new migration adds `idx_entities_owner_due`. | M | **SHIPPED** `ff04772` — `lyra-db/src/life.rs` |
+| **A3** | **The jobs table and its store.** `MIGRATIONS[5]` creating `jobs` and `job_effects` with four indexes. `lyra-db/src/jobs.rs` behind a `Queue` trait: enqueue, claim, heartbeat, complete-with-follow-ups, fail-with-backoff, reap, prune, age. Nothing consumes it yet — it ships fully green with zero behaviour change. | M | **SHIPPED** `0e7e0c8`, fixed `749bc37` after QA |
 
 **A1 is first because it is a bug fix, not a feature.** Telegram rejects anything over 4096
 characters outright, and `digest.rs` is 1066 lines of string building pointed at a single
@@ -227,10 +227,10 @@ else, the rule is `BEGIN IMMEDIATE`, never bare `BEGIN`.
 
 | # | Item | Size | Status |
 |---|---|---|---|
-| **B1** | **The capability model in `lyra-mcp`.** Replace `read_only: bool` with `Capability` + `Domain` on `ToolDef`; narrow the write-surface test to `Domain::Wealth`; fix the forbidden-substring test to match property *names* for `sign`/`seed`; add `WriteMode` to `Startup` and `registry(mode)`; wire `LYRA_MCP_OWNER`. Registry still ten tools, wire contract byte-identical. | M | **DECISION-BLOCKED (D1)** |
-| **B2** | **The life-OS read surface over MCP.** `entity_list`, `entity_get`, `search_life`, `get_agenda`, `schedule_list`, `tracker_series`. Projections, keyset cursors, a default limit of 20 and a max of 100, and a ~64 KB frame budget checked in `tools_call`. Every one is `Capability::Read`. | M | **DECISION-BLOCKED (D1)**, blocked by A2, B1 |
-| **B3** | **`lyra-verbs` and the read verbs.** The crate: `Verb`, `Capability`, `Cost`, `Actor`, `Outcome`, a plain registry a test can enumerate. The eleven wealth commands re-expressed as verbs wrapping `wealth::bot_*` unchanged. New verbs `/today`, `/next`, `/inbox`, `/p <name>`, `/week`. Owner resolved at spawn, read-only degrade. | M | DECISION-INDEPENDENT, blocked by A1, A2 |
-| **B4** | **The grammar.** `grammar.rs` porting `parseCapture` from `capture-protocol.ts:148`, with a test that reads the TS table and asserts every prefix and alias agrees. `dates.rs` for `tomorrow` / `friday` / `in 3 days` against `chrono::Local`. `@project` resolution by prefix against open projects and goals. **Still no writes** — the parse is echoed back, so the grammar can be judged before it can change anything. | M | DECISION-INDEPENDENT, blocked by B3 |
+| **B1** | **The capability model in `lyra-mcp`.** Replace `read_only: bool` with `Capability` + `Domain` on `ToolDef`; narrow the write-surface test to `Domain::Wealth`; fix the forbidden-substring test to match property *names* for `sign`/`seed`; add `WriteMode` to `Startup` and `registry(mode)`; wire `LYRA_MCP_OWNER`. Registry still ten tools, wire contract byte-identical. | M | **SHIPPED** `ff04772` — see the note below on D1 |
+| **B2** | **The life-OS read surface over MCP.** `entity_list`, `entity_get`, `search_life`, `get_agenda`, `schedule_list`, `tracker_series`. Projections, keyset cursors, a default limit of 20 and a max of 100, and a ~64 KB frame budget checked in `tools_call`. Every one is `Capability::Read`. | M | **SHIPPED** `ff04772` — 7 tools, registry now 17 |
+| **B3** | **`lyra-verbs` and the read verbs.** The crate: `Verb`, `Capability`, `Cost`, `Actor`, `Outcome`, a plain registry a test can enumerate. The eleven wealth commands re-expressed as verbs wrapping `wealth::bot_*` unchanged. New verbs `/today`, `/next`, `/inbox`, `/p <name>`, `/week`. Owner resolved at spawn, read-only degrade. | M | **PART SHIPPED** `3c9c30f` — verbs work; the `lyra-verbs` crate does not exist |
+| **B4** | **The grammar.** `grammar.rs` porting `parseCapture` from `capture-protocol.ts:148`, with a test that reads the TS table and asserts every prefix and alias agrees. `dates.rs` for `tomorrow` / `friday` / `in 3 days` against `chrono::Local`. `@project` resolution by prefix against open projects and goals. **Still no writes** — the parse is echoed back, so the grammar can be judged before it can change anything. | M | NOT STARTED — **decision-independent and unblocked** |
 
 `get_agenda` is the tool that makes Telegram feel instant: overdue, due today, in progress, habits
 due, active schedules, next calendar events, in **one call** for the question the assistant asks
@@ -242,9 +242,9 @@ Google token is absent or expired, rather than failing the whole call.
 
 | # | Item | Size | Status |
 |---|---|---|---|
-| **C1** | **`Change`, `apply()` and the audit table.** The enum, the one function that writes, and `mcp_audit(id, ts, tool, change_kind, entity_id, args_digest, ok)` — a digest, never the arguments, for the same reason `StartupRefused::SigningMaterial` carries names and never values. `apply()` keeps its transactions short and maps `SQLITE_BUSY` to *"try again"*, not *"you got it wrong"*. | M | **DECISION-BLOCKED (D4)**, blocked by A2 |
-| **C2** | **The MCP write surface.** `entity_create` (UUID minted server-side, `parentId` and `metadata.projectId` validated against a visible entity), `entity_update`, `entity_complete` (entity + schedule in one transaction), `habit_log`, `entity_link`, `schedule_set`. Three new invariant tests. **This is where the read-only guarantee formally changes, so it is one commit with the reasoning in the message.** | M | **DECISION-BLOCKED (D1, D4)**, blocked by B1, C1 |
-| **C3** | **The Telegram write verbs.** `capture`, `complete`, `snooze`, `focus_start`/`focus_stop` (a `trackers` row at `unit='focus-min'`), `archive`. Numbered handles persisted in `alert_state` under `tgbot:handles` with a 30-minute expiry. The `tgbot:pending` confirmation slot with `/yes` and `/no`. The `tgbot:undo` single-entry journal and `/undo`. Entity ids derived from the Telegram `update_id`, so an offset replay is a no-op. `COMMANDS` gains a category column and `/help` prints it grouped. | M | **DECISION-BLOCKED (D4)**, blocked by B4, C1 |
+| **C1** | **`Change`, `apply()` and the audit table.** The enum, the one function that writes, and `mcp_audit(id, ts, tool, change_kind, entity_id, args_digest, ok)` — a digest, never the arguments, for the same reason `StartupRefused::SigningMaterial` carries names and never values. `apply()` keeps its transactions short and maps `SQLITE_BUSY` to *"try again"*, not *"you got it wrong"*. | M | NOT STARTED — **blocked (D4)** |
+| **C2** | **The MCP write surface.** `entity_create` (UUID minted server-side, `parentId` and `metadata.projectId` validated against a visible entity), `entity_update`, `entity_complete` (entity + schedule in one transaction), `habit_log`, `entity_link`, `schedule_set`. Three new invariant tests. **This is where the read-only guarantee formally changes, so it is one commit with the reasoning in the message.** | M | NOT STARTED — **blocked (D1, D4)** |
+| **C3** | **The Telegram write verbs.** `capture`, `complete`, `snooze`, `focus_start`/`focus_stop` (a `trackers` row at `unit='focus-min'`), `archive`. Numbered handles persisted in `alert_state` under `tgbot:handles` with a 30-minute expiry. The `tgbot:pending` confirmation slot with `/yes` and `/no`. The `tgbot:undo` single-entry journal and `/undo`. Entity ids derived from the Telegram `update_id`, so an offset replay is a no-op. `COMMANDS` gains a category column and `/help` prints it grouped. | M | NOT STARTED — **blocked (D4)** |
 
 After C3, texting `!call the accountant tomorrow @Accounts` from a bus stop creates the task, and
 `/today` answers in one message. **That is Phase 1 delivered**, with no model anywhere in the path.
@@ -253,10 +253,10 @@ After C3, texting `!call the accountant tomorrow @Accounts` from a bus stop crea
 
 | # | Item | Size | Status |
 |---|---|---|---|
-| **D1'** | **The worker runtime.** `lyra-api/src/jobs/`: the `Handler` trait, `JobCtx` (`once`, `enqueue`, `heartbeat`), the lane router, and a supervisor running 2 interactive + 1 batch + 1 deliver workers plus a 30s reaper tick. First handler: `deliver.telegram` through the existing `Channels`. The 2s inline timeout that demotes a mis-declared `Fast` verb. `/jobs`, `/job`, `/cancel`, `/retry`. | M | DECISION-INDEPENDENT, blocked by A3, C3 |
-| **D2'** | **The scheduler, and the existing loops move on.** `schedule.tick` scans `schedules` for due entities and enqueues; `digest.daily:<day>` and `snapshot.networth:<bucket>` get bucketed idempotency keys, so calling the tick every 30 seconds all day produces exactly one job — the unique index *is* the "did I already run today" flag. `notify.alert` gives outbound alerts real retries. | M | DECISION-INDEPENDENT, blocked by D1' |
-| **D3'** | **Web visibility.** `/api/jobs`, `/api/jobs/{id}`, retry, cancel, and `/api/jobs/stats` carrying claim latency, `SQLITE_BUSY` count and oldest-queued age — the three numbers that later decide the Postgres question. A `Jobs` panel and `api-job-repository.ts`. **A new namespace, deliberately: no gated response grows a field.** | M | DECISION-INDEPENDENT, blocked by D1' |
-| **D4'** | **Knowledge, calendar and web over MCP.** `knowledge_list` (paths and frontmatter, never bodies), `knowledge_read`, `knowledge_append` onto the append-only `/log` path — **no `knowledge_write` in v1**, because overwriting `persona.md` is a `PUT` that git-commits over the previous content. `calendar_list` and `calendar_create_event` (`Capability::Reach`). `search_web`. The twelve browser workflows in `src/core/ai/tools/` ported onto the MCP `prompts/` surface beside `long_term_review`, where they cost the model nothing in its tool budget. | L | DECISION-INDEPENDENT, blocked by C2 |
+| **D1′** | **The worker runtime.** `lyra-api/src/jobs/`: the `Handler` trait, `JobCtx` (`once`, `enqueue`, `heartbeat`), the lane router, and a supervisor running 2 interactive + 1 batch + 1 deliver workers plus a 30s reaper tick. First handler: `deliver.telegram` through the existing `Channels`. The 2s inline timeout that demotes a mis-declared `Fast` verb. `/jobs`, `/job`, `/cancel`, `/retry`. | M | **PART SHIPPED** `0e7e0c8` — runtime, lanes, reaper, supervisor, `deliver.telegram`. Missing: the 2s inline demote, `/jobs` `/job` `/cancel` `/retry` |
+| **D2′** | **The scheduler, and the existing loops move on.** `schedule.tick` scans `schedules` for due entities and enqueues; `digest.daily:<day>` and `snapshot.networth:<bucket>` get bucketed idempotency keys, so calling the tick every 30 seconds all day produces exactly one job — the unique index *is* the "did I already run today" flag. `notify.alert` gives outbound alerts real retries. | M | NOT STARTED — **decision-independent and unblocked** |
+| **D3′** | **Web visibility.** `/api/jobs`, `/api/jobs/{id}`, retry, cancel, and `/api/jobs/stats` carrying claim latency, `SQLITE_BUSY` count and oldest-queued age — the three numbers that later decide the Postgres question. A `Jobs` panel and `api-job-repository.ts`. **A new namespace, deliberately: no gated response grows a field.** | M | **PART SHIPPED** `a1a052b` — `/api/jobs` and the panel. Missing: `/{id}`, retry, cancel, `/stats` |
+| **D4′** | **Knowledge, calendar and web over MCP.** `knowledge_list` (paths and frontmatter, never bodies), `knowledge_read`, `knowledge_append` onto the append-only `/log` path — **no `knowledge_write` in v1**, because overwriting `persona.md` is a `PUT` that git-commits over the previous content. `calendar_list` and `calendar_create_event` (`Capability::Reach`). `search_web`. The twelve browser workflows in `src/core/ai/tools/` ported onto the MCP `prompts/` surface beside `long_term_review`, where they cost the model nothing in its tool budget. | L | NOT STARTED — blocked by C2 |
 
 After D2', a Telegram outage at digest hour no longer costs the day's brief — which is a real bug
 today: `maybe_digest` swallows the error and the day key is only written on success.
@@ -271,6 +271,22 @@ today: `maybe_digest` swallows the error and the day key is only written on succ
 
 `capture.classify` is deliberately separate from `capture`: the note is **saved instantly** and
 enriched later, because capture must never depend on a model being up.
+
+### What has actually shipped, and the one thing it changed
+
+Stage A is done, Stage B is two thirds done, and two Stage D items are half done. The **Agents
+page** — a live fleet view over a WebSocket, with the queue beside it — is not on this roadmap at
+all; it was asked for afterwards and it landed (`6f18abb`, `a1a052b`).
+
+**The thing to know: B1 shipped, so D1 has been answered in one direction already.** The capability
+model is in place, `LYRA_MCP_WRITE` defaults off, and the seven life tools are all
+`Capability::Read`. But the *strict* original assertion — "exactly one tool writes, and it is
+`save_analysis`" — was deliberately kept **alongside** the narrowed one, so it still passes today
+and will fail the moment a life write tool is added. Adding a `Sign` capability fails the build
+rather than a test.
+
+So D1 is no longer a question about reading. It is a question about **writing**, it is still open,
+and the tripwire guarantees it cannot be answered by accident.
 
 ### The shortest path to a useful assistant
 
