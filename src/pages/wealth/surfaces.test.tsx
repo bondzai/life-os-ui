@@ -102,8 +102,12 @@ describe('DeFi', () => {
     renderSurface(<WealthDefiPage />)
     // It is a figure on the summary bar now, not a card of its own — but it still shows when
     // nothing is tagged, because the ❄ that fills it is on every row below.
+    //
+    // The label arrives before the data does: the page renders its structure on the first frame
+    // and fills the numbers in, so finding "Snowball" no longer means the fetch has landed. Wait
+    // for the copy that only exists once it has.
     await screen.findByText('Snowball')
-    expect(screen.getByText(/press ❄ on a row to start one/)).toBeDefined()
+    expect(await screen.findByText(/press ❄ on a row to start one/)).toBeDefined()
 
     // Tag the first position and the figure should account for it.
     const toggles = screen.getAllByRole('button', { name: /Add .* to snowball/ })

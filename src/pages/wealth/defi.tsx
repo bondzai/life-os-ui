@@ -35,7 +35,8 @@ import { chainLabel } from './identity'
 import { hfTone, HF_SAFE } from './borrowing'
 import { SnowballToggle } from './snowball'
 import { useSnowball, useSnowballTags } from './use-snowball'
-import { RowsSkeleton, StaleBanner, WealthError } from './states'
+import { StaleBanner, WealthError } from './states'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { LendRow, LpRow } from './types'
 import { useWealth } from './use-wealth'
 import { ChangeText, Pnl, PoolTypeMark, RangeBadge, RangeBar, Sparkline } from './wealth-ui'
@@ -121,23 +122,26 @@ export function WealthDefiPage() {
     setStatus('all')
   }
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="py-6">
-          <RowsSkeleton rows={5} />
-        </CardContent>
-      </Card>
-    )
-  }
+  /**
+   * The page is drawn immediately and filled in, rather than replaced by a skeleton and then
+   * swapped for something shaped differently.
+   *
+   * A skeleton *instead of* the page means the first thing you see is discarded: the bar, the
+   * filters and the column headers all arrive at once, half a second later, and everything moves.
+   * A skeleton *inside* the page means the structure is there from the first frame and only the
+   * numbers arrive late — nothing reflows, and the filters are usable before the data lands.
+   */
+  const loading = isLoading || !ctx
 
+  // Error and empty are terminal, not transitional: they replace the page because there is
+  // nothing to fill in. Both wait for loading to finish so neither can flash during it.
   if (error) return <WealthError detail={error.message} onRetry={refetch} retrying={isRefreshing} />
 
-  if (isEmpty || !ctx) {
+  if (!loading && isEmpty) {
     return <EmptyState icon={Layers} title="No wallets connected" description="Connect a wallet to track LP positions." />
   }
 
-  if (all.length === 0) {
+  if (!loading && all.length === 0) {
     return (
       <EmptyState
         icon={Layers}
@@ -149,7 +153,7 @@ export function WealthDefiPage() {
 
   return (
     <div className="space-y-4">
-      {isStale && (
+      {isStale && ctx && (
         <StaleBanner age={formatRelativeTime(ctx.data.fetched_at)} onRefresh={refetch} refreshing={isRefreshing} />
       )}
 
@@ -158,6 +162,7 @@ export function WealthDefiPage() {
         count={rows.length}
         total={all.length}
         lending={lending}
+        loading={loading}
         ctx={ctx}
         rows={all}
         outOfRangeActive={status === 'inactive'}
@@ -210,7 +215,9 @@ export function WealthDefiPage() {
         )}
       </div>
 
-      {rows.length === 0 ? (
+      {loading ? (
+        <PositionTable rows={[]} loading />
+      ) : rows.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center">
             <p className="text-sm font-medium">No positions match these filters</p>
@@ -268,6 +275,7 @@ function SummaryBar({
   count,
   total,
   lending,
+  loading,
   ctx,
   rows,
   outOfRangeActive,
@@ -289,8 +297,10 @@ function SummaryBar({
   total: number
   /** Debt and its worst health factor, or `null` on a book that does not borrow. */
   lending: { debt: number; worstHf: number | null; count: number } | null
+  /** The first fetch has not landed. Figures draw placeholders instead of inventing zeros. */
+  loading: boolean
   /** For the snowball line, which reads the whole book rather than the filtered rows. */
-  ctx: Ctx
+  ctx: Ctx | null
   rows: LpRow[]
   outOfRangeActive: boolean
   onToggleOutOfRange: () => void
@@ -302,13 +312,17 @@ function SummaryBar({
       <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-4 py-4">
         <div className="min-w-[8rem]">
           <p className="text-xs tracking-wide text-muted-foreground uppercase">Position value</p>
-          <p className="text-2xl leading-tight font-semibold tabular-nums">
-            {compact(summary.value)}
-          </p>
+          {loading ? (
+            <Skeleton className="my-1 h-7 w-28" />
+          ) : (
+            <p className="text-2xl leading-tight font-semibold tabular-nums">
+              {compact(summary.value)}
+            </p>
+          )}
           {/* Every figure on this bar is computed over the *filtered* rows, so the headline drops
               when you narrow the table. That is the right behaviour — a summary of what you are
               looking at — but only if it admits it. "3 of 7 positions" is the whole disclosure. */}
-          <p className="text-xs text-muted-foreground">
+          <p className={cn('text-xs text-muted-foreground', loading && 'invisible')}>
             {count === total
               ? `${count} position${count === 1 ? '' : 's'}`
               : `${count} of ${total} positions`}
@@ -317,6 +331,7 @@ function SummaryBar({
 
         <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
           <Figure
+            loading={loading}
             label="Net PnL"
             value={summary.pnl.covered > 0 ? <Pnl usd={summary.pnl.usd} /> : '—'}
             // Says which positions the total is over, because it is rarely all of them: vfat
@@ -330,6 +345,7 @@ function SummaryBar({
             }
           />
           <Figure
+            loading={loading}
             label="Claimable"
             value={money(summary.claimable)}
             hint={
@@ -339,6 +355,7 @@ function SummaryBar({
             }
           />
           <Figure
+            loading={loading}
             label="Ready to harvest"
             value={
               summary.harvest.length > 0
@@ -352,6 +369,7 @@ function SummaryBar({
             }
           />
           <Figure
+            loading={loading}
             label="Blended APR"
             value={rate(summary.apr) ?? '—'}
             hint="advertised, not realised"
@@ -360,6 +378,7 @@ function SummaryBar({
               this errs low rather than guessing. The figure beside it is what is actually on
               chain right now; these two must not be confused, hence the word "projected". */}
           <Figure
+            loading={loading}
             label="Projected yield"
             value={summary.perDay > 0 ? `${money(summary.perDay)}/day` : '—'}
             hint={summary.perDay > 0 ? `≈ ${money(summary.perDay * 365)}/year` : 'no APR reported'}
@@ -387,7 +406,7 @@ function SummaryBar({
             />
           )}
 
-          <SnowballFigure ctx={ctx} rows={rows} />
+          <SnowballFigure ctx={ctx} rows={rows} loading={loading} />
 
           {summary.outOfRange > 0 ? (
             <button
@@ -438,18 +457,35 @@ function Figure({
   value,
   hint,
   tone,
+  loading,
 }: {
   label: string
   value: React.ReactNode
   hint: string
   /** Text colour for a value that needs attention. Left off, the figure is just a figure. */
   tone?: string
+  /**
+   * Waiting on the fetch. Draws a bar the size of the number instead of the number.
+   *
+   * Not a zero and not an em dash: `$0.00` is a lie about someone's money and `—` is this
+   * codebase's word for "we looked and could not read it". Neither is true while the request is
+   * still in flight, and a placeholder that says "coming" is the honest third thing.
+   */
+  loading?: boolean
 }) {
   return (
     <div>
       <p className="text-xs tracking-wide text-muted-foreground uppercase">{label}</p>
-      <p className={cn('font-medium tabular-nums', tone)}>{value}</p>
-      <p className="text-xs text-muted-foreground">{hint}</p>
+      {loading ? (
+        <Skeleton className="my-[3px] h-4 w-20" />
+      ) : (
+        <p className={cn('font-medium tabular-nums', tone)}>{value}</p>
+      )}
+      {loading ? (
+        <Skeleton className="my-[3px] h-2.5 w-24" />
+      ) : (
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      )}
     </div>
   )
 }
@@ -534,7 +570,7 @@ function actionAge(row: LpRow): number | null {
   return Number.isFinite(parsed) ? parsed / 1000 : null
 }
 
-function PositionTable({ rows }: { rows: LpRow[] }) {
+function PositionTable({ rows, loading }: { rows: LpRow[]; loading?: boolean }) {
   const { money } = useMoney()
 
   return (
@@ -557,6 +593,18 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {/* Placeholder rows inside the real table, so the header, the column widths and the
+              border are all correct from the first frame and only the cells fill in. */}
+          {loading &&
+            Array.from({ length: 5 }, (_, i) => (
+              <TableRow key={`skeleton-${i}`} className="hover:bg-transparent">
+                {Array.from({ length: 8 }, (_, cell) => (
+                  <TableCell key={cell}>
+                    <Skeleton className="h-4 w-full" />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
           {rows.map((row) => {
             const range = rangeInfo(row)
             const daily = earnings(row)
@@ -845,7 +893,15 @@ function ClaimablePanel({ tokens, total }: { tokens: ClaimableToken[]; total: nu
  * Reads the whole book rather than the filtered rows: a basket total that shrinks when you filter
  * by chain is not a total.
  */
-function SnowballFigure({ ctx, rows }: { ctx: Ctx; rows: LpRow[] }) {
+function SnowballFigure({
+  ctx,
+  rows,
+  loading,
+}: {
+  ctx: Ctx | null
+  rows: LpRow[]
+  loading: boolean
+}) {
   const { money } = useMoney()
   const { total, history, weekDelta } = useSnowball(ctx)
   const { isTagged } = useSnowballTags()
@@ -854,6 +910,8 @@ function SnowballFigure({ ctx, rows }: { ctx: Ctx; rows: LpRow[] }) {
     () => rows.filter((r) => isTagged(sbLpId(r.key))).length,
     [rows, isTagged],
   )
+
+  if (loading) return <Figure loading label="Snowball" value="" hint="" />
 
   // Not hidden when empty: the ❄ that fills it is on every row of the table below, so the nudge
   // sits one line from the thing it is asking for.
