@@ -226,6 +226,58 @@ pub async fn list(State(state): State<AppState>, _user: AuthUser) -> Response {
     axum::Json(serde_json::json!({ "agents": state.fleet.snapshot() })).into_response()
 }
 
+/// `GET /api/jobs` — the queue as a person needs to see it.
+///
+/// Counts plus the most recently touched rows, in one call. Deliberately **not** streamed over the
+/// fleet socket: agent state is a handful of in-memory records that change on an event, and a
+/// queue depth is a `COUNT` over a table. Pushing the second one down every socket on every event
+/// would turn one query into one query per listener per job, which is the shape that stops working
+/// first.
+pub async fn jobs(State(state): State<AppState>, _user: AuthUser) -> Response {
+    use lyra_db::jobs::{Queue, SqliteQueue, now_secs};
+
+    let queue = SqliteQueue::new(state.pool.clone());
+    let now = now_secs();
+
+    // Both reads are independent and neither is a transaction: a count taken a millisecond before
+    // the list is exactly as true as one taken after it, and a page that refreshes does not need
+    // the two to agree to the row.
+    let age = queue.age(now).await;
+    let recent = queue.recent(25).await;
+
+    match (age, recent) {
+        (Ok(age), Ok(recent)) => axum::Json(serde_json::json!({
+            "counts": {
+                "queued": age.queued,
+                "running": age.running,
+                "failed": age.failed,
+            },
+            // The oldest runnable wait, which is the one number that answers "are the workers
+            // keeping up". A job scheduled for tomorrow is not a backlog and is not counted.
+            "oldest_queued_secs": age.oldest_queued_secs,
+            "recent": recent
+                .iter()
+                .map(|job| serde_json::json!({
+                    "id": job.id,
+                    "kind": job.kind,
+                    "lane": job.lane.as_str(),
+                    "status": job.status.as_str(),
+                    "attempts": job.attempts,
+                    "max_attempts": job.max_attempts,
+                    "updated_at": job.updated_at,
+                    // The reason a job is dead is the whole value of keeping the row.
+                    "last_error": job.last_error,
+                }))
+                .collect::<Vec<_>>(),
+        }))
+        .into_response(),
+        _ => crate::common::error(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "could not read the queue",
+        ),
+    }
+}
+
 #[derive(Deserialize)]
 pub struct StreamQuery {
     /// A one-shot ticket from `POST /api/agents/ticket`.

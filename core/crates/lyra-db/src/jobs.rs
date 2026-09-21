@@ -370,6 +370,13 @@ pub trait Queue {
 
     fn age(&self, now: i64) -> impl Future<Output = Result<QueueAge>> + Send;
 
+    /// The most recently touched jobs, newest first.
+    ///
+    /// For a human looking at a queue, which is a different question from anything a worker asks:
+    /// ordered by `updated_at` rather than by `run_at` or priority, because "what just happened"
+    /// is what you open a queue page to find out.
+    fn recent(&self, limit: usize) -> impl Future<Output = Result<Vec<Job>>> + Send;
+
     fn get(&self, id: &str) -> impl Future<Output = Result<Option<Job>>> + Send;
 
     /// Take a queued job off the queue. A running job is left alone: cancelling it would mean
@@ -639,6 +646,19 @@ impl Queue for SqliteQueue {
         .context("pruning finished jobs")?;
 
         Ok(result.rows_affected())
+    }
+
+    async fn recent(&self, limit: usize) -> Result<Vec<Job>> {
+        // Clamped, because this is reachable from an HTTP query parameter and an unbounded LIMIT
+        // read by a page that refreshes is a way to make your own box slow.
+        let limit = limit.clamp(1, 200);
+        let rows = sqlx::query(AssertSqlSafe(format!(
+            "SELECT {COLUMNS} FROM jobs ORDER BY updated_at DESC, id DESC LIMIT {limit}"
+        )))
+        .fetch_all(&self.pool)
+        .await
+        .context("listing recent jobs")?;
+        rows.into_iter().map(row_to_job).collect()
     }
 
     async fn age(&self, now: i64) -> Result<QueueAge> {
@@ -966,6 +986,36 @@ mod tests {
     /// The landmine: `ON CONFLICT(idempotency_key) DO NOTHING` is a parse error against a *partial*
     /// unique index unless the conflict target repeats the index's `WHERE`. Nothing but running it
     /// catches this.
+    #[tokio::test]
+    async fn recent_is_ordered_by_what_just_happened() {
+        // `recent` answers a human's question, not a worker's: not what runs next, but what just
+        // ran. So it is ordered by `updated_at`, which is the field every transition touches.
+        let (_dir, q) = fresh().await;
+        let first = q.enqueue(&job("one"), 1000).await.unwrap();
+        let second = q.enqueue(&job("two"), 1001).await.unwrap();
+
+        // Touch the older one, which should bring it to the front.
+        let claimed = q.claim("w", &[Lane::Interactive], 60, 2000).await.unwrap().unwrap();
+        assert_eq!(claimed.id, first.id, "priority order claims the first one");
+
+        let recent = q.recent(10).await.unwrap();
+        assert_eq!(recent.len(), 2);
+        assert_eq!(recent[0].id, first.id, "the one that just moved leads");
+        assert_eq!(recent[1].id, second.id);
+    }
+
+    #[tokio::test]
+    async fn recent_clamps_a_limit_it_is_handed() {
+        // Reachable from an HTTP query parameter, and an unbounded LIMIT on a page that refreshes
+        // is a way to make your own box slow.
+        let (_dir, q) = fresh().await;
+        for n in 0..5 {
+            q.enqueue(&job(&format!("k{n}")), 1000 + n).await.unwrap();
+        }
+        assert_eq!(q.recent(0).await.unwrap().len(), 1, "zero is clamped up to one");
+        assert_eq!(q.recent(usize::MAX).await.unwrap().len(), 5, "and huge is capped, not refused");
+    }
+
     #[tokio::test]
     async fn a_dead_job_releases_its_key_so_the_work_can_be_asked_for_again() {
         // The failure this closes is silent, which is what makes it expensive: the retry was

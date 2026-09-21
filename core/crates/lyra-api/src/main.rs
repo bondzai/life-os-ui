@@ -105,6 +105,7 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
     // (`api/src/index.ts:36-47`); grouping them here is the same thing with less repetition.
     let protected = Router::new()
         .route("/api/agents", get(agents::list))
+        .route("/api/jobs", get(agents::jobs))
         .route("/api/agents/ticket", post(agents::ticket))
         .route("/api/entities", get(entities::list).post(entities::create))
         .route(

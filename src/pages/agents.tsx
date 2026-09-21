@@ -19,6 +19,7 @@ import { EmptyState } from '@/core/components/empty-state'
 import { cn } from '@/lib/utils'
 import { relativeTime } from '@/lib/dates'
 import { useAgentStream, type Agent, type Link } from '@/core/hooks/use-agent-stream'
+import { useQueue, type QueuedJob } from '@/core/hooks/use-queue'
 
 /** How the link badge reads. Colour repeats the word; it never carries it alone. */
 const LINK_COPY: Record<Link, { label: string; tone: string }> = {
@@ -30,6 +31,7 @@ const LINK_COPY: Record<Link, { label: string; tone: string }> = {
 
 export function AgentsPage() {
   const { agents, link } = useAgentStream()
+  const { data: queue } = useQueue()
   const working = agents.filter((a) => a.status === 'working').length
 
   return (
@@ -69,13 +71,25 @@ export function AgentsPage() {
             <p className="text-xs text-muted-foreground">since the server started</p>
           </div>
 
-          {agents.some((a) => a.failed > 0) && (
+          <div>
+            <p className="text-xs tracking-wide text-muted-foreground uppercase">Queued</p>
+            <p className="font-medium tabular-nums">{queue?.counts.queued ?? '—'}</p>
+            {/* The oldest runnable wait is the one number that says whether the workers are
+                keeping up. A job scheduled for tomorrow is not a backlog and is not counted. */}
+            <p className="text-xs text-muted-foreground">
+              {queue?.oldest_queued_secs != null
+                ? `oldest waiting ${formatWait(queue.oldest_queued_secs)}`
+                : 'nothing waiting'}
+            </p>
+          </div>
+
+          {(queue?.counts.failed ?? 0) > 0 && (
             <div>
               <p className="text-xs tracking-wide text-muted-foreground uppercase">Failed</p>
               <p className="font-medium tabular-nums text-red-700 dark:text-red-400">
-                {agents.reduce((sum, a) => sum + a.failed, 0)}
+                {queue?.counts.failed}
               </p>
-              <p className="text-xs text-muted-foreground">jobs that gave up</p>
+              <p className="text-xs text-muted-foreground">out of attempts — the row is kept</p>
             </div>
           )}
         </CardContent>
@@ -98,7 +112,57 @@ export function AgentsPage() {
           ))}
         </ul>
       )}
+
+      {/* Below the fleet, not above it: what is running is the question you came with, and what
+          just ran is the one you ask second. Absent entirely on a queue nothing has touched, so a
+          fresh box is not a page of empty headings. */}
+      {queue && queue.recent.length > 0 && <RecentJobs jobs={queue.recent} />}
     </div>
+  )
+}
+
+/** Seconds → "40s" / "6m" / "2h". Short, because it sits under a number. */
+function formatWait(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
+  return `${Math.floor(seconds / 3600)}h`
+}
+
+const JOB_TONE: Record<QueuedJob['status'], string> = {
+  running: 'text-emerald-700 dark:text-emerald-500',
+  queued: 'text-muted-foreground',
+  done: 'text-muted-foreground',
+  failed: 'text-red-700 dark:text-red-400',
+  cancelled: 'text-muted-foreground',
+}
+
+function RecentJobs({ jobs }: { jobs: QueuedJob[] }) {
+  return (
+    <section className="space-y-2">
+      <h2 className="text-xs tracking-wide text-muted-foreground uppercase">Recent work</h2>
+      <ul className="divide-y rounded-lg border">
+        {jobs.map((job) => (
+          <li key={job.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2">
+            <span className="min-w-0 flex-1 truncate text-sm">{job.kind}</span>
+            <span className="text-xs text-muted-foreground">{job.lane}</span>
+            {/* The attempt count only appears once it is more than one, because "1/5" on every
+                row is four characters of noise that mean "nothing has gone wrong". */}
+            {job.attempts > 1 && (
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {job.attempts}/{job.max_attempts}
+              </span>
+            )}
+            <span className={cn('text-xs font-medium', JOB_TONE[job.status])}>{job.status}</span>
+            {/* Why it died is the whole reason the row is kept rather than pruned. */}
+            {job.last_error && job.status === 'failed' && (
+              <p className="w-full truncate text-xs text-muted-foreground" title={job.last_error}>
+                {job.last_error}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
