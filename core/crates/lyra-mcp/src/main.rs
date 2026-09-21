@@ -22,7 +22,7 @@ use lyra_chain::aggregate::AggregateConfig;
 use lyra_chain::http_cache::{HttpCache, Mode};
 use lyra_chain::sources::LiveSources;
 use lyra_mcp::server::{Server, Startup, desk_config_from_env};
-use lyra_mcp::sources::{LiveMarket, LivePortfolio, RoomConfig, SqliteAnalyses};
+use lyra_mcp::sources::{LiveMarket, LivePortfolio, RoomConfig, SqliteAnalyses, SqliteLife};
 use lyra_mcp::tools::Desk;
 
 /// stdio only. An empty value is the unset case and is allowed; anything else is refused by name
@@ -58,6 +58,16 @@ async fn main() -> Result<()> {
         .await
         .with_context(|| format!("opening {database}"))?;
 
+    // Whose life this desk reads, settled before a single frame is served.
+    //
+    // This refuses where `tgbot` degrades, and the asymmetry is deliberate. The bot answers a
+    // person who can see that their task list looks wrong; the desk answers a *model*, which
+    // cannot tell an empty task list from a misconfigured one and will happily report that the
+    // user has nothing on. A desk that lies to a model is worse than a desk that did not start.
+    let owner = lyra_db::life::resolve_owner(&pool, std::env::var("LYRA_MCP_OWNER").ok().as_deref())
+        .await
+        .map_err(|refused| anyhow::anyhow!("{refused}"))?;
+
     let aggregate = AggregateConfig::from_env();
     let cache = HttpCache::new(
         std::env::var("LYRA_HTTP_FIXTURES").unwrap_or_else(|_| "fixtures".into()),
@@ -73,10 +83,16 @@ async fn main() -> Result<()> {
         LivePortfolio::new(Arc::clone(&sources), aggregate, RoomConfig::from_env()),
         LiveMarket::new(sources),
         SqliteAnalyses::new(pool.clone()),
+        SqliteLife::new(pool.clone(), &owner),
         desk_config_from_env(),
     );
 
-    tracing::info!(database, "research desk ready on stdio");
+    tracing::info!(
+        database,
+        owner,
+        write_mode = ?startup.write_mode(),
+        "research desk ready on stdio"
+    );
     let result = Server::new(desk, startup).serve_stdio().await;
 
     pool.close().await;

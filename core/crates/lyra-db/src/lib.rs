@@ -10,6 +10,7 @@
 
 pub mod import;
 pub mod jobs;
+pub mod life;
 pub mod migrations;
 pub mod wealth;
 

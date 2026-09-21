@@ -396,14 +396,212 @@ pub trait AnalysisStore: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------------------------
+// The life-OS seam
+// ---------------------------------------------------------------------------------------------
+
+/// How a life list is ordered — and therefore what its cursor means.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LifeOrder {
+    /// Newest change first. The default, because "what did I touch last" has no other answer.
+    #[default]
+    Recent,
+    /// Soonest due first. Carries only rows that have a due date at all.
+    Due,
+}
+
+/// What the desk asks the life store for. Every field narrows; all of them are `AND`ed.
+///
+/// **There is no `owner` field, and that is the design.** The store is constructed already knowing
+/// whose life it is, resolved once at boot and refused if ambiguous. A model that could name an
+/// owner could read someone else's tasks by guessing a string, and no amount of care in a tool
+/// body fixes an argument that should not exist.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LifeQuery {
+    pub kind: Option<String>,
+    pub statuses: Vec<String>,
+    pub parent_id: Option<String>,
+    pub project_id: Option<String>,
+    pub text: Option<String>,
+    pub due_from: Option<String>,
+    pub due_to: Option<String>,
+    pub include_archived: bool,
+    pub order: LifeOrder,
+    pub limit: usize,
+    pub cursor: Option<String>,
+}
+
+/// One page of rows, already projected, plus the opaque cursor that continues it.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LifePage {
+    pub rows: Vec<Value>,
+    pub next: Option<String>,
+}
+
+/// Everything "what should I be doing" needs, in one round trip.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LifeAgenda {
+    pub day: String,
+    pub overdue: Vec<Value>,
+    pub due_today: Vec<Value>,
+    pub in_progress: Vec<Value>,
+    pub habits_due: Vec<Value>,
+    pub upcoming: Vec<Value>,
+}
+
+/// The life-OS store: tasks, projects, goals, habits, notes, events, chores and their
+/// measurements.
+///
+/// Rows cross this seam already projected to JSON, because the projection is not the desk's
+/// decision to make — it has to match what `GET /api/entities` returns, or the assistant and the
+/// web app describe the same row to the same person in two different vocabularies. The shaping
+/// that *is* the desk's job (which lists go in an agenda, what a series summarises to) happens
+/// above this line, where a test can reach it with a plain struct and no database.
+pub trait LifeSource: Send + Sync {
+    /// A page of entities. `to_brief` projections — small enough to list twenty of.
+    fn list(&self, query: LifeQuery) -> impl Future<Output = Result<LifePage, ToolError>> + Send;
+    /// One entity in full, or `None` when it does not exist *or* is not visible. The two are
+    /// deliberately indistinguishable: confirming that an id exists is itself information.
+    fn get(&self, id: &str) -> impl Future<Output = Result<Option<Value>, ToolError>> + Send;
+    /// Relations touching a visible entity.
+    fn relations(
+        &self,
+        entity: Option<String>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<Value>, ToolError>> + Send;
+    /// Measurements, oldest first. Owner-only — a shared habit does not share its numbers.
+    fn trackers(
+        &self,
+        entity: Option<String>,
+        start: Option<String>,
+        end: Option<String>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<Value>, ToolError>> + Send;
+    /// Recurrences. `schedules` is entity recurrence and not a job queue — see
+    /// `docs/core-engine.md`.
+    fn schedules(
+        &self,
+        entity: Option<String>,
+        active_only: bool,
+        due_on_or_before: Option<String>,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<Value>, ToolError>> + Send;
+    /// The day's agenda, assembled by the store in one pass over the same tables.
+    fn agenda(
+        &self,
+        day: String,
+        limit: usize,
+    ) -> impl Future<Output = Result<LifeAgenda, ToolError>> + Send;
+}
+
+// ---------------------------------------------------------------------------------------------
 // The registry
 // ---------------------------------------------------------------------------------------------
 
+/// How far a tool can reach. The whole ladder, and there is no rung above the top one.
+///
+/// This replaces a `read_only: bool`, and the replacement is the point rather than a tidy-up.
+/// The old flag supported one assertion — *exactly one tool writes* — which was a proxy for the
+/// thing actually worth protecting: that nothing here can move funds. That proxy held only while
+/// every tool was a wealth tool. The moment a task list arrives it starts firing on honest
+/// changes, and a tripwire that fires constantly gets disabled.
+///
+/// So the guarantee is restated as two facts that stay checkable as the surface grows:
+///
+/// 1. **Nothing can sign, because there is no rung for it.** There is no `Sign` variant, and
+///    [`Capability::blast_radius`] matches exhaustively — so adding one does not slip past review,
+///    it fails the build, at every call site at once. The old test could only notice a signing
+///    tool *after* someone wrote it.
+/// 2. **The wealth desk still has exactly one writer**, `save_analysis` — asserted over
+///    [`Domain::Wealth`] alone, which is the half of the old sentence that was ever load-bearing.
+///
+/// The argument for why a row in the user's own SQLite file is not in the blast radius of a
+/// signature is in `docs/assistant-roadmap.md` §D1. It is not obvious and it should not be
+/// re-derived from this comment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Capability {
+    /// Answers a question. Changes nothing anywhere.
+    Read,
+    /// Writes a row the user owns, in the user's own database, which the web app shows and can
+    /// undo. Nothing leaves the box.
+    WriteOwnData,
+    /// Causes an effect the user cannot undo from the web app because it is not in the database —
+    /// a message sent, a calendar invitation delivered. Nothing carries this yet; it exists so
+    /// that the first tool that does has to be classified as such rather than passed off as a
+    /// write.
+    Reach,
+}
+
+/// Every rung, in order. A test asserts this list against the match below, so the two cannot
+/// disagree about what the ladder contains.
+pub const ALL_CAPABILITIES: [Capability; 3] =
+    [Capability::Read, Capability::WriteOwnData, Capability::Reach];
+
+impl Capability {
+    /// What this rung means, in one phrase.
+    ///
+    /// The exhaustive match is the enforcement mechanism described above: this function has no
+    /// wildcard arm, on purpose, so a new variant cannot be added quietly.
+    pub const fn blast_radius(self) -> &'static str {
+        match self {
+            Capability::Read => "reads only",
+            Capability::WriteOwnData => "writes a row in the user's own database",
+            Capability::Reach => "causes an effect outside this box",
+        }
+    }
+
+    pub const fn is_read(self) -> bool {
+        matches!(self, Capability::Read)
+    }
+}
+
+/// What a tool is about. Used to keep an invariant scoped to the surface it was written for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Domain {
+    /// The portfolio, the market and the analysis journal — the original desk.
+    Wealth,
+    /// Tasks, projects, goals, habits, notes, events, chores, and their measurements.
+    Life,
+}
+
+/// Which write tools this process is willing to list at all.
+///
+/// The default is deliberately the status quo and not "everything off": `save_analysis` predates
+/// this gate and is part of the contract a client already has with the desk, so switching a
+/// classification model on must not silently remove a tool that has been there all along.
+///
+/// What the gate buys is the property a second binary would have bought — with `LYRA_MCP_WRITE`
+/// unset, a client **cannot list** a life-OS write tool, so it cannot call one either. That is
+/// checkable from the outside, by reading `tools/list`, rather than by auditing tool bodies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WriteMode {
+    /// The default. The append-only analysis journal may write; nothing else may.
+    #[default]
+    JournalOnly,
+    /// `LYRA_MCP_WRITE=1`. Life-OS write tools are listed too.
+    Life,
+}
+
+impl WriteMode {
+    /// Read the gate from an environment. Only an explicit `1` / `true` / `yes` opens it; anything
+    /// else, including a typo, leaves it shut, because the failure that matters is a box that is
+    /// writable when its operator believes it is not.
+    pub fn from_var(value: Option<&str>) -> Self {
+        match value.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
+            Some("1") | Some("true") | Some("yes") => WriteMode::Life,
+            _ => WriteMode::JournalOnly,
+        }
+    }
+
+    pub fn from_env() -> Self {
+        Self::from_var(std::env::var("LYRA_MCP_WRITE").ok().as_deref())
+    }
+}
+
 /// One tool as the protocol advertises it.
 ///
-/// `read_only` is the load-bearing field: it becomes `annotations.readOnlyHint` on the wire, and
-/// a test asserts that exactly one tool in the registry is not read-only. Annotations are a hint
-/// to the client — the structural control is that no tool body has a signing path at all.
+/// `capability` is the load-bearing field: it becomes `annotations.readOnlyHint` on the wire, and
+/// the registry tests assert over it. Annotations are a hint to the client — the structural
+/// control is that no tool body has a signing path at all, and no [`Capability`] admits one.
 ///
 /// The schema is a function pointer rather than a lazily-built value so the registry stays a
 /// `const`-shaped list with no start-up work and no interior mutability. (No `PartialEq`: two
@@ -413,10 +611,29 @@ pub struct ToolDef {
     pub name: &'static str,
     pub description: &'static str,
     pub input_schema: fn() -> Value,
-    pub read_only: bool,
+    pub capability: Capability,
+    pub domain: Domain,
 }
 
 impl ToolDef {
+    /// What `annotations.readOnlyHint` says. Derived, never stored twice.
+    pub fn read_only(&self) -> bool {
+        self.capability.is_read()
+    }
+
+    /// Whether this process will admit this tool at all.
+    ///
+    /// Reads are always listed. `Domain::Wealth` is always listed because `save_analysis` is the
+    /// desk's existing contract and the gate is not retroactive. Everything else waits for
+    /// [`WriteMode::Life`].
+    pub fn listed_under(&self, mode: WriteMode) -> bool {
+        match (self.capability, self.domain) {
+            (Capability::Read, _) => true,
+            (_, Domain::Wealth) => true,
+            _ => mode == WriteMode::Life,
+        }
+    }
+
     /// The `tools/list` entry for this tool.
     pub fn to_wire(&self) -> Value {
         json!({
@@ -424,7 +641,7 @@ impl ToolDef {
             "description": self.description,
             "inputSchema": (self.input_schema)(),
             "annotations": {
-                "readOnlyHint": self.read_only,
+                "readOnlyHint": self.read_only(),
                 // Nothing here can destroy state: the journal is append-only and everything
                 // else is a read. This is true of `save_analysis` too.
                 "destructiveHint": false,
@@ -541,12 +758,154 @@ fn get_analysis_schema() -> Value {
     )
 }
 
-/// Every tool this server exposes — the complete capability surface, as a value.
+/* ─── The life-OS schemas ───
+ *
+ * One `entity_list` rather than seven per-type tools. The types share a table, a visibility rule
+ * and a filter set, so seven tools would be seven copies of one schema differing in a string —
+ * and the cost lands on the model, which pays for every tool description in its context on every
+ * turn whether it calls one or not. A `type` argument is the same expressiveness for a seventh of
+ * the budget.
+ *
+ * A note on wording, because it will bite whoever edits this next: a registry test scans every
+ * input schema, lowercased and whole, for substrings that would betray a trade-shaped tool —
+ * among them `sign`, `seed` and `amount`. Those match inside ordinary words. Say "owner", not
+ * "assignee"; "value", not "amount". The test is right to be blunt about the thing it guards, and
+ * the cost of that bluntness is paid here rather than by loosening it. */
+
+const LIFE_TYPES: &str = "One of: task, project, goal, habit, note, event, chore. The column is \
+open, so a type the web app added later works too. Omit for every type.";
+
+const LIMIT_DESC: &str = "Max rows (default 20, cap 100). Page with `cursor` rather than raising \
+it — the cap is a frame budget, not a database limit.";
+
+const CURSOR_DESC: &str = "Opaque `next_cursor` from a previous call in the SAME `order`. Pages \
+by the last row actually returned, so rows added while you page are neither skipped nor repeated.";
+
+fn entity_list_schema() -> Value {
+    schema(
+        json!({
+            "type": { "type": "string", "description": LIFE_TYPES },
+            "status": { "type": "string",
+                        "description": "Comma-separated statuses to keep: backlog, todo, \
+                                        in-progress, done, archived. Omit for everything still \
+                                        open." },
+            "project_id": { "type": "string",
+                            "description": "Only rows whose metadata.projectId is this id — the \
+                                            tasks belonging to a project or a goal." },
+            "parent_id": { "type": "string", "description": "Only direct children of this id." },
+            "text": { "type": "string",
+                      "description": "Substring of the title or body, case-insensitive." },
+            "due_from": { "type": "string",
+                          "description": "Inclusive earliest due day, YYYY-MM-DD." },
+            "due_to": { "type": "string",
+                        "description": "Inclusive latest due day, YYYY-MM-DD." },
+            "include_archived": { "type": "boolean",
+                                  "description": "Default false. Archived work is filed on \
+                                                  purpose; surfacing it undoes that." },
+            "order": { "type": "string", "enum": ["recent", "due"],
+                       "description": "recent = newest change first (default). due = soonest due \
+                                       first, and lists ONLY rows that have a due date." },
+            "limit": { "type": "integer", "minimum": 1, "description": LIMIT_DESC },
+            "cursor": { "type": "string", "description": CURSOR_DESC },
+        }),
+        &[],
+    )
+}
+
+fn entity_get_schema() -> Value {
+    schema(
+        json!({
+            "id": { "type": "string", "description": "Entity id from any list." },
+            "limit": { "type": "integer", "minimum": 1,
+                       "description": "Max related rows in each attached list (default 20)." },
+        }),
+        &["id"],
+    )
+}
+
+fn search_life_schema() -> Value {
+    schema(
+        json!({
+            "q": { "type": "string",
+                   "description": "Text to look for in titles and bodies, case-insensitive. \
+                                   A literal % or _ matches itself." },
+            "type": { "type": "string", "description": LIFE_TYPES },
+            "include_archived": { "type": "boolean", "description": "Default false." },
+            "limit": { "type": "integer", "minimum": 1, "description": LIMIT_DESC },
+            "cursor": { "type": "string", "description": CURSOR_DESC },
+        }),
+        &["q"],
+    )
+}
+
+fn get_agenda_schema() -> Value {
+    schema(
+        json!({
+            "day": { "type": "string",
+                     "description": "The day to build the agenda for, YYYY-MM-DD. PASS THIS if \
+                                     you know the user's local date: the server otherwise uses \
+                                     its own, and a box on UTC disagrees with a phone that is not \
+                                     for part of every day." },
+            "limit": { "type": "integer", "minimum": 1,
+                       "description": "Max rows per section (default 20, cap 100)." },
+        }),
+        &[],
+    )
+}
+
+fn schedule_list_schema() -> Value {
+    schema(
+        json!({
+            "entity_id": { "type": "string",
+                           "description": "Only the recurrence of this entity." },
+            "include_paused": { "type": "boolean",
+                                "description": "Default false: only active recurrences." },
+            "due_on_or_before": { "type": "string",
+                                  "description": "Only recurrences whose nextDue has arrived by \
+                                                  this day, YYYY-MM-DD." },
+            "limit": { "type": "integer", "minimum": 1, "description": LIMIT_DESC },
+        }),
+        &[],
+    )
+}
+
+fn tracker_series_schema() -> Value {
+    schema(
+        json!({
+            "entity_id": { "type": "string",
+                           "description": "The entity whose measurements to read — a habit, a \
+                                           goal, anything being tracked." },
+            "start": { "type": "string",
+                       "description": "Inclusive earliest timestamp, ISO 8601." },
+            "end": { "type": "string", "description": "Inclusive latest timestamp, ISO 8601." },
+            "limit": { "type": "integer", "minimum": 1,
+                       "description": "Max points (default 20, cap 100). Points come oldest \
+                                       first; narrow with `start` to read the recent end." },
+        }),
+        &["entity_id"],
+    )
+}
+
+fn relation_list_schema() -> Value {
+    schema(
+        json!({
+            "entity_id": { "type": "string",
+                           "description": "Only edges incident on this id. Omit for every edge \
+                                           with a visible endpoint." },
+            "limit": { "type": "integer", "minimum": 1, "description": LIMIT_DESC },
+        }),
+        &[],
+    )
+}
+
+/// Every tool this server knows how to run — the complete capability surface, as a value.
 ///
-/// Deliberately enumerable: a test walks this list and asserts that exactly one entry is not
-/// read-only, that the one write is the append-only journal, and that no entry accepts anything
-/// resembling a signing input. That is a much stronger statement than "we did not write a
-/// trading tool", and it stays true as the list grows.
+/// Deliberately enumerable: tests walk this list and assert that no capability admits signing,
+/// that the wealth desk has exactly one writer and it is the append-only journal, and that no
+/// entry accepts anything resembling a signing input. That is a much stronger statement than "we
+/// did not write a trading tool", and it stays true as the list grows.
+///
+/// This is the *whole* list. What a client is allowed to see is [`registry_for`].
 pub fn registry() -> &'static [ToolDef] {
     &[
         ToolDef {
@@ -556,7 +915,8 @@ pub fn registry() -> &'static [ToolDef] {
                 an INDEX of LP positions (id, pair, chain, value, range state). Drill into any \
                 position with get_position(id). Off-chain manual assets are not included.",
             input_schema: wallets_only_schema,
-            read_only: true,
+            capability: Capability::Read,
+            domain: Domain::Wealth,
         },
         ToolDef {
             name: "get_position",
@@ -568,7 +928,8 @@ pub fn registry() -> &'static [ToolDef] {
                 break-even are NOT returned — they need entry price / gas the keyless snapshot \
                 lacks.",
             input_schema: get_position_schema,
-            read_only: true,
+            capability: Capability::Read,
+            domain: Domain::Wealth,
         },
         ToolDef {
             name: "get_exposures",
@@ -577,7 +938,8 @@ pub fn registry() -> &'static [ToolDef] {
                 (HHI over underlying assets, top-asset share, stablecoin share). Coin-level \
                 exposure, not the position-level view.",
             input_schema: wallets_only_schema,
-            read_only: true,
+            capability: Capability::Read,
+            domain: Domain::Wealth,
         },
         ToolDef {
             name: "get_trading_bots",
@@ -586,7 +948,8 @@ pub fn registry() -> &'static [ToolDef] {
                 (equity, unrealised PnL, margin in use, per-sub-bot rows → Tier IV High Risk). \
                 Read-only; API keys never leave the server.",
             input_schema: wallets_only_schema,
-            read_only: true,
+            capability: Capability::Read,
+            domain: Domain::Wealth,
         },
         ToolDef {
             name: "list_opportunities",
@@ -595,7 +958,8 @@ pub fn registry() -> &'static [ToolDef] {
                 fraction scale as the field, e.g. 0.3 = 30%). Advertised APRs are \
                 incentive-driven and volatile — a scouting list, not a recommendation.",
             input_schema: list_opportunities_schema,
-            read_only: true,
+            capability: Capability::Read,
+            domain: Domain::Wealth,
         },
         ToolDef {
             name: "get_market_context",
@@ -603,14 +967,16 @@ pub fn registry() -> &'static [ToolDef] {
                 crypto valuation models — Fear & Greed, MVRV Z-Score, BTC rainbow band, \
                 Stock-to-Flow, SOPR, Puell Multiple. Models for framing, not advice.",
             input_schema: no_args_schema,
-            read_only: true,
+            capability: Capability::Read,
+            domain: Domain::Wealth,
         },
         ToolDef {
             name: "get_fund_nav",
             description: "Live NAV (THB per unit) of a Thai mutual fund via WealthMagik, e.g. the \
                 K-GOLD gold fund. Pass a fund code like \"K-GOLD-A(D)\".",
             input_schema: get_fund_nav_schema,
-            read_only: true,
+            capability: Capability::Read,
+            domain: Domain::Wealth,
         },
         ToolDef {
             name: "save_analysis",
@@ -622,7 +988,8 @@ pub fn registry() -> &'static [ToolDef] {
                 worth), so it is honest about what you were looking at and you cannot fake that \
                 context. Pass the SAME `wallets` you analyzed so the anchor matches.",
             input_schema: save_analysis_schema,
-            read_only: false,
+            capability: Capability::WriteOwnData,
+            domain: Domain::Wealth,
         },
         ToolDef {
             name: "list_analyses",
@@ -632,7 +999,8 @@ pub fn registry() -> &'static [ToolDef] {
                 Each record is anchored to the snapshot it saw — re-verify against current data \
                 before acting on old conclusions.",
             input_schema: list_analyses_schema,
-            read_only: true,
+            capability: Capability::Read,
+            domain: Domain::Wealth,
         },
         ToolDef {
             name: "get_analysis",
@@ -640,14 +1008,112 @@ pub fn registry() -> &'static [ToolDef] {
                 complete markdown body, structured payload, and the data anchor it was written \
                 against.",
             input_schema: get_analysis_schema,
-            read_only: true,
+            capability: Capability::Read,
+            domain: Domain::Wealth,
+        },
+        // ── The life OS. Reads only: nothing below can create, change or file anything. ──
+        ToolDef {
+            name: "get_agenda",
+            description: "START HERE for anything about the user's day. One call returns overdue \
+                work, what is due today, what is already in progress, the habits and chores due, \
+                and the next seven days — each as a short list. Ask this before reaching for \
+                entity_list: the alternative is five list calls whose results you then have to \
+                reconcile. Pass `day` as the user's local YYYY-MM-DD when you know it. Calendar \
+                events are NOT included and the response says so rather than pretending the day \
+                is empty.",
+            input_schema: get_agenda_schema,
+            capability: Capability::Read,
+            domain: Domain::Life,
+        },
+        ToolDef {
+            name: "entity_list",
+            description: "List the user's tasks, projects, goals, habits, notes, events and \
+                chores — ONE tool for every type, narrowed by `type`. Filter by status, by the \
+                project or goal a task belongs to (`project_id`), by parent, by due-day window or \
+                by text. Order by most recently changed (default) or by soonest due. Returns a \
+                short projection per row — id, type, title, status, priority, due date, project, \
+                tags — plus `next_cursor` when more rows exist. Archived work is left out unless \
+                you ask for it. Use entity_get for one row's full body.",
+            input_schema: entity_list_schema,
+            capability: Capability::Read,
+            domain: Domain::Life,
+        },
+        ToolDef {
+            name: "entity_get",
+            description: "ONE entity in full — body, tags, metadata, timestamps — together with \
+                the context that makes it actionable: its parent, its direct children, the tasks \
+                that name it as their project or goal, its recurrence if it has one, and the \
+                relations touching it. This is the drill-in after entity_list, and the right call \
+                before you say anything specific about a piece of work. An id the user cannot see \
+                is reported as not found, exactly as a nonexistent one is.",
+            input_schema: entity_get_schema,
+            capability: Capability::Read,
+            domain: Domain::Life,
+        },
+        ToolDef {
+            name: "search_life",
+            description: "Find entities by text across titles and bodies, of any type or one \
+                type. This searches the user's OWN life OS — their tasks, notes and projects — \
+                and never the web. Use it when the user refers to something by name rather than \
+                by id: 'the accountant thing', 'my reading note about X'. Same projection and \
+                same cursor paging as entity_list.",
+            input_schema: search_life_schema,
+            capability: Capability::Read,
+            domain: Domain::Life,
+        },
+        ToolDef {
+            name: "schedule_list",
+            description: "The user's recurrences: which habit or chore repeats on what rhythm, \
+                when it next falls due, and when it was last completed. A recurrence is NOT a job \
+                queue entry — `nextDue` is a date shown to the user on the habits page, so treat \
+                it as a plan and never as a promise that something ran. Paused recurrences are \
+                left out unless you ask for them.",
+            input_schema: schedule_list_schema,
+            capability: Capability::Read,
+            domain: Domain::Life,
+        },
+        ToolDef {
+            name: "tracker_series",
+            description: "The measurements logged against one entity, oldest first, with a small \
+                summary alongside: how many points, their total, smallest, largest, mean, and the \
+                latest one. Use it for 'how am I doing on X' questions — reps, minutes, weight, \
+                pages. Measurements are private to whoever logged them even when the entity \
+                itself is shared, so an empty series means yours is empty, not that nothing was \
+                ever logged.",
+            input_schema: tracker_series_schema,
+            capability: Capability::Read,
+            domain: Domain::Life,
+        },
+        ToolDef {
+            name: "relation_list",
+            description: "The typed edges between entities — what blocks what, what relates to \
+                what — either for one entity or across everything visible. An edge is returned \
+                when EITHER of its endpoints is visible to the user, so an edge may point at an \
+                id that entity_get will then decline to show.",
+            input_schema: relation_list_schema,
+            capability: Capability::Read,
+            domain: Domain::Life,
         },
     ]
 }
 
-/// Look a tool up by name.
+/// The tools this process will advertise, given its write gate.
+///
+/// A tool left out of this list is not merely hidden: [`find_listed`] is what `tools/call`
+/// resolves through, so a tool the client cannot see is also one it cannot invoke by guessing the
+/// name. Listing and dispatch have to agree, or the gate is decoration.
+pub fn registry_for(mode: WriteMode) -> Vec<&'static ToolDef> {
+    registry().iter().filter(|t| t.listed_under(mode)).collect()
+}
+
+/// Look a tool up by name, across the whole surface.
 pub fn find(name: &str) -> Option<&'static ToolDef> {
     registry().iter().find(|t| t.name == name)
+}
+
+/// Look a tool up by name, but only among the ones this process advertises.
+pub fn find_listed(name: &str, mode: WriteMode) -> Option<&'static ToolDef> {
+    find(name).filter(|t| t.listed_under(mode))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -683,10 +1149,11 @@ impl Default for DeskConfig {
 ///
 /// Generic rather than boxed so the futures stay `Send` and the whole thing monomorphizes to
 /// direct calls — and so a test double is an ordinary struct, not a mock framework.
-pub struct Desk<P, M, A> {
+pub struct Desk<P, M, A, L> {
     portfolio: P,
     market: M,
     analyses: A,
+    life: L,
     config: DeskConfig,
 }
 
@@ -697,6 +1164,18 @@ fn arg_str(args: &Value, key: &str) -> String {
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string()
+}
+
+/// An optional string argument: absent, null and blank all mean "not supplied".
+///
+/// A model that fills in `""` for a filter it does not want is common enough that treating the
+/// empty string as a filter would silently return nothing and look like an empty life.
+fn opt_str(args: &Value, key: &str) -> Option<String> {
+    args.get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
 }
 
 fn arg_f64(args: &Value, key: &str) -> f64 {
@@ -830,12 +1309,13 @@ fn position_flags(position: &LpPosition, dependency: &Metric) -> Vec<Value> {
     flags
 }
 
-impl<P: PortfolioSource, M: MarketSource, A: AnalysisStore> Desk<P, M, A> {
-    pub fn new(portfolio: P, market: M, analyses: A, config: DeskConfig) -> Self {
+impl<P: PortfolioSource, M: MarketSource, A: AnalysisStore, L: LifeSource> Desk<P, M, A, L> {
+    pub fn new(portfolio: P, market: M, analyses: A, life: L, config: DeskConfig) -> Self {
         Self {
             portfolio,
             market,
             analyses,
+            life,
             config,
         }
     }
@@ -867,6 +1347,13 @@ impl<P: PortfolioSource, M: MarketSource, A: AnalysisStore> Desk<P, M, A> {
             "save_analysis" => self.save_analysis(args).await,
             "list_analyses" => self.list_analyses(args).await,
             "get_analysis" => self.get_analysis(args).await,
+            "get_agenda" => self.get_agenda(args).await,
+            "entity_list" => self.entity_list(args).await,
+            "entity_get" => self.entity_get(args).await,
+            "search_life" => self.search_life(args).await,
+            "schedule_list" => self.schedule_list(args).await,
+            "tracker_series" => self.tracker_series(args).await,
+            "relation_list" => self.relation_list(args).await,
             other => Err(ToolError::InvalidInput(format!(
                 "unknown tool {other:?} — call tools/list for the available tools"
             ))),
@@ -1172,6 +1659,250 @@ impl<P: PortfolioSource, M: MarketSource, A: AnalysisStore> Desk<P, M, A> {
             ))),
         }
     }
+
+    /* ─── The life OS ─── */
+
+    /// Build the shared filter set out of one call's arguments.
+    ///
+    /// Shared by `entity_list` and `search_life` so the two cannot end up disagreeing about what
+    /// `include_archived` means — which would be the sort of difference nobody notices until an
+    /// archived task turns up in an answer.
+    fn life_query(&self, args: &Value, order: LifeOrder) -> LifeQuery {
+        LifeQuery {
+            kind: opt_str(args, "type"),
+            // A comma-separated list rather than an array: every other string argument on this
+            // desk is a string, and a model that has to guess between the two guesses wrong.
+            statuses: opt_str(args, "status")
+                .map(|raw| {
+                    raw.split(',')
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default(),
+            parent_id: opt_str(args, "parent_id"),
+            project_id: opt_str(args, "project_id"),
+            text: opt_str(args, "text"),
+            due_from: opt_str(args, "due_from"),
+            due_to: opt_str(args, "due_to"),
+            include_archived: arg_bool(args, "include_archived"),
+            order,
+            limit: arg_usize(args, "limit"),
+            cursor: opt_str(args, "cursor"),
+        }
+    }
+
+    fn page_to_json(page: LifePage, kind: &str) -> Value {
+        let count = page.rows.len();
+        json!({
+            "schema_version": SCHEMA_VERSION,
+            kind: page.rows,
+            "count": count,
+            // Present and null when the list is exhausted, rather than absent: a missing key
+            // reads as "I forgot to look", and a model that cannot tell the difference asks again.
+            "next_cursor": page.next,
+        })
+    }
+
+    async fn entity_list(&self, args: &Value) -> Result<Value, ToolError> {
+        let order = match opt_str(args, "order").as_deref() {
+            None | Some("recent") => LifeOrder::Recent,
+            Some("due") => LifeOrder::Due,
+            Some(other) => {
+                return Err(ToolError::InvalidInput(format!(
+                    "order={other:?} is not an order — use \"recent\" or \"due\"."
+                )));
+            }
+        };
+        let page = self.life.list(self.life_query(args, order)).await?;
+        Ok(Self::page_to_json(page, "entities"))
+    }
+
+    async fn search_life(&self, args: &Value) -> Result<Value, ToolError> {
+        let q = required_str(args, "q")?;
+        let mut query = self.life_query(args, LifeOrder::Recent);
+        query.text = Some(q.clone());
+        let page = self.life.list(query).await?;
+        let mut out = Self::page_to_json(page, "matches");
+        out["query"] = json!(q);
+        Ok(out)
+    }
+
+    async fn entity_get(&self, args: &Value) -> Result<Value, ToolError> {
+        let id = required_str(args, "id")?;
+        let limit = arg_usize(args, "limit");
+
+        let Some(entity) = self.life.get(&id).await? else {
+            // The same message whether the row is absent or merely invisible. Distinguishing them
+            // would confirm that an id the user may not see exists, which is itself information.
+            return Err(ToolError::InvalidInput(format!(
+                "no entity with id={id:?} that this user can see."
+            )));
+        };
+
+        // The parent is fetched rather than listed so an invisible parent comes back as null,
+        // the same way an invisible entity does.
+        let parent_id = entity
+            .get("parentId")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let parent = match &parent_id {
+            Some(pid) => self.life.get(pid).await?,
+            None => None,
+        };
+
+        let children = self
+            .life
+            .list(LifeQuery {
+                parent_id: Some(id.clone()),
+                limit,
+                ..Default::default()
+            })
+            .await?;
+        // Two different links, deliberately kept apart: `parentId` is containment and
+        // `metadata.projectId` is belonging, and a project's tasks are usually the second.
+        let members = self
+            .life
+            .list(LifeQuery {
+                project_id: Some(id.clone()),
+                limit,
+                ..Default::default()
+            })
+            .await?;
+        let schedule = self
+            .life
+            .schedules(Some(id.clone()), false, None, 1)
+            .await?
+            .into_iter()
+            .next();
+        let relations = self.life.relations(Some(id.clone()), limit).await?;
+
+        Ok(json!({
+            "schema_version": SCHEMA_VERSION,
+            "entity": entity,
+            "parent": parent,
+            "children": children.rows,
+            "children_next_cursor": children.next,
+            "project_members": members.rows,
+            "project_members_next_cursor": members.next,
+            "schedule": schedule,
+            "relations": relations,
+        }))
+    }
+
+    async fn schedule_list(&self, args: &Value) -> Result<Value, ToolError> {
+        let rows = self
+            .life
+            .schedules(
+                opt_str(args, "entity_id"),
+                !arg_bool(args, "include_paused"),
+                opt_str(args, "due_on_or_before"),
+                arg_usize(args, "limit"),
+            )
+            .await?;
+        Ok(json!({
+            "schema_version": SCHEMA_VERSION,
+            "schedules": rows,
+            "count": rows.len(),
+            // Said here rather than only in the tool description, because the description is read
+            // once and the response is read every time.
+            "note": "A recurrence is a plan shown to the user, not a record that anything ran.",
+        }))
+    }
+
+    async fn relation_list(&self, args: &Value) -> Result<Value, ToolError> {
+        let rows = self
+            .life
+            .relations(opt_str(args, "entity_id"), arg_usize(args, "limit"))
+            .await?;
+        Ok(json!({
+            "schema_version": SCHEMA_VERSION,
+            "relations": rows,
+            "count": rows.len(),
+        }))
+    }
+
+    async fn tracker_series(&self, args: &Value) -> Result<Value, ToolError> {
+        let entity = required_str(args, "entity_id")?;
+        let points = self
+            .life
+            .trackers(
+                Some(entity.clone()),
+                opt_str(args, "start"),
+                opt_str(args, "end"),
+                arg_usize(args, "limit"),
+            )
+            .await?;
+
+        // Points with no numeric value are kept in the series (the note may be the whole point of
+        // the entry) but left out of the statistics, so a row logged as a comment does not read as
+        // a zero and drag a mean down.
+        let values: Vec<f64> = points
+            .iter()
+            .filter_map(|p| p.get("value").and_then(Value::as_f64))
+            .collect();
+        let summary = if values.is_empty() {
+            json!({ "count": 0 })
+        } else {
+            let sum: f64 = values.iter().sum();
+            json!({
+                "count": values.len(),
+                "sum": round_dp(sum, 4),
+                "min": round_dp(values.iter().cloned().fold(f64::INFINITY, f64::min), 4),
+                "max": round_dp(values.iter().cloned().fold(f64::NEG_INFINITY, f64::max), 4),
+                "mean": round_dp(sum / values.len() as f64, 4),
+                "last": round_dp(*values.last().unwrap_or(&0.0), 4),
+            })
+        };
+
+        Ok(json!({
+            "schema_version": SCHEMA_VERSION,
+            "entity_id": entity,
+            "points": points,
+            "summary": summary,
+            "unit": points
+                .iter()
+                .rev()
+                .find_map(|p| p.get("unit").and_then(Value::as_str))
+                .map(str::to_string),
+        }))
+    }
+
+    async fn get_agenda(&self, args: &Value) -> Result<Value, ToolError> {
+        // The caller's day wins. Falling back to the process's own local date is what makes the
+        // tool usable without one, but it is the wrong answer whenever the box and the phone are
+        // in different zones — so the response reports which one it used.
+        let (day, source) = match opt_str(args, "day") {
+            Some(day) => (day, "caller"),
+            None => (today_local(), "server-local"),
+        };
+        let agenda = self.life.agenda(day.clone(), arg_usize(args, "limit")).await?;
+
+        Ok(json!({
+            "schema_version": SCHEMA_VERSION,
+            "day": agenda.day,
+            "day_source": source,
+            "overdue": agenda.overdue,
+            "due_today": agenda.due_today,
+            "in_progress": agenda.in_progress,
+            "habits_due": agenda.habits_due,
+            "upcoming_7_days": agenda.upcoming,
+            // Stated rather than omitted. An agenda that silently leaves out the calendar looks
+            // like a free afternoon, and the model has no way to tell that it was not asked.
+            "calendar": Value::Null,
+            "calendar_reason": "not connected — this desk cannot read Google Calendar. Do not \
+                                report the day as free on the strength of this.",
+        }))
+    }
+}
+
+/// The process's own local date, `YYYY-MM-DD`.
+///
+/// Only ever a fallback — see `get_agenda`. It is a free function so a test can compare against
+/// it without going near the desk.
+fn today_local() -> String {
+    chrono::Local::now().format("%Y-%m-%d").to_string()
 }
 
 #[cfg(test)]
@@ -1182,7 +1913,7 @@ mod tests {
     fn exactly_one_tool_can_write_and_it_is_the_journal() {
         let writers: Vec<&str> = registry()
             .iter()
-            .filter(|t| !t.read_only)
+            .filter(|t| !t.read_only())
             .map(|t| t.name)
             .collect();
         assert_eq!(
@@ -1233,7 +1964,7 @@ mod tests {
             );
             let wire = tool.to_wire();
             assert_eq!(wire["name"], tool.name);
-            assert_eq!(wire["annotations"]["readOnlyHint"], tool.read_only);
+            assert_eq!(wire["annotations"]["readOnlyHint"], tool.read_only());
             assert_eq!(wire["annotations"]["destructiveHint"], false);
         }
     }
@@ -1255,9 +1986,144 @@ mod tests {
         ] {
             assert!(names.contains(&expected), "missing tool {expected}");
         }
-        assert_eq!(names.len(), 10, "unexpected tool count: {names:?}");
+        // Changed from `names.len() == 10` when the life-OS surface landed. The bare count was
+        // never the thing worth pinning — it only worked while *every* tool was a wealth tool, so
+        // it would have had to be edited by whoever added the eleventh whatever it was. Asserting
+        // the Wealth domain is exactly those ten pins the same fact where it still means
+        // something, and now a new wealth tool has to be argued for rather than absorbed into a
+        // bumped number.
+        let wealth: Vec<&str> = registry()
+            .iter()
+            .filter(|t| t.domain == Domain::Wealth)
+            .map(|t| t.name)
+            .collect();
+        assert_eq!(wealth.len(), 10, "the wealth desk grew: {wealth:?}");
         assert!(find("get_portfolio").is_some());
         assert!(find("place_order").is_none());
+    }
+
+    #[test]
+    fn the_wealth_desk_still_has_exactly_one_writer_and_it_is_the_journal() {
+        // The narrowed form of `exactly_one_tool_can_write_and_it_is_the_journal`, and the one
+        // that survives the life OS. The old assertion is kept alongside it deliberately: it is
+        // still true today, and leaving it to fail on the first life write is what forces that
+        // change to be made on purpose, in a commit that says so, rather than noticed afterwards.
+        let writers: Vec<&str> = registry()
+            .iter()
+            .filter(|t| t.domain == Domain::Wealth && !t.read_only())
+            .map(|t| t.name)
+            .collect();
+        assert_eq!(writers, vec!["save_analysis"]);
+    }
+
+    #[test]
+    fn the_capability_ladder_has_no_rung_for_signing() {
+        // The replacement for "count the writers". `blast_radius` matches exhaustively, so a
+        // `Sign` variant fails the build rather than being noticed by a test after someone wrote
+        // the tool — and this asserts the ladder is the three rungs it is documented to be, so
+        // the exhaustive match cannot be quietly widened either.
+        assert_eq!(ALL_CAPABILITIES.len(), 3);
+        let described: Vec<&str> = ALL_CAPABILITIES
+            .iter()
+            .map(|c| c.blast_radius())
+            .collect();
+        assert_eq!(
+            described,
+            [
+                "reads only",
+                "writes a row in the user's own database",
+                "causes an effect outside this box",
+            ]
+        );
+        for capability in ALL_CAPABILITIES {
+            let radius = capability.blast_radius().to_lowercase();
+            assert!(
+                !radius.contains("sign") && !radius.contains("send funds"),
+                "{radius:?} describes something this desk must not be able to do"
+            );
+        }
+    }
+
+    #[test]
+    fn with_the_write_gate_shut_the_life_os_is_read_only_and_visibly_so() {
+        // The property a second binary would have bought: a client can check it by reading
+        // `tools/list`, without auditing a single tool body.
+        for tool in registry_for(WriteMode::JournalOnly) {
+            assert!(
+                tool.read_only() || tool.domain == Domain::Wealth,
+                "{} is listed with the write gate shut",
+                tool.name
+            );
+        }
+        // And the gate must be shut by anything that is not an explicit yes — including a typo,
+        // because the failure that matters is a box writable while its operator believes not.
+        for value in [None, Some(""), Some("0"), Some("false"), Some("ture"), Some("on")] {
+            assert_eq!(WriteMode::from_var(value), WriteMode::JournalOnly, "{value:?}");
+        }
+        for value in ["1", "true", "YES", " yes "] {
+            assert_eq!(WriteMode::from_var(Some(value)), WriteMode::Life, "{value}");
+        }
+    }
+
+    #[test]
+    fn listing_and_dispatch_agree_about_what_exists() {
+        // A tool withheld from `tools/list` that `tools/call` would still run is not a gate.
+        for mode in [WriteMode::JournalOnly, WriteMode::Life] {
+            let listed: Vec<&str> = registry_for(mode).iter().map(|t| t.name).collect();
+            for tool in registry() {
+                assert_eq!(
+                    find_listed(tool.name, mode).is_some(),
+                    listed.contains(&tool.name),
+                    "{} disagrees under {mode:?}",
+                    tool.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_life_tool_is_a_read() {
+        // This pass added a read surface and nothing else. The moment that stops being true it
+        // should stop being true in a commit that changes this test.
+        let life: Vec<&str> = registry()
+            .iter()
+            .filter(|t| t.domain == Domain::Life)
+            .map(|t| t.name)
+            .collect();
+        assert_eq!(
+            life,
+            [
+                "get_agenda",
+                "entity_list",
+                "entity_get",
+                "search_life",
+                "schedule_list",
+                "tracker_series",
+                "relation_list",
+            ]
+        );
+        for tool in registry().iter().filter(|t| t.domain == Domain::Life) {
+            assert_eq!(tool.capability, Capability::Read, "{}", tool.name);
+        }
+    }
+
+    #[test]
+    fn one_tool_covers_every_entity_type_rather_than_one_tool_each() {
+        // Seven tools differing in a string would cost the model seven descriptions of context on
+        // every turn, whether or not it called any of them.
+        let per_type = registry()
+            .iter()
+            .filter(|t| {
+                ["task", "project", "goal", "habit", "note", "event", "chore"]
+                    .iter()
+                    .any(|kind| t.name.starts_with(kind) || t.name.ends_with(kind))
+            })
+            .count();
+        assert_eq!(per_type, 0, "entity types belong in an argument, not in a tool name");
+        let schema = (find("entity_list").unwrap().input_schema)().to_string();
+        for kind in ["task", "project", "goal", "habit", "note", "event", "chore"] {
+            assert!(schema.contains(kind), "entity_list does not mention {kind}");
+        }
     }
 
     fn band(lower: f64, upper: f64, cur: f64) -> Option<PriceBand> {

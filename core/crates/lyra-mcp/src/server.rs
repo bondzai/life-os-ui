@@ -26,7 +26,8 @@ use serde_json::{Value, json};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::tools::{
-    AnalysisStore, Desk, MarketSource, PortfolioSource, find as find_tool, registry,
+    AnalysisStore, Desk, LifeSource, MarketSource, PortfolioSource, WriteMode,
+    find_listed as find_tool, registry_for,
 };
 
 /// Protocol revisions this server speaks. The first is what we answer with when a client asks
@@ -158,6 +159,7 @@ impl SecretGuard {
 #[derive(Debug, Clone)]
 pub struct Startup {
     secrets: SecretGuard,
+    write_mode: WriteMode,
 }
 
 impl Startup {
@@ -201,13 +203,30 @@ impl Startup {
             }
         }
 
+        let write_mode = WriteMode::from_var(
+            vars.iter()
+                .find(|(name, _)| name == "LYRA_MCP_WRITE")
+                .map(|(_, value)| value.as_str()),
+        );
+
         Ok(Self {
             secrets: SecretGuard::from_vars(vars),
+            write_mode,
         })
     }
 
     pub fn secrets(&self) -> &SecretGuard {
         &self.secrets
+    }
+
+    /// Which write tools this process will advertise.
+    ///
+    /// It lives on [`Startup`] rather than being read at the point of use for the same reason the
+    /// signing check does: the environment is inspected once, in one place, and everything
+    /// downstream works from the result. A gate re-read from `std::env` deep in a call is a gate
+    /// whose value nobody can state by looking at the boot.
+    pub fn write_mode(&self) -> WriteMode {
+        self.write_mode
     }
 }
 
@@ -473,17 +492,17 @@ fn error(id: Value, code: i64, message: impl Into<String>) -> Value {
 }
 
 /// The research desk, speaking MCP over a stream.
-pub struct Server<P, M, A> {
-    desk: Desk<P, M, A>,
+pub struct Server<P, M, A, L> {
+    desk: Desk<P, M, A, L>,
     startup: Startup,
     name: String,
     version: String,
 }
 
-impl<P: PortfolioSource, M: MarketSource, A: AnalysisStore> Server<P, M, A> {
+impl<P: PortfolioSource, M: MarketSource, A: AnalysisStore, L: LifeSource> Server<P, M, A, L> {
     /// Build a server. Requires a [`Startup`], which cannot exist unless the environment passed
     /// the read-only check — so there is no path to a running server on a host that can sign.
-    pub fn new(desk: Desk<P, M, A>, startup: Startup) -> Self {
+    pub fn new(desk: Desk<P, M, A, L>, startup: Startup) -> Self {
         Self {
             desk,
             startup,
@@ -539,7 +558,12 @@ impl<P: PortfolioSource, M: MarketSource, A: AnalysisStore> Server<P, M, A> {
             "ping" => response(id, json!({})),
             "tools/list" => response(
                 id,
-                json!({ "tools": registry().iter().map(|t| t.to_wire()).collect::<Vec<_>>() }),
+                json!({
+                    "tools": registry_for(self.startup.write_mode())
+                        .iter()
+                        .map(|t| t.to_wire())
+                        .collect::<Vec<_>>()
+                }),
             ),
             "tools/call" => self.tools_call(id, &params).await,
             "prompts/list" => response(id, prompt_list()),
@@ -573,7 +597,9 @@ impl<P: PortfolioSource, M: MarketSource, A: AnalysisStore> Server<P, M, A> {
         let Some(name) = params.get("name").and_then(Value::as_str) else {
             return error(id, code::INVALID_PARAMS, "missing tool \"name\"");
         };
-        if find_tool(name).is_none() {
+        // Resolved through the gate, not around it: a tool `tools/list` withheld must not be
+        // callable by a client that guessed its name, or the gate is decoration.
+        if find_tool(name, self.startup.write_mode()).is_none() {
             return error(
                 id,
                 code::INVALID_PARAMS,
@@ -717,8 +743,9 @@ mod tests {
 
     use super::*;
     use crate::tools::{
-        AnalysisAnchor, AnalysisDraft, AnalysisQuery, AnalysisRecord, BotRow, Coverage, DeskConfig,
-        PoolCandidate, PortfolioHolding, Snapshot, ToolError,
+        AnalysisAnchor, AnalysisDraft, AnalysisQuery, AnalysisRecord, BotRow, Coverage,
+        DeskConfig, Domain, LifeAgenda, LifePage, LifeQuery, PoolCandidate, PortfolioHolding,
+        Snapshot, ToolError, registry,
     };
     use lyra_analytics::envelope::TokenAmount;
 
@@ -899,6 +926,266 @@ mod tests {
         assert_eq!(redact("0xdead"), "0xdead");
     }
 
+    // ---------- the life OS ----------
+
+    fn life_desk() -> FakeDesk {
+        FakeDesk {
+            entities: vec![
+                json!({ "id": "t1", "type": "task", "title": "call the accountant",
+                        "status": "todo", "dueDate": "2026-09-21", "projectId": "p1" }),
+                json!({ "id": "t2", "type": "task", "title": "file the receipts",
+                        "status": "in-progress", "dueDate": Value::Null, "projectId": Value::Null }),
+            ],
+            ..Default::default()
+        }
+    }
+
+    async fn tool(server: &FakeServer, name: &str, args: Value) -> Value {
+        let out = call(
+            server,
+            json!({"jsonrpc":"2.0","id":1,"method":"tools/call",
+                   "params":{"name":name,"arguments":args}}),
+        )
+        .await;
+        out["result"].clone()
+    }
+
+    #[tokio::test]
+    async fn the_life_tools_are_listed_and_every_one_of_them_reads() {
+        let s = server(life_desk());
+        let out = call(&s, json!({"jsonrpc":"2.0","id":1,"method":"tools/list"})).await;
+        let tools = out["result"]["tools"].as_array().unwrap();
+        for expected in [
+            "get_agenda",
+            "entity_list",
+            "entity_get",
+            "search_life",
+            "schedule_list",
+            "tracker_series",
+            "relation_list",
+        ] {
+            let tool = tools
+                .iter()
+                .find(|t| t["name"] == expected)
+                .unwrap_or_else(|| panic!("{expected} is not on the wire"));
+            assert_eq!(tool["annotations"]["readOnlyHint"], true, "{expected}");
+        }
+        // The gate is shut by default, and the write surface on the wire is still the journal.
+        let writers: Vec<&str> = tools
+            .iter()
+            .filter(|t| t["annotations"]["readOnlyHint"] == false)
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(writers, vec!["save_analysis"]);
+    }
+
+    #[tokio::test]
+    async fn the_write_gate_changes_nothing_while_there_is_nothing_to_gate() {
+        // `LYRA_MCP_WRITE=1` is wired now so the first write tool cannot arrive *and* wire its own
+        // gate in the same commit. Until one exists, opening it must be a no-op on the wire —
+        // otherwise nobody would notice the day it stopped being one.
+        let shut = server(life_desk());
+        let open = server_with(life_desk(), &[("LYRA_MCP_WRITE", "1")]);
+        let names = |out: &Value| {
+            out["result"]["tools"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|t| t["name"].as_str().unwrap().to_string())
+                .collect::<Vec<_>>()
+        };
+        let list = json!({"jsonrpc":"2.0","id":1,"method":"tools/list"});
+        assert_eq!(
+            names(&call(&shut, list.clone()).await),
+            names(&call(&open, list).await)
+        );
+    }
+
+    #[tokio::test]
+    async fn entity_list_passes_the_filters_down_rather_than_quietly_dropping_them() {
+        // A filter lost on the way down does not error — it returns plausible rows for a
+        // different question, which is the failure a model cannot detect.
+        let fake = life_desk();
+        let s = server(fake.clone());
+        let result = tool(
+            &s,
+            "entity_list",
+            json!({
+                "type": "task",
+                "status": "todo, in-progress",
+                "project_id": "p1",
+                "due_to": "2026-09-30",
+                "order": "due",
+                "limit": 5,
+            }),
+        )
+        .await;
+        assert_eq!(result["isError"], false);
+
+        let asked = fake.asked.lock().unwrap();
+        let q = asked.last().expect("the desk asked the store something");
+        assert_eq!(q.kind.as_deref(), Some("task"));
+        assert_eq!(q.statuses, vec!["todo".to_string(), "in-progress".to_string()]);
+        assert_eq!(q.project_id.as_deref(), Some("p1"));
+        assert_eq!(q.due_to.as_deref(), Some("2026-09-30"));
+        assert_eq!(q.order, crate::tools::LifeOrder::Due);
+        assert_eq!(q.limit, 5);
+        assert!(!q.include_archived, "archived work is filed on purpose");
+    }
+
+    #[tokio::test]
+    async fn a_blank_filter_is_not_a_filter() {
+        // Models fill in "" for arguments they do not want. Treating that as a filter returns
+        // nothing and reads as an empty life.
+        let fake = life_desk();
+        let s = server(fake.clone());
+        tool(&s, "entity_list", json!({ "type": "", "text": "   " })).await;
+        let asked = fake.asked.lock().unwrap();
+        let q = asked.last().unwrap();
+        assert_eq!(q.kind, None);
+        assert_eq!(q.text, None);
+    }
+
+    #[tokio::test]
+    async fn an_order_the_desk_does_not_have_is_a_correctable_mistake() {
+        let s = server(life_desk());
+        let result = tool(&s, "entity_list", json!({ "order": "alphabetical" })).await;
+        assert_eq!(result["isError"], true);
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("recent"), "the message must say what to use: {text}");
+    }
+
+    #[tokio::test]
+    async fn an_exhausted_list_says_so_rather_than_leaving_the_key_out() {
+        // A missing key reads as "I forgot to look", and the model asks again.
+        let s = server(FakeDesk::default());
+        let result = tool(&s, "entity_list", json!({})).await;
+        let content = &result["structuredContent"];
+        assert_eq!(content["count"], 0);
+        assert!(content.get("next_cursor").is_some());
+        assert!(content["next_cursor"].is_null());
+    }
+
+    #[tokio::test]
+    async fn search_life_looks_in_the_users_own_life_and_reports_what_it_looked_for() {
+        let fake = life_desk();
+        let s = server(fake.clone());
+        let result = tool(&s, "search_life", json!({ "q": "accountant" })).await;
+        assert_eq!(result["structuredContent"]["query"], "accountant");
+        assert_eq!(
+            fake.asked.lock().unwrap().last().unwrap().text.as_deref(),
+            Some("accountant")
+        );
+    }
+
+    #[tokio::test]
+    async fn entity_get_returns_the_row_with_the_context_that_makes_it_actionable() {
+        let s = server(life_desk());
+        let result = tool(&s, "entity_get", json!({ "id": "t1" })).await;
+        let out = &result["structuredContent"];
+        assert_eq!(out["entity"]["id"], "t1");
+        assert_eq!(out["children"][0]["id"], "child");
+        assert_eq!(out["project_members"][0]["id"], "child");
+        assert!(out.get("schedule").is_some());
+        assert!(out.get("relations").is_some());
+    }
+
+    #[tokio::test]
+    async fn an_entity_you_cannot_see_reads_exactly_like_one_that_does_not_exist() {
+        // Anything else confirms that an id the user may not see exists, which is itself
+        // information — and the HTTP route has answered 404 for both since it was written.
+        let s = server(life_desk());
+        let result = tool(&s, "entity_get", json!({ "id": "someone-elses" })).await;
+        assert_eq!(result["isError"], true);
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("no entity with id"), "{text}");
+        assert!(
+            !text.contains("permission") && !text.contains("visible to"),
+            "the message must not distinguish the two cases: {text}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_series_summarises_its_numbers_and_ignores_the_ones_that_are_not() {
+        let s = server(FakeDesk {
+            trackers: vec![
+                json!({ "id": "a", "value": 10.0, "unit": "reps", "timestamp": "1" }),
+                json!({ "id": "b", "value": Value::Null, "note": "skipped", "timestamp": "2" }),
+                json!({ "id": "c", "value": 30.0, "unit": "reps", "timestamp": "3" }),
+            ],
+            ..Default::default()
+        });
+        let result = tool(&s, "tracker_series", json!({ "entity_id": "h1" })).await;
+        let out = &result["structuredContent"];
+        assert_eq!(out["points"].as_array().unwrap().len(), 3, "the note is kept");
+        let summary = &out["summary"];
+        assert_eq!(summary["count"], 2, "but it is not counted as a zero");
+        assert_eq!(summary["sum"], 40.0);
+        assert_eq!(summary["mean"], 20.0);
+        assert_eq!(summary["last"], 30.0);
+        assert_eq!(out["unit"], "reps");
+    }
+
+    #[tokio::test]
+    async fn an_empty_series_reports_no_statistics_rather_than_zeroes() {
+        let s = server(FakeDesk::default());
+        let result = tool(&s, "tracker_series", json!({ "entity_id": "h1" })).await;
+        let summary = &result["structuredContent"]["summary"];
+        assert_eq!(summary["count"], 0);
+        assert!(summary.get("mean").is_none(), "a mean of nothing is not zero");
+    }
+
+    #[tokio::test]
+    async fn the_agenda_says_which_day_it_used_and_admits_it_cannot_see_the_calendar() {
+        let s = server(life_desk());
+
+        let given = tool(&s, "get_agenda", json!({ "day": "2026-09-21" })).await;
+        let out = &given["structuredContent"];
+        assert_eq!(out["day"], "2026-09-21");
+        assert_eq!(out["day_source"], "caller");
+        assert_eq!(out["overdue"].as_array().unwrap().len(), 2);
+
+        // Without one it falls back to the process's own date — usable, but the response has to
+        // say so, because a box on UTC and a phone that is not disagree for part of every day.
+        let assumed = tool(&s, "get_agenda", json!({})).await;
+        assert_eq!(assumed["structuredContent"]["day_source"], "server-local");
+
+        // And an agenda that silently omitted the calendar would look like a free afternoon.
+        assert!(out["calendar"].is_null());
+        let reason = out["calendar_reason"].as_str().unwrap();
+        assert!(reason.contains("not connected"), "{reason}");
+    }
+
+    #[tokio::test]
+    async fn a_recurrence_is_returned_with_the_warning_that_it_is_a_plan() {
+        let s = server(FakeDesk {
+            schedules: vec![json!({ "id": "s1", "entityId": "h1", "nextDue": "2026-09-21" })],
+            ..Default::default()
+        });
+        let result = tool(&s, "schedule_list", json!({})).await;
+        let out = &result["structuredContent"];
+        assert_eq!(out["count"], 1);
+        let note = out["note"].as_str().unwrap();
+        assert!(note.contains("not a record that anything ran"), "{note}");
+    }
+
+    #[tokio::test]
+    async fn no_life_tool_lets_the_caller_name_whose_life_it_is() {
+        // The owner is resolved once at boot and lives in the store. An argument that could name
+        // it would be a way to read someone else's tasks by guessing a string.
+        for tool in registry().iter().filter(|t| t.domain == Domain::Life) {
+            let schema = (tool.input_schema)();
+            let properties = schema["properties"].as_object().unwrap();
+            for key in properties.keys() {
+                assert!(
+                    !key.contains("owner") && !key.contains("user"),
+                    "{} accepts {key:?}",
+                    tool.name
+                );
+            }
+        }
+    }
+
     // ---------- the test double ----------
 
     #[derive(Clone, Default)]
@@ -906,6 +1193,16 @@ mod tests {
         snapshot: Snapshot,
         pools: Vec<PoolCandidate>,
         saved: std::sync::Arc<std::sync::Mutex<Vec<AnalysisRecord>>>,
+        /// The life rows this fake will hand back, already projected — the store's job, not the
+        /// desk's, so the double does not have to reimplement a projection to be useful.
+        entities: Vec<Value>,
+        trackers: Vec<Value>,
+        schedules: Vec<Value>,
+        relations: Vec<Value>,
+        /// Every query the desk sent down, in order. The half of these tools worth testing is
+        /// what they ask the store for — a filter silently dropped on the way down returns
+        /// plausible rows, which is the failure that does not look like one.
+        asked: std::sync::Arc<std::sync::Mutex<Vec<LifeQuery>>>,
     }
 
     impl PortfolioSource for FakeDesk {
@@ -936,6 +1233,72 @@ mod tests {
         ) -> impl Future<Output = Result<Vec<PoolCandidate>, ToolError>> + Send {
             let pools = self.pools.clone();
             async move { Ok(pools) }
+        }
+    }
+
+    impl LifeSource for FakeDesk {
+        fn list(&self, query: LifeQuery) -> impl Future<Output = Result<LifePage, ToolError>> + Send {
+            // A child or project-member lookup asks for one id; the plain list asks for none.
+            // Returning the rows only for the unfiltered case keeps `entity_get`'s three lists
+            // distinguishable in a test without the double growing a query engine.
+            let rows = if query.parent_id.is_some() || query.project_id.is_some() {
+                vec![json!({ "id": "child", "title": "a child" })]
+            } else {
+                self.entities.clone()
+            };
+            let next = (!rows.is_empty()).then(|| "recent|1|x".to_string());
+            self.asked.lock().unwrap().push(query);
+            async move { Ok(LifePage { rows, next }) }
+        }
+        fn get(&self, id: &str) -> impl Future<Output = Result<Option<Value>, ToolError>> + Send {
+            let found = self
+                .entities
+                .iter()
+                .find(|e| e["id"] == id)
+                .cloned();
+            async move { Ok(found) }
+        }
+        fn relations(
+            &self,
+            _entity: Option<String>,
+            _limit: usize,
+        ) -> impl Future<Output = Result<Vec<Value>, ToolError>> + Send {
+            let rows = self.relations.clone();
+            async move { Ok(rows) }
+        }
+        fn trackers(
+            &self,
+            _entity: Option<String>,
+            _start: Option<String>,
+            _end: Option<String>,
+            _limit: usize,
+        ) -> impl Future<Output = Result<Vec<Value>, ToolError>> + Send {
+            let rows = self.trackers.clone();
+            async move { Ok(rows) }
+        }
+        fn schedules(
+            &self,
+            _entity: Option<String>,
+            _active_only: bool,
+            _due: Option<String>,
+            _limit: usize,
+        ) -> impl Future<Output = Result<Vec<Value>, ToolError>> + Send {
+            let rows = self.schedules.clone();
+            async move { Ok(rows) }
+        }
+        fn agenda(
+            &self,
+            day: String,
+            _limit: usize,
+        ) -> impl Future<Output = Result<LifeAgenda, ToolError>> + Send {
+            let overdue = self.entities.clone();
+            async move {
+                Ok(LifeAgenda {
+                    day,
+                    overdue,
+                    ..Default::default()
+                })
+            }
         }
     }
 
@@ -1021,13 +1384,23 @@ mod tests {
         }
     }
 
-    fn server(fake: FakeDesk) -> Server<FakeDesk, FakeDesk, FakeDesk> {
-        let startup = Startup::from_vars(vars(&[
+    type FakeServer = Server<FakeDesk, FakeDesk, FakeDesk, FakeDesk>;
+
+    fn server(fake: FakeDesk) -> FakeServer {
+        server_with(fake, &[])
+    }
+
+    /// The same server with extra environment, so a test can exercise the write gate without
+    /// touching the process's own variables — which is unsound to do from a test thread.
+    fn server_with(fake: FakeDesk, extra: &[(&str, &str)]) -> FakeServer {
+        let mut env = vec![
             ("KUCOIN_API_SECRET", "kucoin-secret-do-not-leak"),
             ("MCP_TRANSPORT", "stdio"),
-        ]))
-        .expect("clean env");
+        ];
+        env.extend_from_slice(extra);
+        let startup = Startup::from_vars(vars(&env)).expect("clean env");
         let desk = Desk::new(
+            fake.clone(),
             fake.clone(),
             fake.clone(),
             fake,
@@ -1039,7 +1412,7 @@ mod tests {
         Server::new(desk, startup)
     }
 
-    async fn call(server: &Server<FakeDesk, FakeDesk, FakeDesk>, frame: Value) -> Value {
+    async fn call(server: &FakeServer, frame: Value) -> Value {
         let out = server
             .handle_line(&frame.to_string())
             .await

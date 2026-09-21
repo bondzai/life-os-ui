@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 lyra-analytics = { version = "0.1.0", path = "../lyra-analytics" }
 lyra-chain = { version = "0.1.0", path = "../lyra-chain" }
 lyra-db = { version = "0.1.0", path = "../lyra-db" }
@@ -15,3 +16,6 @@ reqwest = { version = "0.13.4", features = ["json"] }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "io-std", "io-util"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tracing = "0.1.44"
+
+[dev-dependencies]
+tempfile = "3.27.0"
