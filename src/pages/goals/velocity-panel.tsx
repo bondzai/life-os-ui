@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 
 interface VelocityPanelProps {
   entityId: string
-  entityType: 'goal'
+  entityType: 'goal' | 'project'
   dueDate?: string
 }
 

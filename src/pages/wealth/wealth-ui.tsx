@@ -54,7 +54,7 @@ export function ChangeBadge({ value, className }: { value: number | null; classN
     <span
       className={cn(
         'inline-flex items-center gap-1 text-sm font-medium tabular-nums',
-        up ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500',
+        up ? 'text-emerald-700 dark:text-emerald-500' : 'text-red-700 dark:text-red-400',
         className,
       )}
     >
@@ -68,7 +68,7 @@ export function ChangeBadge({ value, className }: { value: number | null; classN
 export function ChangeText({ value }: { value: number | null }) {
   if (value === null || !Number.isFinite(value)) return <span className="text-muted-foreground">—</span>
   return (
-    <span className={cn('tabular-nums', value >= 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500')}>
+    <span className={cn('tabular-nums', value >= 0 ? 'text-emerald-700 dark:text-emerald-500' : 'text-red-700 dark:text-red-400')}>
       {formatPct(value)}
     </span>
   )
@@ -86,7 +86,7 @@ export function Pnl({ usd }: { usd: number | null }) {
   if (usd === null || !Number.isFinite(usd)) return <span className="text-muted-foreground">—</span>
   const up = usd >= 0
   return (
-    <span className={cn('tabular-nums', up ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500')}>
+    <span className={cn('tabular-nums', up ? 'text-emerald-700 dark:text-emerald-500' : 'text-red-700 dark:text-red-400')}>
       {up ? '+' : '−'}
       {money(Math.abs(usd))}
     </span>

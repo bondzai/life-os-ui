@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
+import { BrowserRouter, Routes, Route } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -24,6 +24,7 @@ const InboxPage = lazy(() => import('@/pages/inbox').then((m) => ({ default: m.I
 const BriefingPage = lazy(() => import('@/pages/tasks/standup-report').then((m) => ({ default: m.BriefingPage })))
 const SettingsPage = lazy(() => import('@/pages/settings').then((m) => ({ default: m.SettingsPage })))
 const KnowledgePage = lazy(() => import('@/pages/knowledge').then((m) => ({ default: m.KnowledgePage })))
+const ProjectsPage = lazy(() => import('@/pages/projects').then((m) => ({ default: m.ProjectsPage })))
 const WealthOverviewPage = lazy(() => import('@/pages/wealth/overview').then((m) => ({ default: m.WealthOverviewPage })))
 const WealthHoldingsPage = lazy(() => import('@/pages/wealth/holdings').then((m) => ({ default: m.WealthHoldingsPage })))
 const WealthDefiPage = lazy(() => import('@/pages/wealth/defi').then((m) => ({ default: m.WealthDefiPage })))
@@ -57,7 +58,7 @@ export function App() {
                 <Route path="briefing" element={<Suspense fallback={null}><BriefingPage /></Suspense>} />
                 <Route element={<AppLayout />}>
                   <Route index element={<TodayPage />} />
-                  <Route path="projects" element={<Navigate to="/goals" replace />} />
+                  <Route path="projects" element={<Suspense fallback={null}><ProjectsPage /></Suspense>} />
                   <Route path="goals" element={<GoalsPage />} />
                   <Route path="tasks" element={<TasksPage />} />
                   <Route path="calendar" element={<CalendarPage />} />

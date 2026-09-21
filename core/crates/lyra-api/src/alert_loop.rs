@@ -27,16 +27,17 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use lyra_alerts::channels::Channels;
 use lyra_alerts::config::{AlertConfig, ProcessEnv};
 use lyra_alerts::digest::day_key;
 use lyra_alerts::rules::{self, Health, PositionInput, PositionStates, Thresholds};
 use lyra_alerts::state::AlertStore;
-use lyra_alerts::telegram::{MessageSender, TelegramSender};
 use lyra_chain::model::Wallet;
 use lyra_db::wealth::{self as store, PerfSample, SnapshotInput};
 
 use crate::AppState;
 use crate::wealth;
+use lyra_alerts::message::Message;
 
 /// The four fields `notify.py` keeps in its module-level `_META`, reported by `/alerts`.
 ///
@@ -87,7 +88,7 @@ pub fn spawn(state: AppState) {
     let overrides = lyra_alerts::config::Overrides::new();
     let config = AlertConfig::new(&overrides, &ProcessEnv);
     let wallets = wealth::watched_wallets();
-    let sender = TelegramSender::from_env(&ProcessEnv);
+    let sender = Channels::from_env(&ProcessEnv);
 
     let alerting = sender.can_send() && !wallets.is_empty();
     let digesting = sender.can_send() && config.digest_hour().is_some();
@@ -154,7 +155,7 @@ async fn run(state: AppState) {
 
 async fn sweep(state: &AppState, config: &AlertConfig<'_>) {
     let meta = Arc::clone(&state.alert_meta);
-    let sender = TelegramSender::from_env(&ProcessEnv);
+    let sender = Channels::from_env(&ProcessEnv);
     let wallets = wealth::watched_wallets();
 
     // `if not configured(): return 0`. Note this gates the *alerting*, not the snapshotting
@@ -200,7 +201,10 @@ async fn sweep(state: &AppState, config: &AlertConfig<'_>) {
     let evaluation = rules::evaluate(&positions, &previous, &thresholds);
 
     for alert in &evaluation.alerts {
-        let text = lyra_alerts::digest::render_alert(alert, None);
+        // Still Telegram-flavoured: `render_alert` writes `*bold*` and runs the untrusted
+        // half through `strip_markdown` itself. Converting it to fields is what a Discord
+        // embed will want, and is the next slice rather than this one.
+        let text = Message::telegram_markup(lyra_alerts::digest::render_alert(alert, None));
         if let lyra_alerts::telegram::Delivery::Failed(e) = sender.send(&text).await {
             record_error(&meta, format!("telegram: {e}"));
         }
@@ -292,7 +296,7 @@ async fn sample_positions(state: &AppState, samples: &[PerfSample]) {
 
 async fn maybe_digest(state: &AppState, config: &AlertConfig<'_>) {
     let meta = Arc::clone(&state.alert_meta);
-    let sender = TelegramSender::from_env(&ProcessEnv);
+    let sender = Channels::from_env(&ProcessEnv);
     if !sender.can_send() || config.digest_hour().is_none() {
         return;
     }

@@ -31,10 +31,10 @@ export const HF_WARN = 1.2
 
 export function hfTone(hf: number | null): { text: string; bar: string; label: string } {
   if (hf === null) return { text: 'text-muted-foreground', bar: 'bg-muted-foreground/40', label: 'no debt' }
-  if (hf >= HF_SAFE) return { text: 'text-emerald-600 dark:text-emerald-500', bar: 'bg-emerald-500', label: 'healthy' }
+  if (hf >= HF_SAFE) return { text: 'text-emerald-700 dark:text-emerald-500', bar: 'bg-emerald-500', label: 'healthy' }
   if (hf >= HF_WARN) return { text: 'text-amber-600 dark:text-amber-500', bar: 'bg-amber-500', label: 'watch' }
-  if (hf >= 1) return { text: 'text-red-600 dark:text-red-500', bar: 'bg-red-500', label: 'at risk' }
-  return { text: 'text-red-600 dark:text-red-500', bar: 'bg-red-500', label: 'liquidatable' }
+  if (hf >= 1) return { text: 'text-red-700 dark:text-red-400', bar: 'bg-red-500', label: 'at risk' }
+  return { text: 'text-red-700 dark:text-red-400', bar: 'bg-red-500', label: 'liquidatable' }
 }
 
 /** How far collateral can fall before HF hits 1. Zero once there is no room left. */
@@ -52,8 +52,8 @@ function Leg({ token }: { token: TokenAmt }) {
       className={cn(
         'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs tabular-nums',
         borrowed
-          ? 'border-red-500/20 bg-red-500/5 text-red-600 dark:text-red-500'
-          : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-500',
+          ? 'border-red-500/20 bg-red-500/5 text-red-700 dark:text-red-400'
+          : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-500',
       )}
     >
       <Icon className="size-3 shrink-0 opacity-70" />

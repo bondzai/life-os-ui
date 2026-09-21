@@ -36,10 +36,10 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::sync::{Arc, LazyLock};
 
+use lyra_alerts::channels::Channels;
 use lyra_alerts::config::{AlertConfig, ProcessEnv};
 use lyra_alerts::digest::{DigestSnapshot, Money, header_date, render_digest};
 use lyra_alerts::state::AlertStore;
-use lyra_alerts::telegram::{MessageSender, TelegramSender};
 use lyra_chain::adapters::vfat;
 use lyra_chain::address::{MAX_WALLETS, parse_addresses};
 use lyra_chain::aggregate::{AggregateConfig, FetchHealth, build_portfolios, build_wallet};
@@ -53,6 +53,7 @@ use crate::alert_loop;
 use crate::auth::AuthUser;
 use crate::collect;
 use crate::common::error;
+use lyra_alerts::message::Message;
 
 /// Write rate limit for the journal, 20 per 60s — the port of `journal._rate_ok`.
 ///
@@ -1668,7 +1669,14 @@ pub(crate) async fn counted_wallets(pool: &sqlx::SqlitePool) -> Vec<String> {
     parse_addresses(&configured_wallets(pool).await, MAX_WALLETS).unwrap_or_default()
 }
 
-/// Whether Telegram delivery is possible — `notify.can_send`.
+/// Whether **Telegram** delivery is possible — `notify.can_send`.
+///
+/// Still Telegram-only, deliberately. `/api/wealth/alerts` is parity-gated against the Python, so
+/// `can_send` cannot become "any channel" without changing a response the harness diffs field by
+/// field. The consequence is a known wart: on a box configured with Discord and no Telegram,
+/// alerts are delivered while this reports `can_send: false`. The honest fix is a new, ungated
+/// route reporting [`Channels::names`] — the same move `/api/wealth/vfat-status` made — rather
+/// than widening a gated field.
 ///
 /// Reads only whether the two variables are non-empty. Their values are never returned, logged or
 /// compared against anything the caller supplied.
@@ -1762,7 +1770,13 @@ pub async fn alerts(State(state): State<AppState>, _user: AuthUser) -> Response 
 
 /// The Python's exact wording for an unconfigured bot, kept so the settings page's error text
 /// does not change across the migration.
-const TELEGRAM_UNSET: &str = "TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set";
+/// Reworded once Discord became a second destination: naming only the Telegram variables would
+/// send someone to set up a channel they may not want, when a webhook URL would do.
+///
+/// Safe to change where the `/api/wealth/alerts` JSON is not — `parity.toml` deliberately excludes
+/// `alerts/test` and `alerts/digest`, because a GET on either sends a real message.
+const TELEGRAM_UNSET: &str = "No alert channel is configured (set TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID, or \
+     DISCORD_WEBHOOK_URL)";
 
 /// `GET /api/wealth/alerts/test` — send a test ping.
 ///
@@ -1770,7 +1784,7 @@ const TELEGRAM_UNSET: &str = "TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set";
 /// **502** when Telegram refused — the status distinguishes "you have not set this up" from "it
 /// is set up and the upstream said no", which are different things to do about it.
 pub async fn alerts_test(_user: AuthUser) -> Response {
-    let sender = TelegramSender::from_env(&ProcessEnv);
+    let sender = Channels::from_env(&ProcessEnv);
     if !sender.can_send() {
         return error(StatusCode::BAD_REQUEST, TELEGRAM_UNSET);
     }
@@ -1821,7 +1835,7 @@ fn digest_snapshot_from(value: &Value) -> DigestSnapshot {
 /// moment. On a failed send it does **not** — `render_digest` is pure for exactly this reason, and
 /// advancing on failure would consume a delta nobody ever saw.
 pub async fn alerts_digest(State(state): State<AppState>, _user: AuthUser) -> Response {
-    let sender = TelegramSender::from_env(&ProcessEnv);
+    let sender = Channels::from_env(&ProcessEnv);
     if !sender.can_send() {
         return error(StatusCode::BAD_REQUEST, TELEGRAM_UNSET);
     }
@@ -1866,7 +1880,7 @@ pub(crate) enum DigestOutcome {
 /// send (an hour check, or a button); this owns everything after it.
 pub(crate) async fn deliver_digest(
     state: &AppState,
-    sender: &TelegramSender,
+    sender: &Channels,
 ) -> anyhow::Result<DigestOutcome> {
     let addresses = watched_wallets();
     if addresses.is_empty() {
@@ -1911,7 +1925,8 @@ pub(crate) async fn deliver_digest(
         return Ok(DigestOutcome::Nothing("the brief rendered empty"));
     };
 
-    if !sender.send(&text).await.is_sent() {
+    // `render_digest` authors its own emphasis and strips the untrusted parts on the way in.
+    if !sender.send(&Message::telegram_markup(text)).await.is_sent() {
         return Ok(DigestOutcome::Refused);
     }
 

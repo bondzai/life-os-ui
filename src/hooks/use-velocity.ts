@@ -16,7 +16,9 @@ export interface VelocityData {
 
 export function useVelocity(
   entityId: string,
-  entityType: 'goal',
+  // Widened for Projects. The value is unused — the filter below already matches either link
+  // field — but the parameter documents which hierarchy the caller thinks it is in.
+  entityType: 'goal' | 'project',
   dueDate?: string,
 ): VelocityData {
   const { items: allTasks } = useEntities('task')

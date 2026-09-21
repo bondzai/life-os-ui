@@ -8,6 +8,7 @@ import {
   Calendar,
   CheckSquare,
   ClipboardCheck,
+  FolderKanban,
   Layers,
   LayoutDashboard,
   NotebookPen,
@@ -44,7 +45,8 @@ export const modules: ModuleConfig[] = [
 
   // Plan — strategic tools & review cycles
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', group: 'Plan', entityTypes: ['task', 'chore'] },
-  { id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Plan', entityTypes: ['goal', 'project'] },
+  { id: 'goals', label: 'Goals', icon: Target, path: '/goals', group: 'Plan', entityTypes: ['goal'] },
+  { id: 'projects', label: 'Projects', icon: FolderKanban, path: '/projects', group: 'Plan', entityTypes: ['project'] },
   { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar', group: 'Plan', entityTypes: ['event'] },
   { id: 'notes', label: 'Notes', icon: NotebookPen, path: '/notes', group: 'Plan', entityTypes: ['note'] },
   { id: 'habits', label: 'Habits', icon: Repeat, path: '/habits', group: 'Plan', entityTypes: ['habit'] },
