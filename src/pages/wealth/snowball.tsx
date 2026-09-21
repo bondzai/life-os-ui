@@ -244,7 +244,7 @@ export function SnowballPanel({ ctx }: { ctx: Ctx }) {
               <div
                 className={cn(
                   'text-xs font-medium tabular-nums',
-                  weekDelta > 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500',
+                  weekDelta > 0 ? 'text-emerald-700 dark:text-emerald-500' : 'text-red-700 dark:text-red-400',
                 )}
               >
                 {weekDelta > 0 ? '+' : '−'}

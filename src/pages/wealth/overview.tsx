@@ -159,7 +159,7 @@ export function WealthOverviewPage() {
             <CardTitle className="text-sm font-medium">Net worth over time</CardTitle>
             {perf && (
               <p className="mt-1 text-xs text-muted-foreground">
-                <span className={cn('font-medium', perf.delta >= 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500')}>
+                <span className={cn('font-medium', perf.delta >= 0 ? 'text-emerald-700 dark:text-emerald-500' : 'text-red-700 dark:text-red-400')}>
                   {perf.delta >= 0 ? '+' : '−'}{money(Math.abs(perf.delta))}
                 </span>
                 {perf.pct !== null && <> ({formatPct(perf.pct)})</>} over {perf.spanDays}d

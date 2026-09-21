@@ -325,7 +325,7 @@ function SummaryBar({
               )}
             >
               <p className="text-xs tracking-wide text-muted-foreground uppercase">Out of range</p>
-              <p className="font-medium tabular-nums text-red-600 dark:text-red-500">
+              <p className="font-medium tabular-nums text-red-700 dark:text-red-400">
                 {summary.outOfRange}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -486,7 +486,7 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                     <div className="space-y-1">
                       <RangeBar posPct={range.posPct} out={range.out} />
                       <div className="flex justify-between gap-2 text-xs whitespace-nowrap">
-                        <span className={cn(range.out ? 'text-red-600 dark:text-red-500' : 'text-muted-foreground')}>
+                        <span className={cn(range.out ? 'text-red-700 dark:text-red-400' : 'text-muted-foreground')}>
                           {range.edge}
                         </span>
                         <span className="text-muted-foreground">{range.width.toFixed(0)}% wide</span>
@@ -616,7 +616,7 @@ function PositionCard({ row }: { row: LpRow }) {
           <div className="space-y-1">
             <RangeBar posPct={range.posPct} out={range.out} />
             <div className="flex flex-wrap justify-between gap-2 text-xs">
-              <span className={cn(range.out ? 'text-red-600 dark:text-red-500' : 'text-muted-foreground')}>
+              <span className={cn(range.out ? 'text-red-700 dark:text-red-400' : 'text-muted-foreground')}>
                 {range.edge}
               </span>
               <span className="text-muted-foreground">band {range.width.toFixed(1)}% wide</span>
@@ -772,7 +772,7 @@ function SnowballCard({ ctx, rows }: { ctx: Ctx; rows: LpRow[] }) {
             <div
               className={cn(
                 'text-[11px] font-medium tabular-nums',
-                weekDelta > 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500',
+                weekDelta > 0 ? 'text-emerald-700 dark:text-emerald-500' : 'text-red-700 dark:text-red-400',
               )}
             >
               {weekDelta > 0 ? '+' : '−'}

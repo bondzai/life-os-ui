@@ -74,7 +74,7 @@ function SweepState({ status }: { status: AlertStatus }) {
     ? 'text-muted-foreground'
     : status.last_error
       ? 'text-amber-600 dark:text-amber-500'
-      : 'text-emerald-600 dark:text-emerald-500'
+      : 'text-emerald-700 dark:text-emerald-500'
 
   return (
     <Card>

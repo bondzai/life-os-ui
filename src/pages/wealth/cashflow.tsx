@@ -73,7 +73,7 @@ export function HarvestPanel({ ctx }: { ctx: Ctx }) {
                       </div>
                     </div>
                     <div className="shrink-0 text-right tabular-nums">
-                      <p className="text-sm font-medium text-emerald-600 dark:text-emerald-500">
+                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-500">
                         {money(row.fees)}
                       </p>
                       <p className="text-xs text-muted-foreground">{share.toFixed(0)}% of total</p>

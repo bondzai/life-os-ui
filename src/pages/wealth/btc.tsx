@@ -30,7 +30,7 @@ import { StatCard } from './wealth-ui'
  * than rolling it into one reassuring total.
  */
 const CUSTODY: Record<BtcLocation['kind'], { icon: typeof Landmark; tone: string; note: string }> = {
-  cold: { icon: Snowflake, tone: 'text-emerald-600 dark:text-emerald-500', note: 'self-custody' },
+  cold: { icon: Snowflake, tone: 'text-emerald-700 dark:text-emerald-500', note: 'self-custody' },
   cex: { icon: Landmark, tone: 'text-amber-600 dark:text-amber-500', note: 'exchange holds it' },
   custodial: { icon: Zap, tone: 'text-amber-600 dark:text-amber-500', note: 'third party holds it' },
   onchain: { icon: Link2, tone: 'text-sky-600 dark:text-sky-500', note: 'on-chain' },
