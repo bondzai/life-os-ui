@@ -258,8 +258,18 @@ After C3, texting `!call the accountant tomorrow @Accounts` from a bus stop crea
 | **D3′** | **Web visibility.** `/api/jobs`, `/api/jobs/{id}`, retry, cancel, and `/api/jobs/stats` carrying claim latency, `SQLITE_BUSY` count and oldest-queued age — the three numbers that later decide the Postgres question. A `Jobs` panel and `api-job-repository.ts`. **A new namespace, deliberately: no gated response grows a field.** | M | **PART SHIPPED** `a1a052b` — `/api/jobs` and the panel. Missing: `/{id}`, retry, cancel, `/stats` |
 | **D4′** | **Knowledge, calendar and web over MCP.** `knowledge_list` (paths and frontmatter, never bodies), `knowledge_read`, `knowledge_append` onto the append-only `/log` path — **no `knowledge_write` in v1**, because overwriting `persona.md` is a `PUT` that git-commits over the previous content. `calendar_list` and `calendar_create_event` (`Capability::Reach`). `search_web`. The twelve browser workflows in `src/core/ai/tools/` ported onto the MCP `prompts/` surface beside `long_term_review`, where they cost the model nothing in its tool budget. | L | NOT STARTED — blocked by C2 |
 
-After D2', a Telegram outage at digest hour no longer costs the day's brief — which is a real bug
-today: `maybe_digest` swallows the error and the day key is only written on success.
+**Correction.** An earlier draft of this document called the digest path a bug: *"`maybe_digest`
+swallows the error and the day key is only written on success."* That reading was backwards. The day
+key is stamped **only on a delivered brief on purpose**, and that is exactly what makes it retry on
+the next tick — a short outage costs nothing.
+
+The real limitation is narrower: `digest_due` gates on `digest_hour == Some(now_hour)`, so the
+retrying stops when the clock leaves the hour. An outage that outlasts 08:00 loses the day silently.
+
+Shipped as a day-keyed job, that stops being true — and the number that makes it true is
+`ATTEMPTS = 12`, not the default 5. Five attempts at the standard backoff spans about 150 seconds,
+so a naive move would have replaced an hour of trying with two and a half minutes of it. Twelve
+spans 5770s, a little over an hour and a half.
 
 ### Stage E — Think (the model arrives, last and behind a flag)
 

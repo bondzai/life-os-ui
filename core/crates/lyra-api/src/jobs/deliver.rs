@@ -1,9 +1,13 @@
 //! `deliver.telegram` — an outbound message with retries.
 //!
-//! Sending is the one thing this box does that depends on somebody else being up, and today every
-//! send is fire-and-forget: `alert_loop` logs `delivered = false` and moves on, and a digest that
-//! fails at 08:00 is simply lost. As a job it survives — the row stays, the backoff climbs, and a
-//! Telegram outage costs latency instead of the day's brief.
+//! Sending is the one thing this box does that depends on somebody else being up, and every send
+//! outside the digest path is fire-and-forget: `alert_loop` logs `delivered = false` and moves on.
+//! As a job it survives — the row stays, the backoff climbs, and an outage costs latency.
+//!
+//! An earlier version of this note said a digest failing at 08:00 was "simply lost". That was
+//! wrong, and the mistake is worth leaving recorded: `maybe_digest` stamps its day key only on a
+//! delivered brief, which is precisely what makes it retry on the next tick. The real limitation
+//! is the *hour* — see [`super::digest`].
 //!
 //! The send is a job **of its own**, never a step inside the job that produced the text. If it
 //! lived inside a handler that called a model, a Telegram outage would retry the *model call*:

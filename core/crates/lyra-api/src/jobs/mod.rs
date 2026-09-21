@@ -28,6 +28,7 @@
 //! four connections in bursts rather than four for as long as their handlers run.
 
 pub mod deliver;
+pub mod digest;
 
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -136,6 +137,18 @@ pub struct JobCtx {
 // in it — genuinely dead code still shows up there.
 #[cfg_attr(not(test), allow(dead_code))]
 impl JobCtx {
+    /// Build a context by hand, for a test that exercises one handler without a worker.
+    #[cfg(test)]
+    pub fn for_test(queue: SqliteQueue, job: Job, worker: String, now: i64) -> Self {
+        Self {
+            queue,
+            job,
+            worker,
+            now,
+            follow_ups: Mutex::new(Vec::new()),
+        }
+    }
+
     pub fn job(&self) -> &Job {
         &self.job
     }
@@ -227,8 +240,17 @@ impl Handlers {
 /// One entry, deliberately. The queue lands before the work that will use it, so that when the
 /// Telegram write verbs arrive they enqueue against something that has already been exercised
 /// rather than something written the same afternoon.
-pub fn handlers() -> Handlers {
-    Handlers::new().with(Arc::new(deliver::DeliverTelegram::from_env()))
+/// Every handler this binary knows.
+///
+/// Takes the state because a handler that reads the book needs the pool. `deliver.telegram` does
+/// not, and is left constructed from the environment so a rotated token takes effect without a
+/// restart of anything but the send.
+pub fn handlers(state: AppState) -> Handlers {
+    let mut handlers = Handlers::new().with(Arc::new(deliver::DeliverTelegram::from_env()));
+    for handler in digest::all(state) {
+        handlers = handlers.with(handler);
+    }
+    handlers
 }
 
 /// Where a worker reads the time from.
@@ -531,7 +553,7 @@ pub fn spawn(state: AppState) {
     }
 
     let queue = SqliteQueue::new(state.pool.clone());
-    let handlers = Arc::new(handlers());
+    let handlers = Arc::new(handlers(state.clone()));
     tracing::info!(kinds = ?handlers.kinds(), "job workers starting");
 
     // Two interactive, one batch, one deliver. See the module docs: this is isolation, not
@@ -622,6 +644,18 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
     use tokio::sync::oneshot;
+
+    /// An `AppState` on a throwaway database, for the handlers that read through one.
+    async fn test_state() -> crate::AppState {
+        let dir = TempDir::new().unwrap();
+        // Leaked on purpose: the pool must outlive the temp dir for the length of the test, and a
+        // test process that leaks one directory is cheaper than threading a guard through.
+        let path = Box::leak(Box::new(dir)).path().join("lyra.db");
+        crate::AppState::new(
+            lyra_db::open_and_migrate(&path).await.unwrap(),
+            "test-secret".into(),
+        )
+    }
 
     async fn fresh() -> (TempDir, SqliteQueue) {
         let dir = TempDir::new().unwrap();
@@ -934,18 +968,21 @@ mod tests {
         let (_dir, queue) = fresh().await;
         let worker = Worker::new(
             queue,
-            Arc::new(handlers()),
+            Arc::new(handlers(test_state().await)),
             "deliver-0",
             vec![Lane::Deliver],
         );
         assert!(!worker.tick().await);
     }
 
-    #[test]
-    fn the_registry_names_every_kind_this_binary_can_run() {
+    #[tokio::test]
+    async fn the_registry_names_every_kind_this_binary_can_run() {
         // A guard against the commonest way a queue goes quiet: a handler written, a job enqueued
-        // under its kind, and the registration forgotten.
-        assert_eq!(handlers().kinds(), vec!["deliver.telegram"]);
+        // under its kind, and the registration forgotten. The job is then claimed, fails with
+        // "no handler", and dead-letters — quietly.
+        let mut kinds = handlers(test_state().await).kinds();
+        kinds.sort();
+        assert_eq!(kinds, vec!["deliver.telegram", "digest.daily"]);
     }
 
     #[test]

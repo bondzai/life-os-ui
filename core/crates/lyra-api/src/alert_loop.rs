@@ -33,6 +33,7 @@ use lyra_alerts::digest::day_key;
 use lyra_alerts::rules::{self, Health, PositionInput, PositionStates, Thresholds};
 use lyra_alerts::state::AlertStore;
 use lyra_chain::model::Wallet;
+use lyra_db::jobs::{Lane, NewJob, Queue, SqliteQueue};
 use lyra_db::wealth::{self as store, PerfSample, SnapshotInput};
 
 use crate::AppState;
@@ -296,8 +297,9 @@ async fn sample_positions(state: &AppState, samples: &[PerfSample]) {
 
 async fn maybe_digest(state: &AppState, config: &AlertConfig<'_>) {
     let meta = Arc::clone(&state.alert_meta);
-    let sender = Channels::from_env(&ProcessEnv);
-    if !sender.can_send() || config.digest_hour().is_none() {
+    // Checked before queueing, not only in the handler: a box with no channel configured should
+    // not accumulate a dead job a day for the length of the retention window.
+    if !Channels::from_env(&ProcessEnv).can_send() || config.digest_hour().is_none() {
         return;
     }
 
@@ -316,19 +318,34 @@ async fn maybe_digest(state: &AppState, config: &AlertConfig<'_>) {
         return;
     }
 
-    match wealth::deliver_digest(state, &sender).await {
-        Ok(wealth::DigestOutcome::Sent) => {
-            // Stamped only on a delivered brief, so a Telegram outage retries on the next tick
-            // within the same hour instead of silently skipping the day.
-            if let Err(e) = store_handle
-                .set_digest_day(&today, wealth::now_secs())
-                .await
-            {
-                record_error(&meta, format!("digest: {e}"));
-            }
+    // The tick decides the brief is *due*; the queue decides when it actually goes out.
+    //
+    // It used to build and send right here, and that retried on every tick — but only while the
+    // clock was still inside the digest hour, because `digest_due` gates on the hour. An outage
+    // that outlasted 08:00 lost the day with nothing but a `delivered = false` to show for it.
+    //
+    // Enqueued under `digest.daily:<day>`, the partial unique index makes every tick this hour
+    // produce the same single job, and that job's own backoff carries past the hour — a job does
+    // not know what time it was created. The day key is stamped by the handler, so the flag and
+    // the send cannot disagree.
+    let job = NewJob::new(crate::jobs::digest::KIND, Lane::Batch)
+        .payload(serde_json::json!({ "day": today }))
+        .key(crate::jobs::digest::key_for(&today))
+        // Not the default five — see [`crate::jobs::digest::ATTEMPTS`]. Five would have made this
+        // change a regression rather than a fix.
+        .max_attempts(crate::jobs::digest::ATTEMPTS);
+
+    match SqliteQueue::new(state.pool.clone())
+        .enqueue(&job, wealth::now_secs())
+        .await
+    {
+        Ok(enqueued) if enqueued.created => {
+            tracing::info!(day = %today, job = %enqueued.id, "the daily brief is queued")
         }
+        // Already queued or already sent today. The normal case for all but the first tick of the
+        // hour, and not worth a line.
         Ok(_) => {}
-        Err(e) => record_error(&meta, format!("digest: {e}")),
+        Err(e) => record_error(&meta, format!("digest: queueing: {e}")),
     }
 }
 
