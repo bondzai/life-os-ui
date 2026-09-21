@@ -130,6 +130,7 @@ export function WealthDefiPage() {
       <SummaryBar
         summary={summary}
         count={rows.length}
+        total={all.length}
         outOfRangeActive={status === 'inactive'}
         onToggleOutOfRange={() => setStatus(status === 'inactive' ? 'all' : 'inactive')}
       />
@@ -243,6 +244,7 @@ export function WealthDefiPage() {
 function SummaryBar({
   summary,
   count,
+  total,
   outOfRangeActive,
   onToggleOutOfRange,
 }: {
@@ -255,7 +257,10 @@ function SummaryBar({
     pnl: { usd: number; covered: number }
     outOfRange: number
   }
+  /** Positions after filtering — what every figure here is computed over. */
   count: number
+  /** Positions before filtering, so the bar can say when it is showing a subset. */
+  total: number
   outOfRangeActive: boolean
   onToggleOutOfRange: () => void
 }) {
@@ -269,8 +274,13 @@ function SummaryBar({
           <p className="text-2xl leading-tight font-semibold tabular-nums">
             {compact(summary.value)}
           </p>
+          {/* Every figure on this bar is computed over the *filtered* rows, so the headline drops
+              when you narrow the table. That is the right behaviour — a summary of what you are
+              looking at — but only if it admits it. "3 of 7 positions" is the whole disclosure. */}
           <p className="text-xs text-muted-foreground">
-            {count} position{count === 1 ? '' : 's'}
+            {count === total
+              ? `${count} position${count === 1 ? '' : 's'}`
+              : `${count} of ${total} positions`}
           </p>
         </div>
 
@@ -404,6 +414,19 @@ function pnlTitle(row: LpRow): string | undefined {
   return `Value now, less everything paid in, since the position opened${since}`
 }
 
+/**
+ * When a position last did something, or `null` if we cannot say.
+ *
+ * `Date.parse` returns `NaN` on anything it does not recognise, and the guard here used to be that
+ * the field was *present* — which is a different question from whether it parses. A `NaN` fed to
+ * `formatRelativeTime` renders as nonsense rather than as nothing.
+ */
+function actionAge(row: LpRow): number | null {
+  if (!row.lastAction || !row.updatedAt) return null
+  const parsed = Date.parse(row.updatedAt)
+  return Number.isFinite(parsed) ? parsed / 1000 : null
+}
+
 function PositionTable({ rows }: { rows: LpRow[] }) {
   const { money } = useMoney()
 
@@ -431,6 +454,7 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
             const range = rangeInfo(row)
             const daily = earnings(row)
             const perf = cyclePerf(row)
+            const age = actionAge(row)
             const out = row.in_range === false
             // The two lists the card showed in full. A row cannot hold them, and dropping them
             // would lose the only place the per-token split is visible.
@@ -499,9 +523,9 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                   )}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                  {row.lastAction && row.updatedAt ? (
+                  {age !== null ? (
                     <>
-                      {row.lastAction} {formatRelativeTime(Date.parse(row.updatedAt) / 1000)}
+                      {row.lastAction} {formatRelativeTime(age)}
                     </>
                   ) : (
                     '—'
@@ -533,6 +557,7 @@ function PositionCard({ row }: { row: LpRow }) {
   const range = rangeInfo(row)
   const perf = cyclePerf(row)
   const daily = earnings(row)
+  const age = actionAge(row)
   const out = row.in_range === false
 
   return (
@@ -556,10 +581,10 @@ function PositionCard({ row }: { row: LpRow }) {
                 <ChainMark chain={row.chain} />
                 {chainLabel(row.chain)}
               </span>
-              {row.lastAction && row.updatedAt && (
+              {age !== null && (
                 <>
                   <span>·</span>
-                  <span>{row.lastAction} {formatRelativeTime(Date.parse(row.updatedAt) / 1000)}</span>
+                  <span>{row.lastAction} {formatRelativeTime(age)}</span>
                 </>
               )}
             </div>
@@ -572,10 +597,15 @@ function PositionCard({ row }: { row: LpRow }) {
                 {rate(row.apr) ? <>{rate(row.apr)} APR</> : 'APR n/a'}
                 {daily && <> · ≈{money(daily.perDay)}/day</>}
               </div>
+              {/* "since opening" is rendered, not hovered. A `title` is invisible on a touch
+                  screen, and this is the card layout — the one that only exists on a phone. Two
+                  plausible readings of a PnL figure are both wrong (the 24h move, or the claimable
+                  balance), so the label has to travel with the number. */}
               {row.pnlUsd !== null && (
                 <div className="text-xs" title={pnlTitle(row)}>
                   <Pnl usd={row.pnlUsd} />
                   {row.pnlPct !== null && <> · <ChangeText value={row.pnlPct} /></>}
+                  <div className="text-muted-foreground">since opening</div>
                 </div>
               )}
             </div>

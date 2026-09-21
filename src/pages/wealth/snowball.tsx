@@ -60,7 +60,16 @@ export function SnowballToggle({ id, name, className }: { id: string; name: stri
       aria-label={on ? `Remove ${name} from snowball` : `Add ${name} to snowball`}
       title={on ? 'In your snowball — click to remove' : 'Add to snowball'}
       onClick={() => toggle(id)}
-      className={cn('size-7 shrink-0', on ? 'text-sky-500 hover:text-sky-500' : 'text-muted-foreground/50', className)}
+      // 28px of visible button, 44px of tappable area. The glyph has to stay small — it sits in a
+      // dense table row — but on the card layout below `sm` this is the only control on the
+      // screen, and 28px misses the 44px touch minimum badly enough to be a real miss, not a
+      // pedantic one. The pseudo-element grows the hit box without moving a single pixel of
+      // layout; nothing beside it is interactive, so the overlap costs nothing.
+      className={cn(
+        'relative size-7 shrink-0 before:absolute before:-inset-2 before:content-[""]',
+        on ? 'text-sky-500 hover:text-sky-500' : 'text-muted-foreground/50',
+        className,
+      )}
     >
       <Snowflake className={cn('size-3.5', on && 'fill-current')} />
     </Button>
