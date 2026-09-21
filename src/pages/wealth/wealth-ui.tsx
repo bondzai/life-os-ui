@@ -115,9 +115,21 @@ export function RangeBadge({ inRange, full }: { inRange: boolean | null; full?: 
  * The marker is clamped to the track, so an out-of-range position pins to the edge it broke
  * through instead of drawing outside the box and looking like a rendering bug.
  */
-export function RangeBar({ posPct, out }: { posPct: number; out: boolean }) {
+export function RangeBar({
+  posPct,
+  out,
+  className,
+}: {
+  posPct: number
+  out: boolean
+  /** Width override. The table wants a fixed, narrow bar; the card wants the full width. */
+  className?: string
+}) {
   return (
-    <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted" role="presentation">
+    <div
+      className={cn('relative h-1.5 w-full overflow-hidden rounded-full bg-muted', className)}
+      role="presentation"
+    >
       <div
         className={cn('absolute top-0 h-full w-1 rounded-full', out ? 'bg-red-500' : 'bg-emerald-500')}
         style={{ left: `calc(${Math.min(100, Math.max(0, posPct))}% - 2px)` }}

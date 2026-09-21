@@ -436,6 +436,19 @@ function pnlTitle(row: LpRow): string | undefined {
  * the field was *present* — which is a different question from whether it parses. A `NaN` fed to
  * `formatRelativeTime` renders as nonsense rather than as nothing.
  */
+/**
+ * Everything the compact range cell stops showing, as one line of hover text.
+ *
+ * The table used to spend three lines and nine rem on a bar, a distance-to-edge string and a
+ * width — for a column whose job is answering "is this working?" at a glance. vfat gives it a
+ * short bar and one number and puts the rest behind the bar. The numbers are still exact, they
+ * are just no longer competing with the ones you came to read.
+ */
+function rangeTitle(range: { edge: string; width: number; out: boolean }): string {
+  const state = range.out ? 'Out of range' : 'In range'
+  return `${state} · ${range.edge} · band ${range.width.toFixed(1)}% wide`
+}
+
 function actionAge(row: LpRow): number | null {
   if (!row.lastAction || !row.updatedAt) return null
   const parsed = Date.parse(row.updatedAt)
@@ -456,7 +469,7 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
           <TableRow className="hover:bg-transparent">
             <TableHead>Position</TableHead>
             <TableHead>Venue</TableHead>
-            <TableHead className="min-w-[9rem]">Range</TableHead>
+            <TableHead>Range</TableHead>
             <TableHead className="text-right">Value</TableHead>
             <TableHead className="text-right">PnL</TableHead>
             <TableHead className="text-right">Claimable</TableHead>
@@ -500,16 +513,15 @@ function PositionTable({ rows }: { rows: LpRow[] }) {
                     {row.protocol}
                   </div>
                 </TableCell>
-                <TableCell>
+                {/* A bar and a number. The distance-to-edge string and the exact width moved into
+                    the title — see [[rangeTitle]]. */}
+                <TableCell title={range ? rangeTitle(range) : undefined}>
                   {range ? (
-                    <div className="space-y-1">
-                      <RangeBar posPct={range.posPct} out={range.out} />
-                      <div className="flex justify-between gap-2 text-xs whitespace-nowrap">
-                        <span className={cn(range.out ? 'text-red-700 dark:text-red-400' : 'text-muted-foreground')}>
-                          {range.edge}
-                        </span>
-                        <span className="text-muted-foreground">{range.width.toFixed(0)}% wide</span>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <RangeBar posPct={range.posPct} out={range.out} className="w-14 shrink-0" />
+                      <span className={cn('text-xs tabular-nums text-muted-foreground', HAS_MORE)}>
+                        {range.width.toFixed(0)}%
+                      </span>
                     </div>
                   ) : (
                     <span className="text-xs text-muted-foreground">full range</span>
