@@ -188,6 +188,77 @@ pub const MIGRATIONS: &[&[&str]] = &[
            )"#,
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_wallets_address ON wallets(address COLLATE NOCASE)",
     ],
+    // v5 -> v6: the durable job queue.
+    //
+    // Until now the only background work was two hand-rolled poll loops. Neither has a work item
+    // that survives a restart: a digest that fails at 08:00 is gone, and `alert_loop` records the
+    // failure in `last_error` and goes round again. This is the table that makes a piece of work a
+    // *row* — something that can be retried, backed off, inspected and reclaimed after a kill.
+    //
+    // Two facts shape the schema, and both are about crashes rather than throughput:
+    //
+    // * A job is claimed by **lease**, not by a flag. `worker` plus `leased_until` is what lets a
+    //   kill -9 be distinguished from slow work: the holder renews the lease while it runs, and a
+    //   lease that stops being renewed is reclaimable. A bare `status = 'running'` would strand
+    //   the row forever, because nothing would ever say who was meant to be running it.
+    // * `run_at` carries the backoff, the schedule and the "not yet" of a delayed retry in one
+    //   column, so the claim is always "the oldest runnable job" and never a join.
+    //
+    // `schedules` is deliberately not this table and never becomes it — see `docs/core-engine.md`.
+    // Its `nextDue` is *rendered to the user* on the habits page; a failed job writing a backoff
+    // into it would make the user watch their chores silently slide.
+    &[
+        r#"CREATE TABLE IF NOT EXISTS jobs (
+               id              TEXT    PRIMARY KEY,
+               kind            TEXT    NOT NULL,   -- 'deliver.telegram', 'schedule.tick', ...
+               lane            TEXT    NOT NULL,   -- 'interactive' | 'batch' | 'deliver'
+               payload         TEXT    NOT NULL,   -- JSON object; the handler's arguments
+               status          TEXT    NOT NULL,   -- 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
+               priority        INTEGER NOT NULL DEFAULT 0,   -- higher is claimed first
+               run_at          INTEGER NOT NULL,   -- epoch seconds; not runnable before this
+               attempts        INTEGER NOT NULL DEFAULT 0,   -- incremented BY the claim, not by the handler
+               max_attempts    INTEGER NOT NULL DEFAULT 5,
+               idempotency_key TEXT,               -- NULL means "no dedup"; see the partial index
+               worker          TEXT,               -- who holds the lease; NULL unless running
+               leased_until    INTEGER,            -- epoch seconds; NULL unless running
+               last_error      TEXT,
+               parent_id       TEXT,               -- the job that enqueued this one
+               created_at      INTEGER NOT NULL,
+               updated_at      INTEGER NOT NULL,
+               finished_at     INTEGER             -- set once, on reaching a terminal status
+           )"#,
+        // Everything a job did that must not happen twice, keyed by a name the handler chooses.
+        //
+        // A job is delivered at least once — that is what a lease buys — so a handler that sends a
+        // message needs somewhere to record "I already sent it" that survives the reclaim. The
+        // CASCADE is what keeps `prune` a single statement.
+        r#"CREATE TABLE IF NOT EXISTS job_effects (
+               job_id     TEXT    NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+               key        TEXT    NOT NULL,   -- names the step inside the handler: 'sent', 'row'
+               value_json TEXT,               -- what the step returned, replayed on a retry
+               created_at INTEGER NOT NULL,
+               PRIMARY KEY (job_id, key)
+           ) WITHOUT ROWID"#,
+        // The claim index. Partial on the status the claim actually scans, so it holds only the
+        // runnable backlog rather than every job that ever ran — on a box where the queue is
+        // mostly history, that is the difference between an index and a table scan wearing a hat.
+        //
+        // The predicate is a literal for a reason: SQLite only uses a partial index when the
+        // query's WHERE clause provably implies the index's, and a bound `?` proves nothing. Every
+        // statement below that wants this index spells `status = 'queued'` out.
+        "CREATE INDEX IF NOT EXISTS idx_jobs_claim ON jobs(lane, priority DESC, run_at) WHERE status = 'queued'",
+        // The reaper's index: expired leases, and nothing else.
+        "CREATE INDEX IF NOT EXISTS idx_jobs_lease ON jobs(leased_until) WHERE status = 'running'",
+        // Dedup. UNIQUE *and* partial: a NULL key means "this job is not deduplicated", and
+        // without the WHERE clause that would make at most one such job exist at a time.
+        //
+        // The cost of the partial index is paid at the other end: `ON CONFLICT(idempotency_key)`
+        // is a parse error against it. The conflict target has to repeat this predicate verbatim —
+        // see `jobs::enqueue`.
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency ON jobs(idempotency_key) WHERE idempotency_key IS NOT NULL",
+        // What `prune` walks, and what a "recent jobs" listing orders by.
+        "CREATE INDEX IF NOT EXISTS idx_jobs_finished ON jobs(finished_at)",
+    ],
 ];
 
 /// Applies every migration the database has not seen yet. Returns the resulting `user_version`.

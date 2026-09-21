@@ -57,7 +57,7 @@ fn now_or(now: Option<i64>) -> i64 {
 /// can only collide across processes within the same nanosecond — and `id` is the PRIMARY KEY, so
 /// even then the insert fails loudly rather than overwriting an analysis. Ask for the `uuid` crate
 /// if this ever needs to be globally unique by construction.
-fn new_id() -> String {
+pub(crate) fn new_id() -> String {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

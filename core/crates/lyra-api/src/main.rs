@@ -12,6 +12,7 @@ mod collect;
 mod common;
 mod entities;
 mod gcal;
+mod jobs;
 mod knowledge;
 mod relations;
 mod schedules;
@@ -297,6 +298,11 @@ async fn main() -> Result<()> {
     // The other half of Telegram: `alert_loop` pushes, this pulls commands in. Idle unless a bot
     // token and chat id are both configured.
     tgbot::spawn(state.clone());
+
+    // The job workers and the lease reaper. Nothing enqueues yet, so today they idle — but the
+    // reaper is the only recovery from a worker killed mid-job, and a queue whose recovery path
+    // starts the same week as its first real work is a queue nobody has ever seen recover.
+    jobs::spawn(state.clone());
 
     axum::serve(listener, app(state, allowed_origins()))
         .with_graceful_shutdown(shutdown_signal())
