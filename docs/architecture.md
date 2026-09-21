@@ -1,146 +1,147 @@
 # Architecture
 
-## Overview
+**Rewritten 2026-09-21.** The previous version drew an OpenClaw gateway that was never built, put
+the API on port 3000, called `ApiRepository` future work two paragraphs after describing it as
+shipped, and headed a section "Current limits (localStorage era)". This one describes what is in
+the tree.
 
-Life-OS is a self-hosted system running on a mini PC (home server). It consists of three main components that share a SQLite database:
+---
+
+## The shape of it
+
+Lyra is one React SPA, one Rust binary, one SQLite file, and a second Rust binary that reads the
+same file over stdio. Everything runs on a mini PC behind a home router with nothing forwarded to
+it — which is not a detail, it is the constraint that explains most of the decisions below.
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                 MINI PC (Home Server)                 │
-│                                                      │
-│  ┌────────────┐  ┌────────────┐  ┌───────────────┐  │
-│  │  OpenClaw  │  │  Life-OS   │  │  Life-OS UI   │  │
-│  │  Gateway   │←→│  API       │←→│  (React SPA)  │  │
-│  │  :18789    │  │  :3000     │  │  :5173        │  │
-│  └─────┬──────┘  └─────┬──────┘  └───────────────┘  │
-│        │               │                             │
-│        │          ┌────┴─────┐                       │
-│        │          │  SQLite  │                       │
-│        │          └──────────┘                       │
-└────────┼─────────────────────────────────────────────┘
-         │
-         ├── Telegram   (JB)
-         ├── WhatsApp   (Sunny)
-         ├── Signal     (Both)
-         └── WebChat    (Fallback)
+                        MINI PC (home server)
+  ┌──────────────────────────────────────────────────────────────┐
+  │                                                              │
+  │   React SPA ──HTTP──►  lyra-api  ──────►  ┌──────────┐       │
+  │   (:5173 dev,          (:3001)            │  SQLite  │       │
+  │    nginx in prod)      ├─ alert sweep     │   WAL    │       │
+  │                        ├─ tgbot poll      └────┬─────┘       │
+  │                        └─ chain fan-out        │             │
+  │                                                │             │
+  │                             lyra-mcp ──stdio───┘             │
+  │                             (child of an MCP client)         │
+  └───────────┬──────────────────────────▲───────────────────────┘
+              │ out: alerts, digest      │ in: commands (long poll)
+              ▼                          │
+        Telegram · Discord          Telegram
 ```
+
+There is no gateway. There is no message broker. There is no second process holding state.
+
+## The four ways into Lyra's data
+
+This table is the thing this repo most needed and did not have. Each row is a different trust
+model, and they are easy to confuse because three of them involve a model.
+
+| Entry point | Direction | Auth | Can write? | Reaches |
+|---|---|---|---|---|
+| **React SPA** → `lyra-api` | request/response | JWT, PIN login | yes, everything | every route |
+| **`lyra-mcp`** → SQLite | a client launches it as a child process | none — it is a child process, and it pins wallets by env | **one table**: `analyses`, via `save_analysis` | the wealth half only |
+| **Telegram** → `tgbot.rs` | long poll, inbound | the pinned `TELEGRAM_CHAT_ID`, and nothing else | **no** — all eleven commands are reads | the wealth half only |
+| **`lyra-alerts`** → Telegram, Discord | outbound only | the bot token / the webhook URL | n/a | nothing; it only speaks |
+
+Two things follow from reading it as a whole:
+
+- **The life-OS half of the app is reachable only from the browser.** Nothing on a phone and no
+  model outside the tab can see a task. That is the gap [the assistant roadmap](./assistant-roadmap.md)
+  closes.
+- **`TELEGRAM_CHAT_ID` is currently a spam filter and is about to become an authorization
+  boundary.** See [`docs/telegram.md` §3](./telegram.md).
+
+## Where inference happens
+
+**In the browser. Only in the browser.** `src/core/ai/ai-client.ts:33` is the single place a model
+is called, and it runs in the page.
+
+So a Telegram command that needs natural language cannot be served at all, however the command
+table grows, and an LLM job would sit unrun until a browser tab happened to be open. This is the
+hardest constraint on "command it from Telegram" and it is a deliberate decision to leave in place
+for now — see [D2](./assistant-roadmap.md).
 
 ## Components
 
-### Life-OS UI (this repo)
+### The SPA
 
-The visual frontend — React 19 SPA with dashboard, kanban boards, calendar, charts. Used when you want the full desktop experience.
+React 19, TypeScript, Vite, Tailwind, shadcn/ui. Zustand for client state, TanStack Query for
+server state.
 
-- **Stack**: React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui
-- **State**: Zustand (client), TanStack Query (server)
-- **Data**: `ApiRepository` against the Life-OS API, or `LocalRepository` on browser storage for
-  demo mode. Which one is live is a single session-wide decision (`lyra:data-mode`), so the app
-  can never show demo entities next to real balances.
+Data comes from `ApiRepository` against `lyra-api`, or `LocalRepository` on browser storage in demo
+mode. **Which one is live is a single session-wide decision** (`lyra:data-mode`), so the app can
+never show demo entities next to real balances.
 
-### Life-OS API
+All data access goes through `IRepository<T>` — `getAll`, `getById`, `create`, `update`, `delete`,
+`query` — which is what made swapping the backend a configuration change rather than a rewrite.
+Filtering, `type=` scoping and pagination are now pushed to the server where the interface allows;
+`useEntities` asks the API rather than pulling every row to fill a dropdown.
 
-One Rust binary that owns the database. The UI and OpenClaw both talk to it.
+### `lyra-api` — one binary that owns the database
 
-- **Stack**: axum + sqlx over SQLite (WAL). No ORM — forward-only SQL migrations applied at
-  startup.
-- **Scope**: CRUD for entities, trackers, schedules and relations; git-backed knowledge notes;
-  Google Calendar; and the whole wealth surface — multi-chain portfolio, LP and borrow positions,
-  trading bots, market data, yield discovery, upstream freshness, the analysis journal and alert
-  configuration.
-- **Also in-process**: the chain fan-out and the alert sweep, so their upstream caches are shared
-  with the request path rather than duplicated, and an alert can never disagree with the page it
-  points at.
-- **See**: [API Server docs](./api-server.md) and [the parity harness](./parity.md)
+`axum` + `sqlx` over SQLite in WAL. No ORM; forward-only SQL migrations applied at startup from a
+list in `lyra-db/src/migrations.rs`.
 
-### OpenClaw Gateway
+It serves CRUD for entities, trackers, schedules and relations; git-backed knowledge notes; Google
+Calendar; and the whole wealth surface. It also runs **in-process**: the chain fan-out, so upstream
+caches are shared with the request path and an alert can never disagree with the page it points at;
+the alert sweep; and the Telegram poll loop.
 
-Always-on AI agent that connects to messaging platforms. The "eyes, mouth, and hands" of the system.
+See [`docs/api-server.md`](./api-server.md).
 
-- **Role**: Natural language interface, autonomous actions, cron jobs, notifications
-- **See**: [OpenClaw Integration docs](./openclaw-integration.md)
+### `lyra-mcp` — a second reader, not a service
 
-## Data flow
+A separate stdio binary an MCP client launches as a child. It reads the same SQLite file and is
+read-only by construction: no signing path exists in the crate, it refuses to boot with signing
+material in its environment, secrets are scrubbed on egress, and a test asserts exactly one tool
+writes. See [`docs/mcp.md`](./mcp.md).
 
-### From the UI (desktop/laptop)
+### `lyra-alerts` — outbound
 
-```
-User → Life-OS UI → Life-OS API → SQLite
-                  → OpenClaw (for AI chat) → LLM → response
-```
+Pure rules (readings + previous state in, alerts + new state out), a digest builder, and a
+`Channels` fan-out to Telegram and Discord where any channel succeeding counts as delivered. See
+[`docs/alerts.md`](./alerts.md).
 
-### From a chat app (phone, anywhere)
+## Background work today
 
-```
-User → Telegram/WhatsApp → OpenClaw Gateway → Life-OS API → SQLite
-                                            → LLM → response → Telegram/WhatsApp
-```
+Two hand-rolled poll loops, and nothing else:
 
-### Automated (cron, triggers)
+| Loop | Cadence | Recovers from a crash by |
+|---|---|---|
+| `alert_loop.rs` | `ALERT_INTERVAL`, default 900s | re-reading `alert_state`; latches make a replay idempotent |
+| `tgbot.rs` | 25s long poll | re-reading `tgbot:offset`, acked *after* the reply — so at most one command re-runs |
 
-```
-OpenClaw Cron → Life-OS API (query) → OpenClaw (format) → Telegram/WhatsApp
-```
+**There is no job queue.** No durable work item, no retry, no backoff, no crash recovery for work
+that was in flight. A Telegram outage at digest hour costs the day's brief silently, because
+`maybe_digest` swallows the error and the day key is only written on success.
 
-## Repository pattern
-
-All data access goes through the `IRepository<T>` interface:
-
-```typescript
-interface IRepository<T extends { id: string }> {
-  getAll(): Promise<T[]>
-  getById(id: string): Promise<T | undefined>
-  create(item: T): Promise<T>
-  update(id: string, updates: Partial<T>): Promise<T>
-  delete(id: string): Promise<void>
-  query(predicate: (item: T) => boolean): Promise<T[]>
-}
-```
-
-Currently implemented by `LocalRepository` (localStorage). Will be swapped to `ApiRepository` (HTTP fetch) when the API server is built. Zero UI changes needed.
+`schedules` is **not** the queue and must not be made into one — see
+[`docs/core-engine.md`](./core-engine.md). The queue's design is in
+[the roadmap](./assistant-roadmap.md), Stage A3 and D.
 
 ## Authentication
 
-- **UI**: PIN-based multi-user login, persisted via Zustand
-- **API** (planned): Simple token auth (two users, no need for OAuth)
-- **OpenClaw**: DM pairing — each messaging account is linked to a Life-OS user
+- **SPA**: PIN login, JWT, persisted via Zustand. Every life-OS handler scopes by `user.user_id`
+  from the token.
+- **`lyra-mcp`**: none. It is a child process of a client the user launched, and it has no JWT —
+  which is why it has no way to scope entity reads today, and why the roadmap gives it a pinned
+  owner before it gets a single life-OS tool.
+- **Telegram**: the pinned chat id, checked before anything runs.
+- **`/api/search`**: unauthenticated on purpose — a proxy with no user data behind it.
+
+## Two gates that constrain every change
+
+- **Parity.** `core/parity.toml` diffs the wealth endpoints against a Python oracle at 0.5%
+  tolerance, whole bodies, only `fetched_at` ignored. **A gated response cannot grow a field.**
+  When one needs to, the move is a new ungated route — the same move `vfat-status` made — not a
+  widened one. `alerts/test` and `alerts/digest` are excluded because a GET on either sends a real
+  message. See [`docs/parity.md`](./parity.md).
+- **Budget.** The frontend is 298 tests passing / 11 skipped, `tsc` clean, and **exactly 59 lint
+  problems** — all pre-existing. Those numbers mean something only while they do not move.
 
 ## Deployment
 
-Everything runs in Docker Compose on the mini PC. See [Deployment docs](./deployment.md).
-
-## Notification System
-
-Client-side only notification system using Zustand with `persist` middleware (key: `life-os:notifications`).
-
-- `notify()` utility in `src/lib/notify.ts` fires both a sonner toast and persists to the notification store
-- Bell icon in TopBar shows unread count badge and dropdown with latest 5 notifications
-- Full history page at `/notifications` with mark-read and clear-all actions
-- Extensible to server-sent events when API server is built
-
-## Map Integration
-
-Leaflet + react-leaflet with OpenStreetMap tiles for the Places and Travel modules.
-
-- No API keys required — OpenStreetMap is free and open-source
-- Markers with popups for places, polylines for trip routes
-- Default map center: Bangkok (13.7563, 100.5018)
-- Leaflet default marker icon fix applied for Vite bundler compatibility
-
-## Scaling Considerations
-
-### Current limits (localStorage era)
-- ~5-10 MB storage cap per origin. Sufficient for seed data and light usage, but real daily tracking will exhaust this within months
-- All queries are in-memory (fetch all → filter). No performance issues at current scale (~100 entities), but O(n) scan for every render
-
-### API server migration path
-- Repository interface (`IRepository<T>`) is the abstraction boundary. Swap `LocalRepository` for `ApiRepository` with zero UI changes
-- Push entity type filtering, pagination, and date-range queries to the server
-- Add indexed lookups by `type`, `ownerId`, `status`, and `dueDate` in the SQLite schema
-
-### Bundle size
-- Single-chunk build (~1.4 MB). Acceptable for a self-hosted LAN app, but add route-based code splitting (`React.lazy`) before exceeding ~2 MB
-- Heavy deps: Recharts (~300 KB), Leaflet (~200 KB), dnd-kit (~100 KB). Lazy-load map and chart pages to keep initial load fast
-
-### Multi-user concurrency
-- Currently no conflict resolution — last write wins in localStorage. The API server should use optimistic concurrency (updatedAt check) for shared entities
-- Two users, low contention — simple timestamp-based conflict detection is sufficient
+Docker Compose on the mini PC; nginx serves the built SPA and proxies `/api`. See
+[`docs/deployment.md`](./deployment.md).

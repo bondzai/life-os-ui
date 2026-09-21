@@ -558,9 +558,20 @@ impl Queue for SqliteQueue {
             (Status::Queued, now + backoff_secs(job.attempts), None)
         };
 
+        // The key is released on the way into `failed`, and only there.
+        //
+        // An idempotency key answers "has this work already been done?", and a job that exhausted
+        // its attempts has emphatically not done it. Holding the key anyway meant the retry — a
+        // scheduler re-tick, a button, the user simply asking again — hit `ON CONFLICT DO NOTHING`
+        // and got back `created: false` and the id of the corpse. The work vanished, and the
+        // caller was told everything was fine, for the fourteen days until the pruner forgot it.
+        //
+        // `done` deliberately keeps its key: that is the case the key exists for, and a
+        // date-scoped `digest:2026-09-21` should stay claimed once the digest has gone out.
         let result = sqlx::query(
             "UPDATE jobs SET status = ?, run_at = ?, finished_at = ?, last_error = ?,
-                             worker = NULL, leased_until = NULL, updated_at = ?
+                             worker = NULL, leased_until = NULL, updated_at = ?,
+                             idempotency_key = CASE WHEN ? = 'failed' THEN NULL ELSE idempotency_key END
               WHERE id = ? AND worker = ? AND status = 'running'",
         )
         .bind(status.as_str())
@@ -568,6 +579,7 @@ impl Queue for SqliteQueue {
         .bind(finished_at)
         .bind(truncate(error))
         .bind(now)
+        .bind(status.as_str())
         .bind(id)
         .bind(worker)
         .execute(&self.pool)
@@ -586,7 +598,7 @@ impl Queue for SqliteQueue {
         // nothing here can observe.
         let dead = sqlx::query(
             "UPDATE jobs SET status = 'failed', worker = NULL, leased_until = NULL,
-                             finished_at = ?, updated_at = ?,
+                             finished_at = ?, updated_at = ?, idempotency_key = NULL,
                              last_error = 'lease expired with no attempts left: the worker did not survive this job'
               WHERE status = 'running' AND leased_until < ? AND attempts >= max_attempts",
         )
@@ -679,7 +691,8 @@ impl Queue for SqliteQueue {
 
     async fn cancel(&self, id: &str, now: i64) -> Result<bool> {
         let result = sqlx::query(
-            "UPDATE jobs SET status = 'cancelled', finished_at = ?, updated_at = ?
+            "UPDATE jobs SET status = 'cancelled', finished_at = ?, updated_at = ?,
+                             idempotency_key = NULL
               WHERE id = ? AND status = 'queued'",
         )
         .bind(now)
@@ -953,6 +966,104 @@ mod tests {
     /// The landmine: `ON CONFLICT(idempotency_key) DO NOTHING` is a parse error against a *partial*
     /// unique index unless the conflict target repeats the index's `WHERE`. Nothing but running it
     /// catches this.
+    #[tokio::test]
+    async fn a_dead_job_releases_its_key_so_the_work_can_be_asked_for_again() {
+        // The failure this closes is silent, which is what makes it expensive: the retry was
+        // accepted, reported `created: false`, and did nothing, for the fourteen days until the
+        // pruner forgot the corpse.
+        let (_dir, q) = fresh().await;
+        let first = q
+            .enqueue(&job("digest.daily").key("digest.daily:2026-09-21"), 1000)
+            .await
+            .unwrap();
+        assert!(first.created);
+
+        // Burn every attempt.
+        let mut now = 1100;
+        loop {
+            let claimed = q.claim("w", &[Lane::Interactive], 60, now).await.unwrap();
+            let Some(claimed) = claimed else { break };
+            let status = q
+                .fail("w", &claimed.id, "telegram is down", Failure::Retry, now)
+                .await
+                .unwrap();
+            now += 10_000;
+            if status == Some(Status::Failed) {
+                break;
+            }
+        }
+
+        let dead = q.get(&first.id).await.unwrap().unwrap();
+        assert_eq!(dead.status, Status::Failed, "the job must be dead-lettered");
+
+        let retry = q
+            .enqueue(&job("digest.daily").key("digest.daily:2026-09-21"), now)
+            .await
+            .unwrap();
+        assert!(
+            retry.created,
+            "a job that failed has not done the work, so asking again must create a real job"
+        );
+        assert_ne!(
+            retry.id, first.id,
+            "and it must be a new job, not the id of the corpse"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_reaped_dead_job_releases_its_key_too() {
+        // The other road into `failed`: nobody called `fail`, the worker simply never came back.
+        let (_dir, q) = fresh().await;
+        let first = q
+            .enqueue(
+                &job("deliver.telegram").key("brief:2026-09-21").max_attempts(1),
+                1000,
+            )
+            .await
+            .unwrap();
+
+        // One attempt allowed, so a single claim and an expired lease is the whole story: the
+        // reaper finds a running job with nothing left to spend, and dead-letters it. Claiming in
+        // a loop would not work — `claim` does not pick up a job that is still `running`, which is
+        // the reaper's whole job.
+        q.claim("w", &[Lane::Interactive], 60, 1100).await.unwrap();
+        let now = 1100 + 10_000;
+        q.reap(now).await.unwrap();
+
+        assert_eq!(q.get(&first.id).await.unwrap().unwrap().status, Status::Failed);
+        assert!(
+            q.enqueue(&job("deliver.telegram").key("brief:2026-09-21"), now)
+                .await
+                .unwrap()
+                .created,
+            "the reaper's dead-letter must release the key as well as `fail` does"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_finished_job_keeps_its_key() {
+        // The other half of the rule, so the fix above cannot quietly become "keys never hold".
+        // This is the case the key exists for: the digest went out, do not send it twice.
+        let (_dir, q) = fresh().await;
+        let first = q
+            .enqueue(&job("digest.daily").key("digest.daily:2026-09-21"), 1000)
+            .await
+            .unwrap();
+        let claimed = q
+            .claim("w", &[Lane::Interactive], 60, 1100)
+            .await
+            .unwrap()
+            .unwrap();
+        q.complete("w", &claimed.id, &[], 1200).await.unwrap();
+
+        let again = q
+            .enqueue(&job("digest.daily").key("digest.daily:2026-09-21"), 1300)
+            .await
+            .unwrap();
+        assert!(!again.created, "a completed job must still hold its key");
+        assert_eq!(again.id, first.id);
+    }
+
     #[tokio::test]
     async fn an_idempotency_key_collapses_repeat_enqueues_into_one_job() {
         let (_dir, q) = fresh().await;

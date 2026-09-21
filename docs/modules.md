@@ -1,194 +1,153 @@
 # Modules
 
-Modules are thin layers over the core engine. Each module maps entity types to a UI page with specialized views. Adding a module is mostly configuration — the entity system, repository, and hooks handle the data.
+A module is a sidebar entry: an entity type or two, a route, and a page. The entity system,
+repositories and hooks do the data work, so adding one is mostly configuration.
 
-## Module registry
+> **`src/core/config/modules.ts` is the authoritative registry.** It is 37 lines of TypeScript
+> carrying better doc comments than this file can, including *why* the groups are Now / Plan /
+> Money. A table hand-synced against a literal is a drift machine — this document explains the
+> shape and the decisions, and points at the source for the list.
+>
+> **Rewritten 2026-09-21.** The previous version tabulated nineteen modules, nine of which 404 —
+> it described the 17-module app that the Lean release (v2.5.0) deleted. If anything below reads
+> as describing a page you cannot reach, the source is right and this is wrong.
 
-Defined in `src/core/config/modules.ts`:
+---
 
-| Module | Route | Entity types | Group | Status |
-|--------|-------|-------------|-------|--------|
-| Dashboard | `/` | (all) | Overview | Done |
-| Goals | `/goals` | `goal` | Plan | Done |
-| Tasks | `/tasks` | `task` | Plan | Done |
-| Calendar | `/calendar` | `event` | Plan | Done |
-| Skills | `/skills` | `skill`, `course`, `book` | Grow | Done |
-| Habits | `/habits` | `habit` | Grow | Done |
-| Health | `/health` | `body-metric`, `workout`, `sleep-mood` | Health | Done |
-| Wealth | `/wealth` | `transaction`, `budget`, `account`, `asset`, `wallet`, `crypto-tx` | Wealth | Done |
-| Home | `/home` | `device`, `service` | Home | Done |
-| Family | `/family` | `chore` | Family | Done |
-| Automate | `/automate` | `automation` | Automate | Done |
-| Today | `/today` | (aggregate) | Overview | Done |
-| Review | `/review` | (aggregate) | Overview | Done |
-| Notes | `/notes` | `note` | Capture | Done |
-| Memories | `/memories` | `memory` | Capture | Done |
-| Posts | `/posts` | `post` | Family | Done |
-| Notifications | `/notifications` | (none) | Overview | Done |
-| Places | `/places` | `place` | Explore | Done |
-| Travel | `/travel` | `trip` | Explore | Done |
+## 1. Grouped by rhythm, not by category
 
-## Implemented modules
+The sidebar asks three questions rather than sorting into subjects:
 
-### Dashboard
+| Group | Question | Modules |
+|---|---|---|
+| **Now** | What am I doing right now? | Focus, Deep Work, Inbox |
+| **Plan** | What am I working towards? | Tasks, Projects, Goals, Calendar, Habits, Notes, Review, Dashboard |
+| **Money** | Where is the money? | Wealth (eight sub-routes) |
 
-Four widgets + daily brief:
-- **Daily Brief** — AI-powered stats and summary (Phase 3)
-- **Today's Tasks** — due today or overdue, with checkboxes
-- **Goal Progress** — top 5 active goals with progress bars
-- **Habits** — active habits with today's check-in indicator
-- **Quick Add** — buttons to create task/goal/event inline
+It used to be Daily (2) and Plan (9). A heading over nine of eleven entries sorts nothing, and a
+heading that sorts nothing stops being read.
 
-### Goals
+Inbox and Deep Work are listed because they are real routes that were reachable only through a
+link buried in a Focus panel and a `⌘⇧D` shortcut — **a route nothing points at is a feature you
+have to remember you own.**
 
-- Grid view of top-level goals (cards with progress)
-- Detail view showing sub-goals and computed progress
-- Status filtering (active/completed/paused/archived)
-- CRUD via entity dialog
+Knowledge left the sidebar for Settings and kept its route. It configures the AI's persona, agents
+and context, which is configuration rather than a plan; filed under Plan next to Notes it read as
+somewhere you had put something.
 
-### Tasks
+**Every module has a `g`-key.** `g t` for Tasks, `g p` for Projects, the way Linear and GitHub do
+it, shown on hover beside each item so it teaches itself on the way past. The key lives on the
+module rather than in a table of its own, and `goKeyIndex` throws at import on a duplicate — a
+collision is a module you can never reach by keyboard, and it fails silently otherwise.
 
-- **List view** with status/priority filters and sort (date, priority, title)
-- **Kanban view** with columns: Active, In Progress, Completed, Archived
-- Drag-and-drop between columns (dnd-kit)
-- CRUD via entity dialog
+## 2. Projects — a type again, since 2026-09-20
 
-### Calendar
+`fd2948e` merged Project into Goal in March, on the grounds that two hierarchies were one too many.
+That was right for a goal tree and wrong for a body of work: a Shorts channel or a freelance
+contract is not an outcome you want, it is a thing with a repo, a client and a publishing schedule.
 
-- Month grid with entity due dates
-- iCal feed integration (Google Calendar via `.ics` URL)
-- Inline event creation (click a day)
-- Feed management dialog for adding/removing iCal sources
+The reversal cost no migration and no new table, because the live database held **zero** project
+entities — the merge was complete, so this reverses it cleanly rather than untangling data. A
+project is an entity with `type: 'project'`, which the API has always accepted, and the optional
+half — client, repo, stack — lives in `metadata`, unset on the projects that do not need it.
 
-### Notes
-- Tabs: Notes tab + Journal tab
-- Notes tab: card grid with status filter, search, CRUD
-- Journal tab: date-grouped entries with mood tracking
-- Uses entity type `note` with `metadata.isJournal` to differentiate
+Three decisions worth keeping:
 
-### Posts
-- Activity feed for household status updates
-- Inline compose box with visibility selector (private/shared)
-- Reverse-chronological card feed with author avatars
-- Edit/delete for own posts only
+- **Tasks belong to a project through `metadata.projectId`**, the convention already read by
+  `use-velocity`, `detect-stale-projects`, `detect-velocity`, the morning brief and the AI context
+  builders. Setting that one field is what makes the velocity panel work here with no new code.
+  One field, not two, because ids are unique across types — so a stored id is unambiguous without
+  recording which kind it points at, and a task pointing at a goal simply never matches a project.
+  Two fields would mean rewriting every existing row to guess which of the two an old id meant.
+  The cost is that a task belongs to one thing rather than to a project *and* a goal at once.
+- **Progress is derived from task counts**, never stored. A number you have to remember to update
+  is a number that lies, and no tasks shows no bar rather than a confident 0%.
+- **Which project is open lives in the URL**, not in state. Goals copies the id into state inside
+  an effect, which needs the list loaded first, leaves the back button doing nothing, and trips
+  `react-hooks/purity`. Deriving it needs no effect and gives a detail view you can link someone to.
 
-### Notifications
-- Client-side notification system using Zustand store
-- `notify()` utility fires sonner toast + persists to store
-- Bell icon in TopBar with unread badge and dropdown
-- Full history page at `/notifications` with mark-read and clear-all
+Deleting a project says what happens to its tasks: the API hard-deletes with no cascade, so they
+stay put and lose their project. A dangling id reads as *"Unknown (deleted)"* rather than as
+unassigned, because those are different facts. That is the safer default, but only if the person
+clicking knows it.
 
-### Places
-- Two-column layout: sidebar list + interactive Leaflet map
-- OpenStreetMap tiles (no API key required)
-- Markers with popups, search, category filtering
-- CRUD via entity dialog
+The task panel's project picker offers projects **and** goals, grouped, and drops archived entries
+— assigning fresh work to a dropped project is almost always a misclick, while a task already
+pointing at one keeps its link.
 
-### Travel
-- Trip planner linking places via Relations
-- Two-column: trip list + map with connected markers
-- Polyline connecting trip places on map
-- Add/remove places from trips
+## 3. Wealth — eight sub-routes
 
-### Wealth
-- Six tabs: Transactions, Budgets, Accounts, Portfolio, Wallets, Crypto Txs
-- Summary strip: Net Worth, Cash, Portfolio, Monthly P&L
-- Transaction table with type/category filters and inline actions
-- Budget cards with progress bars (computed spent from transactions)
-- Spending chart (Recharts horizontal bar) by category
-- Account cards with balance display and cash total
-- Portfolio tab with asset cards, class/chain/protocol filters, allocation donut chart, and unrealized gain/loss
-- Asset types: crypto, defi, stock, fund, gold, property — quantity-based or value-based
-- Wallets tab: track CEX accounts and cold/hot/hardware wallets with addresses and chains
-- Crypto Txs tab: buy/sell/swap/transfer ledger with action/symbol filters, linked to wallets
-- Assets can be linked to wallets (walletId) for crypto/defi classes
-- Custom dialogs for each entity type (react-hook-form + zod)
+| Route | What it answers |
+|---|---|
+| `/wealth` (Overview) | Net worth, tiers, the snowball panel with its picker and projection |
+| `/wealth/holdings` | Every token position, one row per token |
+| `/wealth/defi` | The LP and lending book — see below |
+| `/wealth/opportunities` | vfat's whole pool universe, filtered server-side |
+| `/wealth/btc` | The Bitcoin stack |
+| `/wealth/bots` | KuCoin spot rebalance and futures bots |
+| `/wealth/journal` | Saved analyses, including everything `save_analysis` writes over MCP |
+| `/wealth/settings`, `/wealth/alerts` | Wallets and currency; thresholds and channels |
 
-### Health
-- Three tabs: Body Metrics, Workouts, Sleep & Mood
-- Summary strip: Weight (latest), Workouts (7d count), Avg Sleep (7d), Today's Mood
-- Body metrics table with metric type filter (weight, body fat, waist, chest, arms, BMI)
-- Workout cards with type badges, duration, calories, exercises
-- Sleep & mood cards with sleep hours, quality badge, mood badge, energy level
-- Custom dialogs for each entry type (react-hook-form + zod)
+### The DeFi page rewrite — September 2026
 
-### Home
-- Two tabs: Devices, Services
-- Summary strip: Device count, Service count, Running (green), Errors (red)
-- Device cards with type badges (server, desktop, laptop, phone, tablet, router, IoT), IP, MAC, OS, location
-- Service cards with type + status badges, URL/port, linked device name, Docker image
-- Service types: docker, web, database, api, monitoring, media
-- Service statuses: running (green), stopped (gray), error (red), unknown (yellow)
-- Custom dialogs for each entity type (react-hook-form + zod)
+`/wealth/defi` was five stat cards over a table. It is now **one bar and one ledger**, and the whole
+book fits on one screen. The sequence of decisions is worth recording because each one is a rule
+the rest of the wealth surface now follows.
 
-### Family
-- Two tabs: Chores, Activity
-- Summary strip: Total chores, Due/Overdue (red), My Chores, Shared Tasks
-- Chore cards with category badges (cleaning, cooking, laundry, shopping, maintenance, pets), frequency, assignee, due date
-- Category and assignee filter dropdowns
-- Activity tab: chronological feed of all shared entities across all modules (most recent 50)
-- Activity entries show author avatar, entity type badge, relative time, title, status
-- Custom chore dialog (react-hook-form + zod)
+- **One primary figure, four set inline beside it.** Five cards gave five figures the same weight,
+  so the eye had no entry point, and at `lg` they wrapped 3 + 2 — ragged on exactly the screen this
+  is read on. Two levels of emphasis instead of one, at about a third of the height.
+- **Out of range is a state, not a quantity, so it filters itself.** The number telling you to act
+  is one click from acting. It stays plain text: the range badges on the rows are load-bearing, and
+  a sixth badge up top would dilute them.
+- **Borrowed, worst health factor and ready-to-harvest moved into the bar.** Borrowed reads the
+  *whole* book rather than the filtered rows — liquidation does not care which chain you are
+  looking at, and a risk figure that vanishes when you filter is worse than no figure. It shows the
+  **worst** health factor, not an average, because an average cannot hurt you while one position
+  under it is being liquidated; and it only takes colour below the same 1.5 threshold that gates
+  the Telegram alert, because a risk number that is always red is decoration. It is absent entirely
+  on a wallet that does not borrow.
+- **Loans joined the LP table.** The one row on the page that can liquidate you was the one row you
+  could not see. A loan is a position — a venue, a value, and a number saying how close it is to
+  going wrong — which is the same three questions the LP rows answer in the same three columns. So
+  Range became Health: an LP marker nearing the end of its band and a health factor nearing 1 are
+  the same shape of warning, and they sit in the same place on the row. Columns a loan has no
+  answer for say so with an em dash rather than a zero.
+- **Value is the protocol-aware net**, which on Aave is the debt alone, because the collateral is
+  already in the book as spot aTokens. A negative number beside a five-figure collateral balance
+  reads as a bug, so the cell spells out why.
+- **Badge the exception.** "In range" fired on the healthy majority and was the loudest thing in the
+  row, repeating what the green marker already said and making the one row that needed attention
+  harder to find. `null` keeps a neutral badge — a position whose range the server could not
+  determine must never render as healthy — and "full range" keeps its own, because it is a
+  different kind of position rather than a health state.
+- **The structure renders on the first frame and only the cells arrive late.** A skeleton *instead
+  of* the page means the first thing you see is discarded and everything moves when the data lands.
+  A waiting figure draws a bar the size of its number: `$0.00` is a lie about someone's money, and
+  `—` is this codebase's word for *"we looked and could not read it"* — neither is true while the
+  request is in flight, so the placeholder says "coming". Error and empty still replace the page,
+  because they are terminal rather than transitional, and both now wait for loading to finish so
+  neither can flash during it.
+- **Detail lives behind a click, and clickability is drawn, not implied.** The snowball, claimable
+  by token and the full borrowing panel open from the figures they belong to. Both openers carry
+  the same expand glyph on the label and the same accessible name — one rule, *"label has a mark"
+  means "this one opens"* — because hover is undiscoverable and on a touch screen does not exist.
+  Nothing to collect means nothing to open, and the figure stays plain.
 
-### Today (Focus Mode)
-- Single-page daily focus view — no tabs, no filters
-- "Pick 3 priorities" prompt (active tasks/goals, resets daily)
-- Due tasks checklist with overdue indicators
-- Due chores checklist
-- Today's events list
-- Habit strip with toggle check-in and streak counts
-- Inbox section: untriaged quick-capture items with "Convert to Task" and "Archive" actions
-- Quick journal: inline textarea that saves as journal note
-- Overall progress bar (tasks + habits done / total)
-- Link to Weekly Review
+Related rules that landed across the whole wealth module in the same stretch: chain and token names
+come from `identity.ts` so every surface says "BNB" and "HyperEVM" rather than title-casing a slug
+into "Bnb"; `marks.tsx` draws shape-encodes-kind marks on Holdings and Overview but **not** on the
+dense DeFi table, where decoration competed with the figures; and win/loss colours were raised to
+AA contrast.
 
-### Weekly Review Wizard
-- 5-step guided review at `/review`
-- Step 1 — Accomplishments: completed tasks/goals this week
-- Step 2 — Stale Items: active items not updated in 14+ days, with archive action
-- Step 3 — Habits: weekly check-in counts and streaks with progress bars
-- Step 4 — Spending: this week's income/expenses vs monthly budget
-- Step 5 — Reflection: free-text journal that saves as review note
-- Step indicator with clickable navigation
-- Review completion stored in localStorage (once per week)
+## 4. Adding a module
 
-### Inbox (Quick Capture)
-- Floating action button (bottom-right) visible on all pages
-- `Cmd+Shift+I` keyboard shortcut
-- Minimal capture modal: textarea + Enter to save
-- Saves as `note` entity with `metadata.isInbox: true`
-- Inbox count badge on floating button
-- Triage on Today page: convert to task or archive
+1. Define the entity type in `src/core/types/entity.ts` if it needs a new one — most do not.
+2. Add the config to `src/core/config/modules.ts`, including a free `goKey`.
+3. Create the page in `src/pages/`.
+4. Add the route in `src/app.tsx`.
+5. Use `useEntities(type)` — the hook and repository already work.
 
-### Memories
-- Photo journal / memory board with image upload and compression
-- Gallery tab: responsive card grid with thumbnail images (aspect 4:3)
-- Timeline tab: chronological feed grouped by month/year
-- Lightbox: full-image overlay with caption and metadata
-- Image compression via Canvas API (max 200KB full, ~30KB thumbnail)
-- Mood tracking: joyful, peaceful, nostalgic, excited, grateful, bittersweet
-- Summary strip: Total Memories, This Month, Top Mood, Storage Used
-- Mood filter + date sort (newest/oldest)
-- Storage budget indicator (~3.5MB for ~15 photos in localStorage)
-- Custom memory dialog with image upload zone (react-hook-form + zod)
-
-### Automate
-- Two tabs: Automations, Templates
-- Summary strip: Automation count, Active (green), Scheduled, Total Runs
-- Trigger types: schedule (daily/weekly/monthly) and manual (run on demand)
-- Action types: Create Entity, Send Notification, Update Entities
-- Automation cards with trigger/action info, run count, last run, next due, and manual run button
-- Templates tab: 5 preset automations (Weekly Review, Monthly Budget Check, Daily Habit Reminder, Weekly Meal Plan, Weekly Grocery List)
-- One-click template activation (prevents duplicates)
-- Automation engine runs due scheduled automations on page load (once per day per session)
-- Custom automation dialog with conditional action config fields (react-hook-form + zod)
-
-All modules are now implemented. No stub pages remain.
-
-1. Define entity type(s) in `src/core/types/entity.ts`
-2. Add module config to `src/core/config/modules.ts`
-3. Create page component in `src/pages/`
-4. Add route in `src/app.tsx`
-5. Use `useEntities(type)` — the hook and repository already work
-
-No new database tables, no new API endpoints, no new stores. The core engine handles it.
+No new tables, no new API endpoints, no new stores. `entities` is one table for every type, and
+type-specific fields live in the `metadata` JSON blob. See
+[`docs/core-engine.md`](./core-engine.md).

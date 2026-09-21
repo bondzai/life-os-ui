@@ -2,6 +2,8 @@
 
 The core engine provides four primitives that every module builds on. This keeps the system DRY — a goal, a task, a habit, and a transaction are all entities with different `type` values.
 
+> **`src/core/types/entity.ts` is the authoritative type list**, and `core/crates/lyra-db/src/migrations.rs` is the authoritative schema. Amended 2026-09-21: the status values and the type list below had drifted, and two things that a reader now needs — how a task links to a project, and why `schedules` is not a job queue — were missing entirely.
+
 ## Primitives
 
 ### Entity
@@ -14,7 +16,7 @@ interface Entity {
   type: EntityType        // 'goal' | 'task' | 'habit' | 'skill' | ...
   title: string
   description?: string
-  status: EntityStatus    // 'active' | 'completed' | 'archived' | 'paused'
+  status: EntityStatus    // 'backlog' | 'todo' | 'in-progress' | 'done' | 'archived'
   priority: EntityPriority // 'low' | 'medium' | 'high' | 'urgent'
   tags: string[]
   metadata: Record<string, unknown>  // type-specific data (progress, amount, etc.)
@@ -27,7 +29,30 @@ interface Entity {
 }
 ```
 
-**Supported types**: `goal`, `task`, `habit`, `skill`, `transaction`, `budget`, `account`, `workout`, `body-metric`, `book`, `course`, `event`, `device`, `service`, `chore`
+**29 supported types**, from `goal` and `task` through `wallet` and `crypto-tx`. They live in one
+`EntityType` union in `src/core/types/entity.ts`; several belong to pages that no longer exist and
+are kept because the rows do.
+
+**One table for every type.** `entities` holds all of them, and type-specific fields live in the
+`metadata` JSON blob. That is why adding a module needs no migration, and why a single MCP
+`entity_create(type, …)` tool can replace seven per-type ones.
+
+### `metadata.projectId` — how work links to what it is for
+
+A task belongs to a project **or** a goal through `metadata.projectId`. One field, not two, and the
+reason is that **ids are unique across types**: a stored id is unambiguous without also recording
+which kind of thing it points at. The Projects page matches it against projects, `use-velocity`
+matches whatever it was asked about, and a task pointing at a goal simply never matches a project.
+
+Two fields would have meant rewriting every existing row to guess which of the two an old id meant.
+The cost of one is that a task belongs to one thing rather than to a project *and* a goal at once.
+
+The same convention is read by `detect-stale-projects`, `detect-velocity`, the morning brief and the
+AI context builders, which is why setting that one field makes the velocity panel work with no new
+code. **Nothing validates it.** The API accepts any string, so a dangling id is possible and reads
+as "Unknown (deleted)" rather than as unassigned — a deliberate distinction, since delete does not
+cascade. A model writing this field needs the check a human gets from a dropdown; see
+[the roadmap](./assistant-roadmap.md).
 
 ### Tracker
 
@@ -60,6 +85,20 @@ interface Schedule {
 }
 ```
 
+#### `schedules` is recurrence, not a job queue
+
+It looks like one, and the next person looking for a queue will find it and be wrong.
+
+`schedules` answers *"when is this habit next due"*, and its `nextDue` is **rendered to the user**
+on the habits and chores pages. It carries no payload, no attempt count, no lease, no worker and no
+terminal state. If a failed job rewrote `nextDue` as a backoff, the user would watch their chores
+silently slide — the two concepts share the word "due" and nothing else.
+
+When the job queue lands it is a separate `jobs` table, and the bridge is one-directional: a
+`schedule.tick` job scans `schedules WHERE isActive = 1 AND nextDue <= now` and *enqueues* real
+jobs. `schedules` never learns the queue exists. See
+[`docs/assistant-roadmap.md` §1.8](./assistant-roadmap.md).
+
 ### Relation
 
 Typed link between two entities. Enables dependency graphs, parent-child trees, cross-module connections.
@@ -75,7 +114,9 @@ interface Relation {
 
 ## Repositories
 
-Each primitive has a repository class extending `LocalRepository<T>`:
+Each primitive has a repository class. In demo mode it extends `LocalRepository<T>` over browser
+storage; against a live server it is `ApiRepository`, and which one is live is a single session-wide
+decision (`lyra:data-mode`) so the app can never show demo entities next to real balances.
 
 | Repository | Extra methods |
 |-----------|---------------|

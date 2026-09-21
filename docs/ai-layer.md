@@ -1,5 +1,16 @@
 # AI Layer
 
+> **This is the *browser* AI layer, and it is not an MCP server.**
+>
+> Three unrelated things in this repo are called MCP: this registry (which runs in the page and is
+> unreachable from anything outside the tab), `lyra-mcp` (a real MCP server — see
+> [`docs/mcp.md`](./mcp.md)), and vfat's hosted MCP server upstream. "Expand MCP to cover all
+> features" means the second one.
+>
+> **Partly historical.** Written against the Phase-3 feature set; it documents
+> `daily-brief-widget.tsx`, since deleted, and knows nothing of the sixteen files now in
+> `src/core/ai/tools/` or the ten in `src/core/ai/context/`. The source is the list.
+
 The AI layer (Phase 3) adds a swappable AI provider system, chat sidebar, command bar, and daily brief. All AI requests use the OpenAI-compatible `/chat/completions` endpoint format, making it work with OpenAI, Claude (via proxy), Ollama, OpenClaw, or any compatible API.
 
 ## Provider system

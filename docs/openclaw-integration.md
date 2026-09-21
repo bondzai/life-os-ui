@@ -1,5 +1,16 @@
 # OpenClaw Integration
 
+> **Historical — kept for the record, not for reference.**
+>
+> Nothing in this document was built. It specifies a gateway on `:18789`, a skill directory under
+> `~/.openclaw/`, and a Life-OS API on port 3000; the API that exists is on 3001 and the messaging
+> role this was going to fill is filled by `tgbot.rs`. Its one surviving idea — that you should be
+> able to command Lyra from a chat app you already have — is the premise of
+> [`docs/telegram.md`](./telegram.md) and [`docs/assistant-roadmap.md`](./assistant-roadmap.md).
+>
+> It is kept because it is the only written record of the multi-channel ambition. Read it as
+> history, not as a plan.
+
 OpenClaw runs on the mini PC as an always-on AI agent. It connects JB and Sunny to Life-OS through the chat apps they already use — no new app to install.
 
 ## Why OpenClaw

@@ -44,7 +44,15 @@ use crate::AppState;
 ///
 /// The heartbeat is a third of the lease so two consecutive misses — a stalled thread, a laptop
 /// asleep — still leave room for a third to arrive before the reaper decides the worker is gone.
-const HEARTBEAT_SECS: u64 = (DEFAULT_LEASE_SECS as u64) / 3;
+/// A third of the lease, so two beats may be missed before the reaper acts.
+///
+/// Derived from the worker's own `lease_secs` rather than from the default, because
+/// [`Worker::lease`] shortens the lease and a heartbeat pinned to the default would then tick
+/// *after* the lease it was meant to renew had already expired — the reaper reclaims a job whose
+/// worker is still happily running it, and the completion is refused.
+fn heartbeat_secs(lease_secs: i64) -> u64 {
+    ((lease_secs.max(1) as u64) / 3).max(1)
+}
 
 /// How long an idle worker waits before asking again, and the ceiling it backs off to.
 ///
@@ -386,7 +394,7 @@ impl Worker {
     /// panicking handler would hold a lease for a job nobody is running, which is precisely the
     /// state the reaper exists to end.
     async fn run_with_lease(&self, handler: &Arc<dyn Handler>, ctx: &JobCtx, id: &str) -> Outcome {
-        let mut beat = tokio::time::interval(Duration::from_secs(HEARTBEAT_SECS.max(1)));
+        let mut beat = tokio::time::interval(Duration::from_secs(heartbeat_secs(self.lease_secs)));
         beat.tick().await; // `interval` fires immediately; the lease is fresh from the claim.
 
         let running = handler.run(ctx);
@@ -484,17 +492,76 @@ pub fn spawn(state: AppState) {
     // throughput.
     for (lane, count) in [(Lane::Interactive, 2), (Lane::Batch, 1), (Lane::Deliver, 1)] {
         for n in 0..count {
-            let worker = Worker::new(
-                queue.clone(),
-                Arc::clone(&handlers),
-                format!("{}-{n}", lane.as_str()),
-                vec![lane],
-            );
-            tokio::spawn(worker.run_forever());
+            let name = worker_name(lane, n);
+            let queue = queue.clone();
+            let handlers = Arc::clone(&handlers);
+            supervise(name, move |name| {
+                Worker::new(queue.clone(), Arc::clone(&handlers), name, vec![lane]).run_forever()
+            });
         }
     }
 
     tokio::spawn(reaper(queue));
+}
+
+/// A worker name that is unique across processes, not just within one.
+///
+/// It was `deliver-0`, which is unique among the four workers this process starts and says nothing
+/// at all about *which* process. Every claim, heartbeat and completion is guarded by
+/// `WHERE worker = ?`, and that guard is the whole of the lease: it is what stops a worker whose
+/// job was reclaimed from finishing it anyway. Two `lyra-api` processes on one SQLite file both
+/// have a `deliver-0`, so the guard compares equal across them and the protection is gone —
+/// process A's stale `complete()` lands on the job process B is holding.
+///
+/// Two processes on one database is not hypothetical: it is the shape the `Queue` trait was
+/// introduced for, and it is what happens for a few seconds during any restart that overlaps.
+///
+/// The pid is the process part. It can be reused after a reboot, but not while a lease is live,
+/// which is the only window in which the comparison means anything.
+fn worker_name(lane: Lane, n: usize) -> String {
+    format!("{}-{n}@{}", lane.as_str(), std::process::id())
+}
+
+/// How long to wait before restarting a worker that panicked.
+///
+/// Long enough that a handler panicking on every job cannot spin, short enough that a one-off
+/// costs a few seconds of that lane rather than the rest of the day.
+const RESTART_DELAY: Duration = Duration::from_secs(5);
+
+/// Keep a worker running across panics.
+///
+/// `tokio::spawn(worker.run_forever())` dropped the `JoinHandle`, so a panic anywhere in a handler
+/// ended that task silently and permanently: `run_forever` never returns, nothing was awaiting it,
+/// and nothing restarted it. One `unwrap` on one malformed provider payload and the deliver lane
+/// was dark for the life of the process — jobs claimed, leases expiring, the reaper dutifully
+/// requeueing them for a worker that no longer existed.
+///
+/// Supervision rather than `catch_unwind` because a panic mid-job should abandon that job, not
+/// resume inside it. The job is not lost: its lease expires and the reaper requeues it, which is
+/// the path that already exists for a hard kill. A panicking handler is just a very small crash.
+fn supervise<F, Fut>(name: String, build: F)
+where
+    F: Fn(String) -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
+    tokio::spawn(async move {
+        loop {
+            let handle = tokio::spawn(build(name.clone()));
+            match handle.await {
+                // `run_forever` never returns, so this only happens on shutdown.
+                Ok(()) => return,
+                Err(error) if error.is_cancelled() => return,
+                Err(error) => {
+                    tracing::error!(
+                        worker = %name,
+                        %error,
+                        "a job handler panicked; restarting the worker"
+                    );
+                    tokio::time::sleep(RESTART_DELAY).await;
+                }
+            }
+        }
+    });
 }
 
 #[cfg(test)]

@@ -1,5 +1,9 @@
 # Productivity Features
 
+> **Written against the 17-module app.** Its opening premise — "17 modules means 17 places to
+> check" — is the reasoning *behind* the Lean release and the eleven-entry sidebar, not a
+> description of the app today. Read it as design intent.
+
 Three features designed to reduce decision fatigue, minimize friction, and build consistent review habits.
 
 ---

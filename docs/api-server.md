@@ -139,6 +139,11 @@ server starts and serves every route without it, reporting an empty book.
 
 ## The Telegram command bot — 2026-08-22
 
+> **Moved.** The full account now lives in [`docs/telegram.md`](./telegram.md), because the bot
+> stopped being an implementation detail of an HTTP server the moment it became the plan. What
+> follows is kept here as the record of why polling and the owner pin exist; the write boundary,
+> the 4096-character limit and the no-server-inference constraint are in the new file.
+
 `lyra-alerts` **pushes** alerts and the daily brief out; `tgbot.rs` **pulls** commands in. Both
 halves existed in the Python (`notify.py` and `tgbot.py`); only the pushing half was ported, which
 is why messaging the bot did nothing.

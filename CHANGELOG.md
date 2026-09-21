@@ -1,6 +1,245 @@
 # Changelog
 
-All notable changes to Lyra (Life-OS UI) are documented here.
+All notable changes to Lyra are documented here.
+
+> **Two changelogs, one of them maintained.** This file is for GitHub; `src/lib/changelog-data.ts`
+> ships inside the app behind the changelog dialog and is what recorded the Lean removals. They had
+> drifted a long way apart — this file stopped at 1.3.0 while the app ran to 2.5.0 — and the entries
+> for 1.4.0 through 2.5.0 below are a catch-up summary of that file, not a second source of truth.
+> Hand-maintaining both is what produced the drift; see the decision in
+> [`docs/assistant-roadmap.md`](./docs/assistant-roadmap.md) about generating this file from the
+> other.
+
+> **The server era is versionless.** `package.json` has read `2.5.0` since April while the entire
+> Rust backend, the wealth surface, the Telegram bot and the DeFi rewrite shipped underneath it.
+> Those are recorded below by date rather than by version, which is honest about how they were
+> released — continuously, to one box.
+
+---
+
+## Unreleased — the server era
+
+### 2026-09-21 — The DeFi page, one screen at a time
+
+#### Changed
+- **`/wealth/defi` is one bar and one ledger.** Five equal-weight stat cards became one primary
+  figure with four set inline — two levels of emphasis instead of none, at a third of the height,
+  and no 3 + 2 wrap at `lg`. Out of range is a state rather than a quantity, so it filters itself:
+  the number telling you to act is one click from acting.
+- **Borrowed, worst health factor and ready-to-harvest moved into the bar.** Borrowed reads the
+  whole book, not the filtered rows — liquidation does not care which chain you are looking at.
+  Worst health factor, never an average, and coloured only below the same 1.5 threshold that gates
+  the Telegram alert. Absent entirely on a wallet that does not borrow.
+- **Loans joined the LP table.** The one row that can liquidate you was the one row you could not
+  see. Range became Health, because an LP marker nearing its band edge and a health factor nearing
+  1 are the same shape of warning. Value is the protocol-aware net, which on Aave is the debt alone
+  — the collateral is already in the book as spot aTokens, and the cell spells that out.
+- **The page draws on the first frame** and only the cells arrive late. A waiting figure draws a bar
+  the size of its number rather than `$0.00` (a lie about someone's money) or `—` (this codebase's
+  word for "we looked and could not read it").
+- **Clickability is drawn, not implied.** The snowball, claimable-by-token and the borrowing panel
+  open from the figures they belong to, each marked with the same expand glyph and accessible name.
+- **The "In range" badge is gone.** It fired on the healthy majority and was the loudest thing in
+  the row. `null` keeps a neutral badge — a range the server could not determine must never render
+  as healthy — and "full range" keeps its own, because it is a different kind of position.
+- **Sidebar grouped by rhythm**: Now / Plan / Money instead of Daily (2) and Plan (9). Inbox and
+  Deep Work are listed; Knowledge moved to Settings and kept its route.
+- **`g` + a letter jumps to any page**, shown on hover beside each sidebar item. `goKeyIndex` throws
+  at import on a duplicate key.
+- **One capture surface.** The `⌘⇧I` dialog, the `/`-stealing bar and the `⌘K` palette became one:
+  the first character decides — bare text finds, a prefix creates, `/ask` asks.
+
+#### Removed
+- The notifications *page*. It was the list the bell already drops down, plus two buttons that now
+  live in the dropdown.
+- Six components nothing imported, and 533 lines nothing could reach.
+
+#### Fixed
+- Four copies of "how long ago" and three of "what is this day's key" collapsed into
+  `src/lib/dates.ts`. One of the three was a real bug: the week view built its key with
+  `toISOString()`, so east of Greenwich every column keyed one day behind the month view beside it.
+- Wealth win/loss colours raised to AA contrast.
+
+### 2026-09-20 — Projects are a type again
+
+#### Added
+- **Projects has its own type and page.** March merged Project into Goal; that was right for a goal
+  tree and wrong for a body of work. No migration and no new table — the live database held zero
+  project entities, so the merge was complete and this reverses it cleanly. The optional half
+  (client, repo, stack) lives in `metadata`.
+- **A task can say which project it belongs to.** The picker offers projects and goals, grouped,
+  and drops archived entries. One `metadata.projectId` field serves both, because ids are unique
+  across types — two fields would mean rewriting every existing row to guess what an old id meant.
+
+#### Changed
+- Project progress is derived from task counts, never stored. Which project is open lives in the
+  URL, not in state.
+- Deleting a project says what happens to its tasks: the API hard-deletes with no cascade, so they
+  stay and lose their project. A dangling id reads as "Unknown (deleted)".
+
+### 2026-09-19 — A second channel
+
+#### Added
+- **Discord delivery.** The webhook URL ends in a token, so it is the credential: no `Display`, a
+  hand-written `Debug` that prints `[redacted]`, no public accessor, every error path scrubbed, and
+  the **host checked on construction** — a "which host do we post to" setting is a
+  credential-exfiltration switch. `http://` is refused too. Configured with `DISCORD_WEBHOOK_URL`.
+- **`telegram_to_discord`**, because two markdowns that look alike are the trap worth a translator:
+  Telegram reads `*bold*`, Discord reads `**bold**`, and passing one to the other emphasises every
+  digest heading the wrong way — quietly.
+- **`Channels` fans one alert out to every configured channel.** Delivered means delivered
+  *somewhere*: an alert that reached your phone has done its job, and failing the sweep because
+  Discord was down would turn redundancy into a new way to lose an alert. Nothing configured is
+  still `NotConfigured`, never a failure.
+
+#### Fixed
+- **The transport decides how to escape, not the author.** Bot replies built from on-chain names
+  went out with `parse_mode: Markdown`; one `*` in a pool name and Telegram rejected the whole
+  request, so the reply was silently never delivered. `Message::plain` is now escaped by the sender
+  and `Message::telegram_markup` passed through. Escaping strips rather than backslash-escapes,
+  because removal cannot produce an unbalanced entity.
+
+#### Known
+- `/api/wealth/alerts` still reports `can_send` for Telegram alone, so a Discord-only box delivers
+  alerts while the settings page says it cannot. That field is parity-gated; widening it would fail
+  the diff. Documented at `telegram_ready` and in [`docs/alerts.md`](./docs/alerts.md).
+
+### 2026-09-17 — Opportunities, and what pays an APR
+
+#### Added
+- **The Opportunities board** (`/wealth/opportunities`): vfat's whole universe — thousands of pools
+  across 63 protocols — rather than only what beats what you already hold. Every control is a query
+  parameter, because filtering in the browser would be slower and would throw away facets their API
+  already computes.
+- **APR basis on every row.** Two WETH/USDC rows quoted 86.9% and 72.0%; the higher one was entirely
+  staking emissions and the lower one entirely swap fees, and nothing said so. Each row now names
+  what pays it and flags a window resting on less data than it claims.
+- **`vfat-status`** reads `/v4/aggregation-delay` and reports how far behind vfat's own view of each
+  chain is. This is the failure `LAST_GOOD_MAX_AGE_SECS` was written to survive without being able
+  to name: farm-balances answers 200 with data that is quietly hours old.
+
+Both new routes sit **outside the parity gate** deliberately — they answer questions the Python was
+never asked, and `portfolio` and `yield-radar` cannot grow fields without failing the diff.
+
+### 2026-09-06 — What a position has actually made
+
+#### Added
+- **LP position performance** via vfat's `position-performance`, undocumented until they published
+  their OpenAPI. One request per wallet for the whole portfolio, singleflighted behind the same
+  per-key lock `farm_balances` uses.
+- **`marks.tsx`** — shape encodes kind, so a column of identical grey dots stops being a column
+  carrying no information.
+- **Chain display names in `identity.ts`.** `chainLabel` title-cased the API's slug, so every table
+  said "Bnb", "Hyperevm" and "Kucoin" — names nobody uses, which read as a data bug.
+
+#### Changed
+- Claimable-by-token became a ranked list filled to each token's share of the *total*, so "one token
+  is most of this, the rest is dust" lands before a number is read.
+- Token amounts stopped rendering in scientific notation.
+
+### 2026-08-21 → 2026-08-23 — Telegram answers back
+
+#### Added
+- **The Telegram command bot** (`tgbot.rs`). `lyra-alerts` pushed alerts out; this pulls commands
+  in. Eleven wealth commands, long-polled rather than webhooked because the box sits behind a home
+  router with nothing forwarded. Only the pinned `TELEGRAM_CHAT_ID` is answered — a stranger's
+  message is counted and dropped, never answered and never echoed. See
+  [`docs/telegram.md`](./docs/telegram.md).
+- **Off-chain assets** get a server-side home, so the net-worth snapshot counts them.
+- **The book reads in USD, THB or sats.**
+- **Wallets are managed in the app**, and non-EVM ones stop being dropped.
+- **Lyra runs as a local service from one binary**, with the stack verified through nginx.
+
+#### Fixed
+- **The bot token was in the logs.** `reqwest::Error` renders the URL it failed on, and that URL
+  carries the token, so every transient blip wrote the secret to `server.log` in plain text. Both
+  call sites now log `e.without_url()`. **Rotate the token if a log from before 2026-08-23 ever left
+  this machine.**
+- **A malformed poll URL failed exactly like an outage.** Nine literal spaces from a
+  `\`-continuation meant every poll failed for a day while messages queued unread, and the log said
+  `error sending request` — which is what a network problem says too. `updates_url` builds it on one
+  line now, with a test.
+- HyperEVM spot is read over RPC, since its indexer is gone.
+
+### 2026-03 → 2026-08 — The Rust port
+
+#### Changed
+- **The TypeScript backend is gone and the Rust stack is the only one.** One `axum` + `sqlx` binary
+  over SQLite in WAL, forward-only migrations applied at startup, and the chain fan-out and alert
+  sweep in-process so their upstream caches are shared with the request path — an alert can never
+  disagree with the page it points at.
+- **The Python oracle was deleted**, keeping its data and a way back, once the parity harness had
+  gated portfolio, yield-radar, alerts and services at 0.5%.
+
+#### Added
+- `lyra-mcp`, the MCP research desk: ten wealth tools over a keyless portfolio, read-only by
+  construction. See [`docs/mcp.md`](./docs/mcp.md).
+- Git-backed knowledge notes, the whole wealth surface on live data, and the deployment stack.
+
+---
+
+## [2.5.0] — 2026-04-02 — Lean
+
+#### Removed
+- **Sidebar cut from 17 items to 8.** Removed pages: Lyra, Timeline/Gantt, Events, Note Map, Goal
+  Map, Skills, Sessions, Learning, Travel, Family, Health, Wealth, Projects. Chat stayed available
+  through the sidebar; `⌘K` still navigated everywhere remaining.
+- Precache fell from 3418 KB to 1857 KB.
+
+*Wealth and Projects have both since returned — Wealth as the Rust-backed module, Projects as its
+own type in September.*
+
+## [2.4.9] — 2026-03-31 — Lyra Protocol
+
+#### Added
+- Settings page, configurable keybindings with OS-conflict detection, briefing window (`⌘⇧B`),
+  Deep Work shortcut (`⌘⇧D`), accordion subtasks, "move under…", promote-to-task, pretty-JSON note
+  rendering, inline note editing.
+- The first 59 unit tests across entity helpers, task helpers, capture protocol, keybindings and
+  focus stats.
+
+## [2.3.0] — 2026-03-31 — Lyra Protocol
+
+#### Added
+- **Weekly planning**: three weekly outcomes, day-bucket allocation, an intel briefing over carried
+  tasks, deadlines, velocity gaps and calendar load. Daily Protocol auto-populates today's
+  priorities from it.
+- Distraction tally, auto-pause on tab switch, session micro-goal, focus streak badge.
+
+#### Changed
+- **Entity simplification**: Project merged into Goal, Chore into Task — three mental models:
+  outcome, action, system. *(The Project half was reversed in September; see 2026-09-20.)*
+- Habits unified as protocols — every habit needs steps, and a streak increments only when all of
+  them are done.
+
+## [2.2.0] — 2026-03-22 — Lyra Foresight
+
+#### Added
+- Threat Radar, the Connection Engine, the Scenario Simulator, and a Foresight dashboard tab.
+
+## [2.1.0] — 2026-03-22 — Lyra Memory
+
+#### Added
+- Persistent memory across conversations: silent post-chat extraction, injection at the start of
+  each conversation, five categories, and a memory UI.
+
+## [2.0.0] — 2026-03-22 — Aegis: Strategic Intelligence
+
+#### Added
+- Strategic Board, the Knowledge Profile hook over every note and decision, the Strategic Moves
+  tool, the Scoreboard, and web search through a DuckDuckGo proxy on the API.
+
+## [1.5.0] — 2026-03-22 — Smart Capture
+
+#### Added
+- Natural-language capture parsed into type, title, priority, due date, project and subtasks, with
+  the prefix fast path (`!` `?` `*` `@` `#`) bypassing AI entirely and a graceful offline fallback.
+
+## [1.4.0] — 2026-03-22 — AI Co-Pilot
+
+#### Added
+- Smart priority suggestion, the session planner, the deep-work assistant, post-session reflection,
+  and the session-patterns hook.
 
 ---
 

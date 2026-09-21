@@ -191,5 +191,10 @@ tokens with a fallback secret.
 | `FRONTEND_URL` | `http://localhost:5173` | Where the OAuth callback returns to |
 
 Wealth and alert variables — `ALERT_WALLETS`, the KuCoin credentials, the Telegram token, the
-sweep thresholds — are in [Deployment §7.1](./docs/deployment.md). All optional; without them the
-book is empty.
+Discord webhook (`DISCORD_WEBHOOK_URL`), the sweep thresholds — are in
+[Deployment §7.1](./docs/deployment.md). All optional; without them the book is empty and the sweep
+records state without sending.
+
+**Setting either channel turns on live delivery.** The first sweep after a fresh `alert_state`
+baselines silently; the second sends a real message to a real phone or channel. See
+[Alerts](./docs/alerts.md).
