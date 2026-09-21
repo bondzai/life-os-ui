@@ -272,7 +272,6 @@ impl TelegramSender {
     }
 
     async fn post(&self, message: &Message) -> Delivery {
-        let text = &Self::rendered(message);
         let Some(credentials) = self.credentials.as_ref() else {
             return Delivery::NotConfigured;
         };
@@ -280,6 +279,29 @@ impl TelegramSender {
             return Delivery::Failed(SendError::new(None, "HTTP client unavailable"));
         };
 
+        // Telegram rejects the whole message past its limit rather than truncating it, and the
+        // rejection is a 400 that looked exactly like any other failure — so the daily digest,
+        // which is the longest thing this ever sends and the one nobody is watching for, simply
+        // never arrived. Split rather than clamp: unlike a Discord embed's description, the tail
+        // of a digest is the part with the positions in it.
+        let mut delivery = Delivery::NotConfigured;
+        for part in split_for_telegram(&Self::rendered(message)) {
+            delivery = self.post_one(credentials, client, &part).await;
+            // Stop at the first failure. Parts two and three of a message whose first part did
+            // not arrive are worse than nothing: they read as a reply to something you never saw.
+            if !matches!(delivery, Delivery::Sent) {
+                return delivery;
+            }
+        }
+        delivery
+    }
+
+    async fn post_one(
+        &self,
+        credentials: &Credentials,
+        client: &reqwest::Client,
+        text: &str,
+    ) -> Delivery {
         let request = client
             .post(credentials.method_url(&self.api_base, "sendMessage"))
             .json(&send_message_body(credentials.chat_id(), text));
@@ -300,6 +322,57 @@ impl TelegramSender {
             )),
         }
     }
+}
+
+/// Telegram's hard ceiling on one `sendMessage`.
+///
+/// Characters, not bytes — the API counts UTF-16 code units, and for everything this sends (text
+/// and a handful of emoji) counting `char`s is the same answer or a conservative one.
+const TELEGRAM_LIMIT: usize = 4096;
+
+/// A message, in pieces Telegram will accept.
+///
+/// Splits on blank lines first, then single newlines, then — only if one line is somehow longer
+/// than the whole limit — on characters. The order is what keeps a split readable: a digest broken
+/// between sections reads as two messages, and the same digest broken mid-number reads as a bug.
+///
+/// Returns one part for anything that already fits, which is the overwhelming majority, so the
+/// common path allocates one string and sends one request exactly as before.
+fn split_for_telegram(text: &str) -> Vec<String> {
+    if text.chars().count() <= TELEGRAM_LIMIT {
+        return vec![text.to_string()];
+    }
+
+    let mut parts = Vec::new();
+    let mut current = String::new();
+
+    // `split_inclusive` keeps the newline on the line it belongs to, so rejoining is exact and a
+    // blank line between sections survives the round trip.
+    for line in text.split_inclusive('\n') {
+        if current.chars().count() + line.chars().count() > TELEGRAM_LIMIT {
+            if !current.is_empty() {
+                parts.push(std::mem::take(&mut current));
+            }
+            // One line longer than the entire limit. Nothing readable to break on, so break on
+            // characters rather than drop it.
+            if line.chars().count() > TELEGRAM_LIMIT {
+                let mut chunk = String::new();
+                for ch in line.chars() {
+                    if chunk.chars().count() == TELEGRAM_LIMIT {
+                        parts.push(std::mem::take(&mut chunk));
+                    }
+                    chunk.push(ch);
+                }
+                current = chunk;
+                continue;
+            }
+        }
+        current.push_str(line);
+    }
+    if !current.is_empty() {
+        parts.push(current);
+    }
+    parts
 }
 
 impl MessageSender for TelegramSender {
@@ -451,6 +524,65 @@ mod tests {
             Box::new(RecordingSender::default()),
         ];
         assert_eq!(senders.len(), 2);
+    }
+    #[test]
+    fn a_message_that_fits_is_one_part_and_is_not_touched() {
+        let text = "Net worth $12,345\n24h +2.1%";
+        assert_eq!(split_for_telegram(text), vec![text.to_string()]);
+    }
+
+    #[test]
+    fn a_message_past_the_limit_is_split_rather_than_rejected() {
+        // The bug this closes: Telegram 400s the whole thing past 4096, so the daily digest —
+        // the longest thing this sends, and the one nobody is watching for — never arrived.
+        let line = "a position line that is reasonably long\n";
+        let text = line.repeat(200);
+        assert!(text.chars().count() > TELEGRAM_LIMIT);
+
+        let parts = split_for_telegram(&text);
+        assert!(parts.len() > 1, "it must be split, not sent whole");
+        for part in &parts {
+            assert!(
+                part.chars().count() <= TELEGRAM_LIMIT,
+                "every part must be sendable"
+            );
+        }
+        assert_eq!(parts.concat(), text, "and nothing may be lost or duplicated");
+    }
+
+    #[test]
+    fn a_split_lands_on_a_line_boundary() {
+        let text = "x".repeat(3000) + "\n" + &"y".repeat(3000) + "\n";
+        let parts = split_for_telegram(&text);
+        assert_eq!(parts.len(), 2);
+        // Breaking mid-number reads as a bug; breaking between lines reads as two messages.
+        assert!(parts[0].ends_with('\n'));
+        assert_eq!(parts.concat(), text);
+    }
+
+    #[test]
+    fn one_enormous_line_is_broken_on_characters_rather_than_dropped() {
+        // No newline to break on anywhere. Ugly, but a readable failure beats a silent one.
+        let text = "z".repeat(TELEGRAM_LIMIT * 2 + 7);
+        let parts = split_for_telegram(&text);
+        assert_eq!(parts.len(), 3);
+        for part in &parts {
+            assert!(part.chars().count() <= TELEGRAM_LIMIT);
+        }
+        assert_eq!(parts.concat(), text);
+    }
+
+    #[test]
+    fn splitting_counts_characters_not_bytes() {
+        // Every char here is 4 bytes. Counting bytes would split a message that fits, and — worse
+        // — could split it mid-codepoint.
+        let text = "🙂".repeat(TELEGRAM_LIMIT);
+        assert!(text.len() > TELEGRAM_LIMIT * 3, "the byte length is far over");
+        assert_eq!(
+            split_for_telegram(&text).len(),
+            1,
+            "but it fits, because the limit is in characters"
+        );
     }
 
     // ---------- the token never escapes ----------
