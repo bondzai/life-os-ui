@@ -14,6 +14,7 @@ mod collect;
 mod common;
 mod entities;
 mod gcal;
+mod grammar;
 mod jobs;
 mod knowledge;
 mod relations;

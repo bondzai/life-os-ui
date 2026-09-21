@@ -315,14 +315,64 @@ async fn handle(state: &AppState, user_id: Option<&str>, text: &str) -> String {
         "market" => wealth::bot_market_line().await,
         other => match wealth::bot_book_line(state, other).await {
             Some(line) => line,
-            None => format!("I don't know /{other}.\n\n{}", help()),
+            // Not a command we know. Before giving up, read it as capture: `!buy milk`,
+            // `/bug the thing`, or just a sentence. The grammar is the web app's own, so a line
+            // that works in ⌘K works here — see [[crate::grammar]].
+            None => capture_echo(text, other),
         },
     }
+}
+
+/// Read a line as capture and say what it would become.
+///
+/// **Echo only.** Nothing is written, and the reply says so — the point of this stage is that you
+/// can judge the grammar, especially the dates, before it is allowed to change anything. A reply
+/// that reads like a confirmation for an action that did not happen is worse than no reply.
+fn capture_echo(text: &str, attempted_command: &str) -> String {
+    let parsed = crate::grammar::parse(text, chrono::Local::now().date_naive());
+
+    // A bare unknown `/word` is far more likely a mistyped command than a note someone wanted
+    // filed under that name, so it still gets the help text.
+    if text.starts_with('/') && parsed.rule.token.is_empty() {
+        return format!("I don't know /{attempted_command}.\n\n{}", help());
+    }
+    crate::grammar::echo(&parsed)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_mistyped_command_still_gets_the_help_text() {
+        // The risk of falling through to capture: `/nw` typed as `/nwe` becoming a note called
+        // "/nwe" instead of telling you the command does not exist.
+        let reply = capture_echo("/nwe", "nwe");
+        assert!(reply.contains("I don't know /nwe"), "got:\n{reply}");
+        assert!(reply.contains("/today"), "and it should list what does exist");
+    }
+
+    #[test]
+    fn a_known_capture_command_is_echoed_rather_than_refused() {
+        let reply = capture_echo("/bug the range bar renders at zero width", "bug");
+        assert!(reply.contains("Bug"), "got:\n{reply}");
+        assert!(reply.contains("the range bar renders at zero width"));
+        assert!(reply.contains("Nothing was saved"));
+    }
+
+    #[test]
+    fn a_plain_sentence_is_read_as_capture() {
+        let reply = capture_echo("remember to renew the domain", "remember");
+        assert!(reply.contains("Note"), "got:\n{reply}");
+        assert!(reply.contains("remember to renew the domain"));
+    }
+
+    #[test]
+    fn a_prefixed_line_is_read_as_capture() {
+        let reply = capture_echo("!buy milk", "!buy");
+        assert!(reply.contains("Task"), "got:\n{reply}");
+        assert!(reply.contains("buy milk"));
+    }
 
     #[test]
     fn the_command_word_survives_arguments_and_the_at_suffix() {
