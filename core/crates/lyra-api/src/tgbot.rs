@@ -23,6 +23,8 @@ use std::time::Duration;
 use lyra_alerts::state::AlertStore;
 use lyra_alerts::telegram::{MessageSender, TelegramSender};
 use serde_json::{Value, json};
+use lyra_db::jobs::Queue as _;
+use tokio::task::JoinHandle;
 
 use crate::AppState;
 use crate::wealth;
@@ -140,10 +142,20 @@ async fn run(state: AppState, sender: Arc<TelegramSender>, token: String, owner:
             if let Some((chat, text)) = message_of(&update) {
                 if chat == owner {
                     let command = command_of(&text.to_lowercase()).to_string();
-                    let reply = handle(&state, user_id.as_deref(), &text).await;
+                    let answering = {
+                        let (state, user_id, text) = (state.clone(), user_id.clone(), text.clone());
+                        async move { handle(&state, user_id.as_deref(), &text).await }
+                    };
                     // Plain, so the sender escapes it. These replies are built from on-chain
                     // names — one `*` in a pool used to make Telegram reject the whole message
                     // and the answer vanished, visible only as `delivered = false` below.
+                    let reply = match within(answering, INLINE_BUDGET).await {
+                        Ok(reply) => reply,
+                        Err(still_running) => {
+                            follow_up(state.clone(), still_running);
+                            format!("Working on /{command} — the answer will follow here.")
+                        }
+                    };
                     let delivered = sender.send(&Message::plain(reply)).await;
                     // Logged because "the bot does nothing" and "the bot answered and the reply
                     // never arrived" look identical from the outside, and only one of them is a
@@ -259,6 +271,60 @@ fn message_of(update: &Value) -> Option<(String, String)> {
     (!text.is_empty()).then_some((chat, text))
 }
 
+/// How long a command may take before the poll loop stops waiting for it.
+///
+/// `handle()` used to run *inside* the loop, so `/nw` or `/digest` — full portfolio reads across
+/// several chains and an exchange — held it for as long as the upstreams took. Nothing else was
+/// read in the meantime, and the 25-second long poll behind it was spent waiting. Two seconds is
+/// long enough that `/today` and `/help` still answer in one message, which is most of what makes
+/// the bot feel like an assistant rather than a ticketing system.
+const INLINE_BUDGET: Duration = Duration::from_secs(2);
+
+/// Run `answering` for at most `budget`, and hand back the running task if it overruns.
+///
+/// **The work is not abandoned at the deadline.** Dropping it and starting again on a queue would
+/// do a slow portfolio read twice; instead the task keeps running and the caller decides what to
+/// do with its result later. A panic inside it becomes an apology rather than a silent nothing.
+async fn within<F>(answering: F, budget: Duration) -> Result<String, JoinHandle<String>>
+where
+    F: std::future::Future<Output = String> + Send + 'static,
+{
+    let mut task = tokio::spawn(answering);
+    match tokio::time::timeout(budget, &mut task).await {
+        Ok(Ok(reply)) => Ok(reply),
+        Ok(Err(error)) => {
+            tracing::error!(%error, "a telegram command panicked");
+            Ok("Something went wrong answering that. It is in the server log.".into())
+        }
+        Err(_) => Err(task),
+    }
+}
+
+/// Deliver an overrunning command's answer when it arrives.
+///
+/// Through the queue rather than the sender, so the part that depends on Telegram being up gets
+/// retries. The computation itself is not durable — a restart while it runs loses the answer —
+/// but you were already told it was coming, so the cost is asking again rather than silence.
+fn follow_up(state: AppState, still_running: JoinHandle<String>) {
+    tokio::spawn(async move {
+        let reply = match still_running.await {
+            Ok(reply) => reply,
+            Err(error) => {
+                tracing::error!(%error, "a slow telegram command panicked");
+                "Something went wrong answering that. It is in the server log.".into()
+            }
+        };
+        let job = lyra_db::jobs::NewJob::new("deliver.telegram", lyra_db::jobs::Lane::Deliver)
+            .payload(json!({ "text": reply, "markup": "plain" }));
+        if let Err(error) = lyra_db::jobs::SqliteQueue::new(state.pool.clone())
+            .enqueue(&job, wealth::now_secs())
+            .await
+        {
+            tracing::error!(%error, "could not queue a slow command's answer");
+        }
+    });
+}
+
 /// The command word, lowercased and stripped of Telegram's `/cmd@botname` suffix.
 fn command_of(text: &str) -> &str {
     let word = text.split_whitespace().next().unwrap_or("");
@@ -354,6 +420,35 @@ fn capture_echo(text: &str, attempted_command: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_quick_command_is_answered_inline() {
+        let reply = within(async { "all good".to_string() }, Duration::from_secs(2)).await;
+        assert_eq!(reply.ok().as_deref(), Some("all good"));
+    }
+
+    #[tokio::test]
+    async fn a_slow_command_frees_the_loop_and_keeps_working() {
+        // The stall this closes: a portfolio read inside the loop held every other message behind
+        // it. At the deadline the loop gets control back — and the work is *not* thrown away,
+        // because starting it again would do a slow read twice.
+        let slow = async {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            "the answer".to_string()
+        };
+        let started = std::time::Instant::now();
+        let Err(still_running) = within(slow, Duration::from_millis(50)).await else {
+            panic!("a command slower than the budget must not be answered inline");
+        };
+        assert!(started.elapsed() < Duration::from_millis(250), "the loop waited too long");
+        assert_eq!(still_running.await.unwrap(), "the answer", "and the answer still arrives");
+    }
+
+    #[tokio::test]
+    async fn a_panicking_command_is_an_apology_not_silence() {
+        let reply = within(async { panic!("boom") }, Duration::from_secs(2)).await;
+        assert!(reply.unwrap().contains("Something went wrong"));
+    }
 
     #[test]
     fn a_mistyped_command_still_gets_the_help_text() {
