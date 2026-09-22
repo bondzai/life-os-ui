@@ -397,6 +397,10 @@ pub struct EntityQuery {
     pub project_id: Option<String>,
     /// A substring of the title or description, case-insensitively.
     pub text: Option<String>,
+    /// Only what was captured and not yet filed — `metadata.isInbox`, which every capture path
+    /// sets. Filtered here rather than by the caller, because a caller filtering one page of
+    /// results can only ever see the inbox items that happen to fall inside that page.
+    pub inbox_only: bool,
     /// Inclusive lower bound on the due *day*, `YYYY-MM-DD`.
     pub due_from: Option<String>,
     /// Inclusive upper bound on the due *day*, `YYYY-MM-DD`.
@@ -436,6 +440,10 @@ pub async fn list_entities(pool: &SqlitePool, owner: &str, query: &EntityQuery) 
         // queried without a LIKE that would also match a project id embedded in a note body.
         sql.push_str(" AND json_extract(metadata, '$.projectId') = ?");
         binds.push(project.clone());
+    }
+    if query.inbox_only {
+        // `true` in the JSON is 1 to `json_extract`, which is also what a stored `1` reads as.
+        sql.push_str(" AND json_extract(metadata, '$.isInbox') = 1");
     }
     if let Some(text) = &query.text {
         sql.push_str(" AND (title LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')");

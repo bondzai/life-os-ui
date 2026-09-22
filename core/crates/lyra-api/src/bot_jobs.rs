@@ -27,10 +27,6 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("cancel", "Drop a queued job — /cancel <id>"),
 ];
 
-pub fn handles(command: &str) -> bool {
-    COMMANDS.iter().any(|(name, _)| *name == command)
-}
-
 fn short(id: &str) -> &str {
     &id[..id.len().min(SHORT)]
 }

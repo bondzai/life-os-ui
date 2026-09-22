@@ -21,8 +21,6 @@
 //! And because a job that exhausts its attempts releases its key, a digest that genuinely could
 //! not be sent can be asked for again — rather than being blocked until the pruner forgets it.
 
-use std::sync::Arc;
-
 use anyhow::anyhow;
 use lyra_alerts::channels::Channels;
 use lyra_alerts::config::ProcessEnv;
@@ -59,6 +57,18 @@ pub fn key_for(day: &str) -> String {
 /// and it still ends, so a permanently broken channel dead-letters instead of retrying forever.
 pub const ATTEMPTS: i64 = 12;
 
+/// Today's brief, as a job — kind, lane, key and attempt budget in one place.
+///
+/// The one way to build it. Every enqueue site used to assemble these four separately, and the
+/// attempt count in particular is the one whose omission makes the queue a regression rather than
+/// a fix; a builder is where it cannot be forgotten.
+pub fn job(day: &str) -> lyra_db::jobs::NewJob {
+    lyra_db::jobs::NewJob::new(KIND, lyra_db::jobs::Lane::Batch)
+        .payload(serde_json::json!({ "day": day }))
+        .key(key_for(day))
+        .max_attempts(ATTEMPTS)
+}
+
 pub struct DailyDigest {
     state: AppState,
 }
@@ -69,18 +79,6 @@ impl DailyDigest {
     }
 }
 
-impl DailyDigest {
-    /// A retryable failure, recorded where the settings page can see it as well as on the job.
-    ///
-    /// The job row is the better record — attempts, backoff, history — but
-    /// `/api/wealth/alerts` has surfaced digest failures since before this queue existed, and
-    /// quietly moving them out from under it would leave a working page blind.
-    fn note(&self, why: &str) -> HandlerError {
-        crate::alert_loop::record_error(&self.state.alert_meta, format!("digest: {why}"));
-        HandlerError::Retry(anyhow!("{why}"))
-    }
-}
-
 impl Handler for DailyDigest {
     fn kind(&self) -> &'static str {
         KIND
@@ -88,14 +86,9 @@ impl Handler for DailyDigest {
 
     fn run<'a>(&'a self, ctx: &'a JobCtx) -> BoxFuture<'a, HandlerResult> {
         Box::pin(async move {
-            let day = ctx
-                .payload()
-                .get("day")
-                .and_then(|day| day.as_str())
-                // A job with no day is a job that cannot stamp anything, and retrying will not
-                // grow one — the payload is written at enqueue and never changes.
-                .ok_or_else(|| HandlerError::Permanent(anyhow!("digest.daily needs a `day`")))?
-                .to_string();
+            // A job with no day is a job that cannot stamp anything, and retrying will not grow
+            // one — `require_str` makes that permanent rather than five identical failures.
+            let day = ctx.require_str("day")?.to_string();
 
             // Built here rather than held on the struct: `from_env` reads the environment, and a
             // token rotated while the box is up should take effect on the next brief.
@@ -121,23 +114,18 @@ impl Handler for DailyDigest {
                     Ok(())
                 }
                 // Reachable and refused. The world, not the job.
-                Ok(DigestOutcome::Refused) => Err(self.note("the channel refused the brief")),
+                Ok(DigestOutcome::Refused) => Err(HandlerError::Retry(anyhow!("the channel refused the brief"))),
                 // Retryable, and this is the interesting case. "Nothing to report" at 08:00 is
                 // almost always an upstream that flaked, not a portfolio that vanished, and the
                 // loop version retried it every tick for exactly this reason. Five attempts with
                 // backoff is that same intent, no longer stopping at the top of the hour.
                 Ok(DigestOutcome::Nothing(why)) => {
-                    Err(self.note(&format!("nothing to send yet: {why}")))
+                    Err(HandlerError::Retry(anyhow!("nothing to send yet: {why}")))
                 }
-                Err(e) => Err(self.note(&format!("{e:#}"))),
+                Err(e) => Err(HandlerError::Retry(e)),
             }
         })
     }
-}
-
-/// Every handler in this module, given the state they read through.
-pub fn all(state: AppState) -> Vec<Arc<dyn Handler>> {
-    vec![Arc::new(DailyDigest::new(state))]
 }
 
 #[cfg(test)]
@@ -155,10 +143,7 @@ mod tests {
     }
 
     fn brief(day: &str) -> NewJob {
-        NewJob::new(KIND, Lane::Batch)
-            .payload(serde_json::json!({ "day": day }))
-            .key(key_for(day))
-            .max_attempts(ATTEMPTS)
+        job(day)
     }
 
     #[test]

@@ -152,9 +152,9 @@ fn log_health(what: &str, health: &FetchHealth) {
 }
 
 /// Epoch seconds, for the `now` parameters the store takes.
-pub(crate) fn now_secs() -> i64 {
-    chrono::Utc::now().timestamp()
-}
+/// The queue's clock, re-exported. Code that talks to the queue used both this and
+/// `lyra_db::jobs::now_secs`, which agreed only because both happen to read the same system clock.
+pub(crate) use lyra_db::jobs::now_secs;
 
 /* ─── Shared helpers ─── */
 

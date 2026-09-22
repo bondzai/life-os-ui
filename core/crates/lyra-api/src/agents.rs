@@ -57,8 +57,6 @@ pub enum AgentStatus {
     Idle,
     /// Holding a job.
     Working,
-    /// Started, but has not reported anything yet.
-    Starting,
 }
 
 /// One agent, as the UI needs it.
@@ -166,7 +164,7 @@ impl Fleet {
                     let agent = agents.entry(id.clone()).or_insert_with(|| Agent {
                         id,
                         lane,
-                        status: AgentStatus::Starting,
+                        status: AgentStatus::Idle,
                         job: None,
                         last_seen: at,
                         done: 0,
@@ -399,12 +397,7 @@ async fn pump(mut socket: WebSocket, fleet: Fleet) {
     // Subscribe BEFORE snapshotting. The other order has a hole in it: an event fired between the
     // snapshot and the subscribe reaches neither, and the client believes a stale agent forever.
     // This order can duplicate an event instead, which is harmless — every frame is idempotent.
-    if send(&mut socket, &Frame::Snapshot {
-        agents: fleet.snapshot(),
-        at: lyra_db::jobs::now_secs(),
-    })
-    .await
-    .is_err()
+    if send_snapshot(&mut socket, &fleet).await.is_err()
     {
         return;
     }
@@ -423,12 +416,7 @@ async fn pump(mut socket: WebSocket, fleet: Fleet) {
                 // Fell behind. Resync rather than disconnect — see the module docs.
                 Err(broadcast::error::RecvError::Lagged(missed)) => {
                     tracing::debug!(missed, "a fleet listener lagged; resyncing it");
-                    if send(&mut socket, &Frame::Snapshot {
-                        agents: fleet.snapshot(),
-                        at: lyra_db::jobs::now_secs(),
-                    })
-                    .await
-                    .is_err()
+                    if send_snapshot(&mut socket, &fleet).await.is_err()
                     {
                         return;
                     }
@@ -448,6 +436,15 @@ async fn pump(mut socket: WebSocket, fleet: Fleet) {
             },
         }
     }
+}
+
+/// The whole fleet, as sent on connect and to a listener that fell behind.
+async fn send_snapshot(socket: &mut WebSocket, fleet: &Fleet) -> Result<(), axum::Error> {
+    let frame = Frame::Snapshot {
+        agents: fleet.snapshot(),
+        at: lyra_db::jobs::now_secs(),
+    };
+    send(socket, &frame).await
 }
 
 async fn send(socket: &mut WebSocket, frame: &Frame) -> Result<(), axum::Error> {

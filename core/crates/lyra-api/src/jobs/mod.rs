@@ -151,6 +151,30 @@ impl JobCtx {
         }
     }
 
+    /// A required text field of the payload.
+    ///
+    /// Missing is **permanent**: the payload is written at enqueue and never changes, so no amount
+    /// of retrying grows the field. Named after the job's own kind so the log says which enqueue
+    /// site forgot it.
+    pub fn require_str(&self, key: &str) -> Result<&str, HandlerError> {
+        self.payload()
+            .get(key)
+            .and_then(JsonValue::as_str)
+            .ok_or_else(|| self.missing(key))
+    }
+
+    /// A required integer field of the payload. Permanent when missing, for the same reason.
+    pub fn require_i64(&self, key: &str) -> Result<i64, HandlerError> {
+        self.payload()
+            .get(key)
+            .and_then(JsonValue::as_i64)
+            .ok_or_else(|| self.missing(key))
+    }
+
+    fn missing(&self, key: &str) -> HandlerError {
+        HandlerError::Permanent(anyhow::anyhow!("{} needs a `{key}`", self.job.kind))
+    }
+
     pub fn job(&self) -> &Job {
         &self.job
     }
@@ -237,26 +261,17 @@ impl Handlers {
     }
 }
 
-/// Everything this process can run today.
-///
-/// One entry, deliberately. The queue lands before the work that will use it, so that when the
-/// Telegram write verbs arrive they enqueue against something that has already been exercised
-/// rather than something written the same afternoon.
 /// Every handler this binary knows.
 ///
 /// Takes the state because a handler that reads the book needs the pool. `deliver.telegram` does
 /// not, and is left constructed from the environment so a rotated token takes effect without a
 /// restart of anything but the send.
 pub fn handlers(state: AppState) -> Handlers {
-    let mut handlers = Handlers::new().with(Arc::new(deliver::DeliverTelegram::from_env()));
-    for handler in digest::all(state.clone())
-        .into_iter()
-        .chain(snapshot::all(state.clone()))
-        .chain(schedule::all(state))
-    {
-        handlers = handlers.with(handler);
-    }
-    handlers
+    Handlers::new()
+        .with(Arc::new(deliver::DeliverTelegram::from_env()))
+        .with(Arc::new(digest::DailyDigest::new(state.clone())))
+        .with(Arc::new(snapshot::NetWorthSnapshot::new(state.clone())))
+        .with(Arc::new(schedule::ScheduleTick::new(state)))
 }
 
 /// Where a worker reads the time from.
@@ -276,6 +291,8 @@ pub struct Worker {
     /// Where this worker announces itself. `None` in tests, which is why every call goes through
     /// [`Worker::tell`] rather than unwrapping here.
     fleet: Option<crate::agents::Fleet>,
+    /// Where a failed job is also recorded for the settings page. `None` in tests.
+    meta: Option<crate::alert_loop::SharedMeta>,
 }
 
 impl Worker {
@@ -293,10 +310,24 @@ impl Worker {
             lease_secs: DEFAULT_LEASE_SECS,
             clock: Arc::new(now_secs),
             fleet: None,
+            meta: None,
         }
     }
 
     /// Report to the fleet view, so the Agents page can see this worker.
+    /// Record failures where `/api/wealth/alerts` — and so the settings page and `/status` — reads
+    /// them.
+    ///
+    /// Here, once, rather than in each handler. The first version had the digest and snapshot
+    /// handlers each remember to write here, and alert delivery — the one that mattered most, and
+    /// had always reported its failures — was the handler that forgot: moving alerts onto the queue
+    /// quietly made the settings page blind to exactly the failures the move set out to catch. A
+    /// rule every handler must remember is a rule the next handler forgets.
+    pub fn reporting_to(mut self, meta: crate::alert_loop::SharedMeta) -> Self {
+        self.meta = Some(meta);
+        self
+    }
+
     pub fn watched_by(mut self, fleet: crate::agents::Fleet) -> Self {
         self.fleet = Some(fleet);
         self
@@ -431,6 +462,9 @@ impl Worker {
                     worker = %self.name, %kind, job = %id, attempt, permanent,
                     error = %reason, "job failed"
                 );
+                if let Some(meta) = &self.meta {
+                    crate::alert_loop::record_error(meta, format!("{kind}: {reason}"));
+                }
                 if let Err(error) = self
                     .queue
                     .fail(&self.name, &id, &reason, failure, (self.clock)())
@@ -570,9 +604,11 @@ pub fn spawn(state: AppState) {
             let queue = queue.clone();
             let handlers = Arc::clone(&handlers);
             let fleet = state.fleet.clone();
+            let meta = Arc::clone(&state.alert_meta);
             supervise(name, move |name| {
                 Worker::new(queue.clone(), Arc::clone(&handlers), name, vec![lane])
                     .watched_by(fleet.clone())
+                    .reporting_to(Arc::clone(&meta))
                     .run_forever()
             });
         }
@@ -967,6 +1003,41 @@ mod tests {
         assert!(worker.tick().await);
         assert_eq!(*seen.lock().unwrap(), vec![id.clone()]);
         assert_eq!(queue.get(&id).await.unwrap().unwrap().status, Status::Done);
+    }
+
+    #[tokio::test]
+    async fn every_kinds_failure_reaches_the_settings_page() {
+        // Asserted at the worker, not per handler, because per-handler is exactly how this broke:
+        // two handlers remembered to report and alert delivery — the kind that had always reported
+        // its failures — did not. Using `deliver.telegram` here is the point.
+        struct Refuses;
+        impl Handler for Refuses {
+            fn kind(&self) -> &'static str {
+                "deliver.telegram"
+            }
+            fn run<'a>(&'a self, _ctx: &'a JobCtx) -> BoxFuture<'a, HandlerResult> {
+                Box::pin(async { Err(HandlerError::Retry(anyhow::anyhow!("connection reset"))) })
+            }
+        }
+
+        let (_dir, queue) = fresh().await;
+        queue
+            .enqueue(&NewJob::new("deliver.telegram", Lane::Deliver), 1000)
+            .await
+            .unwrap();
+        let meta = crate::alert_loop::SharedMeta::default();
+        let worker = Worker::new(
+            queue,
+            Arc::new(Handlers::new().with(Arc::new(Refuses))),
+            "deliver-0",
+            vec![Lane::Deliver],
+        )
+        .clock(at(1000))
+        .reporting_to(Arc::clone(&meta));
+
+        assert!(worker.tick().await);
+        let recorded = meta.lock().unwrap().last_error.clone();
+        assert_eq!(recorded.as_deref(), Some("deliver.telegram: connection reset"));
     }
 
     #[tokio::test]

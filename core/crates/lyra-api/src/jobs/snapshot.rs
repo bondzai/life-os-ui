@@ -18,9 +18,6 @@
 //! those are one job. The interval check preserves the *spacing* between samples; the key removes
 //! the duplicates inside one window. Neither does the other's work.
 
-use std::sync::Arc;
-
-use anyhow::anyhow;
 
 use super::{BoxFuture, Handler, HandlerError, HandlerResult, JobCtx};
 use crate::AppState;
@@ -39,9 +36,25 @@ pub const KIND: &str = "snapshot.networth";
 /// into an hour of hammering it.
 pub const ATTEMPTS: i64 = 6;
 
+// The two budgets encode different judgements — a brief is a message somebody is waiting for, a
+// sample is one point in a chart — and must not drift into each other. Checked at compile time,
+// so the build fails rather than a test run.
+const _: () = assert!(
+    ATTEMPTS < crate::jobs::digest::ATTEMPTS,
+    "a net-worth sample must not try harder than the daily brief"
+);
+
 /// Keyed by the interval bucket, so every tick inside one window means the same job.
 pub fn key_for(bucket: i64) -> String {
     format!("{KIND}:{bucket}")
+}
+
+/// One sample for the window `now` falls in, as a job. The one way to build it.
+pub fn job(group: &str, interval: i64, now: i64) -> lyra_db::jobs::NewJob {
+    lyra_db::jobs::NewJob::new(KIND, lyra_db::jobs::Lane::Batch)
+        .payload(serde_json::json!({ "group": group, "interval": interval }))
+        .key(key_for(now / interval.max(1)))
+        .max_attempts(ATTEMPTS)
 }
 
 pub struct NetWorthSnapshot {
@@ -61,42 +74,19 @@ impl Handler for NetWorthSnapshot {
 
     fn run<'a>(&'a self, ctx: &'a JobCtx) -> BoxFuture<'a, HandlerResult> {
         Box::pin(async move {
-            let payload = ctx.payload();
-            let group = payload
-                .get("group")
-                .and_then(|g| g.as_str())
-                .ok_or_else(|| HandlerError::Permanent(anyhow!("snapshot.networth needs a `group`")))?;
+            let group = ctx.require_str("group")?;
             // The interval is stored on the point, so a reader can tell a four-hourly series from
             // an hourly one. Carried in the payload rather than re-read from config: the sample
             // belongs to the window that asked for it, even if the setting changed since.
-            let interval = payload
-                .get("interval")
-                .and_then(|i| i.as_i64())
-                .ok_or_else(|| {
-                    HandlerError::Permanent(anyhow!("snapshot.networth needs an `interval`"))
-                })?;
+            let interval = ctx.require_i64("interval")?;
 
+            // A failure is recorded for the settings page by the worker, for every kind — see
+            // `Worker::reporting_to`. Handlers only say what went wrong.
             alert_loop::take_snapshot(&self.state, group, interval)
                 .await
-                .map_err(|e| {
-                    // Recorded in *both* places, on purpose. The job row is the better record — it
-                    // carries the attempt count and the backoff — but `/api/wealth/alerts` is what
-                    // the settings page reads, and it has shown snapshot failures since before
-                    // this queue existed. Moving the error out from under an existing surface
-                    // without telling anyone is how a working page quietly goes blind.
-                    alert_loop::record_error(
-                        &self.state.alert_meta,
-                        format!("snapshot: {e:#}"),
-                    );
-                    HandlerError::Retry(e)
-                })
+                .map_err(HandlerError::Retry)
         })
     }
-}
-
-/// Every handler in this module.
-pub fn all(state: AppState) -> Vec<Arc<dyn Handler>> {
-    vec![Arc::new(NetWorthSnapshot::new(state))]
 }
 
 #[cfg(test)]
@@ -170,59 +160,5 @@ mod tests {
             .await
             .expect_err("a sample with no group cannot be taken");
         assert!(matches!(error, HandlerError::Permanent(_)), "got {error}");
-    }
-
-    #[test]
-    fn a_sample_retries_for_less_time_than_the_brief() {
-        // The two numbers encode different judgements and must not drift into each other: a brief
-        // is a message someone is waiting for, a sample is a point in a chart.
-        assert!(
-            ATTEMPTS < crate::jobs::digest::ATTEMPTS,
-            "a sample must not try harder than the brief"
-        );
-    }
-}
-
-#[cfg(test)]
-mod meta_tests {
-    use super::*;
-    use lyra_db::jobs::{Lane, NewJob, Queue, SqliteQueue};
-    use tempfile::TempDir;
-
-    #[tokio::test]
-    async fn a_failed_sample_is_recorded_where_the_settings_page_reads_it() {
-        // The regression this closes: moving the work onto the queue moved its errors onto the job
-        // row, and `/api/wealth/alerts` — which the settings page shows — stopped hearing about
-        // them. The job row is the better record; it is not the only one anybody looks at.
-        let dir = TempDir::new().unwrap();
-        let pool = lyra_db::open_and_migrate(&dir.path().join("lyra.db")).await.unwrap();
-        let state = crate::AppState::new(pool, "test-secret".into());
-        let queue = SqliteQueue::new(state.pool.clone());
-
-        assert!(
-            state.alert_meta.lock().unwrap().last_error.is_none(),
-            "nothing has failed yet"
-        );
-
-        // No wallets configured, so the portfolio read returns nothing and the sample fails.
-        queue
-            .enqueue(
-                &NewJob::new(KIND, Lane::Batch)
-                    .payload(serde_json::json!({ "group": "server", "interval": 14_400 })),
-                1000,
-            )
-            .await
-            .unwrap();
-        let claimed = queue.claim("w", &[Lane::Batch], 60, 1100).await.unwrap().unwrap();
-        let ctx = JobCtx::for_test(queue, claimed, "w".into(), 1100);
-
-        let error = NetWorthSnapshot::new(state.clone()).run(&ctx).await;
-        assert!(error.is_err(), "a sample with nothing to read must fail");
-
-        let recorded = state.alert_meta.lock().unwrap().last_error.clone();
-        assert!(
-            recorded.as_deref().is_some_and(|e| e.starts_with("snapshot:")),
-            "the settings page must still hear about it; got {recorded:?}"
-        );
     }
 }

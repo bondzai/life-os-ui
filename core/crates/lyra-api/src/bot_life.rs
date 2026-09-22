@@ -19,6 +19,7 @@ use lyra_db::life::{self, Entity, EntityOrder, EntityQuery};
 use sqlx::SqlitePool;
 
 use crate::AppState;
+use crate::bot_text;
 
 /// How many rows one reply lists before it starts counting instead.
 ///
@@ -48,25 +49,17 @@ pub async fn reply(state: &AppState, command: &str, owner: &str, day: &str) -> O
     })
 }
 
-/// One line per task: what it is, and the one qualifier that changes what you do about it.
-fn line(entity: &Entity) -> String {
-    let title = entity
-        .title
-        .as_deref()
-        .map(str::trim)
-        .filter(|t| !t.is_empty())
-        .unwrap_or("(untitled)");
-    // Truncated by characters, so a title full of emoji cannot be cut mid-codepoint.
-    let title: String = if title.chars().count() > 60 {
-        format!("{}…", title.chars().take(59).collect::<String>())
-    } else {
-        title.to_string()
-    };
+/// What a task is, and the one qualifier that changes what you do about it.
+fn label(entity: &Entity) -> String {
+    let title = bot_text::title(entity.title.as_deref());
     match entity.priority.as_deref() {
-        Some("urgent") => format!("• {title}  (urgent)"),
-        Some("high") => format!("• {title}  (high)"),
-        _ => format!("• {title}"),
+        Some(p @ ("urgent" | "high")) => format!("{title}  ({p})"),
+        _ => title,
     }
+}
+
+fn line(entity: &Entity) -> String {
+    format!("• {}", label(entity))
 }
 
 /// A section, or nothing at all when it is empty.
@@ -77,16 +70,7 @@ fn section(heading: &str, rows: &[Entity]) -> String {
     if rows.is_empty() {
         return String::new();
     }
-    let mut out = format!("{heading}\n");
-    for entity in rows.iter().take(SHOWN) {
-        out.push_str(&line(entity));
-        out.push('\n');
-    }
-    if rows.len() > SHOWN {
-        out.push_str(&format!("…and {} more\n", rows.len() - SHOWN));
-    }
-    out.push('\n');
-    out
+    format!("{heading}\n{}\n\n", bot_text::bullets(rows, SHOWN, line))
 }
 
 async fn today(pool: &SqlitePool, owner: &str, day: &str) -> String {
@@ -146,12 +130,10 @@ async fn next(pool: &SqlitePool, owner: &str) -> String {
             // Stable, so equal priorities keep the store's recency order rather than shuffling
             // between two identical calls.
             rows.sort_by_key(rank);
-            let mut out = String::from("Next\n\n");
-            for entity in rows.iter().take(SHOWN) {
-                out.push_str(&line(entity));
-                out.push('\n');
-            }
-            out.trim_end().to_string()
+            // Truncated before rendering, not counted: the page is only the recent fifty, so
+            // "…and 44 more" would be a number about the query rather than about your work.
+            rows.truncate(SHOWN);
+            format!("Next\n\n{}", bot_text::bullets(&rows, SHOWN, line))
         }
         Err(_) => "I could not read your tasks.".into(),
     }
@@ -160,39 +142,24 @@ async fn next(pool: &SqlitePool, owner: &str) -> String {
 async fn inbox(pool: &SqlitePool, owner: &str) -> String {
     // Captured-but-unfiled is `metadata.isInbox`, which is what every capture path sets — the
     // web app's ⌘K and the Telegram capture that will land here later.
+    //
+    // Filtered in the query. It used to fetch the fifty newest to-dos and keep the inbox ones in
+    // Rust, which could only ever see inbox items that happened to be among those fifty — so with
+    // enough filed work on top, a full inbox answered "Inbox is empty."
     let query = EntityQuery {
         statuses: vec!["todo".into()],
-        text: None,
+        inbox_only: true,
         order: EntityOrder::Recent,
         limit: 50,
         ..Default::default()
     };
     match life::list_entities(pool, owner, &query).await {
-        Ok(page) => {
-            let inbox: Vec<Entity> = page
-                .rows
-                .into_iter()
-                .filter(|e| {
-                    e.metadata
-                        .as_deref()
-                        .and_then(|m| serde_json::from_str::<serde_json::Value>(m).ok())
-                        .and_then(|m| m.get("isInbox").and_then(|v| v.as_bool()))
-                        .unwrap_or(false)
-                })
-                .collect();
-            if inbox.is_empty() {
-                return "Inbox is empty.".into();
-            }
-            let mut out = format!("Inbox — {}\n\n", inbox.len());
-            for entity in inbox.iter().take(SHOWN) {
-                out.push_str(&line(entity));
-                out.push('\n');
-            }
-            if inbox.len() > SHOWN {
-                out.push_str(&format!("…and {} more\n", inbox.len() - SHOWN));
-            }
-            out.trim_end().to_string()
-        }
+        Ok(page) if page.rows.is_empty() => "Inbox is empty.".into(),
+        Ok(page) => format!(
+            "Inbox — {}\n\n{}",
+            page.rows.len(),
+            bot_text::bullets(&page.rows, SHOWN, line)
+        ),
         Err(_) => "I could not read your inbox.".into(),
     }
 }
@@ -204,16 +171,10 @@ async fn week(pool: &SqlitePool, owner: &str, day: &str) -> String {
     if agenda.upcoming.is_empty() {
         return "Nothing due in the next seven days.".into();
     }
-    let mut out = String::from("Next 7 days\n\n");
-    for entity in agenda.upcoming.iter().take(SHOWN * 2) {
-        let due = entity.due_date.as_deref().unwrap_or("");
-        let day_part = due.split('T').next().unwrap_or(due);
-        out.push_str(&format!("{day_part}  {}\n", line(entity).trim_start_matches("• ")));
-    }
-    if agenda.upcoming.len() > SHOWN * 2 {
-        out.push_str(&format!("…and {} more\n", agenda.upcoming.len() - SHOWN * 2));
-    }
-    out.trim_end().to_string()
+    let rows = bot_text::bullets(&agenda.upcoming, SHOWN * 2, |entity| {
+        format!("{}  {}", entity.due_day().unwrap_or(""), label(entity))
+    });
+    format!("Next 7 days\n\n{rows}")
 }
 
 #[cfg(test)]
@@ -330,6 +291,29 @@ mod tests {
             !reply.contains("a filed task"),
             "an inbox that shows filed work has undone the point of filing:\n{reply}"
         );
+    }
+
+    #[tokio::test]
+    async fn an_old_inbox_item_is_found_under_a_pile_of_newer_filed_work() {
+        // The bug the SQL filter closes. The inbox used to be the fifty newest to-dos with the
+        // non-inbox ones dropped in Rust, so sixty filed tasks on top of one captured thought made
+        // a non-empty inbox answer "Inbox is empty."
+        let (_dir, pool) = fresh().await;
+        for n in 0..60 {
+            task(&pool, &format!("filed-{n}"), "filed work", "todo", "medium", None, "{}").await;
+        }
+        sqlx::query(
+            "INSERT INTO entities (id, type, title, status, ownerId, visibility, createdAt, \
+             updatedAt, metadata) VALUES ('old', 'note', 'the captured thought', 'todo', 'me', \
+             'private', '2026-01-01', '2026-01-01', '{\"isInbox\":true}')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let reply = inbox(&pool, "me").await;
+        assert!(reply.contains("the captured thought"), "got:\n{reply}");
+        assert!(!reply.contains("filed work"), "and only inbox items: {reply}");
     }
 
     #[tokio::test]

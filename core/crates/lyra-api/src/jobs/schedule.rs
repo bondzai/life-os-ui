@@ -17,8 +17,6 @@
 //! `HABITS_NUDGE_HOUR` and does nothing at all when that is unset. The digest already earns its
 //! place at 08:00; a nudge about chores has to be asked for before it can start arriving.
 
-use std::sync::Arc;
-
 use anyhow::anyhow;
 use lyra_db::jobs::{Lane, NewJob};
 use lyra_db::life;
@@ -37,6 +35,15 @@ pub fn key_for(day: &str) -> String {
 /// Fewer attempts than the brief. A nudge that misses its morning is worth very little by the
 /// afternoon — unlike the digest, which is the day's summary whenever it lands.
 pub const ATTEMPTS: i64 = 4;
+
+/// Today's nudge, as a job. Interactive rather than batch: it is short, and it should not wait
+/// behind a portfolio read.
+pub fn job(day: &str) -> NewJob {
+    NewJob::new(KIND, Lane::Interactive)
+        .payload(serde_json::json!({ "day": day }))
+        .key(key_for(day))
+        .max_attempts(ATTEMPTS)
+}
 
 /// How many due items the message names before it starts counting.
 const SHOWN: usize = 8;
@@ -68,14 +75,9 @@ impl Handler for ScheduleTick {
 
     fn run<'a>(&'a self, ctx: &'a JobCtx) -> BoxFuture<'a, HandlerResult> {
         Box::pin(async move {
-            let day = ctx
-                .payload()
-                .get("day")
-                .and_then(|day| day.as_str())
-                .ok_or_else(|| HandlerError::Permanent(anyhow!("schedule.tick needs a `day`")))?;
+            let day = ctx.require_str("day")?;
 
-            let owner = std::env::var("TELEGRAM_OWNER_USER_ID").ok();
-            let owner = life::resolve_owner(&self.state.pool, owner.as_deref())
+            let owner = crate::tgbot::owner_user(&self.state.pool)
                 .await
                 // Permanent: no amount of retrying conjures a user row, and the message says
                 // which variable would.
@@ -99,10 +101,7 @@ impl Handler for ScheduleTick {
             // A follow-up rather than a send: it is written in the same commit as this job's
             // completion, so the queue cannot end up holding a tick that ran and a message that
             // was never queued. And the send retries on its own schedule — see [`super::deliver`].
-            ctx.enqueue(
-                NewJob::new("deliver.telegram", Lane::Deliver)
-                    .payload(serde_json::json!({ "text": text, "markup": "plain" })),
-            );
+            ctx.enqueue(super::deliver::job(text, super::deliver::Markup::Plain));
             Ok(())
         })
     }
@@ -114,25 +113,10 @@ fn render(due: &[life::Schedule], day: &str) -> Option<String> {
         return None;
     }
 
-    let mut out = format!("Due today — {day}\n\n");
-    for schedule in due.iter().take(SHOWN) {
-        let title = schedule
-            .title
-            .as_deref()
-            .map(str::trim)
-            .filter(|t| !t.is_empty())
-            .unwrap_or("(untitled)");
-        out.push_str(&format!("• {title}\n"));
-    }
-    if due.len() > SHOWN {
-        out.push_str(&format!("…and {} more\n", due.len() - SHOWN));
-    }
-    Some(out.trim_end().to_string())
-}
-
-/// Every handler in this module.
-pub fn all(state: AppState) -> Vec<Arc<dyn Handler>> {
-    vec![Arc::new(ScheduleTick::new(state))]
+    let rows = crate::bot_text::bullets(due, SHOWN, |schedule| {
+        format!("• {}", crate::bot_text::title(schedule.title.as_deref()))
+    });
+    Some(format!("Due today — {day}\n\n{rows}"))
 }
 
 #[cfg(test)]

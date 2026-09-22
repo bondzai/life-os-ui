@@ -7,6 +7,7 @@
 
 mod bot_jobs;
 mod bot_life;
+mod bot_text;
 mod agents;
 mod alert_loop;
 mod tgbot;
@@ -559,6 +560,64 @@ mod tests {
 
     fn token_for(user: &str) -> String {
         auth::issue_token("test-secret", user, "admin").unwrap()
+    }
+
+    #[test]
+    fn the_install_script_forwards_every_setting_the_server_reads() {
+        // The installed service gets its environment from an allowlist in ops/lyra-server.sh, and
+        // that list fell behind the code: DISCORD_WEBHOOK_URL, TELEGRAM_OWNER_USER_ID and the
+        // Google OAuth keys all worked under `cargo run` and were silently absent in production.
+        // A comment asking people to remember is not a mechanism. This is.
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
+        let script = std::fs::read_to_string(format!("{root}/../ops/lyra-server.sh")).unwrap();
+        let forwarded: std::collections::BTreeSet<&str> = script
+            .split("for key in")
+            .nth(1)
+            .and_then(|rest| rest.split("; do").next())
+            .expect("the allowlist loop moved; update this test")
+            .split(|c: char| c.is_whitespace() || c == '\\')
+            .filter(|w| !w.is_empty())
+            .collect();
+
+        // Read by the server, deliberately not forwarded, and why.
+        let excluded = [
+            "PORT",               // set by the plist from the install layout
+            "LYRA_DB",            // likewise
+            "LYRA_UI_DIR",        // likewise
+            "LYRA_HTTP_CACHE",    // test fixtures: must never reach production
+            "LYRA_HTTP_FIXTURES", // likewise
+        ];
+
+        let read = regex::Regex::new(
+            r#"(?:env::var|env_or_empty|\.get)\("([A-Z][A-Z0-9]*_[A-Z0-9_]+)"\)"#,
+        )
+        .unwrap();
+        let mut missing = std::collections::BTreeSet::new();
+        for krate in ["lyra-api", "lyra-alerts", "lyra-chain", "lyra-db", "lyra-analytics"] {
+            let mut dirs = vec![std::path::PathBuf::from(format!("{root}/crates/{krate}/src"))];
+            while let Some(dir) = dirs.pop() {
+                for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        dirs.push(path);
+                    } else if path.extension().is_some_and(|e| e == "rs") {
+                        let source = std::fs::read_to_string(&path).unwrap();
+                        for caps in read.captures_iter(&source) {
+                            let key = caps.get(1).unwrap().as_str();
+                            if !forwarded.contains(key) && !excluded.contains(&key) {
+                                missing.insert(format!("{key} ({})", path.display()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "read by the server but not forwarded by ops/lyra-server.sh — add them to the loop, \
+             or to `excluded` here with a reason:\n  {}",
+            missing.into_iter().collect::<Vec<_>>().join("\n  ")
+        );
     }
 
     #[tokio::test]

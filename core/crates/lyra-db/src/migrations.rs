@@ -256,9 +256,18 @@ pub const MIGRATIONS: &[&[&str]] = &[
         // is a parse error against it. The conflict target has to repeat this predicate verbatim —
         // see `jobs::enqueue`.
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_idempotency ON jobs(idempotency_key) WHERE idempotency_key IS NOT NULL",
-        // What `prune` walks, and what a "recent jobs" listing orders by.
+        // What `prune` walks. (It was also described here as what a "recent jobs" listing orders
+        // by, which was never true — `recent()` orders by `updated_at`; see v6 -> v7.)
         "CREATE INDEX IF NOT EXISTS idx_jobs_finished ON jobs(finished_at)",
     ],
+    // v6 -> v7: the index `recent()` actually sorts on.
+    //
+    // The queue page polls `recent()` every few seconds and `/retry` resolves a prefix through it,
+    // and with no index on `updated_at` each call scanned and sorted the whole table — a cost that
+    // grows with the fourteen-day retention window rather than with anything you are looking at.
+    // It is written on every claim and heartbeat, so it costs a little on the write side; at a
+    // few hundred jobs a day that is nothing.
+    &["CREATE INDEX IF NOT EXISTS idx_jobs_updated ON jobs(updated_at DESC, id DESC)"],
 ];
 
 /// Applies every migration the database has not seen yet. Returns the resulting `user_version`.

@@ -396,6 +396,9 @@ fn query_from(query: LifeQuery) -> life::EntityQuery {
         parent_id: query.parent_id,
         project_id: query.project_id,
         text: query.text,
+        // Not offered over MCP yet. Every field is spelled out here on purpose, so a new filter in
+        // the store is a compile error at this line rather than something the desk silently lacks.
+        inbox_only: false,
         due_from: query.due_from,
         due_to: query.due_to,
         include_archived: query.include_archived,

@@ -84,8 +84,7 @@ pub fn spawn(state: AppState) {
 async fn run(state: AppState, sender: Arc<TelegramSender>, token: String, owner: String) {
     // Resolved once, at startup, not per message: it cannot change while the process runs, and a
     // failure is worth exactly one loud line rather than one per command for the rest of the day.
-    let configured = std::env::var("TELEGRAM_OWNER_USER_ID").ok();
-    let user_id = match lyra_db::life::resolve_owner(&state.pool, configured.as_deref()).await {
+    let user_id = match owner_user(&state.pool).await {
         Ok(id) => {
             tracing::info!(user = %id, "telegram command bot: reading this user's life");
             Some(id)
@@ -184,10 +183,15 @@ async fn run(state: AppState, sender: Arc<TelegramSender>, token: String, owner:
 /// Hand Telegram the command list behind the "/" menu. Best effort — a failure here costs
 /// discoverability, not function, so it is logged and the bot carries on.
 async fn publish_commands(client: &reqwest::Client, token: &str) {
-    let commands: Vec<Value> = COMMANDS
+    // Every section, from the same table `help()` reads. It published only the money commands,
+    // so `/today`, `/inbox`, `/jobs` and the rest answered when typed but never appeared in the
+    // phone's "/" menu — which is how anyone discovers they exist.
+    let commands: Vec<Value> = sections()
         .iter()
+        .flat_map(|(_, commands)| commands.iter())
         .map(|(command, description)| json!({ "command": command, "description": description }))
         .collect();
+    let count = commands.len();
     let result = client
         .post(format!("{API_BASE}/bot{token}/setMyCommands"))
         .json(&json!({ "commands": commands }))
@@ -195,7 +199,7 @@ async fn publish_commands(client: &reqwest::Client, token: &str) {
         .await;
     match result {
         Ok(response) if response.status().is_success() => {
-            tracing::info!(count = COMMANDS.len(), "published the telegram command menu");
+            tracing::info!(count, "published the telegram command menu");
         }
         Ok(response) => tracing::warn!(status = %response.status(), "setMyCommands refused"),
         Err(e) => tracing::warn!(error = %e.without_url(), "could not publish the telegram command menu"),
@@ -271,6 +275,17 @@ fn message_of(update: &Value) -> Option<(String, String)> {
     (!text.is_empty()).then_some((chat, text))
 }
 
+/// Whose life the Telegram side reads: `TELEGRAM_OWNER_USER_ID`, or the only user there is.
+///
+/// Shared by the command bot and the habits nudge, which answer the same question and must not be
+/// able to answer it differently.
+pub(crate) async fn owner_user(
+    pool: &sqlx::SqlitePool,
+) -> Result<String, lyra_db::life::OwnerUnresolved> {
+    let configured = std::env::var("TELEGRAM_OWNER_USER_ID").ok();
+    lyra_db::life::resolve_owner(pool, configured.as_deref()).await
+}
+
 /// How long a command may take before the poll loop stops waiting for it.
 ///
 /// `handle()` used to run *inside* the loop, so `/nw` or `/digest` — full portfolio reads across
@@ -291,13 +306,17 @@ where
 {
     let mut task = tokio::spawn(answering);
     match tokio::time::timeout(budget, &mut task).await {
-        Ok(Ok(reply)) => Ok(reply),
-        Ok(Err(error)) => {
-            tracing::error!(%error, "a telegram command panicked");
-            Ok("Something went wrong answering that. It is in the server log.".into())
-        }
+        Ok(joined) => Ok(reply_from(joined)),
         Err(_) => Err(task),
     }
+}
+
+/// A command task's result as a reply — including the case where it panicked.
+fn reply_from(joined: Result<String, tokio::task::JoinError>) -> String {
+    joined.unwrap_or_else(|error| {
+        tracing::error!(%error, "a telegram command panicked");
+        "Something went wrong answering that. It is in the server log.".into()
+    })
 }
 
 /// Deliver an overrunning command's answer when it arrives.
@@ -307,15 +326,8 @@ where
 /// but you were already told it was coming, so the cost is asking again rather than silence.
 fn follow_up(state: AppState, still_running: JoinHandle<String>) {
     tokio::spawn(async move {
-        let reply = match still_running.await {
-            Ok(reply) => reply,
-            Err(error) => {
-                tracing::error!(%error, "a slow telegram command panicked");
-                "Something went wrong answering that. It is in the server log.".into()
-            }
-        };
-        let job = lyra_db::jobs::NewJob::new("deliver.telegram", lyra_db::jobs::Lane::Deliver)
-            .payload(json!({ "text": reply, "markup": "plain" }));
+        let reply = reply_from(still_running.await);
+        let job = crate::jobs::deliver::job(reply, crate::jobs::deliver::Markup::Plain);
         if let Err(error) = lyra_db::jobs::SqliteQueue::new(state.pool.clone())
             .enqueue(&job, wealth::now_secs())
             .await
@@ -332,18 +344,26 @@ fn command_of(text: &str) -> &str {
     word.split('@').next().unwrap_or(word)
 }
 
+/// Every command the bot answers, by section, in the order `/help` lists them.
+///
+/// The one table `help()` and the phone's command menu are both built from, so they cannot
+/// disagree about what exists — and one test can check that no two sections claim the same name,
+/// which today would silently shadow one of them in `handle()`.
+fn sections() -> [(&'static str, &'static [(&'static str, &'static str)]); 3] {
+    [
+        ("Your day", crate::bot_life::COMMANDS),
+        ("The queue", crate::bot_jobs::COMMANDS),
+        ("Your money", COMMANDS),
+    ]
+}
+
 fn help() -> String {
-    let mut out = String::from("Lyra — what I can tell you\n\nYour day\n");
-    for (name, description) in crate::bot_life::COMMANDS {
-        out.push_str(&format!("/{name} — {description}\n"));
-    }
-    out.push_str("\nThe queue\n");
-    for (name, description) in crate::bot_jobs::COMMANDS {
-        out.push_str(&format!("/{name} — {description}\n"));
-    }
-    out.push_str("\nYour money\n");
-    for (name, description) in COMMANDS {
-        out.push_str(&format!("/{name} — {description}\n"));
+    let mut out = String::from("Lyra — what I can tell you\n");
+    for (section, commands) in sections() {
+        out.push_str(&format!("\n{section}\n"));
+        for (name, description) in commands {
+            out.push_str(&format!("/{name} — {description}\n"));
+        }
     }
     out
 }
@@ -356,11 +376,9 @@ async fn handle(state: &AppState, user_id: Option<&str>, text: &str) -> String {
     let command = command_of(&lowered);
 
     // The queue, which needs no user row — only the argument after the command word.
-    if crate::bot_jobs::handles(command) {
-        let argument = text.split_whitespace().nth(1);
-        if let Some(reply) = crate::bot_jobs::reply(state, command, argument).await {
-            return reply;
-        }
+    let argument = text.split_whitespace().nth(1);
+    if let Some(reply) = crate::bot_jobs::reply(state, command, argument).await {
+        return reply;
     }
 
     // Life commands first, because they are the ones you will actually type.
@@ -420,6 +438,29 @@ fn capture_echo(text: &str, attempted_command: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn no_two_sections_claim_the_same_command() {
+        // `handle()` tries the sections in order, so a duplicate name would silently answer from
+        // whichever came first and the other would be unreachable — with nothing saying so.
+        let mut seen = std::collections::BTreeSet::new();
+        for (section, commands) in sections() {
+            for (name, _) in commands {
+                assert!(seen.insert(*name), "/{name} is claimed twice (again in {section})");
+            }
+        }
+    }
+
+    #[test]
+    fn help_lists_every_section() {
+        let text = help();
+        for (section, commands) in sections() {
+            assert!(text.contains(section), "{section} missing from /help");
+            for (name, _) in commands {
+                assert!(text.contains(&format!("/{name} ")), "/{name} missing from /help");
+            }
+        }
+    }
 
     #[tokio::test]
     async fn a_quick_command_is_answered_inline() {
@@ -536,11 +577,4 @@ mod tests {
         assert!(url.contains("/getUpdates?timeout="), "{url}");
     }
 
-    #[test]
-    fn help_lists_every_command() {
-        let text = help();
-        for (name, _) in COMMANDS {
-            assert!(text.contains(&format!("/{name}")), "{name} missing from /help");
-        }
-    }
 }

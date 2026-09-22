@@ -33,7 +33,7 @@ use lyra_alerts::digest::day_key;
 use lyra_alerts::rules::{self, Health, PositionInput, PositionStates, Thresholds};
 use lyra_alerts::state::AlertStore;
 use lyra_chain::model::Wallet;
-use lyra_db::jobs::{Lane, NewJob, Queue, SqliteQueue};
+use lyra_db::jobs::{NewJob, Queue, SqliteQueue};
 use lyra_db::wealth::{self as store, PerfSample, SnapshotInput};
 
 use crate::AppState;
@@ -221,8 +221,7 @@ async fn sweep(state: &AppState, config: &AlertConfig<'_>) {
         // No idempotency key. The dedupe that matters already happened — `rules::evaluate` only
         // emits an alert on a *transition* — and a key would be actively wrong: a position that
         // goes out of range, comes back, and goes out again has two things to say, not one.
-        let job = NewJob::new("deliver.telegram", Lane::Deliver)
-            .payload(serde_json::json!({ "text": text, "markup": "telegram" }));
+        let job = crate::jobs::deliver::job(text, crate::jobs::deliver::Markup::Telegram);
 
         if let Err(e) = queue.enqueue(&job, wealth::now_secs()).await {
             // Queueing failing is the database failing, which is worth the same line the send
@@ -348,24 +347,24 @@ async fn maybe_digest(state: &AppState, config: &AlertConfig<'_>) {
     // produce the same single job, and that job's own backoff carries past the hour — a job does
     // not know what time it was created. The day key is stamped by the handler, so the flag and
     // the send cannot disagree.
-    let job = NewJob::new(crate::jobs::digest::KIND, Lane::Batch)
-        .payload(serde_json::json!({ "day": today }))
-        .key(crate::jobs::digest::key_for(&today))
-        // Not the default five — see [`crate::jobs::digest::ATTEMPTS`]. Five would have made this
-        // change a regression rather than a fix.
-        .max_attempts(crate::jobs::digest::ATTEMPTS);
+    enqueue_once(state, &meta, crate::jobs::digest::job(&today), "the daily brief").await;
+}
 
+/// Enqueue a keyed job from the tick, and say so only when it is new.
+///
+/// Every tick in the window enqueues the same key, so all but the first return the existing job;
+/// that is the normal case and not worth a line. A failure to queue is the database failing, which
+/// is worth the same `last_error` the settings page has always shown.
+async fn enqueue_once(state: &AppState, meta: &SharedMeta, job: NewJob, what: &str) {
     match SqliteQueue::new(state.pool.clone())
         .enqueue(&job, wealth::now_secs())
         .await
     {
         Ok(enqueued) if enqueued.created => {
-            tracing::info!(day = %today, job = %enqueued.id, "the daily brief is queued")
+            tracing::info!(job = %enqueued.id, kind = %job.kind, "{what} is queued")
         }
-        // Already queued or already sent today. The normal case for all but the first tick of the
-        // hour, and not worth a line.
         Ok(_) => {}
-        Err(e) => record_error(&meta, format!("digest: queueing: {e}")),
+        Err(e) => record_error(meta, format!("{what}: queueing: {e}")),
     }
 }
 
@@ -390,21 +389,13 @@ async fn maybe_nudge(state: &AppState) {
     let today = day_key(&now);
     // Keyed by the day, so every tick this hour is the same single nudge. Unlike the digest there
     // is no "already sent" flag anywhere else — the key is the whole of the bookkeeping.
-    let job = NewJob::new(crate::jobs::schedule::KIND, Lane::Interactive)
-        .payload(serde_json::json!({ "day": today }))
-        .key(crate::jobs::schedule::key_for(&today))
-        .max_attempts(crate::jobs::schedule::ATTEMPTS);
-
-    match SqliteQueue::new(state.pool.clone())
-        .enqueue(&job, wealth::now_secs())
-        .await
-    {
-        Ok(enqueued) if enqueued.created => {
-            tracing::info!(day = %today, job = %enqueued.id, "the habits nudge is queued")
-        }
-        Ok(_) => {}
-        Err(e) => record_error(&Arc::clone(&state.alert_meta), format!("nudge: queueing: {e}")),
-    }
+    enqueue_once(
+        state,
+        &state.alert_meta,
+        crate::jobs::schedule::job(&today),
+        "the habits nudge",
+    )
+    .await;
 }
 
 /// `SNAPSHOT_GROUP`, defaulting to `server` — the series the always-on box owns, kept separate
@@ -447,22 +438,8 @@ async fn maybe_snapshot(state: &AppState, config: &AlertConfig<'_>) {
     // `last_snapshot_ts`, which only moves when a sample is *recorded* — so between enqueueing a
     // job and that job running, every tick still thinks a sample is due. The key is what makes
     // those ticks one job instead of eight.
-    let bucket = wealth::now_secs() / interval.max(1);
-    let job = NewJob::new(crate::jobs::snapshot::KIND, Lane::Batch)
-        .payload(serde_json::json!({ "group": group, "interval": interval }))
-        .key(crate::jobs::snapshot::key_for(bucket))
-        .max_attempts(crate::jobs::snapshot::ATTEMPTS);
-
-    match SqliteQueue::new(state.pool.clone())
-        .enqueue(&job, wealth::now_secs())
-        .await
-    {
-        Ok(enqueued) if enqueued.created => {
-            tracing::info!(%group, bucket, job = %enqueued.id, "a net-worth sample is queued")
-        }
-        Ok(_) => {}
-        Err(e) => record_error(&meta, format!("snapshot: queueing: {e}")),
-    }
+    let job = crate::jobs::snapshot::job(&group, interval, wealth::now_secs());
+    enqueue_once(state, &meta, job, "a net-worth sample").await;
 }
 
 /// Take one net-worth sample and store it.

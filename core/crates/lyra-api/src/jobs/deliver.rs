@@ -22,7 +22,41 @@ use lyra_alerts::message::Message;
 use lyra_alerts::telegram::Delivery;
 use serde_json::json;
 
+use lyra_db::jobs::{Lane, NewJob};
+
 use super::{BoxFuture, Handler, HandlerError, HandlerResult, JobCtx};
+
+/// The job kind. A wire contract: it is written into every row, so renaming it strands whatever
+/// is already queued. Spelled once, here — it was a string literal in four places.
+pub const KIND: &str = "deliver.telegram";
+
+/// Whether the text already carries Telegram markup.
+///
+/// An enum rather than the `"plain"` / `"telegram"` strings it replaces: the handler treats any
+/// value it does not recognise as plain, so a typo at an enqueue site used to change the
+/// formatting silently instead of failing to compile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Markup {
+    /// Escaped by the sender. The safe default for anything built from on-chain names.
+    Plain,
+    /// Already Telegram-formatted, by a renderer that stripped the untrusted parts itself.
+    Telegram,
+}
+
+impl Markup {
+    fn as_str(self) -> &'static str {
+        match self {
+            Markup::Plain => "plain",
+            Markup::Telegram => "telegram",
+        }
+    }
+}
+
+/// A message to send, as a job. The one way to build one.
+pub fn job(text: impl Into<String>, markup: Markup) -> NewJob {
+    NewJob::new(KIND, Lane::Deliver)
+        .payload(json!({ "text": text.into(), "markup": markup.as_str() }))
+}
 
 /// Sends a job's `payload.text` to every configured channel.
 ///
@@ -53,7 +87,7 @@ impl DeliverTelegram {
 
 impl Handler for DeliverTelegram {
     fn kind(&self) -> &'static str {
-        "deliver.telegram"
+        KIND
     }
 
     fn run<'a>(&'a self, ctx: &'a JobCtx) -> BoxFuture<'a, HandlerResult> {
