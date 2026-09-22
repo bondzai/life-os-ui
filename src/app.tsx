@@ -18,7 +18,6 @@ const HabitsPage = lazy(() => import('@/pages/habits').then((m) => ({ default: m
 const NotesPage = lazy(() => import('@/pages/notes').then((m) => ({ default: m.NotesPage })))
 const ReviewPage = lazy(() => import('@/pages/review').then((m) => ({ default: m.ReviewPage })))
 const DashboardPage = lazy(() => import('@/pages/dashboard').then((m) => ({ default: m.DashboardPage })))
-const NotificationsPage = lazy(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationsPage })))
 const DeepWorkPage = lazy(() => import('@/pages/deep-work').then((m) => ({ default: m.DeepWorkPage })))
 const InboxPage = lazy(() => import('@/pages/inbox').then((m) => ({ default: m.InboxPage })))
 const BriefingPage = lazy(() => import('@/pages/tasks/standup-report').then((m) => ({ default: m.BriefingPage })))
@@ -34,6 +33,7 @@ const WealthBotsPage = lazy(() => import('@/pages/wealth/bots').then((m) => ({ d
 const WealthJournalPage = lazy(() => import('@/pages/wealth/journal').then((m) => ({ default: m.WealthJournalPage })))
 const WealthSettingsPage = lazy(() => import('@/pages/wealth/settings').then((m) => ({ default: m.WealthSettingsPage })))
 const WealthAlertsPage = lazy(() => import('@/pages/wealth/alerts').then((m) => ({ default: m.WealthAlertsPage })))
+const AgentsPage = lazy(() => import('@/pages/agents').then((m) => ({ default: m.AgentsPage })))
 
 
 const queryClient = new QueryClient({
@@ -58,6 +58,7 @@ export function App() {
                 <Route path="briefing" element={<Suspense fallback={null}><BriefingPage /></Suspense>} />
                 <Route element={<AppLayout />}>
                   <Route index element={<TodayPage />} />
+                  <Route path="agents" element={<Suspense fallback={null}><AgentsPage /></Suspense>} />
                   <Route path="projects" element={<Suspense fallback={null}><ProjectsPage /></Suspense>} />
                   <Route path="goals" element={<GoalsPage />} />
                   <Route path="tasks" element={<TasksPage />} />
@@ -67,7 +68,6 @@ export function App() {
                   <Route path="review" element={<ReviewPage />} />
                   <Route path="inbox" element={<InboxPage />} />
                   <Route path="dashboard" element={<DashboardPage />} />
-                  <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="knowledge" element={<Suspense fallback={null}><KnowledgePage /></Suspense>} />
                   {/* Wealth — lazy, so the crypto surfaces stay out of the initial bundle. */}
                   <Route path="wealth" element={<Suspense fallback={null}><WealthOverviewPage /></Suspense>} />

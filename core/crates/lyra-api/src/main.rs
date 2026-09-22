@@ -5,6 +5,10 @@
 //! so the existing React client runs against this binary with no front-end change. Any change the
 //! front end needs means the port was wrong.
 
+mod bot_jobs;
+mod bot_life;
+mod bot_text;
+mod agents;
 mod alert_loop;
 mod tgbot;
 mod auth;
@@ -12,6 +16,8 @@ mod collect;
 mod common;
 mod entities;
 mod gcal;
+mod grammar;
+mod jobs;
 mod knowledge;
 mod relations;
 mod schedules;
@@ -44,6 +50,11 @@ pub struct AppState {
     /// Live state of the background sweep, so `/api/wealth/alerts` can report it. Shared with
     /// [`alert_loop`]; inert (`running: false`) when the loop was never started.
     pub alert_meta: alert_loop::SharedMeta,
+    /// Live state of the agent fleet, and the channel the Agents page listens on.
+    pub fleet: agents::Fleet,
+    /// One-shot tickets for the fleet socket. See [`agents::Tickets`] for why the JWT is not
+    /// simply passed in the query string.
+    pub tickets: agents::Tickets,
 }
 
 impl AppState {
@@ -54,6 +65,8 @@ impl AppState {
             rate_limiter: Arc::new(auth::RateLimiter::default()),
             gcal_states: Arc::new(gcal::OAuthStates::default()),
             alert_meta: alert_loop::SharedMeta::default(),
+            fleet: agents::Fleet::new(),
+            tickets: agents::Tickets::default(),
         }
     }
 }
@@ -94,6 +107,12 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
     // Everything behind the JWT gate. auth.ts applies `jwtMiddleware()` per prefix
     // (`api/src/index.ts:36-47`); grouping them here is the same thing with less repetition.
     let protected = Router::new()
+        .route("/api/agents", get(agents::list))
+        .route("/api/jobs", get(agents::jobs))
+        .route("/api/jobs/{id}", get(agents::job_one))
+        .route("/api/jobs/{id}/retry", post(agents::job_retry))
+        .route("/api/jobs/{id}/cancel", post(agents::job_cancel))
+        .route("/api/agents/ticket", post(agents::ticket))
         .route("/api/entities", get(entities::list).post(entities::create))
         .route(
             "/api/entities/{id}",
@@ -194,6 +213,10 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
     let router = Router::new()
         .route("/api/health", get(health))
         .route("/api/auth/login", post(auth::login))
+        // Outside the JWT gate on purpose, and not unauthenticated: a browser cannot put an
+        // `Authorization` header on a WebSocket upgrade, so the credential is the one-shot ticket
+        // in the query string, minted by the authenticated POST above. See [`agents::Tickets`].
+        .route("/api/agents/stream", get(agents::stream))
         .route("/api/search", get(search::search))
         // Google redirects a browser here with no Authorization header; CSRF is covered by the
         // one-time `state` token instead.
@@ -297,6 +320,11 @@ async fn main() -> Result<()> {
     // The other half of Telegram: `alert_loop` pushes, this pulls commands in. Idle unless a bot
     // token and chat id are both configured.
     tgbot::spawn(state.clone());
+
+    // The job workers and the lease reaper. Nothing enqueues yet, so today they idle — but the
+    // reaper is the only recovery from a worker killed mid-job, and a queue whose recovery path
+    // starts the same week as its first real work is a queue nobody has ever seen recover.
+    jobs::spawn(state.clone());
 
     axum::serve(listener, app(state, allowed_origins()))
         .with_graceful_shutdown(shutdown_signal())
@@ -532,6 +560,154 @@ mod tests {
 
     fn token_for(user: &str) -> String {
         auth::issue_token("test-secret", user, "admin").unwrap()
+    }
+
+    #[test]
+    fn the_install_script_forwards_every_setting_the_server_reads() {
+        // The installed service gets its environment from an allowlist in ops/lyra-server.sh, and
+        // that list fell behind the code: DISCORD_WEBHOOK_URL, TELEGRAM_OWNER_USER_ID and the
+        // Google OAuth keys all worked under `cargo run` and were silently absent in production.
+        // A comment asking people to remember is not a mechanism. This is.
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
+        let script = std::fs::read_to_string(format!("{root}/../ops/lyra-server.sh")).unwrap();
+        let forwarded: std::collections::BTreeSet<&str> = script
+            .split("for key in")
+            .nth(1)
+            .and_then(|rest| rest.split("; do").next())
+            .expect("the allowlist loop moved; update this test")
+            .split(|c: char| c.is_whitespace() || c == '\\')
+            .filter(|w| !w.is_empty())
+            .collect();
+
+        // Read by the server, deliberately not forwarded, and why.
+        let excluded = [
+            "PORT",               // set by the plist from the install layout
+            "LYRA_DB",            // likewise
+            "LYRA_UI_DIR",        // likewise
+            "LYRA_HTTP_CACHE",    // test fixtures: must never reach production
+            "LYRA_HTTP_FIXTURES", // likewise
+        ];
+
+        let read = regex::Regex::new(
+            r#"(?:env::var|env_or_empty|\.get)\("([A-Z][A-Z0-9]*_[A-Z0-9_]+)"\)"#,
+        )
+        .unwrap();
+        let mut missing = std::collections::BTreeSet::new();
+        for krate in ["lyra-api", "lyra-alerts", "lyra-chain", "lyra-db", "lyra-analytics"] {
+            let mut dirs = vec![std::path::PathBuf::from(format!("{root}/crates/{krate}/src"))];
+            while let Some(dir) = dirs.pop() {
+                for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        dirs.push(path);
+                    } else if path.extension().is_some_and(|e| e == "rs") {
+                        let source = std::fs::read_to_string(&path).unwrap();
+                        for caps in read.captures_iter(&source) {
+                            let key = caps.get(1).unwrap().as_str();
+                            if !forwarded.contains(key) && !excluded.contains(&key) {
+                                missing.insert(format!("{key} ({})", path.display()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "read by the server but not forwarded by ops/lyra-server.sh — add them to the loop, \
+             or to `excluded` here with a reason:\n  {}",
+            missing.into_iter().collect::<Vec<_>>().join("\n  ")
+        );
+    }
+
+    #[tokio::test]
+    async fn job_controls_sit_behind_the_token() {
+        // They change what the box does next. Anyone who can reach the port must not be able to
+        // cancel your brief or re-fire an alert.
+        let (_dir, _pool, router) = test_app(&[]).await;
+        for (method, uri) in [
+            ("GET", "/api/jobs/x"),
+            ("POST", "/api/jobs/x/retry"),
+            ("POST", "/api/jobs/x/cancel"),
+        ] {
+            let (status, _) = authed(router.clone(), method, uri, None, None).await;
+            assert_eq!(status, StatusCode::UNAUTHORIZED, "{method} {uri}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_failed_job_can_be_retried_through_the_api_and_the_old_row_survives() {
+        use lyra_db::jobs::{Failure, Lane, NewJob, Queue, SqliteQueue};
+        let (_dir, pool, router) = test_app(&[]).await;
+        let token = token_for("user-jb");
+
+        let queue = SqliteQueue::new(pool);
+        let dead = queue
+            .enqueue(&NewJob::new("deliver.telegram", Lane::Deliver).max_attempts(1), 1000)
+            .await
+            .unwrap();
+        let claimed = queue.claim("w", &[Lane::Deliver], 60, 1100).await.unwrap().unwrap();
+        queue.fail("w", &claimed.id, "connection reset", Failure::Retry, 1200).await.unwrap();
+
+        let (status, body) = authed(
+            router.clone(),
+            "POST",
+            &format!("/api/jobs/{}/retry", dead.id),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["created"], true);
+        let new_id = body["id"].as_str().unwrap().to_string();
+        assert_ne!(new_id, dead.id);
+
+        // The new one points back at what it replaces.
+        let (_, fresh) =
+            authed(router.clone(), "GET", &format!("/api/jobs/{new_id}"), Some(&token), None).await;
+        assert_eq!(fresh["status"], "queued");
+        assert_eq!(fresh["parent_id"], dead.id.as_str());
+
+        // And the dead one still says why it died.
+        let (_, old) =
+            authed(router, "GET", &format!("/api/jobs/{}", dead.id), Some(&token), None).await;
+        assert_eq!(old["status"], "failed");
+        assert_eq!(old["last_error"], "connection reset");
+    }
+
+    #[tokio::test]
+    async fn the_wrong_state_is_a_conflict_that_says_which_state() {
+        use lyra_db::jobs::{Lane, NewJob, Queue, SqliteQueue};
+        let (_dir, pool, router) = test_app(&[]).await;
+        let token = token_for("user-jb");
+        let queued = SqliteQueue::new(pool)
+            .enqueue(&NewJob::new("x", Lane::Batch), 1000)
+            .await
+            .unwrap();
+
+        // Retrying a job that has not run yet would run it twice.
+        let (status, body) = authed(
+            router.clone(),
+            "POST",
+            &format!("/api/jobs/{}/retry", queued.id),
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert!(body["error"].as_str().unwrap().contains("queued"), "{body}");
+
+        // Cancelling it works, once.
+        let cancel = format!("/api/jobs/{}/cancel", queued.id);
+        let (first, _) = authed(router.clone(), "POST", &cancel, Some(&token), None).await;
+        let (second, body) = authed(router.clone(), "POST", &cancel, Some(&token), None).await;
+        assert_eq!(first, StatusCode::OK);
+        assert_eq!(second, StatusCode::CONFLICT, "{body}");
+        assert!(body["error"].as_str().unwrap().contains("cancelled"));
+
+        let (missing, _) =
+            authed(router, "POST", "/api/jobs/nope/retry", Some(&token), None).await;
+        assert_eq!(missing, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

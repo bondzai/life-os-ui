@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { Entity } from '@/core/types'
 import type { ICalEvent } from '@/lib/ical'
+import { dateKeyOf } from '@/lib/dates'
 
 const GCAL_COLORS = {
   task: '#039BE5',
@@ -14,10 +15,6 @@ const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate()
-}
-
-function formatDateKey(year: number, month: number, day: number) {
-  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
 function formatTime(date: Date): string {
@@ -60,7 +57,7 @@ export function MonthView({
   feedColorMap,
 }: MonthViewProps) {
   const today = new Date()
-  const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
+  const todayKey = dateKeyOf(today.getFullYear(), today.getMonth(), today.getDate())
   const todayDayOfWeek = today.getDay()
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth)
@@ -155,7 +152,7 @@ export function MonthView({
         {weeks.map((week, wi) => (
           <div key={wi} className="grid grid-cols-7 border-b last:border-b-0 min-h-0">
             {week.map((cell, di) => {
-              const dateKey = formatDateKey(cell.year, cell.month, cell.day)
+              const dateKey = dateKeyOf(cell.year, cell.month, cell.day)
               const isToday = dateKey === todayKey
               const isSelected = dateKey === selectedDate
               const events = getEventsForDate(dateKey)

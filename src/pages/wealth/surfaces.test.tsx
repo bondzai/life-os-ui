@@ -83,14 +83,14 @@ describe('DeFi', () => {
 
   it('de-duplicates the shared campaign claim in the claimable summary', async () => {
     renderSurface(<WealthDefiPage />)
-    await screen.findByText('Claimable by token')
+    // The breakdown is behind the Claimable figure now, not a card below the table.
+    fireEvent.click(await screen.findByRole('button', { name: /Claimable . open details/ }))
+    const dialog = await screen.findByRole('dialog')
+
     // The OP claim appears on two positions but is one reward: 120 OP at $84, not 240 at $168.
-    // The panel is a ranked list now, so symbol and amount are separate cells — and the token's
-    // mark carries the symbol as its monogram, so the row is located among the list items rather
-    // than by a text query that would match both.
-    const card = screen.getByText('Claimable by token').closest('[data-slot="card"]')
-    expect(card).not.toBeNull()
-    const row = within(card as HTMLElement)
+    // The panel is a ranked list, so symbol and amount are separate cells — the row is located
+    // among the list items rather than by a text query that would match both.
+    const row = within(dialog)
       .getAllByRole('listitem')
       .find((li) => li.textContent?.includes('OP'))
     expect(row?.textContent).toContain('120')
@@ -98,19 +98,58 @@ describe('DeFi', () => {
     expect(row?.textContent).not.toContain('240')
   })
 
+  it('marks the figures that open, so a click is offered rather than guessed at', async () => {
+    renderSurface(<WealthDefiPage />)
+    // Hover is undiscoverable and on a touch screen does not exist, so the affordance has to be
+    // drawn. Both openers carry the same glyph and the same accessible name.
+    const opener = await screen.findByRole('button', { name: /Claimable . open details/ })
+    // The glyph is decoration, not information — the accessible name above already carries
+    // "open details" — so it is `aria-hidden` and has to be found in the DOM, not by role.
+    expect(opener.querySelector('svg')).not.toBeNull()
+  })
+
+  it('carries lending in the same ledger rather than a panel of its own', async () => {
+    renderSurface(<WealthDefiPage />)
+    // The mock borrows USDC against ETH on Aave. A loan is a position — same venue, same value,
+    // same "how close is this to going wrong" — so it belongs in the table with the LP rows.
+    // Table and cards are both in the DOM at once, so assert presence, not a count.
+    expect((await screen.findAllByText(/borrowing USDC/)).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Aave v3').length).toBeGreaterThan(0)
+    // Health takes the Range column's place: the same question, in the same spot on the row.
+    expect(screen.getAllByText('1.94').length).toBeGreaterThan(0)
+  })
+
   it('shows the snowball total and what this page contributes to it', async () => {
     renderSurface(<WealthDefiPage />)
+    // It is a figure on the summary bar now, not a card of its own — but it still shows when
+    // nothing is tagged, because the ❄ that fills it is on every row below.
+    //
+    // The label arrives before the data does: the page renders its structure on the first frame
+    // and fills the numbers in, so finding "Snowball" no longer means the fetch has landed. Wait
+    // for the copy that only exists once it has.
     await screen.findByText('Snowball')
-    // Nothing tagged: the card stays, because the ❄ that fills it is on every row below.
-    expect(screen.getByText(/No LP position is tagged yet/)).toBeDefined()
+    expect(await screen.findByText(/press ❄ on a row to start one/)).toBeDefined()
 
-    // Tag the first position and the card should account for it.
+    // Tag the first position and the figure should account for it.
     const toggles = screen.getAllByRole('button', { name: /Add .* to snowball/ })
     expect(toggles.length).toBeGreaterThan(0)
     fireEvent.click(toggles[0])
 
-    await waitFor(() => expect(screen.getByText(/LP here · 1 of/)).toBeDefined())
-    expect(screen.getByText(/Nothing tagged outside this page/)).toBeDefined()
+    await waitFor(() => expect(screen.getByText(/1 LP here/)).toBeDefined())
+  })
+
+  it('opens the snowball chart in a dialog rather than shrinking it into the bar', async () => {
+    renderSurface(<WealthDefiPage />)
+    // Nothing tagged means no history to plot, and the figure stays a plain figure rather than
+    // offering a chart of nothing. Tag one position and it becomes the trigger.
+    const toggles = await screen.findAllByRole('button', { name: /Add .* to snowball/ })
+    fireEvent.click(toggles[0])
+
+    const open = await screen.findByRole('button', { name: /Snowball . open details/ })
+    fireEvent.click(open)
+    // The full panel — picker, projection and all — is what the dialog is for; a sparkline in a
+    // summary bar was forty days of shape at a size nobody could read.
+    expect(await screen.findByRole('dialog')).toBeDefined()
   })
 })
 

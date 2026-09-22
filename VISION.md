@@ -61,6 +61,10 @@ Authentication is lightweight — PIN or local password. No OAuth complexity nee
 
 ## Architecture
 
+> **Historical.** The diagram below is the Hono + Drizzle design, which was built and then
+> replaced. What runs is one Rust binary over SQLite — see
+> [`docs/architecture.md`](./docs/architecture.md).
+
 ```
 ┌─────────────────────────────────────────────┐
 │                  CLIENTS                    │
@@ -184,6 +188,12 @@ Relation
 ---
 
 ## Modules
+
+> **Historical.** Eight modules are marked complete below and five of them — Health, Family,
+> Places, Travel, Memories and the rest — were deleted at v2.5.0 (the Lean release) and have not
+> returned. Wealth came back as the Rust-backed module; Projects came back as its own type in
+> September. The live list is `src/core/config/modules.ts`; see
+> [`docs/modules.md`](./docs/modules.md).
 
 Each module is a thin layer on top of the core engine. 30+ entity types are currently supported.
 
@@ -319,6 +329,10 @@ When the AI provider is offline or unavailable:
 ---
 
 ## Proactive Intelligence
+
+> **Historical.** Written before the Lean release; several of the surfaces described here were
+> deleted with the Lyra page. The detectors and the morning brief survive in
+> `src/core/ai/` — see [`docs/ai-layer.md`](./docs/ai-layer.md).
 
 The system that makes Lyra feel alive. Instead of waiting for you to ask, Lyra watches your data and speaks up when something matters.
 
@@ -501,11 +515,15 @@ Features beyond the current roadmap — not planned, but designed to be possible
 
 ### Near-Term Possibilities
 
+> **Telegram shipped on 2026-08-22** and has been removed from this list. It sends alerts and
+> answers eleven portfolio commands; quick-adding entities from it is Stage C of
+> [`docs/assistant-roadmap.md`](./docs/assistant-roadmap.md). See
+> [`docs/telegram.md`](./docs/telegram.md).
+
 | Feature | Description |
 |---|---|
 | **Mobile App** | React Native or Capacitor wrapper for native mobile experience |
 | **Voice Input** | "Hey Lyra" — voice commands via Web Speech API or local Whisper |
-| **Telegram Bot** | Quick-add entities, receive notifications, check status from Telegram |
 | **Recipe & Meal Planning** | Weekly meal plans linked to nutrition tracking and shopping lists |
 
 ### Mid-Term Possibilities

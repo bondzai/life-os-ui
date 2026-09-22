@@ -6,7 +6,7 @@ export type {
   EntityVisibility,
 } from './entity'
 
-export { isGoal, isTask } from './entity'
+export { isDueTask, isGoal, isTask, OPEN_TASK_STATUSES } from './entity'
 
 export type { Tracker } from './tracker'
 

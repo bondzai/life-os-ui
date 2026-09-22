@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from 'react-router'
+import { useLocation } from 'react-router'
 import { Bell, MessageSquare, Search } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
@@ -14,26 +14,13 @@ import { useChatStore } from '@/stores/chat-store'
 import { useUiStore } from '@/stores/ui-store'
 import { useNotificationStore } from '@/stores/notification-store'
 import { CurrencySwitch } from '@/pages/wealth/currency-switch'
+import { relativeTime } from '@/lib/dates'
 
 interface TopBarProps {
   title: string
 }
 
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return 'just now'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days === 1) return 'Yesterday'
-  return new Date(iso).toLocaleDateString()
-}
-
 export function TopBar({ title }: TopBarProps) {
-  const navigate = useNavigate()
   // Wealth routes only: a currency switch above a task list is noise, and the hook behind it
   // subscribes to the portfolio query, which those pages have no reason to hold open.
   const onWealth = useLocation().pathname.startsWith('/wealth')
@@ -42,6 +29,7 @@ export function TopBar({ title }: TopBarProps) {
   const notifications = useNotificationStore((s) => s.notifications)
   const markRead = useNotificationStore((s) => s.markRead)
   const markAllRead = useNotificationStore((s) => s.markAllRead)
+  const clearAll = useNotificationStore((s) => s.clearAll)
 
   const unreadCount = notifications.filter((n) => !n.read).length
   const latest = notifications.slice(0, 5)
@@ -122,7 +110,7 @@ export function TopBar({ title }: TopBarProps) {
                       {n.title}
                     </span>
                     <span className="text-[10px] text-muted-foreground/50 shrink-0">
-                      {formatRelativeTime(n.createdAt)}
+                      {relativeTime(n.createdAt)}
                     </span>
                   </div>
                   {n.message && (
@@ -132,12 +120,15 @@ export function TopBar({ title }: TopBarProps) {
                   )}
                 </DropdownMenuItem>
               ))}
+              {/* "View all" used to open a whole route for this list. The page was the same rows
+                  with two buttons on top, so the two buttons moved here and the route went away —
+                  a log of your own actions does not need a destination. */}
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                className="justify-center text-sm cursor-pointer"
-                onClick={() => navigate('/notifications')}
+                className="cursor-pointer justify-center text-sm text-muted-foreground"
+                onClick={(e) => { e.preventDefault(); clearAll() }}
               >
-                View all
+                Clear all
               </DropdownMenuItem>
             </>
           )}

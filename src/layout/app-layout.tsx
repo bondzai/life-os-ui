@@ -8,7 +8,6 @@ import { TopBar } from './top-bar'
 import { modules } from '@/core/config/modules'
 import { ChatSidebar } from '@/pages/ai/chat-sidebar'
 import { CommandBar } from '@/pages/ai/command-bar'
-import { InboxCapture } from '@/components/inbox-capture'
 import { DataModeNotice } from '@/components/data-mode-notice'
 import { useUiStore } from '@/stores/ui-store'
 import { useFocusStore } from '@/stores/focus-store'
@@ -17,6 +16,7 @@ import { useLyraPulse } from '@/hooks/use-lyra-pulse'
 import { useSessionSummary } from '@/hooks/use-session-summary'
 import { useCelebrations } from '@/hooks/use-celebrations'
 import { useGlobalShortcuts } from '@/hooks/use-keybindings'
+import { useGoTo } from '@/hooks/use-go-to'
 
 function getPageTitle(pathname: string): string {
   const mod = modules.find((m) => m.path === pathname)
@@ -40,7 +40,7 @@ export function AppLayout() {
   const navigate = useNavigate()
   const title = getPageTitle(location.pathname)
   const setCommandBarOpen = useUiStore((s) => s.setCommandBarOpen)
-  const setCaptureOpen = useUiStore((s) => s.setCaptureOpen)
+  const openCommandBar = useUiStore((s) => s.openCommandBar)
   const focusMode = useUiStore((s) => s.focusMode)
   const toggleFocusMode = useUiStore((s) => s.toggleFocusMode)
   const clock = useClock()
@@ -66,11 +66,13 @@ export function AppLayout() {
     'command-bar': () => setCommandBarOpen(true),
     'focus-mode': () => toggleFocusMode(),
     'briefing': () => window.open('/briefing', '_blank'),
-    'quick-capture': () => setCaptureOpen(true),
+    // Same finger memory, one fewer dialog: it opens the palette already in capture mode.
+    'quick-capture': () => openCommandBar('/'),
     'deep-work': () => navigate('/deep-work'),
-  }), [setCommandBarOpen, toggleFocusMode, setCaptureOpen, navigate])
+  }), [setCommandBarOpen, toggleFocusMode, openCommandBar, navigate])
 
   useGlobalShortcuts(shortcutHandlers)
+  useGoTo()
 
   return (
     <SidebarProvider open={focusMode ? false : undefined}>
@@ -96,7 +98,6 @@ export function AppLayout() {
       </div>
       <ChatSidebar />
       <CommandBar />
-      <InboxCapture />
       {/* Focus mode: floating bar with clock + timer + page + exit */}
       {focusMode ? (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-background/80 backdrop-blur-sm border rounded-full shadow-md px-4 py-1.5 opacity-0 hover:opacity-100 transition-opacity">

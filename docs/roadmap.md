@@ -1,5 +1,15 @@
 # Roadmap
 
+> **Historical — superseded, kept for the record.**
+>
+> The "completed" half duplicates [`CHANGELOG.md`](../CHANGELOG.md). The "planned" half —
+> Phase 3.5's OpenClaw bridge, Phases 8b and 9b for Family and Automate — plans work that was
+> either built differently or whose modules were deleted at v2.5.0. The "improvements" tail
+> duplicates [`improvements.md`](./improvements.md).
+>
+> The live plan is [`TODO.md`](../TODO.md) and
+> [`docs/assistant-roadmap.md`](./assistant-roadmap.md).
+
 Phase-by-phase implementation plan. Each phase is independently useful — you don't need to complete all phases to have a working system.
 
 ## Completed

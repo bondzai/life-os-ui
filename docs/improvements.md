@@ -1,5 +1,8 @@
 # Improvements & Nice-to-Have Features
 
+> **Written against the 17-module app.** Several items struck through as done belong to features
+> since deleted. Read it as a backlog of ideas, not as a state claim.
+
 Prioritized enhancements across all modules. Organized by effort tier.
 For the Minimalist Mind cognitive system features, see [TODO.md](../TODO.md) Phase 16.
 

@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { dateKeyOf } from '@/lib/dates'
 import { useEntities } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
@@ -34,10 +35,6 @@ const GCAL_TYPE_COLORS: Record<string, string> = {
 
 type CalendarViewMode = 'month' | 'week' | 'schedule'
 
-function formatDateKey(year: number, month: number, day: number) {
-  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-}
-
 export function CalendarPage({ embedded }: { embedded?: boolean }) {
   const queryClient = useQueryClient()
   const { items: allEntities, create, remove: removeEntity } = useEntities()
@@ -53,7 +50,7 @@ export function CalendarPage({ embedded }: { embedded?: boolean }) {
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
   const [selectedDate, setSelectedDate] = useState<string | null>(
-    formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
+    dateKeyOf(today.getFullYear(), today.getMonth(), today.getDate())
   )
   const [dialogOpen, setDialogOpen] = useState(false)
   const [gcalDialogOpen, setGcalDialogOpen] = useState(false)
@@ -63,7 +60,7 @@ export function CalendarPage({ embedded }: { embedded?: boolean }) {
   const [detailEvent, setDetailEvent] = useState<Entity | ICalEvent | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
-  const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate())
+  const todayKey = dateKeyOf(today.getFullYear(), today.getMonth(), today.getDate())
 
   const entitiesByDate = useMemo(() => {
     const map: Record<string, Entity[]> = {}

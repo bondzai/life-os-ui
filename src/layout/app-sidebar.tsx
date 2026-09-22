@@ -32,7 +32,8 @@ import {
 import { useAuthStore } from '@/stores/auth-store'
 import { useFocusStore } from '@/stores/focus-store'
 import { useEntities } from '@/core/hooks'
-import { isTask } from '@/core/types'
+import { isDueTask } from '@/core/types'
+import { dateKey } from '@/lib/dates'
 import { getModuleGroups, DEFAULT_COLLAPSED_GROUPS } from '@/core/config/modules'
 import { exportData, importData } from '@/lib/data-backup'
 import { notify } from '@/lib/notify'
@@ -81,10 +82,10 @@ export function AppSidebar() {
 
   // Badge counts
   const { items: allEntities } = useEntities()
-  const today = new Date().toISOString().split('T')[0]
-  const dueTaskCount = allEntities.filter(
-    (e) => isTask(e) && e.status !== 'done' && e.status !== 'archived' && e.dueDate && e.dueDate <= today,
-  ).length
+  // The local day — `toISOString()` is UTC, which in Bangkok moves "today" back a day until 7am.
+  const today = dateKey(new Date())
+  // Exactly what the Tasks page lists under Today. See `isDueTask` for why they must agree.
+  const dueTaskCount = allEntities.filter((e) => isDueTask(e, today)).length
 
   const badges: Record<string, number> = {}
   if (dueTaskCount > 0) badges['tasks'] = dueTaskCount
@@ -197,7 +198,7 @@ export function AppSidebar() {
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {/* Paused focus session reminder — always first */}
-                    {group === 'Core' && hasActiveSession && location.pathname !== '/deep-work' && (
+                    {group === 'Now' && hasActiveSession && location.pathname !== '/deep-work' && (
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           onClick={() => handleNav('/deep-work')}
@@ -247,7 +248,16 @@ export function AppSidebar() {
                                 <span className="ml-auto text-xs bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center">
                                   {badges[mod.id]}
                                 </span>
-                              ) : null}
+                              ) : (
+                                /* `g` then this letter. A shortcut nobody can see is a shortcut
+                                   nobody uses, and the sidebar is where you already look for the
+                                   destination — so it teaches itself on the way past. It shows on
+                                   hover only, because a column of grey letters beside every item
+                                   is noise once you have learned them. */
+                                <kbd className="ml-auto hidden font-mono text-[10px] text-muted-foreground/50 group-hover/menu-item:inline">
+                                  g {mod.goKey}
+                                </kbd>
+                              )}
                               {hasChildren && (
                                 <CollapsibleTrigger asChild>
                                   <span

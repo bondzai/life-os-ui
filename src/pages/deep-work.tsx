@@ -22,7 +22,8 @@ import { useEntities, useTrackers } from '@/core/hooks'
 import { useAuthStore } from '@/stores/auth-store'
 import { useFocusStore } from '@/stores/focus-store'
 import { TaskDetailPanel } from '@/pages/tasks/task-detail-panel'
-import { InboxCapture } from '@/components/inbox-capture'
+import { CommandBar } from '@/pages/ai/command-bar'
+import { useGlobalShortcuts } from '@/hooks/use-keybindings'
 import { LyraCoach } from '@/pages/deep-work/lyra-coach'
 import { SessionPlanner } from '@/pages/deep-work/session-planner'
 import { SessionReflection } from '@/pages/deep-work/session-reflection'
@@ -676,6 +677,19 @@ function SessionHistoryPanel({ sessionId, trackers, entityTitles, onUpdate, onDe
 
 export function DeepWorkPage() {
   const navigate = useNavigate()
+
+  // Deep Work renders outside AppLayout, which is where the global shortcuts normally live. The
+  // capture dialog used to bring its own listener, so removing it would have quietly cost this
+  // page ⌘K and ⌘⇧I — the two you most want while heads-down.
+  useGlobalShortcuts(
+    useMemo(
+      () => ({
+        'command-bar': () => useUiStore.getState().openCommandBar(),
+        'quick-capture': () => useUiStore.getState().openCommandBar('/'),
+      }),
+      [],
+    ),
+  )
   const {
     activeEntityId,
     emperorEntityIds,
@@ -1152,7 +1166,7 @@ export function DeepWorkPage() {
           )}
           <span className="w-px h-3 bg-zinc-800" />
           <button
-            onClick={() => useUiStore.getState().setCaptureOpen(true)}
+            onClick={() => useUiStore.getState().openCommandBar('/')}
             className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-zinc-600 hover:text-zinc-400 cursor-pointer"
             title="Quick Capture (⌘⇧I)"
           >
@@ -1387,7 +1401,8 @@ export function DeepWorkPage() {
         onDelete={handleDetailDelete}
         allTasks={allEntities}
       />
-      <InboxCapture />
+      {/* Deep Work renders outside AppLayout, so it mounts the palette itself. */}
+      <CommandBar />
       {sessionId && (
         <LyraCoach
           phase={phase}

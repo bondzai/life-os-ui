@@ -1,5 +1,6 @@
 import type { IRepository } from './base-repository'
 import { API_URL } from '@/lib/api-url'
+import { authHeaders } from '@/lib/api-client'
 
 export class ApiRepository<T extends { id: string }> implements IRepository<T> {
   protected readonly baseUrl: string
@@ -11,11 +12,7 @@ export class ApiRepository<T extends { id: string }> implements IRepository<T> {
   }
 
   protected getHeaders(): HeadersInit {
-    const token = localStorage.getItem('lyra:token')
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    }
+    return authHeaders()
   }
 
   private handleUnauthorized(res: Response): void {

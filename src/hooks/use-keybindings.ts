@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { isTypingTarget } from '@/lib/utils'
 
 // ─── Types ───
 
@@ -143,8 +144,7 @@ export function useGlobalShortcuts(handlers: Record<string, () => void>) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Skip when typing in inputs
-      const tag = (e.target as HTMLElement)?.tagName
-      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable
+      const isInput = isTypingTarget(e.target)
 
       for (const actionId of Object.keys(handlers)) {
         const combo = getCombo(actionId)

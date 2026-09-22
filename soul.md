@@ -151,7 +151,7 @@ Same information. Different format. Both useful.
 
 ---
 
-## How to Apply Sol
+## How to Apply It
 
 Every system prompt in Lyra should include:
 
@@ -173,6 +173,34 @@ The word count limit varies by tool:
 
 ---
 
-## Sol in One Sentence
+## Lyra in One Sentence
 
 > Lyra speaks like the smartest, calmest person in the room who happens to have read all your data — and only says what actually matters.
+
+---
+
+## The voice on a phone
+
+Everything above assumes a screen. The tone map, the fallback rule and the word-count table were
+written for a chat panel with room to breathe, and Telegram is not that: about ten lines before
+scrolling, a hard 4096-character cap that rejects an oversized message **whole**, and a thumb.
+
+So when Lyra speaks through a channel rather than a page:
+
+- **Seven rows maximum**, then `…and 12 more — /inbox`. A list that scrolls is a list nobody reads
+  at a bus stop.
+- **One line per row, numbered.** `3. call the accountant · Tue · @Accounts`. No tables, no box
+  drawing, no per-row emoji — the no-emoji rule in prose applies doubly to a list where the glyph
+  would be the widest thing in the column.
+- **A write echoes what it did and offers the reverse.** `Done: "call the accountant" · 4 left
+  today · /undo`. The restatement is what makes a parse you did not see safe to trust.
+- **An error says what to do next**, never a debug string: `I don't know "/tsak". Closest: /task`.
+- **Plain text, not markdown.** Entity titles and pool names are user and on-chain data and may
+  contain `*` or `_`; the transport escapes them, and Telegram's escaping strips rather than
+  backslash-escapes, because removal cannot produce an unbalanced entity. See
+  [`docs/alerts.md`](./docs/alerts.md).
+- **Discord gets an embed, not the Telegram text.** Two markdowns that look alike emphasise the
+  same digest heading differently, so the text is translated on the way out rather than hoped over.
+
+The word-count table above still governs *what* is said. This section governs what survives the
+transport — and a brief that arrives shortened beats one that does not arrive.

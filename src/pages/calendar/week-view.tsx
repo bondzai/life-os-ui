@@ -1,4 +1,5 @@
 import { useMemo, useRef, useEffect } from 'react'
+import { dateKey } from '@/lib/dates'
 import type { Entity } from '@/core/types'
 import type { ICalEvent } from '@/lib/ical'
 
@@ -22,10 +23,6 @@ const DAY_NAMES = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const HOUR_HEIGHT = 60 // pixels per hour
 
-function formatDateKey(d: Date): string {
-  return d.toISOString().split('T')[0]
-}
-
 function formatHour(h: number): string {
   if (h === 0) return '12 AM'
   if (h < 12) return `${h} AM`
@@ -34,7 +31,7 @@ function formatHour(h: number): string {
 }
 
 export function WeekView({ weekStart, entities, icalEvents, feedColorMap, onEventClick }: WeekViewProps) {
-  const today = formatDateKey(new Date())
+  const today = dateKey(new Date())
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Scroll to 8 AM on mount
@@ -93,7 +90,7 @@ export function WeekView({ weekStart, entities, icalEvents, feedColorMap, onEven
         <div className="w-12 sm:w-14 shrink-0 border-r" />
         {/* Day columns */}
         {days.map((day, i) => {
-          const key = formatDateKey(day)
+          const key = dateKey(day)
           const isToday = key === today
           return (
             <div
@@ -118,7 +115,7 @@ export function WeekView({ weekStart, entities, icalEvents, feedColorMap, onEven
       {/* All-day events row */}
       {(() => {
         const hasAllDay = days.some((d) => {
-          const key = formatDateKey(d)
+          const key = dateKey(d)
           return (icalByDate[key] ?? []).some((e) => e.isAllDay)
         })
         if (!hasAllDay) return null
@@ -128,7 +125,7 @@ export function WeekView({ weekStart, entities, icalEvents, feedColorMap, onEven
               <span className="text-[10px] text-muted-foreground">ALL</span>
             </div>
             {days.map((day) => {
-              const key = formatDateKey(day)
+              const key = dateKey(day)
               const allDay = (icalByDate[key] ?? []).filter((e) => e.isAllDay)
               const isToday = key === today
               return (
@@ -174,7 +171,7 @@ export function WeekView({ weekStart, entities, icalEvents, feedColorMap, onEven
 
           {/* Day columns with hour grid */}
           {days.map((day) => {
-            const key = formatDateKey(day)
+            const key = dateKey(day)
             const isToday = key === today
             const dayEntities = entitiesByDate[key] ?? []
             const dayIcal = (icalByDate[key] ?? []).filter((e) => !e.isAllDay)

@@ -52,8 +52,10 @@ Foundation for Option C (AI OS Layer).
 
 - [ ] **Entity relationship graph**: Visual graph of all entity connections (goals ↔ tasks ↔ knowledge ↔ decisions)
 - [ ] **Auto-link suggestions**: AI suggests connections between entities based on content/tags
-- [ ] **Personal API**: Expose read-only API of your structured data for external tools/agents
-- [ ] **Agent orchestration hooks**: Define triggers that spawn AI agents (research, review, strategy)
+- [ ] **Personal API**: Expose read-only API of your structured data for external tools/agents —
+  this is the MCP life-OS read surface, Stage B of [`docs/assistant-roadmap.md`](./docs/assistant-roadmap.md)
+- [ ] **Agent orchestration hooks**: Define triggers that spawn AI agents (research, review,
+  strategy) — this is the job queue plus `lyra-agent`, Stages D and E of the same document
 
 ---
 
@@ -206,17 +208,19 @@ AI-generated morning intelligence briefing.
 
 ---
 
-## Phase 3.5 — Backend (Deferred)
+## Phase 3.5 — Superseded
 
-### OpenClaw Integration
-- [ ] Create OpenClaw AI provider skill in `src/core/ai/`
-- [ ] Connect to OpenClaw agent hub on mini PC
-- [ ] Enable agent-to-agent communication for automated tasks
+### OpenClaw Integration — abandoned
+OpenClaw was never built. The always-on-agent-hub role it was going to fill is filled by
+`tgbot.rs`, and agent-to-agent communication is the job queue in
+[`docs/assistant-roadmap.md`](./docs/assistant-roadmap.md). Kept here so the intent is traceable;
+see [`docs/openclaw-integration.md`](./docs/openclaw-integration.md) for the original plan.
 
-### Cron Jobs / Scheduled Tasks
-- [ ] Daily brief generation (morning summary)
-- [ ] Habit streak reset at midnight if not checked in
-- [ ] Weekly/monthly report generation
+### Cron Jobs / Scheduled Tasks → the job queue
+Daily brief generation exists today as `maybe_digest` inside `alert_loop`, with no retry: a
+Telegram outage at digest hour loses the brief silently. That, habit resets and report generation
+are all one thing — a durable work item with a schedule, a payload and a retry — and they are
+Stage A3 / D2' of [`docs/assistant-roadmap.md`](./docs/assistant-roadmap.md).
 
 ---
 

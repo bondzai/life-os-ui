@@ -110,10 +110,24 @@ write_plist() {
     printf '    <key>PORT</key><string>%s</string>\n' "$PORT"
     printf '    <key>LYRA_DB</key><string>%s/data/lyra.db</string>\n' "$PREFIX"
     printf '    <key>LYRA_UI_DIR</key><string>%s/ui</string>\n' "$PREFIX"
+    # An allowlist, so it must grow with the code. Every variable the server reads and is not on
+    # this line is silently absent from the installed service — set in .env.local, working under
+    # `cargo run`, and dead in production, with nothing anywhere saying why.
+    #
+    # Deliberately absent: PORT, LYRA_DB and LYRA_UI_DIR (set above, from the install layout), and
+    # LYRA_HTTP_CACHE / LYRA_HTTP_FIXTURES, which point the chain client at recorded test
+    # responses — forwarding those would let a stray line in .env.local make production report
+    # fixture balances as your money.
     for key in JWT_SECRET ALERT_WALLETS KUCOIN_API_KEY KUCOIN_API_SECRET KUCOIN_API_PASSPHRASE \
-               TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID ALERT_INTERVAL DIGEST_HOUR SNAPSHOT_INTERVAL \
-               SNAPSHOT_GROUP GCAL_API_KEY LYRA_KNOWLEDGE_PATH; do
-      value="$(env_value "$key")"
+               TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID TELEGRAM_OWNER_USER_ID DISCORD_WEBHOOK_URL \
+               ALERT_INTERVAL ALERT_FEE_USD ALERT_HF ALERT_REPORT_CCY DIGEST_HOUR HABITS_NUDGE_HOUR \
+               SNAPSHOT_INTERVAL SNAPSHOT_GROUP LYRA_JOBS LYRA_KNOWLEDGE_PATH GCAL_API_KEY \
+               GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REDIRECT_URI FRONTEND_URL CORS_ORIGINS \
+               RUST_LOG; do
+      # Escaped for XML, because this is written into a plist. A value with a bare `&` — a
+      # redirect URI with two query parameters, a webhook URL with a thread id — produced a file
+      # launchd refused to load, and the service simply did not start.
+      value="$(env_value "$key" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')"
       # An empty value is not the same as unset — `telegram_ready()` and friends check for
       # non-empty, and writing a blank string keeps that check honest.
       [ -n "$value" ] && printf '    <key>%s</key><string>%s</string>\n' "$key" "$value"

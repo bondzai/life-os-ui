@@ -9,6 +9,8 @@
 //! only this crate.
 
 pub mod import;
+pub mod jobs;
+pub mod life;
 pub mod migrations;
 pub mod wealth;
 
@@ -83,6 +85,8 @@ mod tests {
             "analyses",
             "entities",
             "google_tokens",
+            "job_effects",
+            "jobs",
             "kv_cache",
             "nw_history",
             "pos_perf",

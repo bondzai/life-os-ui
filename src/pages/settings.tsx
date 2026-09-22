@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Database, Cloud, Sparkles, Info, Keyboard, AlertTriangle, RotateCcw } from 'lucide-react'
+import { Database, Cloud, Sparkles, Info, Keyboard, AlertTriangle, RotateCcw, Brain, ChevronRight } from 'lucide-react'
+import { Link } from 'react-router'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -61,6 +62,28 @@ export function SettingsPage() {
 
   return (
     <div className="max-w-lg space-y-8">
+      {/* Lyra — the AI's persona, agents and context.
+
+          It used to sit in the sidebar under Plan, next to Notes, labelled "Knowledge", which is
+          where you would look for something you wrote rather than for how the assistant behaves.
+          It is configuration, so it lives here. Its own page is unchanged; only the way in moved. */}
+      <section className="space-y-3">
+        <Label className="text-xs tracking-wider text-muted-foreground uppercase">Lyra</Label>
+        <Link
+          to="/knowledge"
+          className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
+        >
+          <Brain className="size-5 shrink-0 text-muted-foreground" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">Persona, agents & context</p>
+            <p className="text-[10px] text-muted-foreground">What Lyra knows about you and how it answers</p>
+          </div>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        </Link>
+      </section>
+
+      <Separator />
+
       {/* Data Mode */}
       <section className="space-y-3">
         <Label className="text-xs uppercase tracking-wider text-muted-foreground">Data Mode</Label>
