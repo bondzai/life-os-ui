@@ -32,6 +32,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { Entity, EntityStatus, EntityPriority } from '@/core/types'
 import { isTask } from '@/core/types'
+import { isDueTask } from '@/core/types'
+import { dateKey } from '@/lib/dates'
 
 type ViewMode = 'list' | 'kanban' | 'backlog' | 'log'
 
@@ -171,9 +173,12 @@ export function TasksPage() {
 
   // ── Time-grouped list view ──────────────────────────────────────────
 
-  const todayStr = new Date().toISOString().split('T')[0]
-  const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0] })()
-  const weekEndStr = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0] })()
+  // Local days. These were `toISOString()`, which is UTC: in Bangkok every group boundary sat a day
+  // behind until 7am, so an item due today was filed under "tomorrow" at breakfast.
+  const inDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return dateKey(d) }
+  const todayStr = inDays(0)
+  const tomorrowStr = inDays(1)
+  const weekEndStr = inDays(7)
 
   const sortByPriority = (items: Entity[]) =>
     [...items].sort((a, b) => (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2))
@@ -189,7 +194,8 @@ export function TasksPage() {
   )
 
   const todayGroup = useMemo(
-    () => sortByPriority(activeWsTasks.filter((t) => t.dueDate && t.dueDate <= todayStr)),
+    // The same rule the sidebar badge counts with — see `isDueTask`.
+    () => sortByPriority(activeWsTasks.filter((t) => isDueTask(t, todayStr))),
     [activeWsTasks, todayStr],
   )
   const tomorrowGroup = useMemo(

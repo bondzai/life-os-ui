@@ -32,7 +32,8 @@ import {
 import { useAuthStore } from '@/stores/auth-store'
 import { useFocusStore } from '@/stores/focus-store'
 import { useEntities } from '@/core/hooks'
-import { isTask } from '@/core/types'
+import { isDueTask } from '@/core/types'
+import { dateKey } from '@/lib/dates'
 import { getModuleGroups, DEFAULT_COLLAPSED_GROUPS } from '@/core/config/modules'
 import { exportData, importData } from '@/lib/data-backup'
 import { notify } from '@/lib/notify'
@@ -81,10 +82,10 @@ export function AppSidebar() {
 
   // Badge counts
   const { items: allEntities } = useEntities()
-  const today = new Date().toISOString().split('T')[0]
-  const dueTaskCount = allEntities.filter(
-    (e) => isTask(e) && e.status !== 'done' && e.status !== 'archived' && e.dueDate && e.dueDate <= today,
-  ).length
+  // The local day — `toISOString()` is UTC, which in Bangkok moves "today" back a day until 7am.
+  const today = dateKey(new Date())
+  // Exactly what the Tasks page lists under Today. See `isDueTask` for why they must agree.
+  const dueTaskCount = allEntities.filter((e) => isDueTask(e, today)).length
 
   const badges: Record<string, number> = {}
   if (dueTaskCount > 0) badges['tasks'] = dueTaskCount
