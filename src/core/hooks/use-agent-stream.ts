@@ -25,8 +25,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { API_URL } from '@/lib/api-url'
+import { apiGet, apiSend } from '@/lib/api-client'
 
-export type AgentStatus = 'idle' | 'working' | 'starting'
+export type AgentStatus = 'idle' | 'working'
 
 export interface CurrentJob {
   id: string
@@ -59,7 +60,6 @@ const MAX_RETRY_MS = 15_000
 const SILENCE_MS = 65_000
 /** Failures before the socket stops being the only plan. */
 const FALLBACK_AFTER = 3
-const POLL_MS = 5_000
 
 function backoff(attempt: number): number {
   const flat = Math.min(FIRST_RETRY_MS * 2 ** attempt, MAX_RETRY_MS)
@@ -108,11 +108,6 @@ export function useAgentStream(enabled = true) {
     if (!enabled) return
     live.current = true
 
-    const clearTimers = () => {
-      if (retryTimer.current) clearTimeout(retryTimer.current)
-      if (watchdog.current) clearTimeout(watchdog.current)
-    }
-
     /** Any traffic at all resets the clock; silence past SILENCE_MS is a dead socket. */
     const heard = () => {
       if (watchdog.current) clearTimeout(watchdog.current)
@@ -124,11 +119,8 @@ export function useAgentStream(enabled = true) {
 
     const poll = async () => {
       try {
-        const token = localStorage.getItem('lyra:token')
-        const res = await fetch(`${API_URL}/agents`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        if (res.ok) apply({ type: 'snapshot', ...(await res.json()), at: 0 })
+        const { agents } = await apiGet<{ agents: Agent[] }>('agents')
+        apply({ type: 'snapshot', agents, at: 0 })
       } catch {
         // The socket is already retrying; a failed poll needs no separate alarm.
       }
@@ -137,15 +129,9 @@ export function useAgentStream(enabled = true) {
     const connect = async () => {
       if (!live.current) return
       try {
-        const token = localStorage.getItem('lyra:token')
         // The JWT buys a ticket over an ordinary authenticated POST; only the ticket goes in the
         // URL, because a query string is logged and a JWT in a log is a session anyone can take.
-        const res = await fetch(`${API_URL}/agents/ticket`, {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        if (!res.ok) throw new Error(`ticket refused: ${res.status}`)
-        const { ticket } = await res.json()
+        const { ticket } = await apiSend<{ ticket: string }>('POST', 'agents/ticket')
         if (!live.current) return
 
         const ws = new WebSocket(socketUrl(ticket))
@@ -167,20 +153,26 @@ export function useAgentStream(enabled = true) {
         }
         ws.onerror = () => ws.close()
         ws.onclose = () => {
-          if (!live.current) return
           socket.current = null
-          attempts.current += 1
-          setLink(attempts.current >= FALLBACK_AFTER ? 'polling' : 'retrying')
-          if (attempts.current >= FALLBACK_AFTER) void poll()
-          retryTimer.current = setTimeout(connect, backoff(attempts.current))
+          failed()
         }
       } catch {
-        if (!live.current) return
-        attempts.current += 1
-        setLink(attempts.current >= FALLBACK_AFTER ? 'polling' : 'retrying')
-        if (attempts.current >= FALLBACK_AFTER) void poll()
-        retryTimer.current = setTimeout(connect, backoff(attempts.current))
+        failed()
       }
+    }
+
+    /**
+     * One path back in, whichever way the attempt failed — a refused ticket or a socket that
+     * closed. It was written out twice, and two copies of a retry policy is how one of them ends
+     * up with a different threshold.
+     */
+    function failed() {
+      if (!live.current) return
+      attempts.current += 1
+      const degraded = attempts.current >= FALLBACK_AFTER
+      setLink(degraded ? 'polling' : 'retrying')
+      if (degraded) void poll()
+      retryTimer.current = setTimeout(connect, backoff(attempts.current))
     }
 
     void connect()
@@ -201,7 +193,8 @@ export function useAgentStream(enabled = true) {
 
     return () => {
       live.current = false
-      clearTimers()
+      if (retryTimer.current) clearTimeout(retryTimer.current)
+      if (watchdog.current) clearTimeout(watchdog.current)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('online', retryNow)
       socket.current?.close()
@@ -212,5 +205,3 @@ export function useAgentStream(enabled = true) {
   return { agents, link }
 }
 
-/** Poll interval the fallback uses, exported so a test does not have to guess it. */
-export const AGENT_POLL_MS = POLL_MS

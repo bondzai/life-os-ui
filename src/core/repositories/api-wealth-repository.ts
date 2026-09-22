@@ -10,7 +10,7 @@
  * the class directly, since they are not part of what a mock portfolio source needs to provide.
  */
 
-import { API_URL } from '@/lib/api-url'
+import { apiGet, apiSend } from '@/lib/api-client'
 import type { WealthDataSource } from '@/pages/wealth/data-source'
 import type {
   AlertStatus,
@@ -82,50 +82,8 @@ async function importLocalAssets(): Promise<void> {
   }
 }
 
-function getHeaders(): HeadersInit {
-  const token = localStorage.getItem('lyra:token')
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }
-}
-
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}/${path}`, { headers: getHeaders() })
-  if (res.status === 401) {
-    localStorage.removeItem('lyra:token')
-    localStorage.removeItem('lyra:auth')
-    window.location.href = '/login'
-    throw new Error('Session expired')
-  }
-  if (!res.ok) {
-    // The surfaces show this text verbatim, so it has to name the failure, not just "error".
-    throw new Error(`Failed to fetch ${path} (${res.status})`)
-  }
-  return res.json() as Promise<T>
-}
-
-async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_URL}/${path}`, {
-    method,
-    headers: getHeaders(),
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  if (res.status === 401) {
-    localStorage.removeItem('lyra:token')
-    localStorage.removeItem('lyra:auth')
-    window.location.href = '/login'
-    throw new Error('Session expired')
-  }
-  if (!res.ok) {
-    // The server names the offending field on a 422; surfacing that beats a generic failure.
-    const detail = await res.json().catch(() => null)
-    throw new Error(detail?.error ?? `Failed to ${method.toLowerCase()} ${path} (${res.status})`)
-  }
-  // A 204 has no body to parse — `DELETE` answers with one, and `res.json()` would throw on it.
-  if (res.status === 204) return null as T
-  return res.json() as Promise<T>
-}
+const get = apiGet
+const send = apiSend
 
 function post<T>(path: string, body: unknown): Promise<T> {
   return send<T>('POST', path, body)

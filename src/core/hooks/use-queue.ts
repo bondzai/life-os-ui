@@ -8,7 +8,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { API_URL } from '@/lib/api-url'
+import { apiGet, apiSend } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 
 export interface QueuedJob {
@@ -39,14 +39,7 @@ export function useQueue() {
     queryKey: ['jobs'],
     enabled: isAuthenticated,
     refetchInterval: REFETCH_MS,
-    queryFn: async () => {
-      const token = localStorage.getItem('lyra:token')
-      const res = await fetch(`${API_URL}/jobs`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!res.ok) throw new Error(`the queue could not be read (${res.status})`)
-      return res.json()
-    },
+    queryFn: () => apiGet<Queue>('jobs'),
   })
 }
 
@@ -61,20 +54,10 @@ export function useJobAction() {
   const client = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: 'retry' | 'cancel' }) => {
-      const token = localStorage.getItem('lyra:token')
-      const res = await fetch(`${API_URL}/jobs/${encodeURIComponent(id)}/${action}`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!res.ok) {
-        // The server says *which* state made it impossible — "this one is running" — which is
-        // the only thing worth showing. A bare status code would tell the reader nothing.
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error ?? `could not ${action} (${res.status})`)
-      }
-      return res.json()
-    },
+    // A 409 comes back carrying *which* state made it impossible — "this one is running" — and
+    // `apiSend` surfaces that sentence rather than a bare status code.
+    mutationFn: ({ id, action }: { id: string; action: 'retry' | 'cancel' }) =>
+      apiSend<unknown>('POST', `jobs/${encodeURIComponent(id)}/${action}`),
     onSuccess: () => client.invalidateQueries({ queryKey: ['jobs'] }),
   })
 }

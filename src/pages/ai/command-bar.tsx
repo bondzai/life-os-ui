@@ -41,6 +41,7 @@ import {
   type SlashCommand,
 } from '@/core/config/capture-protocol'
 import type { ChatCompletionMessage } from '@/core/types/ai'
+import { dateKey } from '@/lib/dates'
 
 interface SearchResult {
   id: string
@@ -85,6 +86,8 @@ export function CommandBar() {
   const isCaptureMode = !isAIMode && CAPTURE_TRIGGERS.some((p) => trimmed.startsWith(p))
 
   const searchResults = useFullTextSearch(isAIMode || isCaptureMode ? '' : query)
+  // Parsed once per render: the label beside the input, the hint below it and Enter all read it.
+  const capture = isCaptureMode ? parseCapture(query) : null
 
   useEffect(() => {
     if (open) {
@@ -203,7 +206,9 @@ export function CommandBar() {
       visibility: 'private',
       createdAt: now,
       updatedAt: now,
-      ...(rule.entityType === 'task' ? { dueDate: now.split('T')[0] } : {}),
+      // The *local* day. `toISOString()` is UTC, so east of Greenwich a task captured before
+      // morning was due yesterday — the exact mistake `dateKey` exists to prevent.
+      ...(rule.entityType === 'task' ? { dueDate: dateKey(new Date()) } : {}),
     })
 
     // Confirmation in place of a toast: the palette is still open and covering the screen, so a
@@ -295,7 +300,7 @@ export function CommandBar() {
               lost if you cannot tell which one you are in. */}
           {isCaptureMode && suggestions.length === 0 && (
             <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {parseCapture(query).rule.label}
+              {capture?.rule.label}
             </span>
           )}
         </div>
@@ -306,7 +311,7 @@ export function CommandBar() {
           ) : isAIMode ? (
             <div className="p-4">
               {aiLoading && !aiResponse && (
-                <p className="animate-pulse text-sm text-muted-foreground">Thinking…</p>
+                <p className="text-sm text-muted-foreground motion-safe:animate-pulse">Thinking…</p>
               )}
               {aiResponse && <p className="text-sm whitespace-pre-wrap">{aiResponse}</p>}
               {!aiLoading && !aiResponse && (
@@ -317,11 +322,11 @@ export function CommandBar() {
             </div>
           ) : isCaptureMode ? (
             <div className="p-4 text-sm text-muted-foreground">
-              Enter to capture as <span className="font-medium text-foreground">{parseCapture(query).rule.label}</span>
+              Enter to capture as <span className="font-medium text-foreground">{capture?.rule.label}</span>
               {' · '}Esc to close
             </div>
           ) : groupedResults.length > 0 ? (
-            <ResultList groups={groupedResults} cursor={cursor} flat={flatResults} />
+            <ResultList groups={groupedResults} selectedId={flatResults[cursor]?.id} />
           ) : query ? (
             <div className="p-4 text-center">
               <p className="text-sm text-muted-foreground">No results found.</p>
@@ -455,12 +460,11 @@ function Row({
 
 function ResultList({
   groups,
-  cursor,
-  flat,
+  selectedId,
 }: {
   groups: [string, SearchResult[]][]
-  cursor: number
-  flat: SearchResult[]
+  /** The row the keyboard is on. Passed resolved, so this does not re-derive the flat list. */
+  selectedId: string | undefined
 }) {
   return (
     <div className="py-2">
@@ -474,7 +478,7 @@ function ResultList({
               key={r.id}
               onClick={r.action}
               className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
-                flat[cursor]?.id === r.id ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
+                selectedId === r.id ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
               }`}
             >
               <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />

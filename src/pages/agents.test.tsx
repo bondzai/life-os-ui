@@ -70,8 +70,8 @@ function row(kind: string) {
 describe('Recent work', () => {
   it('offers Retry on a failed job and nothing else', async () => {
     mount()
-    await screen.findByText('deliver.telegram')
-    const dead = row('deliver.telegram')
+    await screen.findByText('Send a message')
+    const dead = row('Send a message')
     expect(within(dead).getByRole('button', { name: 'Retry' })).toBeDefined()
     expect(within(dead).queryByRole('button', { name: 'Cancel' })).toBeNull()
     // Why it died is shown, because it is the reason the row was kept.
@@ -80,22 +80,45 @@ describe('Recent work', () => {
 
   it('offers Cancel on a queued job and never Retry, which would run it twice', async () => {
     mount()
-    await screen.findByText('digest.daily')
-    const waiting = row('digest.daily')
+    await screen.findByText('Daily brief')
+    const waiting = row('Daily brief')
     expect(within(waiting).getByRole('button', { name: 'Cancel' })).toBeDefined()
     expect(within(waiting).queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 
   it('offers nothing on work that finished well', async () => {
     mount()
-    await screen.findByText('snapshot.networth')
-    expect(within(row('snapshot.networth')).queryByRole('button')).toBeNull()
+    await screen.findByText('Net-worth snapshot')
+    expect(within(row('Net-worth snapshot')).queryByRole('button')).toBeNull()
   })
 
   it('posts the retry to that job', async () => {
     mount()
-    await screen.findByText('deliver.telegram')
-    fireEvent.click(within(row('deliver.telegram')).getByRole('button', { name: 'Retry' }))
+    await screen.findByText('Send a message')
+    fireEvent.click(within(row('Send a message')).getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(posts.some((u) => u.endsWith('/jobs/dead/retry'))).toBe(true))
+  })
+
+  it('shows what the work is, not what the queue calls it', async () => {
+    // `deliver.telegram` is right in a log and wrong on a page you read to find out what your
+    // assistant is doing. The system name stays on hover, for debugging.
+    mount()
+    const label = await screen.findByText('Send a message')
+    expect(label.getAttribute('title')).toBe('deliver.telegram')
+    expect(screen.queryByText('deliver.telegram')).toBeNull()
+    expect(screen.queryByText('batch')).toBeNull()
+  })
+
+  it('says the queue could not be read rather than showing a dash that looks like nothing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.endsWith('/jobs')
+          ? { ok: false, status: 500, json: async () => ({}) }
+          : { ok: true, json: async () => ({ ticket: 't', agents: [] }) },
+      ),
+    )
+    mount()
+    expect(await screen.findByText(/could not read the queue/)).toBeDefined()
   })
 })

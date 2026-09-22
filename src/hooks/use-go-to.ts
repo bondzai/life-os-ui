@@ -15,6 +15,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { goKeyIndex } from '@/core/config/modules'
+import { isTypingTarget } from '@/lib/utils'
 
 /** How long `g` stays armed. Long enough for a deliberate two-key gesture, short enough to forget. */
 const ARM_MS = 1200
@@ -27,9 +28,7 @@ export function useGoTo() {
     const handler = (e: KeyboardEvent) => {
       // Never while typing, and never as half of a real shortcut.
       if (e.metaKey || e.ctrlKey || e.altKey) return
-      const target = e.target as HTMLElement | null
-      const tag = target?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
+      if (isTypingTarget(e.target)) return
 
       const armed = Date.now() - armedAt.current < ARM_MS
       if (!armed) {

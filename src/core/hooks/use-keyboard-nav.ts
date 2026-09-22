@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { isTypingTarget } from '@/lib/utils'
 
 /**
  * J/K keyboard navigation for entity lists.
@@ -29,8 +30,7 @@ export function useKeyboardNav<T>(
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Skip when typing in inputs or modals
-      const tag = document.activeElement?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (isTypingTarget(document.activeElement)) return
       if (e.metaKey || e.ctrlKey || e.altKey) return
 
       // Skip if a dialog/sheet is open (check for radix overlay)
