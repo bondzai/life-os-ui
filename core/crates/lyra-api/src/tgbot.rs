@@ -271,6 +271,10 @@ fn help() -> String {
     for (name, description) in crate::bot_life::COMMANDS {
         out.push_str(&format!("/{name} — {description}\n"));
     }
+    out.push_str("\nThe queue\n");
+    for (name, description) in crate::bot_jobs::COMMANDS {
+        out.push_str(&format!("/{name} — {description}\n"));
+    }
     out.push_str("\nYour money\n");
     for (name, description) in COMMANDS {
         out.push_str(&format!("/{name} — {description}\n"));
@@ -284,6 +288,14 @@ fn help() -> String {
 async fn handle(state: &AppState, user_id: Option<&str>, text: &str) -> String {
     let lowered = text.to_lowercase();
     let command = command_of(&lowered);
+
+    // The queue, which needs no user row — only the argument after the command word.
+    if crate::bot_jobs::handles(command) {
+        let argument = text.split_whitespace().nth(1);
+        if let Some(reply) = crate::bot_jobs::reply(state, command, argument).await {
+            return reply;
+        }
+    }
 
     // Life commands first, because they are the ones you will actually type.
     if crate::bot_life::handles(command) {
