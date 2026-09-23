@@ -10,7 +10,7 @@
  * a screen with no End button on it. The store is where the invariant is cheapest to state.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useFocusStore } from './focus-store'
 
 const initial = useFocusStore.getState()
@@ -76,5 +76,120 @@ describe('an open session', () => {
     const s = useFocusStore.getState()
     expect(s.emperorEntityIds).toEqual(['deleted-1'])
     expect(s.sessionId).not.toBeNull()
+  })
+})
+
+/**
+ * The timer against the clock.
+ *
+ * `secondsLeft` used to be the timer itself, and it was persisted, so time only passed while a
+ * tick was firing. Close the tab mid-block, open it the next morning, and the countdown picked up
+ * exactly where it left off — the night had not happened. The timer now runs on a deadline, which
+ * is the same instant whether the tab was shut, the laptop asleep, or the interval throttled.
+ */
+describe('the timer against the clock', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-23T09:00:00Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Put a session in localStorage as a previous visit would have left it, then come back. */
+  async function reopenWith(state: Record<string, unknown>) {
+    localStorage.setItem(
+      'lyra:focus',
+      JSON.stringify({ state: { ...useFocusStore.getState(), ...state }, version: 0 }),
+    )
+    await useFocusStore.persist.rehydrate()
+    return useFocusStore.getState()
+  }
+
+  it('counts a tick off the clock, not off the last rendered number', () => {
+    // A backgrounded tab fires this far less than once a second. Decrementing lost the
+    // difference, so the timer ran slow exactly when nobody was watching it.
+    useFocusStore.getState().startEmperorTime(['task-1'])
+    useFocusStore.getState().setPhase('work')
+    const full = useFocusStore.getState().secondsLeft
+
+    vi.advanceTimersByTime(10_000)
+    expect(useFocusStore.getState().tick()).toBe(false)
+
+    expect(useFocusStore.getState().secondsLeft).toBe(full - 10)
+  })
+
+  it('pauses on what is actually left, not on what was last drawn', () => {
+    useFocusStore.getState().startEmperorTime(['task-1'])
+    useFocusStore.getState().setPhase('work')
+    const full = useFocusStore.getState().secondsLeft
+
+    vi.advanceTimersByTime(90_000)
+    useFocusStore.getState().pauseTimer()
+
+    const s = useFocusStore.getState()
+    expect(s.secondsLeft).toBe(full - 90)
+    expect(s.isRunning).toBe(false)
+    expect(s.runningUntil).toBeNull()
+  })
+
+  it('holds its ground while paused, however long you are gone', () => {
+    useFocusStore.getState().startEmperorTime(['task-1'])
+    useFocusStore.getState().setPhase('work')
+    useFocusStore.getState().pauseTimer()
+    const left = useFocusStore.getState().secondsLeft
+
+    vi.advanceTimersByTime(3 * 60 * 60 * 1000)
+
+    expect(useFocusStore.getState().secondsLeft).toBe(left)
+  })
+
+  it('charges a closed tab for the time it was closed', async () => {
+    const s = await reopenWith({
+      sessionId: 'sess-1',
+      emperorEntityIds: ['task-1'],
+      phase: 'work',
+      isRunning: true,
+      secondsLeft: 25 * 60,
+      runningUntil: Date.now() + 25 * 60 * 1000 - 10 * 60 * 1000, // 10 minutes already gone
+    })
+
+    expect(s.secondsLeft).toBe(15 * 60)
+    expect(s.isRunning).toBe(true)
+  })
+
+  it('comes back idle from a block that ended overnight, crediting nothing', async () => {
+    // Deliberately not counted as a completed session: the tracker row would claim focus minutes
+    // for someone who shut the laptop and went to bed, and that number is the point of the
+    // feature. The session stays open, so it is still there to end or restart.
+    const s = await reopenWith({
+      sessionId: 'sess-1',
+      emperorEntityIds: ['task-1'],
+      phase: 'work',
+      isRunning: true,
+      completedSessions: 2,
+      secondsLeft: 18 * 60,
+      runningUntil: Date.now() - 8 * 60 * 60 * 1000,
+    })
+
+    expect(s.phase).toBe('idle')
+    expect(s.isRunning).toBe(false)
+    expect(s.runningUntil).toBeNull()
+    expect(s.completedSessions).toBe(2)
+    expect(s.sessionId).toBe('sess-1')
+  })
+
+  it('gives a session saved before deadlines existed one, rather than stranding it', async () => {
+    const s = await reopenWith({
+      sessionId: 'sess-1',
+      emperorEntityIds: ['task-1'],
+      phase: 'work',
+      isRunning: true,
+      secondsLeft: 300,
+      runningUntil: undefined,
+    })
+
+    expect(s.secondsLeft).toBe(300)
+    expect(s.runningUntil).toBe(Date.now() + 300_000)
   })
 })

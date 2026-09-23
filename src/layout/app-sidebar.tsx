@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/collapsible'
 import { useAuthStore } from '@/stores/auth-store'
 import { useFocusStore } from '@/stores/focus-store'
+import { useFocusCountdown } from '@/hooks/use-focus-countdown'
 import { useEntities } from '@/core/hooks'
 import { isDueTask } from '@/core/types'
 import { dateKey } from '@/lib/dates'
@@ -92,7 +93,7 @@ export function AppSidebar() {
 
   // Active focus session detection
   const hasActiveSession = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)
-  const focusSecondsLeft = useFocusStore((s) => s.secondsLeft)
+  const focusSecondsLeft = useFocusCountdown()
   const focusPhase = useFocusStore((s) => s.phase)
   const focusIsRunning = useFocusStore((s) => s.isRunning)
 
