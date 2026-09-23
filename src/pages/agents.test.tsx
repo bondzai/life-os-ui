@@ -122,3 +122,92 @@ describe('Recent work', () => {
     expect(await screen.findByText(/could not read the queue/)).toBeDefined()
   })
 })
+
+/**
+ * The office view.
+ *
+ * What is under test is that a desk speaks for itself: who sits there, what they are for, and —
+ * crucially — what an *idle* one has to say. A desk that goes blank between jobs reads as broken,
+ * which is the opposite of what this page is for.
+ */
+describe('The office', () => {
+  /** The last socket the hook opened, so a test can hand it frames. */
+  type FakeSocket = { onopen?: () => void; onmessage?: (e: { data: string }) => void }
+  let opened: FakeSocket | null = null
+  const capture = (ws: FakeSocket) => {
+    opened = ws
+  }
+
+  async function desk(name: string) {
+    return (await screen.findByText(name)).closest('li') as HTMLElement
+  }
+
+  async function office(agents: unknown[]) {
+    vi.stubGlobal(
+      'WebSocket',
+      class {
+        onopen?: () => void
+        onmessage?: (e: { data: string }) => void
+        constructor() {
+          capture(this)
+        }
+        close() {}
+      },
+    )
+    mount()
+    await waitFor(() => expect(opened).not.toBeNull())
+    opened!.onopen?.()
+    opened!.onmessage?.({ data: JSON.stringify({ type: 'snapshot', agents, at: 0 }) })
+  }
+
+  const AGENT = {
+    id: 'batch-0@1',
+    name: 'Analyst',
+    role: 'Reads the book',
+    lane: 'batch',
+    status: 'idle',
+    last_seen: Math.floor(Date.now() / 1000) - 30,
+    done: 4,
+    failed: 0,
+  }
+
+  it('puts a name and a role on every desk, in the room for its lane', async () => {
+    await office([AGENT, { ...AGENT, id: 'deliver-0@1', name: 'Relay', role: 'Sends messages', lane: 'deliver' }])
+    expect(await screen.findByText('Analyst')).toBeDefined()
+    expect(screen.getByText('Reads the book')).toBeDefined()
+    // The room heading is the lane in plain words. (The raw lane is on the heading's title, but
+    // it is not unique on the page — Recent work labels its lanes the same way.)
+    expect(screen.getByRole('heading', { name: 'Background' })).toBeDefined()
+    expect(screen.getByRole('heading', { name: 'Messages' })).toBeDefined()
+  })
+
+  it('lets an idle desk say what it last did, and whether it worked', async () => {
+    await office([{ ...AGENT, last_kind: 'snapshot.networth', last_ok: false, failed: 1 }])
+    const card = await desk('Analyst')
+    await waitFor(() => expect(within(card).getByText('Free')).toBeDefined())
+    // The outcome is a character, not only a colour, so it survives greyscale.
+    const last = within(card).getByTitle('snapshot.networth')
+    expect(last.textContent).toContain('Net-worth snapshot')
+    expect(last.textContent).toContain('✗')
+    expect(within(card).getByText(/1 failed/)).toBeDefined()
+  })
+
+  it('says a fresh desk has nothing to do rather than going blank', async () => {
+    await office([AGENT])
+    expect(await screen.findByText('Nothing to do yet')).toBeDefined()
+  })
+
+  it('shows the job on a working desk, with the word beside the light', async () => {
+    await office([
+      {
+        ...AGENT,
+        status: 'working',
+        job: { id: 'j1', kind: 'digest.daily', attempt: 2, started_at: Math.floor(Date.now() / 1000) - 5 },
+      },
+    ])
+    const card = await desk('Analyst')
+    await waitFor(() => expect(within(card).getByText('Working')).toBeDefined())
+    expect(within(card).getByText('Daily brief')).toBeDefined()
+    expect(within(card).getByText(/attempt 2/)).toBeDefined()
+  })
+})

@@ -5,8 +5,13 @@
  * **is the picture live**, **what is each one doing**, and **has any of them been failing**.
  * Everything else was left out; a fleet view that needs reading is a fleet view you stop opening.
  *
- * It is a list, not a grid of cards. Four agents today and a dozen later is a column you scan, and
- * comparison between rows — who has been idle, who is failing — only works when they line up.
+ * It is drawn as an office: rooms by lane, a desk per agent. A desk is a place, so it stays in the
+ * same spot whether or not anyone is working at it, and "who is free" is something you see rather
+ * than read. A row of identical ids taught you nothing; a named desk with a role on it says what
+ * that agent is for before it has done anything.
+ *
+ * An idle desk still has to talk. What it last ran, when, and whether that worked is the whole of
+ * what it has to say between jobs — a blank card reads as broken.
  *
  * The connection state is on the page rather than hidden, because "nothing is happening" and "we
  * lost the socket" look identical and mean opposite things.
@@ -135,11 +140,18 @@ export function AgentsPage() {
           }
         />
       ) : (
-        <ul className="divide-y rounded-lg border">
-          {agents.map((agent) => (
-            <AgentRow key={agent.id} agent={agent} />
-          ))}
-        </ul>
+        rooms(agents).map(([lane, desks]) => (
+          <section key={lane} className="space-y-2">
+            <h2 className="text-xs tracking-wide text-muted-foreground uppercase" title={lane}>
+              {laneLabel(lane)}
+            </h2>
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {desks.map((agent) => (
+                <Desk key={agent.id} agent={agent} />
+              ))}
+            </ul>
+          </section>
+        ))
       )}
 
       {/* Below the fleet, not above it: what is running is the question you came with, and what
@@ -253,30 +265,73 @@ function RecentJobs({ jobs }: { jobs: QueuedJob[] }) {
   )
 }
 
-function AgentRow({ agent }: { agent: Agent }) {
+/**
+ * The desks, grouped into rooms by lane.
+ *
+ * Lanes come out in the order they mean something to the reader — the ones you wait on first —
+ * rather than alphabetically or however the map happened to iterate. A lane nobody named goes
+ * last rather than being dropped, because an agent missing from this page is worse than an
+ * unfamiliar heading on it.
+ */
+const LANE_ORDER = ['interactive', 'batch', 'deliver']
+
+function rooms(agents: Agent[]): [string, Agent[]][] {
+  const byLane = new Map<string, Agent[]>()
+  for (const agent of agents) {
+    const desks = byLane.get(agent.lane)
+    if (desks) desks.push(agent)
+    else byLane.set(agent.lane, [agent])
+  }
+  const rank = (lane: string) => {
+    const i = LANE_ORDER.indexOf(lane)
+    return i === -1 ? LANE_ORDER.length : i
+  }
+  return [...byLane.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+}
+
+/**
+ * One desk: who sits here, what they are for, and what is on the desk right now.
+ *
+ * The status light is doubled by the word beside it — "Working" or "Free" — because a green dot
+ * and a grey dot are the same dot to a colourblind reader, and this is the one thing the page
+ * exists to tell you.
+ */
+function Desk({ agent }: { agent: Agent }) {
   const working = agent.status === 'working'
 
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
-      <span
-        className={cn(
-          'size-2 shrink-0 rounded-full',
-          working ? 'bg-emerald-500 motion-safe:animate-pulse' : 'bg-muted-foreground/30',
-        )}
-        role="img"
-        aria-label={working ? 'working' : 'idle'}
-      />
-
-      <div className="min-w-0 flex-1">
-        {/* The lane is the agent's job title and the id is its badge number. The lane leads,
-            because "which background worker" is a question you almost never have. */}
-        <p className="font-medium" title={agent.lane}>
-          {laneLabel(agent.lane)}
+    <li
+      className={cn(
+        'rounded-lg border px-4 py-3',
+        working && 'border-emerald-500/40 bg-emerald-500/5',
+      )}
+    >
+      <div className="flex items-baseline gap-2">
+        <span
+          className={cn(
+            'size-2 shrink-0 translate-y-px rounded-full',
+            working ? 'bg-emerald-500 motion-safe:animate-pulse' : 'bg-muted-foreground/30',
+          )}
+          aria-hidden
+        />
+        <p className="min-w-0 flex-1 truncate font-medium" title={agent.id}>
+          {agent.name}
         </p>
-        <p className="truncate font-mono text-[11px] text-muted-foreground">{agent.id}</p>
+        <span
+          className={cn(
+            'text-xs font-medium',
+            working ? 'text-emerald-700 dark:text-emerald-500' : 'text-muted-foreground',
+          )}
+        >
+          {working ? 'Working' : 'Free'}
+        </span>
       </div>
 
-      <div className="min-w-0 flex-[2]">
+      <p className="mt-0.5 text-xs text-muted-foreground">{agent.role}</p>
+
+      {/* The line that changes. Fixed height in both states so a desk picking up a job does not
+          shunt the rest of the room down the page. */}
+      <div className="mt-3 min-h-[2.5rem] border-t pt-2">
         {working && agent.job ? (
           <>
             <p className="truncate text-sm" title={agent.job.kind}>
@@ -287,19 +342,32 @@ function AgentRow({ agent }: { agent: Agent }) {
               {agent.job.attempt > 1 && ` · attempt ${agent.job.attempt}`}
             </p>
           </>
+        ) : agent.last_kind ? (
+          <>
+            <p className="truncate text-sm text-muted-foreground" title={agent.last_kind}>
+              {/* The tick and cross carry the outcome as a character, so it survives both
+                  colourblindness and a screenshot in greyscale. */}
+              <span className={agent.last_ok ? undefined : 'text-red-700 dark:text-red-400'}>
+                {agent.last_ok ? '✓' : '✗'}
+              </span>{' '}
+              {kindLabel(agent.last_kind)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              finished {formatRelativeTime(agent.last_seen)}
+            </p>
+          </>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            idle · {formatRelativeTime(agent.last_seen)}
-          </p>
+          <p className="text-sm text-muted-foreground">Nothing to do yet</p>
         )}
       </div>
 
-      <div className="text-right text-xs tabular-nums">
-        <p className="text-muted-foreground">{agent.done} done</p>
+      {/* The lifetime tally, quiet until it is bad news. */}
+      <p className="mt-2 text-xs tabular-nums text-muted-foreground">
+        {agent.done} done
         {agent.failed > 0 && (
-          <p className="text-red-700 dark:text-red-400">{agent.failed} failed</p>
+          <span className="text-red-700 dark:text-red-400"> · {agent.failed} failed</span>
         )}
-      </div>
+      </p>
     </li>
   )
 }

@@ -293,6 +293,8 @@ pub struct Worker {
     fleet: Option<crate::agents::Fleet>,
     /// Where a failed job is also recorded for the settings page. `None` in tests.
     meta: Option<crate::alert_loop::SharedMeta>,
+    /// What the fleet view calls this worker. Defaults to its lane's persona with one seat.
+    persona: (String, String),
 }
 
 impl Worker {
@@ -302,6 +304,9 @@ impl Worker {
         name: impl Into<String>,
         lanes: Vec<Lane>,
     ) -> Self {
+        // Read before `lanes` moves into the struct. One seat, since a worker built by hand is
+        // alone until `spawn` says otherwise.
+        let persona = persona(*lanes.first().unwrap_or(&Lane::Interactive), 0, 1);
         Self {
             queue,
             handlers,
@@ -311,6 +316,7 @@ impl Worker {
             clock: Arc::new(now_secs),
             fleet: None,
             meta: None,
+            persona,
         }
     }
 
@@ -325,6 +331,12 @@ impl Worker {
     /// rule every handler must remember is a rule the next handler forgets.
     pub fn reporting_to(mut self, meta: crate::alert_loop::SharedMeta) -> Self {
         self.meta = Some(meta);
+        self
+    }
+
+    /// Name this worker for the fleet view: who is at this desk, and what it is for.
+    pub fn introduced_as(mut self, name: String, role: String) -> Self {
+        self.persona = (name, role);
         self
     }
 
@@ -527,6 +539,8 @@ impl Worker {
         // should show a worker that came back, not one that silently stopped reporting.
         self.tell(crate::agents::Report::Started {
             id: self.name.clone(),
+            name: self.persona.0.clone(),
+            role: self.persona.1.clone(),
             lane: self
                 .lanes
                 .first()
@@ -601,12 +615,14 @@ pub fn spawn(state: AppState) {
     for (lane, count) in [(Lane::Interactive, 2), (Lane::Batch, 1), (Lane::Deliver, 1)] {
         for n in 0..count {
             let name = worker_name(lane, n);
+            let (agent_name, agent_role) = persona(lane, n, count);
             let queue = queue.clone();
             let handlers = Arc::clone(&handlers);
             let fleet = state.fleet.clone();
             let meta = Arc::clone(&state.alert_meta);
             supervise(name, move |name| {
                 Worker::new(queue.clone(), Arc::clone(&handlers), name, vec![lane])
+                    .introduced_as(agent_name.clone(), agent_role.clone())
                     .watched_by(fleet.clone())
                     .reporting_to(Arc::clone(&meta))
                     .run_forever()
@@ -633,6 +649,32 @@ pub fn spawn(state: AppState) {
 /// which is the only window in which the comparison means anything.
 fn worker_name(lane: Lane, n: usize) -> String {
     format!("{}-{n}@{}", lane.as_str(), std::process::id())
+}
+
+/// Who a worker is, for the people looking at it rather than for the queue.
+///
+/// Derived from the lane, because today that is the only thing that distinguishes one worker from
+/// another — they are identical loops reading different queues. It is a *table*, not a formatting
+/// rule, so that when agents start differing by what they can actually do, each one declares its
+/// own name and role here instead of being described by the queue it happens to read.
+///
+/// The ordinal is only shown when a lane has more than one seat: "Runner 1" and "Runner 2" are
+/// worth telling apart, "Relay 1" alone is not.
+pub fn persona(lane: Lane, n: usize, seats: usize) -> (String, String) {
+    let (name, role) = match lane {
+        Lane::Interactive => ("Runner", "Answers commands and anything you are waiting on"),
+        Lane::Batch => (
+            "Analyst",
+            "Reads the book: the daily brief and the net-worth series",
+        ),
+        Lane::Deliver => ("Relay", "Sends what the others write, and keeps trying"),
+    };
+    let name = if seats > 1 {
+        format!("{name} {}", n + 1)
+    } else {
+        name.to_string()
+    };
+    (name, role.to_string())
 }
 
 /// How long to wait before restarting a worker that panicked.
@@ -1082,5 +1124,21 @@ mod tests {
                 "dup",
                 HandlerError::Retry(anyhow::anyhow!("x")),
             )));
+    }
+
+    #[test]
+    fn one_seat_per_lane_goes_unnumbered() {
+        // "Analyst 1" with no Analyst 2 anywhere is a number that answers a question nobody asked.
+        let (name, role) = persona(Lane::Batch, 0, 1);
+        assert_eq!(name, "Analyst");
+        assert!(
+            !role.is_empty(),
+            "an empty desk still has to say what it is for"
+        );
+
+        let (first, _) = persona(Lane::Interactive, 0, 2);
+        let (second, _) = persona(Lane::Interactive, 1, 2);
+        assert_eq!(first, "Runner 1");
+        assert_eq!(second, "Runner 2");
     }
 }
