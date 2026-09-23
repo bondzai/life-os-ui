@@ -1,9 +1,9 @@
 /**
- * The Agents page's job controls.
+ * The Agents page: the job log and the office view.
  *
- * The rule under test is which action each row offers, because the wrong one is harmful rather
- * than merely useless: Retry on a queued job would run it twice, and Cancel on a running one
- * cannot be honoured.
+ * The rule under test in the log is which action each line offers, because the wrong one is
+ * harmful rather than merely useless: Retry on a queued job would run it twice, and Cancel on a
+ * running one cannot be honoured.
  */
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -63,50 +63,69 @@ function mount() {
   )
 }
 
+/** A log line, found by the kind it prints — which in the log is the system's own name. */
 function row(kind: string) {
   return screen.getByText(kind).closest('li') as HTMLElement
 }
 
-describe('Recent work', () => {
+describe('The job log', () => {
   it('offers Retry on a failed job and nothing else', async () => {
     mount()
-    await screen.findByText('Send a message')
-    const dead = row('Send a message')
+    await screen.findByText('deliver.telegram')
+    const dead = row('deliver.telegram')
     expect(within(dead).getByRole('button', { name: 'Retry' })).toBeDefined()
     expect(within(dead).queryByRole('button', { name: 'Cancel' })).toBeNull()
-    // Why it died is shown, because it is the reason the row was kept.
-    expect(within(dead).getByText('connection reset')).toBeDefined()
+    // Why it died is shown, because it is the reason the line was kept — indented onto its own
+    // line like a stack trace, so it never pushes the columns out of alignment.
+    expect(within(dead).getByText(/connection reset/)).toBeDefined()
   })
 
   it('offers Cancel on a queued job and never Retry, which would run it twice', async () => {
     mount()
-    await screen.findByText('Daily brief')
-    const waiting = row('Daily brief')
+    await screen.findByText('digest.daily')
+    const waiting = row('digest.daily')
     expect(within(waiting).getByRole('button', { name: 'Cancel' })).toBeDefined()
     expect(within(waiting).queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 
   it('offers nothing on work that finished well', async () => {
     mount()
-    await screen.findByText('Net-worth snapshot')
-    expect(within(row('Net-worth snapshot')).queryByRole('button')).toBeNull()
+    await screen.findByText('snapshot.networth')
+    expect(within(row('snapshot.networth')).queryByRole('button')).toBeNull()
   })
 
   it('posts the retry to that job', async () => {
     mount()
-    await screen.findByText('Send a message')
-    fireEvent.click(within(row('Send a message')).getByRole('button', { name: 'Retry' }))
+    await screen.findByText('deliver.telegram')
+    fireEvent.click(within(row('deliver.telegram')).getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(posts.some((u) => u.endsWith('/jobs/dead/retry'))).toBe(true))
   })
 
-  it('shows what the work is, not what the queue calls it', async () => {
-    // `deliver.telegram` is right in a log and wrong on a page you read to find out what your
-    // assistant is doing. The system name stays on hover, for debugging.
+  it('prints the system name, because that is what a log is for', async () => {
+    // The desks above say "Send a message"; the log says `deliver.telegram`. A log is read by
+    // lining rows up and spotting the one that differs, and the raw kind is what lines up. The
+    // plain-words label is on hover, the inverse of everywhere else on the page.
     mount()
-    const label = await screen.findByText('Send a message')
-    expect(label.getAttribute('title')).toBe('deliver.telegram')
-    expect(screen.queryByText('deliver.telegram')).toBeNull()
-    expect(screen.queryByText('batch')).toBeNull()
+    const label = await screen.findByText('deliver.telegram')
+    expect(label.getAttribute('title')).toBe('Send a message')
+  })
+
+  it('stamps each line with the time and a level, the way a log does', async () => {
+    mount()
+    const dead = await screen.findByText('deliver.telegram')
+    const line = dead.closest('li') as HTMLElement
+    expect(within(line).getByText('FAIL')).toBeDefined()
+    // The attempt count earns its place only once something has gone wrong.
+    expect(within(line).getByText('5/5')).toBeDefined()
+    expect(within(line).getByRole('time')).toBeDefined()
+  })
+
+  it('reads oldest first, the way a terminal appends', async () => {
+    mount()
+    await screen.findByText('deliver.telegram')
+    const printed = screen.getAllByRole('listitem').map((li) => li.querySelector('time')?.textContent)
+    const times = printed.filter(Boolean) as string[]
+    expect([...times].sort()).toEqual(times)
   })
 
   it('says the queue could not be read rather than showing a dash that looks like nothing', async () => {
