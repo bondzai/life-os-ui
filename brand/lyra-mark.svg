@@ -1,0 +1,31 @@
+<!-- The Lyra mark: Vega and the parallelogram, positioned as in lyra-avatar-*.png.
+     Five stars, not the app icon's seven: the extra pair blurs into the rest below ~64px. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="lift" cx="50%" cy="46%" r="72%">
+      <stop offset="0%" stop-color="#1b2b4d"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </radialGradient>
+    <radialGradient id="vega-glow">
+      <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#60a5fa" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="96" fill="url(#lift)"/>
+
+  <g stroke="#94a3b8" stroke-width="12.3" stroke-linecap="round" opacity="0.72" fill="none">
+    <path d="M146.2 92.5 L226.9 222.4"/>
+    <path d="M226.9 222.4 L365.8 278.4 L296.3 419.5 L157.4 363.5 Z"/>
+  </g>
+
+  <circle cx="146.2" cy="92.5" r="121" fill="url(#vega-glow)"/>
+  <g fill="#e2e8f0" opacity="0.95">
+    <circle cx="226.9" cy="222.4" r="21.3"/>
+    <circle cx="365.8" cy="278.4" r="21.3"/>
+    <circle cx="296.3" cy="419.5" r="17.9"/>
+    <circle cx="157.4" cy="363.5" r="17.9"/>
+  </g>
+  <circle cx="146.2" cy="92.5" r="33.6" fill="#60a5fa"/>
+  <circle cx="146.2" cy="92.5" r="14.1" fill="#dbeafe"/>
+</svg>
