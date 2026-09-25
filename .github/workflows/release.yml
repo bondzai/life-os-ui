@@ -44,8 +44,16 @@ jobs:
             core/target
           key: cargo-${{ runner.os }}-${{ hashFiles('core/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-
-      - run: cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings
-      - run: cargo test --manifest-path core/Cargo.toml --workspace
+      # `working-directory: core` is load-bearing, not tidiness: rustup finds rust-toolchain.toml
+      # by walking up from the working directory, not from --manifest-path, so running cargo from
+      # the repo root silently ignores the pin. These jobs also run npm from the root, so it is
+      # per-step here rather than a job-level default.
+      - run: cargo clippy --version
+        working-directory: core
+      - working-directory: core
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - working-directory: core
+        run: cargo test --workspace
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -78,7 +86,8 @@ jobs:
 
       # lto = "fat" with codegen-units = 1 over ~400 crates. Minutes, cached; a long time, cold.
       # That cost is paid here precisely so it is never paid on the mini PC.
-      - run: cargo build --manifest-path core/Cargo.toml --release --bin lyra-api
+      - working-directory: core
+        run: cargo build --release --bin lyra-api
 
       - uses: actions/setup-node@v4
         with:
