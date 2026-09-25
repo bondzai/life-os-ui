@@ -51,10 +51,14 @@ pub fn key_for(day: &str) -> String {
 /// hour of trying" into "two and a half minutes of trying", which is worse in every case anyone
 /// cares about.
 ///
-/// The backoff is 10s doubling to a 900s cap, so the cumulative span runs
-/// 10, 30, 70, 150, 310, 630, 1270, 2170, 3070, 3970, 4870, **5770**. Twelve attempts is a little
-/// over an hour and a half of trying: it comfortably outlasts the hour the loop was confined to,
-/// and it still ends, so a permanently broken channel dead-letters instead of retrying forever.
+/// The backoff is 10s doubling to a 900s cap. Twelve attempts means **eleven** waits, not twelve —
+/// `fail` dead-letters on the last attempt instead of scheduling another one — so the cumulative
+/// span runs 10, 30, 70, 150, 310, 630, 1270, 2170, 3070, 3970, **4870**: a little over eighty
+/// minutes. It comfortably outlasts the hour the loop was confined to, and it still ends, so a
+/// permanently broken channel dead-letters instead of retrying forever.
+///
+/// (This list previously ran one entry further, to 5770, by counting a wait after the final
+/// attempt. The off-by-one did not change behaviour, only what the comment promised.)
 pub const ATTEMPTS: i64 = 12;
 
 /// Today's brief, as a job — kind, lane, key and attempt budget in one place.

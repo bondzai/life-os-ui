@@ -29,7 +29,7 @@ Everything below is verified against the tree at `7ee4306`, not inferred from th
 
 Two gates constrain every phase below. **Parity**: `core/parity.toml` diffs the wealth endpoints
 against a Python oracle at 0.5% tolerance, so a gated response cannot grow a field. **Budget**:
-the frontend is 298 tests passing and *exactly* 59 lint problems; both numbers mean something only
+the frontend is 335 tests passing and *exactly* 59 lint problems; both numbers mean something only
 while they do not move.
 
 ---
@@ -134,7 +134,9 @@ validation a typed command faces. A proposal naming an unknown verb is rejected 
 
 The queue design put `capture.note` on the queue in its second phase, keyed by the Telegram
 `update_id`, because `tgbot.rs` acks the offset *after* replying and a crash therefore re-runs one
-command — harmless while all eleven commands are reads, a duplicate row the moment one writes.
+command — and two of the eighteen commands now write, so this is no longer hypothetical. Both are
+replay-safe by key rather than by luck: `/retry` keys its copy `retry:<job id>`, and a second
+`/cancel` reports the job already cancelled.
 Telegram's design wanted fast verbs inline, arguing that a capture costing two messages stops being
 a capture.
 

@@ -517,7 +517,7 @@ Features beyond the current roadmap — not planned, but designed to be possible
 ### Near-Term Possibilities
 
 > **Telegram shipped on 2026-08-22** and has been removed from this list. It sends alerts and
-> answers eleven portfolio commands; quick-adding entities from it is Stage C of
+> answers eighteen commands, eleven of them portfolio reads; quick-adding entities from it is Stage C of
 > [`docs/assistant-roadmap.md`](./docs/assistant-roadmap.md). See
 > [`docs/telegram.md`](./docs/telegram.md).
 

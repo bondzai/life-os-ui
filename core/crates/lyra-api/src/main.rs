@@ -634,6 +634,71 @@ mod tests {
         );
     }
 
+    /// Every relative link in every Markdown file points at something that exists.
+    ///
+    /// This sits in a Rust test for the same reason the allowlist guard above does: it is the only
+    /// place in the repo that runs on every commit and can read the whole tree. (`vitest` only
+    /// globs `src/**`, so it cannot see `docs/`.)
+    ///
+    /// Why bother: five documents were deleted in one go, and the thing that makes that safe is
+    /// knowing immediately which sentences elsewhere just became lies. It also caught
+    /// `core/Dockerfile` pointing at `docs/deployment-rust.md`, a file that never existed at all —
+    /// a reader following that link concludes the docs are untrustworthy, and they are right.
+    #[test]
+    fn every_link_in_the_docs_goes_somewhere() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../.."))
+            .canonicalize()
+            .unwrap();
+        // `[text](target)`, minus any `#anchor`. Anchors are not checked: a heading can be renamed
+        // without the link being wrong in the way that matters, and checking them would make this
+        // fail for reasons nobody would act on.
+        let link = regex::Regex::new(r"\[[^\]]*\]\(([^)#]+?)(?:#[^)]*)?\)").unwrap();
+
+        let mut broken: Vec<String> = Vec::new();
+        let mut dirs = vec![root.clone()];
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+                let path = entry.path();
+                let name = entry.file_name().to_string_lossy().to_string();
+                if path.is_dir() {
+                    // `dev-knowledge` is fixture content for the knowledge module, not
+                    // documentation, and its links are part of the fixture.
+                    if !matches!(
+                        name.as_str(),
+                        "node_modules" | ".git" | "target" | "dist" | ".venv" | "dev-knowledge"
+                    ) {
+                        dirs.push(path);
+                    }
+                    continue;
+                }
+                if path.extension().is_some_and(|e| e == "md") {
+                    let source = std::fs::read_to_string(&path).unwrap_or_default();
+                    for caps in link.captures_iter(&source) {
+                        let target = caps.get(1).unwrap().as_str().trim();
+                        if target.starts_with("http://")
+                            || target.starts_with("https://")
+                            || target.starts_with("mailto:")
+                        {
+                            continue;
+                        }
+                        if !dir.join(target).exists() {
+                            broken.push(format!(
+                                "{} -> {target}",
+                                path.strip_prefix(&root).unwrap_or(&path).display()
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        broken.sort();
+        assert!(
+            broken.is_empty(),
+            "Markdown links pointing at nothing — fix the link or restore the target:\n  {}",
+            broken.join("\n  ")
+        );
+    }
+
     #[tokio::test]
     async fn job_controls_sit_behind_the_token() {
         // They change what the box does next. Anyone who can reach the port must not be able to

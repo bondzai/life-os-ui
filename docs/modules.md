@@ -3,7 +3,7 @@
 A module is a sidebar entry: an entity type or two, a route, and a page. The entity system,
 repositories and hooks do the data work, so adding one is mostly configuration.
 
-> **`src/core/config/modules.ts` is the authoritative registry.** It is 37 lines of TypeScript
+> **`src/core/config/modules.ts` is the authoritative registry.** It is 133 lines of TypeScript
 > carrying better doc comments than this file can, including *why* the groups are Now / Plan /
 > Money. A table hand-synced against a literal is a drift machine — this document explains the
 > shape and the decisions, and points at the source for the list.
@@ -20,16 +20,26 @@ The sidebar asks three questions rather than sorting into subjects:
 
 | Group | Question | Modules |
 |---|---|---|
-| **Now** | What am I doing right now? | Focus, Deep Work, Inbox |
+| **Now** | What am I doing right now? | Focus, Deep Work, Inbox, Agents |
 | **Plan** | What am I working towards? | Tasks, Projects, Goals, Calendar, Habits, Notes, Review, Dashboard |
 | **Money** | Where is the money? | Wealth (eight sub-routes) |
 
-It used to be Daily (2) and Plan (9). A heading over nine of eleven entries sorts nothing, and a
-heading that sorts nothing stops being read.
+Thirteen entries — four, eight and one — and every one of them is in the sidebar. `ModuleConfig`
+has no `hidden` flag and `getModuleGroups` filters nothing, so the registry and the sidebar cannot
+disagree about what exists: if it is in `modules`, you can see it.
+
+It used to be Daily (2) and Plan (9). A heading over nine of those eleven entries sorts nothing, and
+a heading that sorts nothing stops being read.
 
 Inbox and Deep Work are listed because they are real routes that were reachable only through a
 link buried in a Focus panel and a `⌘⇧D` shortcut — **a route nothing points at is a feature you
 have to remember you own.**
+
+Agents sits under Now because the question it answers is a right-now question: what is the box
+working on this minute. It draws the four job workers as desks in an office and puts the queue
+beside them, reading `/api/agents` and `/api/jobs`, so "is anything running, and has any of it been
+failing" has somewhere to be looked at that is not a log file. Under Plan it would have read as
+something you configure.
 
 Knowledge left the sidebar for Settings and kept its route. It configures the AI's persona, agents
 and context, which is configuration rather than a plan; filed under Plan next to Notes it read as

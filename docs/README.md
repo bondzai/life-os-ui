@@ -5,16 +5,22 @@ or something that is **history**. The distinction matters here: several files in
 spent months describing a product that no longer existed, and the only reliable way to stop that
 happening again is to say, on the index, which kind each one is.
 
+**New here — including if you are an AI agent picking this up:** start with
+[`CLAUDE.md`](../CLAUDE.md) in the repo root. It is the orientation the code cannot give you: the
+invariants, the mistakes already made here, what the gate is, and what "done" means. This index tells
+you where things are documented; that file tells you what will bite you.
+
 ## What runs now
 
 | Document | Description |
 |---|---|
 | [Architecture](./architecture.md) | The real topology, the four ways into Lyra's data, and where inference happens |
 | [API server](./api-server.md) | The Rust API — stack, route groups, auth, and the two hazards |
-| [MCP](./mcp.md) | The research desk: ten wealth tools, the read-only invariant, and what "MCP" means in this repo |
-| [Telegram](./telegram.md) | The command bot — the assistant's front door, and what it cannot do yet |
+| [MCP](./mcp.md) | The research desk: seventeen tools, the read-only invariant, and the three things called "MCP" here |
+| [Telegram](./telegram.md) | The command bot — the assistant's front door: money, life and queue commands |
 | [Alerts](./alerts.md) | `lyra-alerts`: rules, digests, the Telegram and Discord channels, and their containment |
-| [Core engine](./core-engine.md) | Entity, Tracker, Schedule and Relation — and why `schedules` is not a job queue |
+| [Core engine](./core-engine.md) | Entity, Tracker, Schedule and Relation — and why `schedules` is not the job queue |
+| [Jobs](./jobs.md) | The queue: lanes, leases, idempotency, backoff, the dead letter, and how to add a kind |
 | [Modules](./modules.md) | The sidebar, the Projects type, and the DeFi page rewrite |
 | [Parity harness](./parity.md) | Gating the Rust port against the Python oracle |
 | [Deployment](./deployment.md) | Running it on the mini PC — the one binary, the systemd unit, the CI pipeline that feeds it, moving the database, backups |

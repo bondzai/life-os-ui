@@ -52,9 +52,13 @@ use crate::wealth::new_id;
 
 /// How many times a job is attempted before it is set aside as failed.
 ///
-/// Five, with the backoff below, spans about twenty minutes — long enough to ride out a router
-/// reboot or a Telegram blip, short enough that a genuinely broken job is visible the same hour
-/// rather than retrying into next week.
+/// Five, with the backoff below, spans **150 seconds** — four waits of 10, 20, 40 and 80. Long
+/// enough to ride out a Telegram blip, and deliberately short: anything that needs to outlast a
+/// router reboot sets its own budget, which is what `digest::ATTEMPTS` does and why it exists.
+///
+/// (This said "about twenty minutes" for a while, which is not a number this backoff can produce at
+/// five attempts. Worth being exact: a handler author reading it as twenty minutes would pick this
+/// default for work that needs twenty minutes, and get two and a half.)
 pub const DEFAULT_MAX_ATTEMPTS: i64 = 5;
 
 /// How long a claim is good for before the reaper may take it back.
@@ -742,9 +746,12 @@ impl Queue for SqliteQueue {
     /// Retry by **copying**, not by resetting the failed row.
     ///
     /// Resetting would be the obvious build and it destroys the one thing a dead job is kept for:
-    /// its `last_error`, its attempt count, the fact that it happened at all. Dead rows are kept
-    /// far longer than done ones precisely because they are evidence, and a retry that overwrote
-    /// them would make "why did this fail on Tuesday" unanswerable by Wednesday.
+    /// its `last_error`, its attempt count, the fact that it happened at all. A retry that
+    /// overwrote the row would make "why did this fail on Tuesday" unanswerable by Wednesday.
+    ///
+    /// Note that `prune` gives `done`, `failed` and `cancelled` the **same** cutoff — a dead row is
+    /// evidence for exactly as long as a successful one, not longer. Keeping failures around longer
+    /// would be reasonable; it is simply not what the code does today.
     ///
     /// So the copy carries the work — kind, lane, payload, priority, attempt budget — and points
     /// back at the original through `parent_id`. It is keyed `retry:<original id>`, so a button
