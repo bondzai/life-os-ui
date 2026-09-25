@@ -189,7 +189,7 @@ currently presents `Schedule` in a way that reads exactly like a job table.
 The MCP design put all documentation in its final phase. The docs audit argued that `docs/mcp.md`
 must be written **against the current ten tools, before the expansion**, because writing it
 afterwards means never writing down what was traded away — and that `docs/jobs.md` must be written
-**from merged code**, never before, on the evidence of `docs/openclaw-integration.md`: 191 lines
+**from merged code**, never before, on the evidence of the deleted `docs/openclaw-integration.md`: 191 lines
 specifying a system nobody ever built, still sitting in `docs/` two phases later.
 
 **Resolved: the audit wins, and this commit acts on it.** `docs/mcp.md`, `docs/telegram.md` and
@@ -398,12 +398,11 @@ recoverable rather than prevented.
 
 ### Two smaller calls I have already defaulted — say the word to flip either
 
-- **The three dead docs.** `docs/openclaw-integration.md`, `docs/modules.md` and `docs/roadmap.md`
-  document systems that were built differently or abandoned. The audit recommended deleting all
-  three. I **rewrote** `modules.md` (its subject is still real) and **bannered** the other two as
-  historical rather than deleting them, because `openclaw-integration.md` is the only written
-  record of the multi-channel ambition and deletion is not mine to make. Say the word and they go;
-  `git log` keeps them either way.
+- **The three dead docs — settled 2026-09-25: they went.** `openclaw-integration.md` and
+  `roadmap.md` were deleted, along with `productivity-features.md`, `improvements.md` and
+  `ai-layer.md`; `modules.md` stayed, because its subject is still real. `git log` keeps all five.
+  The multi-channel ambition the OpenClaw document was the only record of is now a paragraph in
+  `docs/telegram.md`, which is where anyone would look for it.
 - **Two changelogs.** `CHANGELOG.md` had stopped at 1.3.0 while `src/lib/changelog-data.ts` runs to
   2.5.0 and ships inside the app. I have hand-written the catch-up. The permanent fix is to
   **generate `CHANGELOG.md` from `changelog-data.ts`** — roughly thirty lines, and it removes the

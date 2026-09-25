@@ -8,7 +8,7 @@ import { useRepository } from './use-repository'
  * **Asking for a type now asks the server for it.** This used to fetch every entity the user owns
  * — all thirty types, metadata blobs and all, under a single `'entities'` cache key — and filter
  * in the browser. One project page pulled every task, note, comment and transaction, and every
- * mutation anywhere invalidated and refetched the lot. `docs/roadmap.md` has flagged it since the
+ * mutation anywhere invalidated and refetched the lot. It had been flagged since the
  * API landed; the server filter and `getByType` were both already there, just unused.
  *
  * Calling it without a type is unchanged, deliberately: the pages that read across types (Goals

@@ -332,7 +332,8 @@ When the AI provider is offline or unavailable:
 
 > **Historical.** Written before the Lean release; several of the surfaces described here were
 > deleted with the Lyra page. The detectors and the morning brief survive in
-> `src/core/ai/` — see [`docs/ai-layer.md`](./docs/ai-layer.md).
+> `src/core/ai/` — the source is the list; `docs/ai-layer.md` described a Phase-3 shape that no
+> longer exists and was deleted. For the *other* MCP, see [`docs/mcp.md`](./docs/mcp.md).
 
 The system that makes Lyra feel alive. Instead of waiting for you to ask, Lyra watches your data and speaks up when something matters.
 
