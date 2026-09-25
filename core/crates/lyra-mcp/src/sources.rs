@@ -13,8 +13,8 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use lyra_chain::address::parse_addresses;
 use lyra_chain::adapters::vfat;
+use lyra_chain::address::parse_addresses;
 use lyra_chain::aggregate::{AggregateConfig, build_portfolios};
 use lyra_chain::sources::LiveSources;
 use lyra_db::life;
@@ -221,7 +221,11 @@ impl MarketSource for LiveMarket {
     /// skips it: the route radars several wallets and one bad feed should not blank the board,
     /// while this call is about exactly one address, so a silent empty list would read as "no
     /// opportunities" when the truth is "could not look".
-    async fn yield_radar(&self, address: &str, limit: usize) -> Result<Vec<PoolCandidate>, ToolError> {
+    async fn yield_radar(
+        &self,
+        address: &str,
+        limit: usize,
+    ) -> Result<Vec<PoolCandidate>, ToolError> {
         let found = vfat::vfat_yield_radar(self.sources.vfat(), address, vfat::RADAR_LIMIT)
             .await
             .map_err(|e| ToolError::Unavailable(format!("yield radar: {e:#}")))?;
@@ -595,10 +599,20 @@ mod tests {
     #[tokio::test]
     async fn the_store_answers_for_its_owner_and_nobody_elses() {
         let (_dir, store) = life(&[("a", "mine", "")]).await;
-        assert_eq!(store.list(LifeQuery::default()).await.unwrap().rows.len(), 1);
+        assert_eq!(
+            store.list(LifeQuery::default()).await.unwrap().rows.len(),
+            1
+        );
 
         let stranger = SqliteLife::new(store.pool.clone(), "someone-else");
-        assert!(stranger.list(LifeQuery::default()).await.unwrap().rows.is_empty());
+        assert!(
+            stranger
+                .list(LifeQuery::default())
+                .await
+                .unwrap()
+                .rows
+                .is_empty()
+        );
         assert!(stranger.get("a").await.unwrap().is_none());
     }
 }

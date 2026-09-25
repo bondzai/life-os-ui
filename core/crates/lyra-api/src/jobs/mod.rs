@@ -1079,7 +1079,10 @@ mod tests {
 
         assert!(worker.tick().await);
         let recorded = meta.lock().unwrap().last_error.clone();
-        assert_eq!(recorded.as_deref(), Some("deliver.telegram: connection reset"));
+        assert_eq!(
+            recorded.as_deref(),
+            Some("deliver.telegram: connection reset")
+        );
     }
 
     #[tokio::test]

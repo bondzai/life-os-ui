@@ -5,13 +5,12 @@
 //! so the existing React client runs against this binary with no front-end change. Any change the
 //! front end needs means the port was wrong.
 
+mod agents;
+mod alert_loop;
+mod auth;
 mod bot_jobs;
 mod bot_life;
 mod bot_text;
-mod agents;
-mod alert_loop;
-mod tgbot;
-mod auth;
 mod collect;
 mod common;
 mod entities;
@@ -22,6 +21,7 @@ mod knowledge;
 mod relations;
 mod schedules;
 mod search;
+mod tgbot;
 mod trackers;
 mod wealth;
 
@@ -354,8 +354,12 @@ mod tests {
             .split("let Ok(ui) = std::env::var(\"LYRA_UI_DIR\")")
             .nth(1)
             .expect("the static-fallback block should exist");
-        let api_guard = tail.find("\"/api/{*rest}\"").expect("the /api guard should exist");
-        let fallback = tail.find("fallback_service").expect("the fallback should exist");
+        let api_guard = tail
+            .find("\"/api/{*rest}\"")
+            .expect("the /api guard should exist");
+        let fallback = tail
+            .find("fallback_service")
+            .expect("the fallback should exist");
         assert!(
             api_guard < fallback,
             "the /api catch-all must be registered before the static fallback"
@@ -564,19 +568,21 @@ mod tests {
 
     #[test]
     fn the_install_script_forwards_every_setting_the_server_reads() {
-        // The installed service gets its environment from an allowlist in ops/lyra-server.sh, and
-        // that list fell behind the code: DISCORD_WEBHOOK_URL, TELEGRAM_OWNER_USER_ID and the
+        // The installed service gets its environment from the allowlist in ops/service-env.list,
+        // and that list fell behind the code: DISCORD_WEBHOOK_URL, TELEGRAM_OWNER_USER_ID and the
         // Google OAuth keys all worked under `cargo run` and were silently absent in production.
         // A comment asking people to remember is not a mechanism. This is.
+        //
+        // It reads the list rather than the installer that consumes it: there are two installers
+        // now (launchd and systemd), and a test that parses one script's `for` loop both misses
+        // the other and breaks when someone reformats a line of shell.
         let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
-        let script = std::fs::read_to_string(format!("{root}/../ops/lyra-server.sh")).unwrap();
-        let forwarded: std::collections::BTreeSet<&str> = script
-            .split("for key in")
-            .nth(1)
-            .and_then(|rest| rest.split("; do").next())
-            .expect("the allowlist loop moved; update this test")
-            .split(|c: char| c.is_whitespace() || c == '\\')
-            .filter(|w| !w.is_empty())
+        let list = std::fs::read_to_string(format!("{root}/../ops/service-env.list"))
+            .expect("ops/service-env.list is the allowlist; it must exist");
+        let forwarded: std::collections::BTreeSet<&str> = list
+            .lines()
+            .map(|line| line.split('#').next().unwrap_or("").trim())
+            .filter(|line| !line.is_empty())
             .collect();
 
         // Read by the server, deliberately not forwarded, and why.
@@ -593,8 +599,16 @@ mod tests {
         )
         .unwrap();
         let mut missing = std::collections::BTreeSet::new();
-        for krate in ["lyra-api", "lyra-alerts", "lyra-chain", "lyra-db", "lyra-analytics"] {
-            let mut dirs = vec![std::path::PathBuf::from(format!("{root}/crates/{krate}/src"))];
+        for krate in [
+            "lyra-api",
+            "lyra-alerts",
+            "lyra-chain",
+            "lyra-db",
+            "lyra-analytics",
+        ] {
+            let mut dirs = vec![std::path::PathBuf::from(format!(
+                "{root}/crates/{krate}/src"
+            ))];
             while let Some(dir) = dirs.pop() {
                 for entry in std::fs::read_dir(&dir).unwrap().flatten() {
                     let path = entry.path();
@@ -614,7 +628,7 @@ mod tests {
         }
         assert!(
             missing.is_empty(),
-            "read by the server but not forwarded by ops/lyra-server.sh — add them to the loop, \
+            "read by the server but not in ops/service-env.list — add them to that file, \
              or to `excluded` here with a reason:\n  {}",
             missing.into_iter().collect::<Vec<_>>().join("\n  ")
         );
@@ -643,11 +657,21 @@ mod tests {
 
         let queue = SqliteQueue::new(pool);
         let dead = queue
-            .enqueue(&NewJob::new("deliver.telegram", Lane::Deliver).max_attempts(1), 1000)
+            .enqueue(
+                &NewJob::new("deliver.telegram", Lane::Deliver).max_attempts(1),
+                1000,
+            )
             .await
             .unwrap();
-        let claimed = queue.claim("w", &[Lane::Deliver], 60, 1100).await.unwrap().unwrap();
-        queue.fail("w", &claimed.id, "connection reset", Failure::Retry, 1200).await.unwrap();
+        let claimed = queue
+            .claim("w", &[Lane::Deliver], 60, 1100)
+            .await
+            .unwrap()
+            .unwrap();
+        queue
+            .fail("w", &claimed.id, "connection reset", Failure::Retry, 1200)
+            .await
+            .unwrap();
 
         let (status, body) = authed(
             router.clone(),
@@ -663,14 +687,26 @@ mod tests {
         assert_ne!(new_id, dead.id);
 
         // The new one points back at what it replaces.
-        let (_, fresh) =
-            authed(router.clone(), "GET", &format!("/api/jobs/{new_id}"), Some(&token), None).await;
+        let (_, fresh) = authed(
+            router.clone(),
+            "GET",
+            &format!("/api/jobs/{new_id}"),
+            Some(&token),
+            None,
+        )
+        .await;
         assert_eq!(fresh["status"], "queued");
         assert_eq!(fresh["parent_id"], dead.id.as_str());
 
         // And the dead one still says why it died.
-        let (_, old) =
-            authed(router, "GET", &format!("/api/jobs/{}", dead.id), Some(&token), None).await;
+        let (_, old) = authed(
+            router,
+            "GET",
+            &format!("/api/jobs/{}", dead.id),
+            Some(&token),
+            None,
+        )
+        .await;
         assert_eq!(old["status"], "failed");
         assert_eq!(old["last_error"], "connection reset");
     }
@@ -705,8 +741,7 @@ mod tests {
         assert_eq!(second, StatusCode::CONFLICT, "{body}");
         assert!(body["error"].as_str().unwrap().contains("cancelled"));
 
-        let (missing, _) =
-            authed(router, "POST", "/api/jobs/nope/retry", Some(&token), None).await;
+        let (missing, _) = authed(router, "POST", "/api/jobs/nope/retry", Some(&token), None).await;
         assert_eq!(missing, StatusCode::NOT_FOUND);
     }
 

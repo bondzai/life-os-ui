@@ -37,6 +37,12 @@ env_value() {
   sed -n "s/^$1=//p" "$ROOT/.env.local" | tail -1
 }
 
+# The settings this service is allowed to have, from the one list both installers read.
+service_env_keys() {
+  [ -f "$ROOT/ops/service-env.list" ] || die "missing ops/service-env.list — it is the allowlist"
+  sed -e 's/#.*//' -e '/^[[:space:]]*$/d' -e 's/[[:space:]]//g' "$ROOT/ops/service-env.list"
+}
+
 # The Node the project pins, resolved to a directory rather than through nvm.
 #
 # `nvm.sh` is a shell function that is not safe under `set -u`, and sourcing it here killed this
@@ -110,20 +116,10 @@ write_plist() {
     printf '    <key>PORT</key><string>%s</string>\n' "$PORT"
     printf '    <key>LYRA_DB</key><string>%s/data/lyra.db</string>\n' "$PREFIX"
     printf '    <key>LYRA_UI_DIR</key><string>%s/ui</string>\n' "$PREFIX"
-    # An allowlist, so it must grow with the code. Every variable the server reads and is not on
-    # this line is silently absent from the installed service — set in .env.local, working under
-    # `cargo run`, and dead in production, with nothing anywhere saying why.
-    #
-    # Deliberately absent: PORT, LYRA_DB and LYRA_UI_DIR (set above, from the install layout), and
-    # LYRA_HTTP_CACHE / LYRA_HTTP_FIXTURES, which point the chain client at recorded test
-    # responses — forwarding those would let a stray line in .env.local make production report
-    # fixture balances as your money.
-    for key in JWT_SECRET ALERT_WALLETS KUCOIN_API_KEY KUCOIN_API_SECRET KUCOIN_API_PASSPHRASE \
-               TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID TELEGRAM_OWNER_USER_ID DISCORD_WEBHOOK_URL \
-               ALERT_INTERVAL ALERT_FEE_USD ALERT_HF ALERT_REPORT_CCY DIGEST_HOUR HABITS_NUDGE_HOUR \
-               SNAPSHOT_INTERVAL SNAPSHOT_GROUP LYRA_JOBS LYRA_KNOWLEDGE_PATH GCAL_API_KEY \
-               GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REDIRECT_URI FRONTEND_URL CORS_ORIGINS \
-               RUST_LOG; do
+    # The allowlist lives in ops/service-env.list, because the Linux installer needs the same one
+    # and two copies of a list like this is how one of them ends up missing a key. A test reads
+    # that file and fails if the code grows a setting it does not name.
+    for key in $(service_env_keys); do
       # Escaped for XML, because this is written into a plist. A value with a bare `&` — a
       # redirect URI with two query parameters, a webhook URL with a thread id — produced a file
       # launchd refused to load, and the service simply did not start.

@@ -352,7 +352,10 @@ pub async fn job_retry(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Response {
     use lyra_db::jobs::{Queue, Retried, SqliteQueue, now_secs};
-    match SqliteQueue::new(state.pool.clone()).retry(&id, now_secs()).await {
+    match SqliteQueue::new(state.pool.clone())
+        .retry(&id, now_secs())
+        .await
+    {
         Ok(Retried::Queued(enqueued)) => axum::Json(serde_json::json!({
             "id": enqueued.id,
             // False when this retry was already asked for — a double click, not a second job.
@@ -363,7 +366,10 @@ pub async fn job_retry(
         // says which state, so the page can say something more useful than "error".
         Ok(Retried::NotRetryable(status)) => crate::common::error(
             axum::http::StatusCode::CONFLICT,
-            &format!("only failed or cancelled jobs can be retried; this one is {}", status.as_str()),
+            &format!(
+                "only failed or cancelled jobs can be retried; this one is {}",
+                status.as_str()
+            ),
         ),
         Ok(Retried::NotFound) => crate::common::not_found("no such job"),
         Err(_) => crate::common::error(
@@ -389,7 +395,10 @@ pub async fn job_cancel(
         Ok(false) => match queue.get(&id).await {
             Ok(Some(job)) => crate::common::error(
                 axum::http::StatusCode::CONFLICT,
-                &format!("only queued jobs can be cancelled; this one is {}", job.status.as_str()),
+                &format!(
+                    "only queued jobs can be cancelled; this one is {}",
+                    job.status.as_str()
+                ),
             ),
             _ => crate::common::not_found("no such job"),
         },
@@ -438,8 +447,7 @@ async fn pump(mut socket: WebSocket, fleet: Fleet) {
     // Subscribe BEFORE snapshotting. The other order has a hole in it: an event fired between the
     // snapshot and the subscribe reaches neither, and the client believes a stale agent forever.
     // This order can duplicate an event instead, which is harmless — every frame is idempotent.
-    if send_snapshot(&mut socket, &fleet).await.is_err()
-    {
+    if send_snapshot(&mut socket, &fleet).await.is_err() {
         return;
     }
 

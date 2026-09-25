@@ -7,7 +7,12 @@
 # volumes (lyra-rust_lyra-data, lyra-rust_ollama-models) keep resolving — renaming it would
 # silently start a second, empty database.
 #
-# Full instructions: docs/deployment.md
+# ── NOT THE DEPLOYMENT PATH ANY MORE (2026-09-25) ──
+# The mini PC runs one binary under systemd; `lyra-api` serves the front end itself via
+# LYRA_UI_DIR, which makes the `ui`/nginx service here redundant. docs/deployment.md describes that
+# and no longer documents this stack — the section references below point at a rewritten document.
+# This file still builds and is kept for the Ollama service and for a container-shaped deploy, but
+# nothing maintained uses it. `git log -- docs/deployment.md` has the instructions it belonged to.
 name: lyra-rust
 
 services:

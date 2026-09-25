@@ -5,7 +5,7 @@
 #
 # Produces one image containing two binaries:
 #   /usr/local/bin/lyra-api      — the server (default CMD)
-#   /usr/local/bin/lyra-migrate  — one-shot schema + legacy import, see docs/deployment-rust.md
+#   /usr/local/bin/lyra-migrate  — one-shot schema + legacy import, see docs/deployment.md
 
 # ─────────────────────────── builder ───────────────────────────
 FROM rust:1-bookworm AS builder

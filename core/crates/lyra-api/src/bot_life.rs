@@ -94,7 +94,10 @@ async fn today(pool: &SqlitePool, owner: &str, day: &str) -> String {
     }
 
     if !agenda.upcoming.is_empty() {
-        out.push_str(&format!("Next 7 days: {} item(s) — /week\n", agenda.upcoming.len()));
+        out.push_str(&format!(
+            "Next 7 days: {} item(s) — /week\n",
+            agenda.upcoming.len()
+        ));
     }
     out.trim_end().to_string()
 }
@@ -230,8 +233,26 @@ mod tests {
     #[tokio::test]
     async fn today_leads_with_overdue_because_it_is_the_only_part_that_is_a_problem() {
         let (_dir, pool) = fresh().await;
-        task(&pool, "t1", "file the accounts", "todo", "high", Some("2026-09-01"), "{}").await;
-        task(&pool, "t2", "water the plants", "todo", "low", Some("2026-09-21"), "{}").await;
+        task(
+            &pool,
+            "t1",
+            "file the accounts",
+            "todo",
+            "high",
+            Some("2026-09-01"),
+            "{}",
+        )
+        .await;
+        task(
+            &pool,
+            "t2",
+            "water the plants",
+            "todo",
+            "low",
+            Some("2026-09-21"),
+            "{}",
+        )
+        .await;
 
         let reply = today(&pool, "me", "2026-09-21").await;
         let overdue = reply.find("Overdue").expect("an overdue section");
@@ -244,7 +265,16 @@ mod tests {
     #[tokio::test]
     async fn an_empty_section_is_omitted_rather_than_printed_as_a_bare_heading() {
         let (_dir, pool) = fresh().await;
-        task(&pool, "t1", "only this", "todo", "medium", Some("2026-09-21"), "{}").await;
+        task(
+            &pool,
+            "t1",
+            "only this",
+            "todo",
+            "medium",
+            Some("2026-09-21"),
+            "{}",
+        )
+        .await;
 
         let reply = today(&pool, "me", "2026-09-21").await;
         // Five headings, one of which matters, is how a status message becomes unreadable.
@@ -274,7 +304,16 @@ mod tests {
     #[tokio::test]
     async fn done_work_stays_off_the_list() {
         let (_dir, pool) = fresh().await;
-        task(&pool, "t1", "already finished", "done", "urgent", Some("2026-09-21"), "{}").await;
+        task(
+            &pool,
+            "t1",
+            "already finished",
+            "done",
+            "urgent",
+            Some("2026-09-21"),
+            "{}",
+        )
+        .await;
         let reply = today(&pool, "me", "2026-09-21").await;
         assert!(!reply.contains("already finished"), "got:\n{reply}");
     }
@@ -282,7 +321,16 @@ mod tests {
     #[tokio::test]
     async fn the_inbox_is_only_what_was_captured_and_not_filed() {
         let (_dir, pool) = fresh().await;
-        task(&pool, "t1", "captured thought", "todo", "medium", None, r#"{"isInbox":true}"#).await;
+        task(
+            &pool,
+            "t1",
+            "captured thought",
+            "todo",
+            "medium",
+            None,
+            r#"{"isInbox":true}"#,
+        )
+        .await;
         task(&pool, "t2", "a filed task", "todo", "medium", None, "{}").await;
 
         let reply = inbox(&pool, "me").await;
@@ -300,7 +348,16 @@ mod tests {
         // a non-empty inbox answer "Inbox is empty."
         let (_dir, pool) = fresh().await;
         for n in 0..60 {
-            task(&pool, &format!("filed-{n}"), "filed work", "todo", "medium", None, "{}").await;
+            task(
+                &pool,
+                &format!("filed-{n}"),
+                "filed work",
+                "todo",
+                "medium",
+                None,
+                "{}",
+            )
+            .await;
         }
         sqlx::query(
             "INSERT INTO entities (id, type, title, status, ownerId, visibility, createdAt, \
@@ -313,7 +370,10 @@ mod tests {
 
         let reply = inbox(&pool, "me").await;
         assert!(reply.contains("the captured thought"), "got:\n{reply}");
-        assert!(!reply.contains("filed work"), "and only inbox items: {reply}");
+        assert!(
+            !reply.contains("filed work"),
+            "and only inbox items: {reply}"
+        );
     }
 
     #[tokio::test]

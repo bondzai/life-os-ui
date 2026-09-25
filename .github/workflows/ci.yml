@@ -1,0 +1,64 @@
+# The gate. Runs on every push and every pull request.
+#
+# Free and unlimited, because this repository is public — which is also why there is no
+# self-hosted runner anywhere in this pipeline. See .github/workflows/release.yml.
+#
+# What is deliberately NOT here:
+#   `make parity`      — parity.toml points the oracle at a Python server on 127.0.0.1:8000 that
+#                        only exists on the author's laptop. A gate that cannot run is not a gate.
+#   `npm run lint`     — 58 pre-existing errors. It runs below, reporting only: a check that is red
+#                        the day you add it teaches everyone to ignore checks.
+name: ci
+
+on:
+  push:
+    branches-ignore: []
+  pull_request:
+
+# A second push to the same branch makes the first run pointless. Master is exempt: its runs
+# gate a release, so cancelling one would leave a commit that was never tested.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # No third-party actions in this pipeline. The runner ships rustup, and
+      # core/rust-toolchain.toml pins the channel and the components, so cargo installs what it
+      # needs on first use. One less thing with write access to a public repo's CI.
+      - name: Cache cargo and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            core/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('core/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - run: cargo fmt --manifest-path core/Cargo.toml --all --check
+      - run: cargo clippy --manifest-path core/Cargo.toml --workspace --all-targets -- -D warnings
+      - run: cargo test --manifest-path core/Cargo.toml --workspace
+
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # Reporting only, until the 58 errors are cleaned up. Then drop the `|| true` and this
+      # becomes a real gate.
+      - name: Lint (reporting only)
+        run: npm run lint || true
