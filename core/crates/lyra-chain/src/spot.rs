@@ -455,7 +455,11 @@ impl Spot {
         // endpoint, and HyperEVM spot silently became "the native coin only". Where the chain
         // names fallback tokens, read those over RPC before giving up on them.
         let mut fallback = Vec::new();
-        if inputs.tokens_body.get("items").and_then(Value::as_array).is_none_or(|i| i.is_empty())
+        if inputs
+            .tokens_body
+            .get("items")
+            .and_then(Value::as_array)
+            .is_none_or(|i| i.is_empty())
             && !chain.spot_fallback.is_empty()
         {
             fallback = self.rpc_fallback_spot(chain, address, dust_usd).await;
@@ -472,7 +476,10 @@ impl Spot {
         // Appended after valuation because these arrive already priced, and deduped by symbol so
         // a recovering indexer never yields the same token twice.
         for token in fallback {
-            if !kept.iter().any(|c| c.symbol.eq_ignore_ascii_case(&token.symbol)) {
+            if !kept
+                .iter()
+                .any(|c| c.symbol.eq_ignore_ascii_case(&token.symbol))
+            {
                 kept.push(token);
             }
         }
@@ -584,7 +591,10 @@ impl Spot {
         address: &str,
     ) -> Option<f64> {
         // `balanceOf(address)` — selector, then the address left-padded to 32 bytes.
-        let data = format!("0x70a08231000000000000000000000000{}", address.trim_start_matches("0x"));
+        let data = format!(
+            "0x70a08231000000000000000000000000{}",
+            address.trim_start_matches("0x")
+        );
         let body = json!({
             "jsonrpc": "2.0", "id": 1, "method": "eth_call",
             "params": [{ "to": token.address, "data": data }, "latest"],
@@ -592,7 +602,11 @@ impl Spot {
         let recorded = match self.http().post_json(self.client(), rpc, &body).await {
             Ok(recorded) => recorded,
             Err(error) => {
-                tracing::warn!(symbol = token.symbol, error = format!("{error:#}"), "balanceOf failed");
+                tracing::warn!(
+                    symbol = token.symbol,
+                    error = format!("{error:#}"),
+                    "balanceOf failed"
+                );
                 return None;
             }
         };

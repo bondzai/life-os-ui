@@ -1,6 +1,5 @@
 # TODO
 
-See [`docs/improvements.md`](docs/improvements.md) for full feature catalog with 4 priority tiers.
 See [`docs/minimalist-mind-life-os.md`](docs/minimalist-mind-life-os.md) for cognitive system philosophy.
 See [`docs/strategic-blueprint.md`](docs/strategic-blueprint.md) for INTJ strategic identity & invisible empire framework.
 
@@ -213,8 +212,8 @@ AI-generated morning intelligence briefing.
 ### OpenClaw Integration — abandoned
 OpenClaw was never built. The always-on-agent-hub role it was going to fill is filled by
 `tgbot.rs`, and agent-to-agent communication is the job queue in
-[`docs/assistant-roadmap.md`](./docs/assistant-roadmap.md). Kept here so the intent is traceable;
-see [`docs/openclaw-integration.md`](./docs/openclaw-integration.md) for the original plan.
+[`docs/assistant-roadmap.md`](./docs/assistant-roadmap.md). Kept here so the intent is traceable; the original
+OpenClaw plan was deleted — nothing in it was ever built, and `git log` has it.
 
 ### Cron Jobs / Scheduled Tasks → the job queue
 Daily brief generation exists today as `maybe_digest` inside `alert_loop`, with no retry: a

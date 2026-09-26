@@ -38,10 +38,17 @@ export interface CurrentJob {
 
 export interface Agent {
   id: string
+  /** What to call it — "Analyst", "Runner 2". The server derives it from the lane today. */
+  name: string
+  /** One line on what it is for, so a desk nobody is sitting at still says what it does. */
+  role: string
   lane: string
   status: AgentStatus
   job?: CurrentJob
   last_seen: number
+  /** The job it finished most recently, kept so an idle desk has something to show. */
+  last_kind?: string
+  last_ok?: boolean
   done: number
   failed: number
 }

@@ -64,6 +64,11 @@ pub enum AgentStatus {
 pub struct Agent {
     /// Stable across restarts in shape, unique within a process run. See `jobs::worker_name`.
     pub id: String,
+    /// What to call it. Derived from its lane today; declared by the agent itself once there are
+    /// agents that differ by more than which queue they read.
+    pub name: String,
+    /// One line on what it is for, so a desk nobody is sitting at still says what it does.
+    pub role: String,
     /// The lane it serves — the closest thing an agent has to a job title.
     pub lane: String,
     pub status: AgentStatus,
@@ -73,6 +78,13 @@ pub struct Agent {
     /// Unix seconds of the last thing it told us. The client renders staleness from this rather
     /// than from its own arrival time, so a delayed frame does not read as a healthy agent.
     pub last_seen: i64,
+    /// The last thing it finished. An idle desk with nothing on it reads as broken; "last: Daily
+    /// brief, 2h ago" reads as quiet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_kind: Option<String>,
+    /// Whether that last job succeeded. `None` until one finishes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_ok: Option<bool>,
     pub done: u32,
     pub failed: u32,
 }
@@ -104,10 +116,25 @@ pub enum Frame {
 /// touching the worker loop.
 #[derive(Debug, Clone)]
 pub enum Report {
-    Started { id: String, lane: String, at: i64 },
-    Claimed { id: String, job: CurrentJob },
-    Finished { id: String, ok: bool, at: i64 },
-    Stopped { id: String },
+    Started {
+        id: String,
+        name: String,
+        role: String,
+        lane: String,
+        at: i64,
+    },
+    Claimed {
+        id: String,
+        job: CurrentJob,
+    },
+    Finished {
+        id: String,
+        ok: bool,
+        at: i64,
+    },
+    Stopped {
+        id: String,
+    },
 }
 
 /// The fleet's current state plus the channel that announces changes to it.
@@ -160,13 +187,23 @@ impl Fleet {
                 return;
             };
             match report {
-                Report::Started { id, lane, at } => {
+                Report::Started {
+                    id,
+                    name,
+                    role,
+                    lane,
+                    at,
+                } => {
                     let agent = agents.entry(id.clone()).or_insert_with(|| Agent {
                         id,
+                        name,
+                        role,
                         lane,
                         status: AgentStatus::Idle,
                         job: None,
                         last_seen: at,
+                        last_kind: None,
+                        last_ok: None,
                         done: 0,
                         failed: 0,
                     });
@@ -195,6 +232,10 @@ impl Fleet {
                         return;
                     };
                     agent.status = AgentStatus::Idle;
+                    // Kept before the job is cleared: what it just did is the whole of what an
+                    // idle desk has to say.
+                    agent.last_kind = agent.job.as_ref().map(|job| job.kind.clone());
+                    agent.last_ok = Some(ok);
                     agent.job = None;
                     agent.last_seen = at;
                     if ok {
@@ -311,7 +352,10 @@ pub async fn job_retry(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Response {
     use lyra_db::jobs::{Queue, Retried, SqliteQueue, now_secs};
-    match SqliteQueue::new(state.pool.clone()).retry(&id, now_secs()).await {
+    match SqliteQueue::new(state.pool.clone())
+        .retry(&id, now_secs())
+        .await
+    {
         Ok(Retried::Queued(enqueued)) => axum::Json(serde_json::json!({
             "id": enqueued.id,
             // False when this retry was already asked for — a double click, not a second job.
@@ -322,7 +366,10 @@ pub async fn job_retry(
         // says which state, so the page can say something more useful than "error".
         Ok(Retried::NotRetryable(status)) => crate::common::error(
             axum::http::StatusCode::CONFLICT,
-            &format!("only failed or cancelled jobs can be retried; this one is {}", status.as_str()),
+            &format!(
+                "only failed or cancelled jobs can be retried; this one is {}",
+                status.as_str()
+            ),
         ),
         Ok(Retried::NotFound) => crate::common::not_found("no such job"),
         Err(_) => crate::common::error(
@@ -348,7 +395,10 @@ pub async fn job_cancel(
         Ok(false) => match queue.get(&id).await {
             Ok(Some(job)) => crate::common::error(
                 axum::http::StatusCode::CONFLICT,
-                &format!("only queued jobs can be cancelled; this one is {}", job.status.as_str()),
+                &format!(
+                    "only queued jobs can be cancelled; this one is {}",
+                    job.status.as_str()
+                ),
             ),
             _ => crate::common::not_found("no such job"),
         },
@@ -397,8 +447,7 @@ async fn pump(mut socket: WebSocket, fleet: Fleet) {
     // Subscribe BEFORE snapshotting. The other order has a hole in it: an event fired between the
     // snapshot and the subscribe reaches neither, and the client believes a stale agent forever.
     // This order can duplicate an event instead, which is harmless — every frame is idempotent.
-    if send_snapshot(&mut socket, &fleet).await.is_err()
-    {
+    if send_snapshot(&mut socket, &fleet).await.is_err() {
         return;
     }
 
@@ -525,6 +574,8 @@ mod tests {
         let fleet = Fleet::new();
         fleet.report(Report::Started {
             id: "deliver-0@1".into(),
+            name: "Relay".into(),
+            role: "Sends what the others write".into(),
             lane: "deliver".into(),
             at: 100,
         });
@@ -557,6 +608,40 @@ mod tests {
     }
 
     #[test]
+    fn an_idle_desk_still_says_what_it_last_did() {
+        // An idle agent with a blank card reads as broken. The last job it ran is the whole of
+        // what it has to say between jobs, so it has to survive the job being cleared.
+        let fleet = Fleet::new();
+        fleet.report(Report::Started {
+            id: "batch-0@1".into(),
+            name: "Analyst".into(),
+            role: "Reads the book".into(),
+            lane: "batch".into(),
+            at: 100,
+        });
+        fleet.report(Report::Claimed {
+            id: "batch-0@1".into(),
+            job: CurrentJob {
+                id: "j1".into(),
+                kind: "snapshot.networth".into(),
+                attempt: 1,
+                started_at: 110,
+            },
+        });
+        fleet.report(Report::Finished {
+            id: "batch-0@1".into(),
+            ok: false,
+            at: 120,
+        });
+
+        let desk = &fleet.snapshot()[0];
+        assert_eq!(desk.name, "Analyst");
+        assert_eq!(desk.role, "Reads the book");
+        assert_eq!(desk.last_kind.as_deref(), Some("snapshot.networth"));
+        assert_eq!(desk.last_ok, Some(false));
+    }
+
+    #[test]
     fn a_report_about_an_unknown_agent_is_ignored_rather_than_inventing_one() {
         // Ordering on a restart can deliver a Finished before the Started that replaced it. An
         // agent conjured from a half-report would have no lane and a status nothing set.
@@ -574,6 +659,8 @@ mod tests {
         let fleet = Fleet::new();
         let started = |at| Report::Started {
             id: "batch-0@1".into(),
+            name: "Analyst".into(),
+            role: "Reads the book".into(),
             lane: "batch".into(),
             at,
         };

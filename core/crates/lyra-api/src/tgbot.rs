@@ -22,8 +22,8 @@ use std::time::Duration;
 
 use lyra_alerts::state::AlertStore;
 use lyra_alerts::telegram::{MessageSender, TelegramSender};
-use serde_json::{Value, json};
 use lyra_db::jobs::Queue as _;
+use serde_json::{Value, json};
 use tokio::task::JoinHandle;
 
 use crate::AppState;
@@ -77,7 +77,13 @@ pub fn spawn(state: AppState) {
 
     tokio::spawn(async move {
         tracing::info!("telegram command bot listening");
-        run(state, sender, token.trim().to_string(), owner.trim().to_string()).await;
+        run(
+            state,
+            sender,
+            token.trim().to_string(),
+            owner.trim().to_string(),
+        )
+        .await;
     });
 }
 
@@ -202,7 +208,9 @@ async fn publish_commands(client: &reqwest::Client, token: &str) {
             tracing::info!(count, "published the telegram command menu");
         }
         Ok(response) => tracing::warn!(status = %response.status(), "setMyCommands refused"),
-        Err(e) => tracing::warn!(error = %e.without_url(), "could not publish the telegram command menu"),
+        Err(e) => {
+            tracing::warn!(error = %e.without_url(), "could not publish the telegram command menu")
+        }
     }
 }
 
@@ -392,14 +400,13 @@ async fn handle(state: &AppState, user_id: Option<&str>, text: &str) -> String {
         };
         // The day is computed here, not inside the store: `digest::day_key` is the same clock the
         // daily brief uses, so "today" on your phone and "today" in the brief agree.
-        if let Some(reply) =
-            crate::bot_life::reply(
-                state,
-                command,
-                user_id,
-                &lyra_alerts::digest::day_key(&chrono::Local::now()),
-            )
-            .await
+        if let Some(reply) = crate::bot_life::reply(
+            state,
+            command,
+            user_id,
+            &lyra_alerts::digest::day_key(&chrono::Local::now()),
+        )
+        .await
         {
             return reply;
         }
@@ -446,7 +453,10 @@ mod tests {
         let mut seen = std::collections::BTreeSet::new();
         for (section, commands) in sections() {
             for (name, _) in commands {
-                assert!(seen.insert(*name), "/{name} is claimed twice (again in {section})");
+                assert!(
+                    seen.insert(*name),
+                    "/{name} is claimed twice (again in {section})"
+                );
             }
         }
     }
@@ -457,7 +467,10 @@ mod tests {
         for (section, commands) in sections() {
             assert!(text.contains(section), "{section} missing from /help");
             for (name, _) in commands {
-                assert!(text.contains(&format!("/{name} ")), "/{name} missing from /help");
+                assert!(
+                    text.contains(&format!("/{name} ")),
+                    "/{name} missing from /help"
+                );
             }
         }
     }
@@ -481,8 +494,15 @@ mod tests {
         let Err(still_running) = within(slow, Duration::from_millis(50)).await else {
             panic!("a command slower than the budget must not be answered inline");
         };
-        assert!(started.elapsed() < Duration::from_millis(250), "the loop waited too long");
-        assert_eq!(still_running.await.unwrap(), "the answer", "and the answer still arrives");
+        assert!(
+            started.elapsed() < Duration::from_millis(250),
+            "the loop waited too long"
+        );
+        assert_eq!(
+            still_running.await.unwrap(),
+            "the answer",
+            "and the answer still arrives"
+        );
     }
 
     #[tokio::test]
@@ -497,7 +517,10 @@ mod tests {
         // "/nwe" instead of telling you the command does not exist.
         let reply = capture_echo("/nwe", "nwe");
         assert!(reply.contains("I don't know /nwe"), "got:\n{reply}");
-        assert!(reply.contains("/today"), "and it should list what does exist");
+        assert!(
+            reply.contains("/today"),
+            "and it should list what does exist"
+        );
     }
 
     #[test]
@@ -572,9 +595,11 @@ mod tests {
              ?timeout=25&offset=42&allowed_updates=%5B%22message%22%5D"
                 .replace(' ', "")
         );
-        assert!(!url.contains(' '), "a space in the path breaks every poll: {url}");
+        assert!(
+            !url.contains(' '),
+            "a space in the path breaks every poll: {url}"
+        );
         // The query has to start immediately after the method name.
         assert!(url.contains("/getUpdates?timeout="), "{url}");
     }
-
 }

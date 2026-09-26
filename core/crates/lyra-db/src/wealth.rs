@@ -1889,12 +1889,30 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let pool = open_and_migrate(&dir.path().join("lyra.db")).await.unwrap();
 
-        record_snapshot(&pool, "server", &SnapshotInput { net_worth: 100.0, ..Default::default() }, 0, Some(T0))
-            .await
-            .unwrap();
-        record_snapshot(&pool, "server", &SnapshotInput { net_worth: 175.0, ..Default::default() }, 0, Some(T0 + 3_600))
-            .await
-            .unwrap();
+        record_snapshot(
+            &pool,
+            "server",
+            &SnapshotInput {
+                net_worth: 100.0,
+                ..Default::default()
+            },
+            0,
+            Some(T0),
+        )
+        .await
+        .unwrap();
+        record_snapshot(
+            &pool,
+            "server",
+            &SnapshotInput {
+                net_worth: 175.0,
+                ..Default::default()
+            },
+            0,
+            Some(T0 + 3_600),
+        )
+        .await
+        .unwrap();
 
         let points = load_history(&pool, "server").await.unwrap();
         assert_eq!(points.len(), 1);
@@ -3039,9 +3057,13 @@ mod tests {
     #[tokio::test]
     async fn an_update_keeps_the_id_and_created_at_but_moves_updated_at() {
         let (_dir, pool) = fresh().await;
-        let created = create_manual_asset(&pool, &manual_input("THB savings", "business"), Some(1_700_000_000))
-            .await
-            .unwrap();
+        let created = create_manual_asset(
+            &pool,
+            &manual_input("THB savings", "business"),
+            Some(1_700_000_000),
+        )
+        .await
+        .unwrap();
 
         let mut next = manual_input("THB savings", "store");
         next.value = Some(180_000.0);
@@ -3069,10 +3091,15 @@ mod tests {
         let created = create_manual_asset(&pool, &input, None).await.unwrap();
         assert!(created.note.is_some());
 
-        let cleared = update_manual_asset(&pool, &created.id, &manual_input("Kinesis gold", "store"), None)
-            .await
-            .unwrap()
-            .unwrap();
+        let cleared = update_manual_asset(
+            &pool,
+            &created.id,
+            &manual_input("Kinesis gold", "store"),
+            None,
+        )
+        .await
+        .unwrap()
+        .unwrap();
         assert_eq!(cleared.note, None);
     }
 
@@ -3095,7 +3122,12 @@ mod tests {
             .await
             .unwrap();
         assert!(delete_manual_asset(&pool, &created.id).await.unwrap());
-        assert!(get_manual_asset(&pool, &created.id).await.unwrap().is_none());
+        assert!(
+            get_manual_asset(&pool, &created.id)
+                .await
+                .unwrap()
+                .is_none()
+        );
         assert!(list_manual_assets(&pool).await.unwrap().is_empty());
     }
 
@@ -3130,11 +3162,17 @@ mod tests {
             (manual_input("", "store"), ManualAssetError::MissingName),
             (manual_input("x", "savings"), ManualAssetError::BadTier),
             (
-                ManualAssetInput { ccy: Some("eur".into()), ..manual_input("x", "store") },
+                ManualAssetInput {
+                    ccy: Some("eur".into()),
+                    ..manual_input("x", "store")
+                },
                 ManualAssetError::BadCcy,
             ),
             (
-                ManualAssetInput { custody: Some("warm".into()), ..manual_input("x", "store") },
+                ManualAssetInput {
+                    custody: Some("warm".into()),
+                    ..manual_input("x", "store")
+                },
                 ManualAssetError::BadCustody,
             ),
         ];
@@ -3152,8 +3190,20 @@ mod tests {
         let (_dir, pool) = fresh().await;
 
         for (field, input) in [
-            ("value", ManualAssetInput { value: Some(f64::NAN), ..manual_input("x", "store") }),
-            ("units", ManualAssetInput { units: Some(f64::INFINITY), ..manual_input("x", "store") }),
+            (
+                "value",
+                ManualAssetInput {
+                    value: Some(f64::NAN),
+                    ..manual_input("x", "store")
+                },
+            ),
+            (
+                "units",
+                ManualAssetInput {
+                    units: Some(f64::INFINITY),
+                    ..manual_input("x", "store")
+                },
+            ),
         ] {
             let e = create_manual_asset(&pool, &input, None).await.unwrap_err();
             assert_eq!(manual_error(&e), ManualAssetError::BadNumber(field));
@@ -3188,16 +3238,28 @@ mod tests {
             ..ManualAsset::default()
         };
 
-        assert_eq!(manual_usd(&asset(4200.0, Some("usd")), Some(36.0), Some(60_000.0)), 4200.0);
+        assert_eq!(
+            manual_usd(&asset(4200.0, Some("usd")), Some(36.0), Some(60_000.0)),
+            4200.0
+        );
         // An absent ccy is USD, not an error.
-        assert_eq!(manual_usd(&asset(4200.0, None), Some(36.0), Some(60_000.0)), 4200.0);
-        assert_eq!(manual_usd(&asset(180_000.0, Some("thb")), Some(36.0), None), 5000.0);
+        assert_eq!(
+            manual_usd(&asset(4200.0, None), Some(36.0), Some(60_000.0)),
+            4200.0
+        );
+        assert_eq!(
+            manual_usd(&asset(180_000.0, Some("thb")), Some(36.0), None),
+            5000.0
+        );
         assert_eq!(
             manual_usd(&asset(14_000_000.0, Some("sats")), None, Some(60_000.0)),
             8400.0
         );
         // No value at all is zero, not a panic on unwrap.
-        assert_eq!(manual_usd(&ManualAsset::default(), Some(36.0), Some(60_000.0)), 0.0);
+        assert_eq!(
+            manual_usd(&ManualAsset::default(), Some(36.0), Some(60_000.0)),
+            0.0
+        );
     }
 
     /// A missing rate yields zero rather than an error: one unpriceable asset must not take down
@@ -3254,11 +3316,12 @@ mod tests {
     async fn an_empty_off_chain_book_totals_zero() {
         let (_dir, pool) = fresh().await;
         assert_eq!(
-            manual_total_usd(&pool, Some(36.0), Some(60_000.0)).await.unwrap(),
+            manual_total_usd(&pool, Some(36.0), Some(60_000.0))
+                .await
+                .unwrap(),
             (0.0, 0)
         );
     }
-
 
     // ---- wallets ----
 
@@ -3322,7 +3385,9 @@ mod tests {
     #[tokio::test]
     async fn an_empty_address_is_refused_and_an_unknown_delete_is_not_an_error() {
         let (_dir, pool) = fresh().await;
-        let e = create_wallet(&pool, "   ", None, "evm", None).await.unwrap_err();
+        let e = create_wallet(&pool, "   ", None, "evm", None)
+            .await
+            .unwrap_err();
         assert_eq!(
             e.downcast_ref::<WalletError>(),
             Some(&WalletError::MissingAddress)
@@ -3334,10 +3399,15 @@ mod tests {
     async fn deleting_a_wallet_takes_it_out_of_the_address_list() {
         let (_dir, pool) = fresh().await;
         let evm = create_wallet(&pool, EVM, None, "evm", None).await.unwrap();
-        create_wallet(&pool, BTC, None, "bitcoin", None).await.unwrap();
+        create_wallet(&pool, BTC, None, "bitcoin", None)
+            .await
+            .unwrap();
 
         assert!(delete_wallet(&pool, &evm.id).await.unwrap());
-        assert_eq!(wallet_addresses(&pool).await.unwrap(), vec![BTC.to_string()]);
+        assert_eq!(
+            wallet_addresses(&pool).await.unwrap(),
+            vec![BTC.to_string()]
+        );
     }
 
     /// An empty table is the signal that the environment still owns the list, so it must read as
@@ -3347,5 +3417,4 @@ mod tests {
         let (_dir, pool) = fresh().await;
         assert!(wallet_addresses(&pool).await.unwrap().is_empty());
     }
-
 }

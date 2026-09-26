@@ -1,29 +1,55 @@
 # Telegram — the assistant's front door
 
-Telegram is the only way to reach Lyra from outside the house. It is two halves that share a
-process and nothing else: `lyra-alerts` **pushes** alerts and the daily brief out, and
-`lyra-api/src/tgbot.rs` **pulls** commands in.
+Telegram is the only way to reach Lyra from outside the house. It is two halves: `lyra-alerts`
+**pushes** alerts and the daily brief out, and `lyra-api/src/tgbot.rs` **pulls** commands in. They
+share a process, and since the job queue landed they share the queue: the brief goes out as a
+`digest.daily` job and a slow command's late answer as a `deliver.telegram` job, so a Telegram outage
+costs a retry rather than the message.
 
-> **`core/crates/lyra-api/src/tgbot.rs:47` is the authoritative command list.** It is a fixed
-> `&[(&str, &str)]` array — adding a command is a code change, not configuration.
+> **`tgbot.rs::sections()` is the authoritative command list.** It joins three fixed
+> `&[(&str, &str)]` arrays — `bot_life::COMMANDS`, `bot_jobs::COMMANDS` and `tgbot::COMMANDS` — so
+> adding a command is a code change, not configuration. `help()` and the phone's "/" menu are both
+> built from it, and a test fails if two sections claim the same name, which would silently shadow
+> one of them in `handle()`.
 
-This document absorbs the section that lived at `docs/api-server.md:140`, because the bot stopped
-being an implementation detail of an HTTP server the moment it became the plan.
+This document absorbs the section that lived in [`docs/api-server.md`](./api-server.md), because the
+bot stopped being an implementation detail of an HTTP server the moment it became the plan.
 
 ---
 
 ## 1. What it does today
 
-Eleven commands, **all of them portfolio reads**:
+Eighteen commands in three sections, **sixteen of them reads**:
+
+**Your money** — eleven, all portfolio reads, in `tgbot.rs`:
 
 `/nw` `/tiers` `/positions` `/rewards` `/risk` `/sats` `/bots` `/market` `/digest` `/status`
 `/help`
 
-They are published to Telegram with `setMyCommands` at startup so the "/" menu offers them —
-without that the bot looks inert even while it is listening.
+**Your day** — four, all reads, in `bot_life.rs`. Every reply is sized for a lock screen: six rows
+and then a count, because a message you have to scroll on a phone is one you deal with later, at
+which point the bot has bought you nothing.
 
-Nothing it can do changes a row. That is the property every section below is about keeping honest
-as it stops being true.
+`/today` `/next` `/inbox` `/week`
+
+**The queue** — three, in `bot_jobs.rs`, and **two of them write**:
+
+`/jobs` `/retry <id>` `/cancel <id>`
+
+`/retry` and `/cancel` are the only commands that change anything, and what they change is a row in
+`jobs` — never an entity. A job id is a UUID, so `/jobs` shows the first six characters and the other
+two accept any unambiguous prefix; an ambiguous prefix is refused rather than guessed, because
+retrying the wrong job sends a message you did not mean to send.
+
+All eighteen are published to Telegram with `setMyCommands` at startup so the "/" menu offers them —
+without that the bot looks inert even while it is listening, and for a while only the money commands
+were published, so the life and queue commands answered when typed but nothing ever suggested them.
+`/start` and `/menu` also answer, with the help text; they are aliases rather than entries.
+
+Anything that is not a known command is read as **capture**: `!buy milk`, `/bug the thing`, or a bare
+sentence, parsed by `grammar.rs` with the web app's own grammar so a line that works in ⌘K works
+here. **It echoes and writes nothing** — the point of this stage is that you can judge the parse,
+especially the dates, before it is allowed to change anything.
 
 ## 2. Why it polls
 
@@ -45,12 +71,14 @@ never echoed, because that would put a stranger's text in front of the owner.
 Position names are attacker-controlled on-chain data, so every label is stripped of control
 characters and capped before it goes into a message.
 
-### This is a spam filter today and an authorization boundary tomorrow
+### This is already an authorization boundary, not only a spam filter
 
-Right now the gate is the only thing between a stranger's message and a portfolio *read*. The first
-time a command writes a row, the same line of code becomes the only thing between a stranger and
-your task list — and after that, between a forwarded message and an entity whose title the model
-will read back on the next agenda call.
+It stopped being a spam filter when `/cancel` shipped. The gate is now the only thing between a
+stranger's message and a queued job being dropped, or a failed one being run again — and it is the
+only thing between a stranger and your agenda, which `/today` and `/week` read out. It is still not
+the only thing between a stranger and an *entity*: nothing over Telegram writes one. The first
+command that does makes this line of code the only thing between a forwarded message and a row whose
+title the model reads back on the next agenda call.
 
 The gate is correct as written. What it lacks is a test asserting `handle` is never called for a
 non-owner chat: the current tests cover `message_of` and `command_of` but not the gate itself,
@@ -61,9 +89,12 @@ which is the one thing here that must never regress. See
 
 The update offset is acknowledged **after** the reply is sent and stored in `alert_state` under
 `tgbot:offset`, so a restart mid-command re-runs at most that one command rather than replaying the
-backlog. This is the correct at-least-once choice, and it is harmless while every command is a
-read. The moment one writes, a replay is a duplicate row — which is why the roadmap mints entity
-ids from the Telegram `update_id`, making the re-run an insert that does nothing.
+backlog. This is the correct at-least-once choice, and the two commands that write are built to
+survive it: `/retry` enqueues the copy under the key `retry:<job id>`, so a second one returns the
+job the first made and answers "Already retrying", and a second `/cancel` finds the job already
+cancelled and says so. Neither can produce a duplicate. The first command that inserts an *entity*
+has to earn the same property — which is why the roadmap mints entity ids from the Telegram
+`update_id`, making the re-run an insert that does nothing.
 
 `MAX_PER_POLL = 5` caps how many commands one poll may run. After an outage Telegram hands back
 everything queued at once, and a week offline should not fire a week of portfolio reads back to
@@ -86,15 +117,26 @@ transient blip wrote the secret into `~/Library/Logs/lyra/server.log` in plain t
 sites now log `e.without_url()`. **If a log from before 2026-08-23 was ever copied off this
 machine, rotate the token with @BotFather.**
 
-## 6. Two limits that are live bugs, not future work
+## 6. Two limits that were live bugs, and what closed each
 
-- **4096 characters.** Telegram rejects anything longer outright, and the rejection surfaces only
-  as `delivered = false` in a log line. `digest.rs` is 1066 lines of string building pointed at a
-  single `sendMessage`. Chunking on line boundaries is the first item in the roadmap for exactly
-  this reason.
-- **The poll loop is serial and unbudgeted.** `handle().await` runs inside it, so one slow command
-  delays every command behind it and can push past the 25s long poll. Adding commands that touch
-  more tables makes this likelier, not less.
+- **4096 characters.** Telegram rejects anything longer outright, and the rejection surfaced only as
+  `delivered = false` in a log line — so the daily brief, which `digest.rs` assembles from every
+  module, could simply vanish on a long day. `split_for_telegram` in
+  `lyra-alerts/src/telegram.rs` now splits anything over the limit: on blank lines first, then single
+  newlines, then — only if one line is somehow longer than the whole limit — on characters. The order
+  is the point. A digest broken between sections reads as two messages; the same digest broken
+  mid-number reads as a bug. Anything that already fits returns one part, so the overwhelming
+  majority of sends allocate one string and make one request exactly as before.
+- **The poll loop's budget.** `handle().await` used to run inside the loop, so `/nw` or `/digest` — a
+  full portfolio read across several chains and an exchange — held it for as long as the upstreams
+  took, and the 25-second long poll behind it was spent waiting. A command now gets
+  `INLINE_BUDGET = 2s`, which is long enough that `/today` and `/help` still answer in one message.
+  Past it the loop replies *"Working on /nw — the answer will follow here"* and moves on. **The work
+  is not abandoned at the deadline**: dropping it and starting again on the queue would do a slow
+  portfolio read twice, so the task keeps running and its answer is enqueued as a `deliver.telegram`
+  job — which means the part that depends on Telegram being up gets retries. The computation itself
+  is not durable, so a restart while it runs loses the answer; but you were already told it was
+  coming, so the cost is asking again rather than silence.
 
 ## 7. The server cannot call a model
 
@@ -126,21 +168,32 @@ replies go back to the chat that asked, which is not a fan-out.
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | Unset, the bot never starts — logged as *"telegram command bot idle"*, which is the ordinary un-set-up state, not a failure |
 | `TELEGRAM_CHAT_ID` | The only chat answered. Also where alerts go |
+| `TELEGRAM_OWNER_USER_ID` | The row in `users` whose life `/today` and the rest read — **not** the chat id. Unset, the owner is resolved as the only user there is; unresolvable, the money commands still answer and the life commands decline with the name of this variable |
 
-Both are also read by the alert sender; see [Deployment §7.1](./deployment.md).
+The first two are also read by the alert sender; see [Deployment §7.1](./deployment.md).
 
 ## 10. What it becomes
 
-The roadmap's Stage B and C turn the fixed command array into a verb registry that MCP and the job
-queue share, add `/today` `/next` `/inbox` `/p` `/week`, and then a capture grammar so
-`!call the accountant tomorrow @Accounts` is one thumb. Stage D adds `/jobs` and the ability for a
-slow command to answer later in the same chat.
+Most of what this section used to describe as future is merged. `/today` `/next` `/inbox` `/week`
+answer now, so do `/jobs` `/retry` `/cancel`, and a slow command already answers later in the same
+chat — see §1 and §6 for both. The capture grammar is ported and shares its table with the web app's.
 
-When that lands, this section says which commands enqueue rather than answer inline, and what the
-user sees while a job is pending. It does not say that yet, because none of it is merged.
+Three things have not landed, and they are what is left of the plan:
+
+- **Capture cannot write.** `!call the accountant tomorrow @Accounts` tells you what it would create
+  and creates nothing. That echo is the whole of the distance between this bot and filing a task with
+  one thumb, and it is deliberate: the parse, especially the dates, has to be judged before it is
+  given the power to change anything.
+- **There is no `/p`.** Projects have a page and no command.
+- **The command surface is three hand-written arrays, not one verb registry shared with `lyra-mcp`.**
+  A new verb is therefore added twice, in two shapes, and the two can disagree about what exists —
+  `sections()` only guarantees the three Telegram arrays agree with each other.
+
+See [`docs/assistant-roadmap.md`](./assistant-roadmap.md).
 
 ## See also
 
 - [`docs/assistant-roadmap.md`](./assistant-roadmap.md) — the plan and its four decisions
+- [`docs/jobs.md`](./jobs.md) — the queue `/jobs` reads and a late answer goes out through
 - [`docs/alerts.md`](./alerts.md) — the outbound half, and Discord
 - [`docs/api-server.md`](./api-server.md) — the process this runs inside

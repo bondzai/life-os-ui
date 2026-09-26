@@ -152,11 +152,16 @@ mod tests {
 
     #[test]
     fn a_long_list_counts_the_tail_rather_than_printing_it() {
-        let many: Vec<_> = (0..12).map(|n| schedule(Some(&format!("habit {n}")))).collect();
+        let many: Vec<_> = (0..12)
+            .map(|n| schedule(Some(&format!("habit {n}"))))
+            .collect();
         let text = render(&many, "2026-09-21").unwrap();
         assert!(text.contains("habit 0"));
         assert!(text.contains("…and 4 more"), "got:\n{text}");
-        assert!(!text.contains("habit 11"), "the tail is counted, not listed");
+        assert!(
+            !text.contains("habit 11"),
+            "the tail is counted, not listed"
+        );
     }
 
     #[test]

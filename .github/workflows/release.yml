@@ -1,0 +1,128 @@
+# Build the mini PC's tarball on every push to master, and publish it as a release.
+#
+# The box does not build and the box is not reachable. `ops/lyra-update.sh` polls the releases API
+# every five minutes and installs a tag it has not seen. Nothing here touches the mini PC.
+#
+# ── Why not a self-hosted runner ──
+# This repository is **public**. A self-hosted runner on a public repository executes code from
+# anyone's pull request, on the machine it is installed on — which here is a box inside a home
+# network with the author's database on it. GitHub documents this as a reason not to do it. Pulling
+# costs five minutes of latency and removes the entire class of problem.
+#
+# ── Why ubuntu-24.04 and not ubuntu-latest ──
+# The binary is dynamically linked against the builder's glibc. `ubuntu-latest` moves when GitHub
+# moves it, and the day it becomes 26.04 every deploy onto Ubuntu 24.04 in WSL dies with
+# `GLIBC_2.4x not found` — on a binary that built and tested perfectly. **This must match the
+# distro on the mini PC.** If that distro changes, change this line in the same commit.
+name: release
+
+on:
+  push:
+    branches: [master]
+  # For re-cutting a release without an empty commit.
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  # The gate, again, on the exact commit being shipped. A build that skipped the tests is the last
+  # thing you want a timer to install unattended fifteen minutes later.
+  gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            core/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('core/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+      # `working-directory: core` is load-bearing, not tidiness: rustup finds rust-toolchain.toml
+      # by walking up from the working directory, not from --manifest-path, so running cargo from
+      # the repo root silently ignores the pin. These jobs also run npm from the root, so it is
+      # per-step here rather than a job-level default.
+      - run: cargo clippy --version
+        working-directory: core
+      - working-directory: core
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - working-directory: core
+        run: cargo test --workspace
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  build:
+    needs: gate
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: tag
+        # Monotonic and traceable. The box compares tags for equality, not order, so the only
+        # requirement is that a new build never reuses a tag.
+        run: echo "tag=build-${{ github.run_number }}-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            core/target
+          key: cargo-release-${{ runner.os }}-${{ hashFiles('core/Cargo.lock') }}
+          restore-keys: cargo-release-${{ runner.os }}-
+
+      # lto = "fat" with codegen-units = 1 over ~400 crates. Minutes, cached; a long time, cold.
+      # That cost is paid here precisely so it is never paid on the mini PC.
+      - working-directory: core
+        run: cargo build --release --bin lyra-api
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # `VITE_API_URL=/api` is what makes same-origin serving work. Vite inlines this at BUILD
+      # time; the default is the absolute dev-server URL, and baked into this bundle every page
+      # would render its error state against a perfectly healthy server.
+      - run: VITE_API_URL=/api npm run build
+
+      - name: Assemble the tarball
+        run: |
+          set -euo pipefail
+          mkdir -p stage/bin stage/ui
+          cp core/target/release/lyra-api stage/bin/
+          cp -r dist/. stage/ui/
+          # Read by `deploy` to name the release directory, so a rollback target has a name.
+          echo "${{ steps.tag.outputs.tag }}" > stage/VERSION
+          test -f stage/ui/index.html   # LYRA_UI_DIR with no index.html silently serves API only
+          # Members are named bin/, ui/, VERSION — not ./bin/ etc. `deploy` reads VERSION back
+          # out with `tar -xzOf <tgz> VERSION`, and a leading ./ makes that name not match.
+          tar -czf lyra-x86_64-linux.tar.gz -C stage bin ui VERSION
+          sha256sum lyra-x86_64-linux.tar.gz > SHA256SUMS
+          ls -lh lyra-x86_64-linux.tar.gz
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # `gh` is preinstalled, so this needs no third-party action either.
+        run: |
+          gh release create "${{ steps.tag.outputs.tag }}" \
+            lyra-x86_64-linux.tar.gz SHA256SUMS \
+            --title "${{ steps.tag.outputs.tag }}" \
+            --notes "Automated build of ${{ github.sha }}.
+
+          Installed by \`ops/lyra-update.sh\` on the next timer tick (within 5 minutes)." \
+            --latest

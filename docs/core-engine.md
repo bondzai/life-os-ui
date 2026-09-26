@@ -89,15 +89,22 @@ interface Schedule {
 
 It looks like one, and the next person looking for a queue will find it and be wrong.
 
-`schedules` answers *"when is this habit next due"*, and its `nextDue` is **rendered to the user**
-on the habits and chores pages. It carries no payload, no attempt count, no lease, no worker and no
-terminal state. If a failed job rewrote `nextDue` as a backoff, the user would watch their chores
-silently slide — the two concepts share the word "due" and nothing else.
+`schedules` answers *"when is this habit next due"*, and its `nextDue` is the recurrence's own
+state. It carries no payload, no attempt count, no lease, no worker and no terminal state. If a
+failed job rewrote `nextDue` as a backoff, the user would watch their chores silently slide — the
+two concepts share the word "due" and nothing else.
 
-When the job queue lands it is a separate `jobs` table, and the bridge is one-directional: a
-`schedule.tick` job scans `schedules WHERE isActive = 1 AND nextDue <= now` and *enqueues* real
-jobs. `schedules` never learns the queue exists. See
-[`docs/assistant-roadmap.md` §1.8](./assistant-roadmap.md).
+Its readers are the `schedule_list` MCP tool and the `schedule.tick` job. **Nothing in `src/` reads
+`schedules` at all** — `scheduleRepository` is exported and never called, and the SPA does task
+recurrence on a task's own `dueDate` (`src/pages/tasks/task-helpers.ts`). This document and the
+schema comment both used to say the habits page rendered `nextDue`; it does not, so do not go
+looking for that reader.
+
+The job queue landed as a separate `jobs` table, and the bridge is one-directional: the
+`schedule.tick` job reads `schedules WHERE isActive = 1 AND nextDue <= today` and *enqueues* a
+`deliver.telegram` job naming what is due. It never writes `nextDue` — advancing a recurrence is
+something you do by completing it — so `schedules` never learns the queue exists. See
+[`docs/jobs.md`](./jobs.md).
 
 ### Relation
 
@@ -133,10 +140,16 @@ React hooks wrap repositories with TanStack Query for caching and mutations:
 |------|-------|
 | `useEntities(type?)` | All entities, optionally filtered by type |
 | `useTrackers(entityId?)` | All trackers, optionally filtered by entity |
-| `useSchedules(entityId?)` | All schedules, optionally filtered by entity |
 | `useRelations(entityId?)` | All relations involving an entity |
 
-Each returns `{ items, isLoading, create, update, remove }`.
+Each returns `{ items, isLoading, create, update, remove }`, which is `useRepository`'s shape.
+
+**There is no `useSchedules`.** Three of the four primitives have a hook and schedules do not.
+`scheduleRepository` is constructed and exported in `src/core/repositories/index.ts`, and nothing in
+the SPA calls it. `/api/schedules` is served, but the readers of the table today are the
+`schedule_list` MCP tool and the `schedule.tick` job; the SPA's own recurrence lives on the entity's
+`dueDate` and is advanced by `src/pages/tasks/task-helpers.ts`. If a page ever needs the table,
+`useRepository` is what the hook would be built from.
 
 ## Module configuration
 

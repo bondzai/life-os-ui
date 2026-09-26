@@ -99,8 +99,10 @@ than inventing a second style.
   refused too.
 
 Bodies past Discord's 4096-character embed limit are cut with a visible mark, because a brief that
-arrives shortened beats one that does not arrive. Telegram's own 4096 limit is *not* yet handled
-this way — see [`docs/telegram.md` §6](./telegram.md).
+arrives shortened beats one that does not arrive. Telegram's own 4096 limit is handled differently
+and better: `split_for_telegram` splits an over-long message on blank lines, then newlines, then
+characters, so a long brief arrives as several messages rather than being truncated or refused. See
+[`docs/telegram.md` §6](./telegram.md).
 
 ### Why an embed rather than plain text
 

@@ -347,7 +347,13 @@ async fn maybe_digest(state: &AppState, config: &AlertConfig<'_>) {
     // produce the same single job, and that job's own backoff carries past the hour — a job does
     // not know what time it was created. The day key is stamped by the handler, so the flag and
     // the send cannot disagree.
-    enqueue_once(state, &meta, crate::jobs::digest::job(&today), "the daily brief").await;
+    enqueue_once(
+        state,
+        &meta,
+        crate::jobs::digest::job(&today),
+        "the daily brief",
+    )
+    .await;
 }
 
 /// Enqueue a keyed job from the tick, and say so only when it is new.
@@ -707,15 +713,26 @@ mod tests {
             .unwrap();
         let queue = SqliteQueue::new(pool);
 
-        let job = NewJob::new("deliver.telegram", Lane::Deliver)
-            .payload(serde_json::json!({ "text": "WETH/USDC is out of range", "markup": "telegram" }));
+        let job = NewJob::new("deliver.telegram", Lane::Deliver).payload(
+            serde_json::json!({ "text": "WETH/USDC is out of range", "markup": "telegram" }),
+        );
         let queued = queue.enqueue(&job, 1000).await.unwrap();
         assert!(queued.created);
 
         // A worker takes it and the send fails, the way a router reboot fails.
-        let claimed = queue.claim("w", &[Lane::Deliver], 60, 1100).await.unwrap().unwrap();
+        let claimed = queue
+            .claim("w", &[Lane::Deliver], 60, 1100)
+            .await
+            .unwrap()
+            .unwrap();
         queue
-            .fail("w", &claimed.id, "connection reset", lyra_db::jobs::Failure::Retry, 1200)
+            .fail(
+                "w",
+                &claimed.id,
+                "connection reset",
+                lyra_db::jobs::Failure::Retry,
+                1200,
+            )
             .await
             .unwrap();
 
