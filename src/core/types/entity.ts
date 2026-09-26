@@ -1,4 +1,7 @@
 export type EntityType =
+  // A workspace is the container the others hang off — one area of your life, with authored
+  // context of its own in the knowledge tree under `workspaces/<slug>/`. See docs/workspaces.md.
+  | 'workspace'
   | 'goal'
   | 'project'
   | 'task'

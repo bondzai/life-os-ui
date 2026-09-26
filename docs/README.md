@@ -21,6 +21,7 @@ you where things are documented; that file tells you what will bite you.
 | [Alerts](./alerts.md) | `lyra-alerts`: rules, digests, the Telegram and Discord channels, and their containment |
 | [Core engine](./core-engine.md) | Entity, Tracker, Schedule and Relation — and why `schedules` is not the job queue |
 | [Jobs](./jobs.md) | The queue: lanes, leases, idempotency, backoff, the dead letter, and how to add a kind |
+| [Workspaces](./workspaces.md) | Context you author per area of life — where it lives, how it is assembled, and what it is for |
 | [Modules](./modules.md) | The sidebar, the Projects type, and the DeFi page rewrite |
 | [Parity harness](./parity.md) | Gating the Rust port against the Python oracle |
 | [Deployment](./deployment.md) | Running it on the mini PC — the one binary, the systemd unit, the CI pipeline that feeds it, moving the database, backups |

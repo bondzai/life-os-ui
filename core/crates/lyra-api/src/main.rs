@@ -24,6 +24,7 @@ mod search;
 mod tgbot;
 mod trackers;
 mod wealth;
+mod workspaces;
 
 use anyhow::{Context, Result};
 use axum::extract::State;
@@ -145,6 +146,10 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
             "/api/relations/{id}",
             get(relations::get_one).delete(relations::delete),
         )
+        // The workspace's authored context. Registered before the knowledge routes it reads
+        // from, so the narrower path is the one a reader meets first.
+        .route("/api/workspaces", get(workspaces::index))
+        .route("/api/workspaces/{slug}/context", get(workspaces::context))
         .route("/api/knowledge", get(knowledge::list))
         .route("/api/knowledge/search", get(knowledge::search))
         .route("/api/knowledge/history", get(knowledge::history))

@@ -147,6 +147,7 @@ them to build.
 | anything, first | `docs/README.md` — the index |
 | the backend's shape | `docs/architecture.md`, `docs/api-server.md` |
 | the job queue | `docs/jobs.md` |
+| workspaces and authored context | `docs/workspaces.md` |
 | alerts and delivery | `docs/alerts.md` |
 | the Telegram surface | `docs/telegram.md` |
 | the MCP server | `docs/mcp.md` |
