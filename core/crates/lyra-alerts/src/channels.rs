@@ -19,7 +19,7 @@
 use crate::config::EnvSource;
 use crate::discord::DiscordSender;
 use crate::message::Message;
-use crate::telegram::{Delivery, MessageSender, TEST_MESSAGE, TelegramSender};
+use crate::telegram::{Delivery, MessageSender, SendError, TEST_MESSAGE, TelegramSender};
 
 /// The channels this box can reach.
 pub struct Channels {
@@ -67,6 +67,18 @@ impl Channels {
     /// The configured channels, in delivery order. For logs and status, never for routing.
     pub fn names(&self) -> Vec<&'static str> {
         self.senders.iter().map(|s| s.name()).collect()
+    }
+
+    /// Each channel on its own, so a caller can send to them one at a time and keep the outcomes
+    /// apart.
+    ///
+    /// [`Self::send`] cannot do that and cannot be fixed to: it has one return value for N
+    /// channels, so it must either report success when only some took the message — losing the
+    /// rest silently, which is what it does — or report failure and have the retry re-send to the
+    /// channel that already succeeded. The only way out is for the caller to own the loop, because
+    /// only the caller knows what it already did.
+    pub fn each(&self) -> impl Iterator<Item = &dyn MessageSender> {
+        self.senders.iter().map(|sender| sender.as_ref())
     }
 
     /// Send to every channel.
@@ -219,5 +231,99 @@ mod tests {
             vec!["discord"],
             "Telegram is absent, so it is not in the list at all"
         );
+    }
+}
+
+/// Test doubles for callers that need a channel with an outcome they choose.
+///
+/// This lives here, and is `pub` rather than `#[cfg(test)]`, because [`SendError`] deliberately
+/// cannot be built from outside this crate: its constructor takes a scrubber so that an unscrubbed
+/// failure message cannot exist. A caller that wanted to test "Discord failed and Telegram did
+/// not" would otherwise have to widen that constructor, trading a real invariant for a test — so
+/// the crate hands out the double instead of the key. `#[cfg(test)]` would not do: it does not
+/// cross a crate boundary.
+pub mod testing {
+    use super::{Delivery, Message, MessageSender, SendError};
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// A channel that returns outcomes from a script, and counts what it was asked to send.
+    ///
+    /// The count is usually the assertion that matters: "was Telegram asked twice" is a question no
+    /// amount of checking a job's status can answer.
+    pub struct ScriptedSender {
+        name: &'static str,
+        /// Consumed one per call; the last entry repeats, so a one-entry script is a constant.
+        outcomes: Mutex<Vec<Delivery>>,
+        sends: std::sync::Arc<AtomicUsize>,
+    }
+
+    impl ScriptedSender {
+        /// Always takes the message.
+        pub fn sending(name: &'static str) -> Self {
+            Self::scripted(name, vec![Delivery::Sent])
+        }
+
+        /// Always fails, with a retryable error.
+        pub fn failing(name: &'static str, reason: &str) -> Self {
+            Self::scripted(name, vec![Self::failure(reason)])
+        }
+
+        /// Fails the given number of times, then takes it — a router reboot, which is the case the
+        /// queue's backoff exists for.
+        pub fn failing_then_sending(name: &'static str, failures: usize, reason: &str) -> Self {
+            let mut script: Vec<Delivery> = (0..failures).map(|_| Self::failure(reason)).collect();
+            script.push(Delivery::Sent);
+            Self::scripted(name, script)
+        }
+
+        pub fn scripted(name: &'static str, outcomes: Vec<Delivery>) -> Self {
+            Self {
+                name,
+                outcomes: Mutex::new(outcomes),
+                sends: std::sync::Arc::new(AtomicUsize::new(0)),
+            }
+        }
+
+        /// How many times this channel was asked to send.
+        pub fn sends(&self) -> usize {
+            self.sends.load(Ordering::SeqCst)
+        }
+
+        /// A handle on the send count that outlives the move into [`super::Channels`].
+        ///
+        /// `Channels` owns its senders, so a test cannot hold the sender itself and still hand it
+        /// over. Sharing the counter rather than the sender keeps that ownership honest and avoids
+        /// a blanket `MessageSender for Arc<T>` that only tests would ever want.
+        pub fn counter(&self) -> std::sync::Arc<AtomicUsize> {
+            std::sync::Arc::clone(&self.sends)
+        }
+
+        fn failure(reason: &str) -> Delivery {
+            // `str::to_string` is the documented scrubber for text that never touched a credential,
+            // which a test's own string never has.
+            Delivery::Failed(SendError::scrubbed(str::to_string, reason.to_string()))
+        }
+    }
+
+    impl MessageSender for ScriptedSender {
+        fn name(&self) -> &'static str {
+            self.name
+        }
+
+        fn send<'a>(
+            &'a self,
+            _message: &'a Message,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Delivery> + Send + 'a>> {
+            Box::pin(async move {
+                self.sends.fetch_add(1, Ordering::SeqCst);
+                let mut script = self.outcomes.lock().unwrap();
+                if script.len() > 1 {
+                    script.remove(0)
+                } else {
+                    script.first().cloned().unwrap_or(Delivery::Sent)
+                }
+            })
+        }
     }
 }

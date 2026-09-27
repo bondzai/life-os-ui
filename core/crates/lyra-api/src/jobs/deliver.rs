@@ -58,11 +58,14 @@ pub fn job(text: impl Into<String>, markup: Markup) -> NewJob {
         .payload(json!({ "text": text.into(), "markup": markup.as_str() }))
 }
 
-/// Sends a job's `payload.text` to every configured channel.
+/// Sends a job's `payload.text` to every configured channel, and holds each channel to its own
+/// outcome.
 ///
-/// Named for Telegram because that is the channel anyone is waiting on, but it goes through
-/// [`Channels`], so a box with Discord configured gets both — "delivered" means delivered
-/// *somewhere*, which is the rule the alert path already follows.
+/// Named for Telegram because that is the channel anyone is waiting on, but a box with Discord
+/// configured gets both. **"Delivered" means delivered to every channel**, not to one of them: the
+/// job stays unfinished while any channel is still owed the message, and a retry attempts only the
+/// channels that have not taken it. It previously reported success as soon as one channel accepted,
+/// which is how a Discord outage could last for days without anything saying so.
 pub struct DeliverTelegram {
     channels: Arc<Channels>,
 }
@@ -114,30 +117,77 @@ impl Handler for DeliverTelegram {
                 .and_then(|markup| markup.as_str())
                 .unwrap_or("plain");
 
-            let channels = Arc::clone(&self.channels);
-            ctx.once("sent", || async move {
-                let message = if markup == "telegram" {
-                    Message::telegram_markup(text)
-                } else {
-                    Message::plain(text)
-                };
-                match channels.send(&message).await {
-                    Delivery::Sent => Ok(json!({ "delivered": true })),
-                    // Not a failure. A box with no channels configured is the ordinary state of a
-                    // fresh install, and retrying five times would only turn that into a row in
-                    // the failed list every time anything tries to talk.
-                    Delivery::NotConfigured => Ok(json!({
-                        "delivered": false,
-                        "reason": "no channel is configured"
-                    })),
-                    // Retryable: this is a router reboot or somebody else's 500, and it is the
-                    // whole reason the send is a job.
-                    Delivery::Failed(error) => Err(anyhow!("{}", error.message())),
-                }
-            })
-            .await?;
+            let message = if markup == "telegram" {
+                Message::telegram_markup(text)
+            } else {
+                Message::plain(text)
+            };
 
-            Ok(())
+            // A box with no channels configured is the ordinary state of a fresh install. Recorded
+            // as a completed step rather than a failure, so it does not put a row in the failed
+            // list every time anything tries to talk.
+            if !self.channels.can_send() {
+                ctx.once("sent", || async {
+                    Ok(json!({ "delivered": false, "reason": "no channel is configured" }))
+                })
+                .await?;
+                return Ok(());
+            }
+
+            // One step per channel, keyed by its name.
+            //
+            // `Channels::send` cannot be used here. It returns one verdict for every channel, so
+            // with a single `"sent"` effect the handler had two options and both were wrong:
+            // report success when only some channels took the message — losing the others with
+            // nothing but a `tracing::warn` — or report failure and have the retry re-send to the
+            // channel that already succeeded. A Discord outage went silent that way.
+            //
+            // `ctx.once` only records a step that returned `Ok`, so a channel that failed is the
+            // only one the retry attempts. That makes delivery exactly-once *per channel* using
+            // `job_effects` exactly as it already is — the key is the handler's to choose, and
+            // choosing the channel name is the whole fix. No schema change.
+            let mut failures: Vec<(&'static str, anyhow::Error)> = Vec::new();
+            for sender in self.channels.each() {
+                let name = sender.name();
+                let outcome = ctx
+                    .once(&format!("sent:{name}"), || async {
+                        match sender.send(&message).await {
+                            Delivery::Sent => Ok(json!({ "delivered": true })),
+                            // `from_env` drops unconfigured senders, so this should be
+                            // unreachable; treating it as a completed non-delivery keeps it from
+                            // retrying forever if it ever is reached.
+                            Delivery::NotConfigured => Ok(json!({
+                                "delivered": false,
+                                "reason": "not configured"
+                            })),
+                            // Retryable: a router reboot or somebody else's 500, which is the
+                            // whole reason the send is a job.
+                            Delivery::Failed(error) => Err(anyhow!("{}", error.message())),
+                        }
+                    })
+                    .await;
+
+                // Every channel is attempted before anything is reported. Returning on the first
+                // failure would mean a broken Discord stopped Telegram from being tried at all,
+                // which is the same class of bug in the opposite direction.
+                if let Err(error) = outcome {
+                    failures.push((name, error));
+                }
+            }
+
+            match failures.len() {
+                0 => Ok(()),
+                // Named, so `last_error` on the settings page says *which* channel is failing
+                // rather than that something did.
+                _ => Err(HandlerError::Retry(anyhow!(
+                    "{}",
+                    failures
+                        .iter()
+                        .map(|(name, error)| format!("{name}: {error}"))
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                ))),
+            }
         })
     }
 }
@@ -145,8 +195,10 @@ impl Handler for DeliverTelegram {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lyra_alerts::channels::testing::ScriptedSender;
     use lyra_db::jobs::{Lane, NewJob, Queue, SqliteQueue, Status};
     use std::sync::Arc;
+    use std::sync::atomic::Ordering;
     use tempfile::TempDir;
 
     use crate::jobs::{Handlers, Worker};
@@ -160,13 +212,150 @@ mod tests {
     }
 
     fn worker(queue: SqliteQueue, now: i64) -> Worker {
+        worker_with(queue, now, Channels::new(vec![]))
+    }
+
+    fn worker_with(queue: SqliteQueue, now: i64, channels: Channels) -> Worker {
         Worker::new(
             queue,
-            Arc::new(Handlers::new().with(Arc::new(DeliverTelegram::new(Channels::new(vec![]))))),
+            Arc::new(Handlers::new().with(Arc::new(DeliverTelegram::new(channels)))),
             "deliver-0",
             vec![Lane::Deliver],
         )
         .clock(Arc::new(move || now))
+    }
+
+    /// The rule the old code could not honour: one channel failing must not lose the message for
+    /// that channel, and must not re-send it to the channel that already took it.
+    #[tokio::test]
+    async fn a_retry_sends_only_to_the_channel_that_did_not_take_it() {
+        let (_dir, queue) = fresh().await;
+        let id = queue
+            .enqueue(
+                &NewJob::new("deliver.telegram", Lane::Deliver)
+                    .payload(serde_json::json!({ "text": "health factor 1.05" })),
+                1000,
+            )
+            .await
+            .unwrap()
+            .id;
+
+        // Pass one: Telegram takes it, Discord does not.
+        {
+            let good = ScriptedSender::sending("telegram");
+            let bad = ScriptedSender::failing("discord", "503 from discord");
+            let (good_sends, bad_sends) = (good.counter(), bad.counter());
+            let channels = Channels::new(vec![Box::new(good), Box::new(bad)]);
+            assert!(worker_with(queue.clone(), 1000, channels).tick().await);
+
+            assert_eq!(good_sends.load(Ordering::SeqCst), 1);
+            assert_eq!(bad_sends.load(Ordering::SeqCst), 1);
+
+            let job = queue.get(&id).await.unwrap().unwrap();
+            assert_eq!(job.status, Status::Queued, "still owed to one channel");
+            assert!(
+                job.last_error.as_deref().unwrap().contains("discord"),
+                "the error names which channel failed: {:?}",
+                job.last_error
+            );
+            assert_eq!(
+                queue.recall(&id, "sent:telegram").await.unwrap().unwrap()["delivered"],
+                serde_json::json!(true)
+            );
+            assert!(
+                queue.recall(&id, "sent:discord").await.unwrap().is_none(),
+                "a failed channel records nothing, which is what makes the retry try it again"
+            );
+        }
+
+        // Pass two, past the backoff. Fresh senders, so the counts are only this attempt's.
+        {
+            let good = ScriptedSender::sending("telegram");
+            let recovered = ScriptedSender::sending("discord");
+            let (good_sends, recovered_sends) = (good.counter(), recovered.counter());
+            let channels = Channels::new(vec![Box::new(good), Box::new(recovered)]);
+            assert!(worker_with(queue.clone(), 9000, channels).tick().await);
+
+            assert_eq!(
+                good_sends.load(Ordering::SeqCst),
+                0,
+                "Telegram already took it — sending again would be the duplicate this design exists to avoid"
+            );
+            assert_eq!(
+                recovered_sends.load(Ordering::SeqCst),
+                1,
+                "Discord is the only one still owed it"
+            );
+            assert_eq!(queue.get(&id).await.unwrap().unwrap().status, Status::Done);
+        }
+    }
+
+    /// Every channel is attempted even when an earlier one fails.
+    ///
+    /// Returning on the first failure would mean a broken Discord stopped Telegram from being tried
+    /// at all — the same silent loss in the opposite direction.
+    #[tokio::test]
+    async fn a_failing_channel_does_not_stop_the_others_being_tried() {
+        let (_dir, queue) = fresh().await;
+        let id = queue
+            .enqueue(
+                &NewJob::new("deliver.telegram", Lane::Deliver)
+                    .payload(serde_json::json!({ "text": "fees ready" })),
+                1000,
+            )
+            .await
+            .unwrap()
+            .id;
+
+        // The broken one first, so a short-circuit would skip the good one.
+        let broken = ScriptedSender::failing("discord", "401 unauthorized");
+        let good = ScriptedSender::sending("telegram");
+        let (broken_sends, good_sends) = (broken.counter(), good.counter());
+        let channels = Channels::new(vec![Box::new(broken), Box::new(good)]);
+        assert!(worker_with(queue.clone(), 1000, channels).tick().await);
+
+        assert_eq!(broken_sends.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            good_sends.load(Ordering::SeqCst),
+            1,
+            "the good channel must still have been attempted"
+        );
+        assert_eq!(
+            queue.recall(&id, "sent:telegram").await.unwrap().unwrap()["delivered"],
+            serde_json::json!(true)
+        );
+    }
+
+    /// Both channels taking it is the ordinary case, and it finishes.
+    #[tokio::test]
+    async fn a_message_every_channel_takes_is_done_with_an_effect_each() {
+        let (_dir, queue) = fresh().await;
+        let a = ScriptedSender::sending("telegram");
+        let b = ScriptedSender::sending("discord");
+
+        let id = queue
+            .enqueue(
+                &NewJob::new("deliver.telegram", Lane::Deliver)
+                    .payload(serde_json::json!({ "text": "done" })),
+                1000,
+            )
+            .await
+            .unwrap()
+            .id;
+
+        let channels = Channels::new(vec![Box::new(a), Box::new(b)]);
+        assert!(worker_with(queue.clone(), 1000, channels).tick().await);
+
+        assert_eq!(queue.get(&id).await.unwrap().unwrap().status, Status::Done);
+        for key in ["sent:telegram", "sent:discord"] {
+            assert_eq!(
+                queue.recall(&id, key).await.unwrap().unwrap()["delivered"],
+                serde_json::json!(true),
+                "{key} should be recorded"
+            );
+        }
+        // The old single flag is gone, so nothing reads it by accident.
+        assert!(queue.recall(&id, "sent").await.unwrap().is_none());
     }
 
     #[tokio::test]
