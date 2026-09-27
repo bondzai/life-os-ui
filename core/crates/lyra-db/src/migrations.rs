@@ -271,6 +271,49 @@ pub const MIGRATIONS: &[&[&str]] = &[
     // It is written on every claim and heartbeat, so it costs a little on the write side; at a
     // few hundred jobs a day that is nothing.
     &["CREATE INDEX IF NOT EXISTS idx_jobs_updated ON jobs(updated_at DESC, id DESC)"],
+    // v7 -> v8: notification channels, and which groups reach which of them.
+    //
+    // Two tables rather than entity rows, because a channel is plumbing: `jobs`, `schedules` and
+    // `alert_state` are all infrastructure the same way. `entities` is for life data.
+    &[
+        r#"CREATE TABLE IF NOT EXISTS channels (
+               id          TEXT    PRIMARY KEY,
+               name        TEXT    NOT NULL,
+               -- 'telegram' | 'discord'. Not an enum: SQLite has none, and the sender registry in
+               -- lyra-alerts is the real authority for which transports exist.
+               transport   TEXT    NOT NULL,
+               -- The credential, sealed (see `secrets.rs`). NULL for a channel whose credential
+               -- still comes from the environment, which is how the seeded Telegram row works —
+               -- a bot token is a stronger credential than a room webhook and there is no reason
+               -- to move it.
+               secret       TEXT,
+               -- What the UI renders in place of the credential. Never the credential.
+               preview      TEXT,
+               enabled      INTEGER NOT NULL DEFAULT 1,
+               -- Why the last send failed, and since when, so "Discord has been down since
+               -- Tuesday" is answerable from the row instead of from the log.
+               last_error   TEXT,
+               failing_since INTEGER,
+               created_at   INTEGER NOT NULL,
+               updated_at   INTEGER NOT NULL
+           )"#,
+        r#"CREATE TABLE IF NOT EXISTS routes (
+               id           TEXT    PRIMARY KEY,
+               -- `group` is reserved in SQL, so the column is `grp`. Named here rather than quoted
+               -- everywhere, because a quoted identifier is a thing someone forgets to quote once.
+               grp          TEXT    NOT NULL,
+               channel_id   TEXT    NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+               -- 'info' | 'warning' | 'critical'. A route delivers this level and above.
+               min_severity TEXT    NOT NULL DEFAULT 'info',
+               -- Local hours, inclusive-exclusive, or NULL for always. Local because the point is
+               -- "do not wake me", which is a wall-clock idea.
+               quiet_from   INTEGER,
+               quiet_to     INTEGER,
+               UNIQUE (grp, channel_id)
+           )"#,
+        // The lookup every notification does: given a group, which channels and at what threshold.
+        "CREATE INDEX IF NOT EXISTS idx_routes_grp ON routes(grp)",
+    ],
 ];
 
 /// Applies every migration the database has not seen yet. Returns the resulting `user_version`.

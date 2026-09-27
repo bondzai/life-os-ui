@@ -47,6 +47,12 @@ SNAPSHOT_INTERVAL
 SNAPSHOT_GROUP
 LYRA_JOBS
 
+# Seals credentials that have to live in the database — a webhook URL configured from the UI. See
+# crates/lyra-db/src/secrets.rs. Unset, the app still runs and still sends through channels
+# configured in this file; only storing a *new* credential from the UI is refused, by name.
+#   openssl rand -base64 32
+LYRA_SECRET_KEY
+
 # Knowledge notes — a git repo the module commits into.
 LYRA_KNOWLEDGE_PATH
 
