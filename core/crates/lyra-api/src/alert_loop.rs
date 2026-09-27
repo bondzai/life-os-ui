@@ -212,21 +212,35 @@ async fn sweep(state: &AppState, config: &AlertConfig<'_>) {
     // survives a crash the way "we sent it" never could. It stays *before* `save_positions` for
     // the same reason it always did: a crash between the two re-detects the transition and queues
     // a second copy, and a duplicate alert is a great deal better than a silent one.
-    let queue = SqliteQueue::new(state.pool.clone());
     for alert in &evaluation.alerts {
         // Still Telegram-flavoured: `render_alert` writes `*bold*` and runs the untrusted
         // half through `strip_markdown` itself. Converting it to fields is what a Discord
         // embed will want, and is the next slice rather than this one.
         let text = lyra_alerts::digest::render_alert(alert, None);
-        // No idempotency key. The dedupe that matters already happened — `rules::evaluate` only
-        // emits an alert on a *transition* — and a key would be actively wrong: a position that
-        // goes out of range, comes back, and goes out again has two things to say, not one.
-        let job = crate::jobs::deliver::job(text, crate::jobs::deliver::Markup::Telegram);
 
-        if let Err(e) = queue.enqueue(&job, wealth::now_secs()).await {
-            // Queueing failing is the database failing, which is worth the same line the send
-            // failing used to get — and unlike the send, it is not something a retry fixes here.
-            record_error(&meta, format!("alert: queueing: {e}"));
+        // Routed rather than fanned out. `notify` resolves which channels the `money` group reaches
+        // at this severity and hour, and queues one job each — so a Discord outage retries on its
+        // own without re-sending to Telegram, and a quiet-hours rule can hold back the noisy kinds
+        // while a health-factor warning still gets through.
+        //
+        // No idempotency key, and that is deliberate: the dedupe that matters already happened, in
+        // `rules::evaluate`, which only emits on a *transition*. A key would be actively wrong — a
+        // position that goes out of range, comes back, and goes out again has two things to say.
+        let queued = crate::notify::notify(
+            state,
+            "money",
+            crate::notify::severity_of(&alert.kind),
+            None,
+            &text,
+            crate::jobs::deliver::Markup::Telegram,
+        )
+        .await;
+
+        if queued == 0 {
+            // Nothing was queued at all, which means the database refused — routing resolving to
+            // nothing falls back to the old path instead of returning zero. Worth the same line the
+            // send failing used to get, and unlike the send it is not something a retry fixes here.
+            record_error(&meta, "alert: nothing could be queued".to_string());
         }
     }
 

@@ -7,6 +7,9 @@
 //! meant routing to nothing.
 
 use lyra_alerts::channels::Transport;
+use lyra_db::channels::{ChannelStore, Severity};
+
+use crate::jobs::deliver::Markup;
 use lyra_alerts::config::ProcessEnv;
 use lyra_alerts::discord::{DiscordSender, Webhook};
 use lyra_alerts::telegram::{MessageSender, TelegramSender};
@@ -57,6 +60,98 @@ pub fn sender_for(
             }
             Ok(Box::new(sender))
         }
+    }
+}
+
+/// Send a notification to whichever channels its group is routed to.
+///
+/// Returns how many deliveries were queued.
+///
+/// ## The fallback, and why it is here
+///
+/// If routing resolves to **nothing**, this queues the old `deliver.telegram` job instead — the
+/// all-channels path that has always worked — and says so in the log.
+///
+/// That is deliberate and it is transitional. This code ships to a box that is already sending real
+/// alerts about real money to a real phone, and on that box there are no channels and no routes
+/// until someone opens Settings and makes some. Routing correctly to nowhere would be a silent stop
+/// to every alert, which is the exact failure this whole feature was built to remove. So until a
+/// group has somewhere to go, it goes where it used to.
+///
+/// The cost is that "I deliberately route nothing here" cannot yet be said; it reads as "not
+/// configured". That is the right trade while the table is empty and the wrong one once it is not,
+/// so it comes out when the routing is real — not before, and not silently.
+pub async fn notify(
+    state: &crate::AppState,
+    group: &str,
+    severity: Severity,
+    key: Option<&str>,
+    text: &str,
+    markup: Markup,
+) -> usize {
+    use lyra_db::jobs::{Queue, SqliteQueue};
+
+    let store = ChannelStore::new(state.pool.clone(), state.secret_key.as_deref().cloned());
+    let queue = SqliteQueue::new(state.pool.clone());
+    let now = lyra_db::jobs::now_secs();
+    // Local, because quiet hours are a wall-clock idea: "do not wake me" means the hour on the
+    // clock in the room, not an offset from UTC.
+    let hour = i64::from(chrono::Timelike::hour(&chrono::Local::now()));
+
+    let destinations = match store.destinations(group, severity, hour).await {
+        Ok(destinations) => destinations,
+        Err(e) => {
+            // Reading the routing failed, which is the database failing. Falling back keeps the
+            // message moving rather than losing it to an error about where to put it.
+            tracing::error!(group, error = %e, "could not resolve routing; falling back");
+            Vec::new()
+        }
+    };
+
+    if destinations.is_empty() {
+        tracing::info!(
+            group,
+            severity = severity.as_str(),
+            "nothing is routed for this group — sending to every configured channel instead"
+        );
+        let job = crate::jobs::deliver::job(text.to_string(), markup);
+        if let Err(e) = queue.enqueue(&job, now).await {
+            tracing::error!(group, error = %e, "queueing the fallback delivery failed");
+            return 0;
+        }
+        return 1;
+    }
+
+    let mut queued = 0;
+    for channel_id in &destinations {
+        let job = crate::jobs::notify::job(channel_id, key, text.to_string(), markup);
+        match queue.enqueue(&job, now).await {
+            Ok(_) => queued += 1,
+            // One channel failing to queue must not stop the others: the point of separate jobs is
+            // that they are independent, and that starts here.
+            Err(e) => {
+                tracing::error!(channel = %channel_id, error = %e, "queueing a delivery failed")
+            }
+        }
+    }
+    queued
+}
+
+/// Which group and how loud an alert is.
+///
+/// Here rather than on `AlertKind` because severity is a `lyra-db` type and `lyra-alerts` does not
+/// depend on `lyra-db` — putting it there would mean either a new dependency edge or a second
+/// severity enum. The mapping is the interesting part and it is small enough to read at once.
+pub fn severity_of(alert: &lyra_alerts::rules::AlertKind) -> Severity {
+    use lyra_alerts::rules::AlertKind;
+    match alert {
+        // Approaching liquidation. This is the one that should reach you at 3am, which is why
+        // `Route::carries` lets critical through quiet hours.
+        AlertKind::HealthFactorLow { .. } => Severity::Critical,
+        // The position stopped earning. Worth knowing today, not worth waking for.
+        AlertKind::OutOfRange => Severity::Warning,
+        // Good news, and money you can act on when convenient.
+        AlertKind::BackInRange | AlertKind::FeesReady { .. } => Severity::Info,
     }
 }
 

@@ -29,6 +29,7 @@
 
 pub mod deliver;
 pub mod digest;
+pub mod notify;
 pub mod schedule;
 pub mod snapshot;
 
@@ -271,7 +272,8 @@ pub fn handlers(state: AppState) -> Handlers {
         .with(Arc::new(deliver::DeliverTelegram::from_env()))
         .with(Arc::new(digest::DailyDigest::new(state.clone())))
         .with(Arc::new(snapshot::NetWorthSnapshot::new(state.clone())))
-        .with(Arc::new(schedule::ScheduleTick::new(state)))
+        .with(Arc::new(schedule::ScheduleTick::new(state.clone())))
+        .with(Arc::new(notify::NotifyDeliver::new(state)))
 }
 
 /// Where a worker reads the time from.
@@ -1109,6 +1111,7 @@ mod tests {
             vec![
                 "deliver.telegram",
                 "digest.daily",
+                "notify.deliver",
                 "schedule.tick",
                 "snapshot.networth"
             ]

@@ -44,7 +44,9 @@ pub enum Markup {
 }
 
 impl Markup {
-    fn as_str(self) -> &'static str {
+    /// `pub(crate)` so `notify.deliver` writes the same values rather than a second copy of
+    /// this mapping that could drift from it.
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Markup::Plain => "plain",
             Markup::Telegram => "telegram",
