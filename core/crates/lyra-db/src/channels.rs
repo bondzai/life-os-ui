@@ -164,7 +164,7 @@ impl ChannelStore {
     /// The id is generated here rather than taken, because it is bound into the seal: a caller that
     /// chose its own id could seal a secret under one id and store it under another.
     pub async fn create(&self, input: &ChannelInput, now: i64) -> Result<Channel> {
-        let id = format!("chan-{}", uuid());
+        let id = format!("chan-{}", random_id());
         let (sealed, preview) = self.seal_for(&id, input.secret.as_deref())?;
 
         sqlx::query(
@@ -340,7 +340,7 @@ impl ChannelStore {
                 "INSERT INTO routes (id, grp, channel_id, min_severity, quiet_from, quiet_to)
                  VALUES (?, ?, ?, ?, ?, ?)",
             )
-            .bind(format!("route-{}", uuid()))
+            .bind(format!("route-{}", random_id()))
             .bind(&route.group)
             .bind(&route.channel_id)
             .bind(route.min_severity.as_str())
@@ -431,8 +431,8 @@ fn row_to_route(row: &sqlx::sqlite::SqliteRow) -> Route {
     }
 }
 
-/// A random id. `uuid` is not a dependency here and one function does not justify adding it.
-fn uuid() -> String {
+/// A random hex id. `uuid` is not a dependency here and one function does not justify adding it.
+pub(crate) fn random_id() -> String {
     let mut bytes = [0u8; 16];
     aws_lc_rs::rand::fill(&mut bytes).expect("the system has randomness");
     bytes.iter().map(|b| format!("{b:02x}")).collect()

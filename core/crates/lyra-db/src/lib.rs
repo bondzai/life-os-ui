@@ -9,6 +9,7 @@
 //! only this crate.
 
 pub mod channels;
+pub mod crons;
 pub mod import;
 pub mod jobs;
 pub mod life;

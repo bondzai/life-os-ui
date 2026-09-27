@@ -314,6 +314,35 @@ pub const MIGRATIONS: &[&[&str]] = &[
         // The lookup every notification does: given a group, which channels and at what threshold.
         "CREATE INDEX IF NOT EXISTS idx_routes_grp ON routes(grp)",
     ],
+    // v8 -> v9: schedules you can configure, rather than restart to change.
+    //
+    // Not the `schedules` table, which is habit recurrence and deliberately not a queue — see
+    // `docs/core-engine.md`. This is the tick's own list: what to enqueue, and when.
+    &[r#"CREATE TABLE IF NOT EXISTS crons (
+               id               TEXT    PRIMARY KEY,
+               name             TEXT    NOT NULL,
+               -- The schedule, as JSON: {"kind":"daily","at_minute":450}. JSON because a cron
+               -- expression is a likely fourth variant and a column per field would not hold it.
+               schedule         TEXT    NOT NULL,
+               -- The job kind to enqueue. Checked against the handler registry on write: an
+               -- unregistered kind produces jobs that dead-letter forever, quietly.
+               action           TEXT    NOT NULL,
+               payload          TEXT    NOT NULL DEFAULT '{}',
+               enabled          INTEGER NOT NULL DEFAULT 1,
+               -- How late a firing may be and still happen. A brief at 11:00 is useful; a
+               -- "start your day" nudge at 11:00 is noise, so it belongs to the cron.
+               catch_up_minutes INTEGER NOT NULL DEFAULT 60,
+               -- The last occurrence this fired *or* missed, so neither is counted twice. The
+               -- exactly-once guarantee is the job's idempotency key, not this column.
+               last_occurrence  TEXT,
+               last_fired_at    INTEGER,
+               -- Slots that went by unfired. Visible, because a schedule that silently stops is
+               -- the failure this table exists to prevent.
+               missed           INTEGER NOT NULL DEFAULT 0,
+               last_missed_at   INTEGER,
+               created_at       INTEGER NOT NULL,
+               updated_at       INTEGER NOT NULL
+           )"#],
 ];
 
 /// Applies every migration the database has not seen yet. Returns the resulting `user_version`.
