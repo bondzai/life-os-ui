@@ -9,7 +9,10 @@
 /// Cut by characters rather than bytes, so a title full of emoji cannot be split mid-codepoint.
 pub fn title(raw: Option<&str>) -> String {
     const WIDTH: usize = 60;
-    let title = raw.map(str::trim).filter(|t| !t.is_empty()).unwrap_or("(untitled)");
+    let title = raw
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .unwrap_or("(untitled)");
     if title.chars().count() > WIDTH {
         format!("{}…", title.chars().take(WIDTH - 1).collect::<String>())
     } else {
@@ -52,6 +55,10 @@ mod tests {
         let rows: Vec<u32> = (0..10).collect();
         let text = bullets(&rows, 3, |n| format!("• {n}"));
         assert_eq!(text, "• 0\n• 1\n• 2\n…and 7 more");
-        assert_eq!(bullets(&rows[..2], 3, |n| n.to_string()), "0\n1", "no count when it all fits");
+        assert_eq!(
+            bullets(&rows[..2], 3, |n| n.to_string()),
+            "0\n1",
+            "no count when it all fits"
+        );
     }
 }

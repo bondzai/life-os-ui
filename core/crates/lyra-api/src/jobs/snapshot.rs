@@ -18,7 +18,6 @@
 //! those are one job. The interval check preserves the *spacing* between samples; the key removes
 //! the duplicates inside one window. Neither does the other's work.
 
-
 use super::{BoxFuture, Handler, HandlerError, HandlerResult, JobCtx};
 use crate::AppState;
 use crate::alert_loop;
@@ -128,7 +127,11 @@ mod tests {
         for tick in 0..40 {
             ids.insert(q.enqueue(&sample(7), 1000 + tick * 30).await.unwrap().id);
         }
-        assert_eq!(ids.len(), 1, "40 ticks inside one window must be one sample");
+        assert_eq!(
+            ids.len(),
+            1,
+            "40 ticks inside one window must be one sample"
+        );
     }
 
     #[tokio::test]
@@ -144,7 +147,9 @@ mod tests {
     async fn a_payload_missing_its_group_fails_permanently() {
         // Retrying cannot grow a field: the payload is written at enqueue and never changes.
         let dir = TempDir::new().unwrap();
-        let pool = lyra_db::open_and_migrate(&dir.path().join("lyra.db")).await.unwrap();
+        let pool = lyra_db::open_and_migrate(&dir.path().join("lyra.db"))
+            .await
+            .unwrap();
         let state = crate::AppState::new(pool, "test-secret".into());
         let queue = SqliteQueue::new(state.pool.clone());
 
@@ -152,7 +157,11 @@ mod tests {
             .enqueue(&NewJob::new(KIND, Lane::Batch), 1000)
             .await
             .unwrap();
-        let claimed = queue.claim("w", &[Lane::Batch], 60, 1100).await.unwrap().unwrap();
+        let claimed = queue
+            .claim("w", &[Lane::Batch], 60, 1100)
+            .await
+            .unwrap()
+            .unwrap();
         let ctx = JobCtx::for_test(queue, claimed, "w".into(), 1100);
 
         let error = NetWorthSnapshot::new(state)

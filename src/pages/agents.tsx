@@ -5,14 +5,19 @@
  * **is the picture live**, **what is each one doing**, and **has any of them been failing**.
  * Everything else was left out; a fleet view that needs reading is a fleet view you stop opening.
  *
- * It is a list, not a grid of cards. Four agents today and a dozen later is a column you scan, and
- * comparison between rows — who has been idle, who is failing — only works when they line up.
+ * It is drawn as an office: rooms by lane, a desk per agent. A desk is a place, so it stays in the
+ * same spot whether or not anyone is working at it, and "who is free" is something you see rather
+ * than read. A row of identical ids taught you nothing; a named desk with a role on it says what
+ * that agent is for before it has done anything.
+ *
+ * An idle desk still has to talk. What it last ran, when, and whether that worked is the whole of
+ * what it has to say between jobs — a blank card reads as broken.
  *
  * The connection state is on the page rather than hidden, because "nothing is happening" and "we
  * lost the socket" look identical and mean opposite things.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Bot, Circle } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/core/components/empty-state'
@@ -135,11 +140,18 @@ export function AgentsPage() {
           }
         />
       ) : (
-        <ul className="divide-y rounded-lg border">
-          {agents.map((agent) => (
-            <AgentRow key={agent.id} agent={agent} />
-          ))}
-        </ul>
+        rooms(agents).map(([lane, desks]) => (
+          <section key={lane} className="space-y-2">
+            <h2 className="text-xs tracking-wide text-muted-foreground uppercase" title={lane}>
+              {laneLabel(lane)}
+            </h2>
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {desks.map((agent) => (
+                <Desk key={agent.id} agent={agent} />
+              ))}
+            </ul>
+          </section>
+        ))
       )}
 
       {/* Below the fleet, not above it: what is running is the question you came with, and what
@@ -182,12 +194,29 @@ function Stat({
   )
 }
 
-const JOB_TONE: Record<QueuedJob['status'], string> = {
-  running: 'text-emerald-700 dark:text-emerald-500',
-  queued: 'text-muted-foreground',
-  done: 'text-muted-foreground',
-  failed: 'text-red-700 dark:text-red-400',
-  cancelled: 'text-muted-foreground',
+/**
+ * The level token for each status, syslog-style.
+ *
+ * Four characters, fixed width, so the column below it stays a column. The word carries the
+ * meaning and the colour only repeats it — `RUN` and `OK` are different words before they are
+ * different greens.
+ */
+const JOB_LEVEL: Record<QueuedJob['status'], { token: string; tone: string }> = {
+  running: { token: 'RUN', tone: 'text-sky-400' },
+  queued: { token: 'WAIT', tone: 'text-zinc-400' },
+  done: { token: 'OK', tone: 'text-emerald-400' },
+  failed: { token: 'FAIL', tone: 'text-red-400' },
+  cancelled: { token: 'STOP', tone: 'text-zinc-500' },
+}
+
+/** `14:22:07`. Wall-clock, 24-hour, no date — a log line you read while the day is still on. */
+function logTime(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toLocaleTimeString([], {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
 }
 
 /**
@@ -202,8 +231,35 @@ function actionFor(status: QueuedJob['status']): { action: 'retry' | 'cancel'; l
   return null
 }
 
+/**
+ * What just ran, as a console log.
+ *
+ * The desks above are the plain-words view: what your assistant is doing, said the way you would
+ * say it. This is the other half — the tape. So it is the one place on the page that uses the
+ * system's own names: `deliver.telegram` in a monospace column beside a timestamp is *legible*
+ * here in a way "Send a message" would not be, because what you come to a log for is to line rows
+ * up and spot the one that differs. The plain-words label moves to hover.
+ *
+ * It stays dark in light mode on purpose. This is a console — a surface with its own rules, like a
+ * code block — not a panel that forgot to follow the theme.
+ *
+ * Oldest at the top, newest at the bottom, the way a terminal appends. It scrolls to the newest
+ * line on its own, but only while you are already at the bottom: yanking the viewport away from
+ * someone who scrolled up to read an error is how a live log becomes one you close.
+ */
 function RecentJobs({ jobs }: { jobs: QueuedJob[] }) {
   const action = useJobAction()
+  const scroller = useRef<HTMLDivElement>(null)
+  const pinned = useRef(true)
+
+  // Sorted here rather than trusted from the server: "recent" is a limit, not a promised order,
+  // and a log that is only mostly chronological is worse than one that is not at all.
+  const tape = [...jobs].sort((a, b) => a.updated_at - b.updated_at)
+
+  useEffect(() => {
+    const el = scroller.current
+    if (el && pinned.current) el.scrollTop = el.scrollHeight
+  }, [jobs])
 
   return (
     <section className="space-y-2">
@@ -213,70 +269,148 @@ function RecentJobs({ jobs }: { jobs: QueuedJob[] }) {
           {action.error.message}
         </p>
       )}
-      <ul className="divide-y rounded-lg border">
-        {jobs.map((job) => {
-          const next = actionFor(job.status)
-          return (
-            <li key={job.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2">
-              <span className="min-w-0 flex-1 truncate text-sm" title={job.kind}>
-                {kindLabel(job.kind)}
-              </span>
-              <span className="text-xs text-muted-foreground" title={job.lane}>
-                {laneLabel(job.lane)}
-              </span>
-              {/* The attempt count only appears once it is more than one, because "1/5" on every
-                  row is four characters of noise that mean "nothing has gone wrong". */}
-              {job.attempts > 1 && (
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {job.attempts}/{job.max_attempts}
-                </span>
-              )}
-              <span className={cn('text-xs font-medium', JOB_TONE[job.status])}>{job.status}</span>
-              {next && (
-                <JobButton
-                  label={next.label}
-                  busy={action.isPending && action.variables?.id === job.id}
-                  onClick={() => action.mutate({ id: job.id, action: next.action })}
-                />
-              )}
-              {/* Why it died is the whole reason the row is kept rather than pruned. */}
-              {job.last_error && job.status === 'failed' && (
-                <p className="w-full truncate text-xs text-muted-foreground" title={job.last_error}>
-                  {job.last_error}
-                </p>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+      <div className="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
+        <div
+          ref={scroller}
+          onScroll={(e) => {
+            const el = e.currentTarget
+            pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+          }}
+          className="max-h-72 overflow-y-auto px-3 py-2 font-mono text-xs leading-relaxed [scrollbar-width:thin]"
+        >
+          <p className="text-zinc-600 select-none">$ lyra jobs --recent</p>
+          <ol>
+            {tape.map((job) => (
+              <LogLine
+                key={job.id}
+                job={job}
+                busy={action.isPending && action.variables?.id === job.id}
+                onAction={(next) => action.mutate({ id: job.id, action: next })}
+              />
+            ))}
+          </ol>
+          {/* A cursor, because the thing that tells you a terminal is alive is that it blinks. */}
+          <p className="text-zinc-600 select-none" aria-hidden>
+            <span className="motion-safe:animate-pulse">▌</span>
+          </p>
+        </div>
+      </div>
     </section>
   )
 }
 
-function AgentRow({ agent }: { agent: Agent }) {
+function LogLine({
+  job,
+  busy,
+  onAction,
+}: {
+  job: QueuedJob
+  busy: boolean
+  onAction: (action: 'retry' | 'cancel') => void
+}) {
+  const level = JOB_LEVEL[job.status]
+  const next = actionFor(job.status)
+
+  return (
+    <li className="flex flex-wrap items-baseline gap-x-2 text-zinc-100">
+      <time className="shrink-0 tabular-nums text-zinc-500">{logTime(job.updated_at)}</time>
+      {/* Fixed width, so the kinds below line up whatever the level says. */}
+      <span className={cn('w-9 shrink-0 font-semibold', level.tone)}>{level.token}</span>
+      <span className="truncate" title={kindLabel(job.kind)}>
+        {job.kind}
+      </span>
+      {/* The attempt count only appears once it is more than one, because "1/5" on every line is
+          four characters of noise that mean "nothing has gone wrong". */}
+      {job.attempts > 1 && (
+        <span className="shrink-0 tabular-nums text-zinc-500">
+          {job.attempts}/{job.max_attempts}
+        </span>
+      )}
+      {next && (
+        <JobButton
+          label={next.label}
+          busy={busy}
+          onClick={() => onAction(next.action)}
+        />
+      )}
+      {/* Why it died is the whole reason the line is kept rather than pruned. Indented onto its
+          own line like a stack trace, so it never pushes the columns out of alignment. */}
+      {job.last_error && job.status === 'failed' && (
+        <p className="w-full truncate pl-[4.5rem] text-red-400/80" title={job.last_error}>
+          ↳ {job.last_error}
+        </p>
+      )}
+    </li>
+  )
+}
+
+/**
+ * The desks, grouped into rooms by lane.
+ *
+ * Lanes come out in the order they mean something to the reader — the ones you wait on first —
+ * rather than alphabetically or however the map happened to iterate. A lane nobody named goes
+ * last rather than being dropped, because an agent missing from this page is worse than an
+ * unfamiliar heading on it.
+ */
+const LANE_ORDER = ['interactive', 'batch', 'deliver']
+
+function rooms(agents: Agent[]): [string, Agent[]][] {
+  const byLane = new Map<string, Agent[]>()
+  for (const agent of agents) {
+    const desks = byLane.get(agent.lane)
+    if (desks) desks.push(agent)
+    else byLane.set(agent.lane, [agent])
+  }
+  const rank = (lane: string) => {
+    const i = LANE_ORDER.indexOf(lane)
+    return i === -1 ? LANE_ORDER.length : i
+  }
+  return [...byLane.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+}
+
+/**
+ * One desk: who sits here, what they are for, and what is on the desk right now.
+ *
+ * The status light is doubled by the word beside it — "Working" or "Free" — because a green dot
+ * and a grey dot are the same dot to a colourblind reader, and this is the one thing the page
+ * exists to tell you.
+ */
+function Desk({ agent }: { agent: Agent }) {
   const working = agent.status === 'working'
 
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
-      <span
-        className={cn(
-          'size-2 shrink-0 rounded-full',
-          working ? 'bg-emerald-500 motion-safe:animate-pulse' : 'bg-muted-foreground/30',
-        )}
-        role="img"
-        aria-label={working ? 'working' : 'idle'}
-      />
-
-      <div className="min-w-0 flex-1">
-        {/* The lane is the agent's job title and the id is its badge number. The lane leads,
-            because "which background worker" is a question you almost never have. */}
-        <p className="font-medium" title={agent.lane}>
-          {laneLabel(agent.lane)}
+    <li
+      className={cn(
+        'rounded-lg border px-4 py-3',
+        working && 'border-emerald-500/40 bg-emerald-500/5',
+      )}
+    >
+      <div className="flex items-baseline gap-2">
+        <span
+          className={cn(
+            'size-2 shrink-0 translate-y-px rounded-full',
+            working ? 'bg-emerald-500 motion-safe:animate-pulse' : 'bg-muted-foreground/30',
+          )}
+          aria-hidden
+        />
+        <p className="min-w-0 flex-1 truncate font-medium" title={agent.id}>
+          {agent.name}
         </p>
-        <p className="truncate font-mono text-[11px] text-muted-foreground">{agent.id}</p>
+        <span
+          className={cn(
+            'text-xs font-medium',
+            working ? 'text-emerald-700 dark:text-emerald-500' : 'text-muted-foreground',
+          )}
+        >
+          {working ? 'Working' : 'Free'}
+        </span>
       </div>
 
-      <div className="min-w-0 flex-[2]">
+      <p className="mt-0.5 text-xs text-muted-foreground">{agent.role}</p>
+
+      {/* The line that changes. Fixed height in both states so a desk picking up a job does not
+          shunt the rest of the room down the page. */}
+      <div className="mt-3 min-h-[2.5rem] border-t pt-2">
         {working && agent.job ? (
           <>
             <p className="truncate text-sm" title={agent.job.kind}>
@@ -287,19 +421,32 @@ function AgentRow({ agent }: { agent: Agent }) {
               {agent.job.attempt > 1 && ` · attempt ${agent.job.attempt}`}
             </p>
           </>
+        ) : agent.last_kind ? (
+          <>
+            <p className="truncate text-sm text-muted-foreground" title={agent.last_kind}>
+              {/* The tick and cross carry the outcome as a character, so it survives both
+                  colourblindness and a screenshot in greyscale. */}
+              <span className={agent.last_ok ? undefined : 'text-red-700 dark:text-red-400'}>
+                {agent.last_ok ? '✓' : '✗'}
+              </span>{' '}
+              {kindLabel(agent.last_kind)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              finished {formatRelativeTime(agent.last_seen)}
+            </p>
+          </>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            idle · {formatRelativeTime(agent.last_seen)}
-          </p>
+          <p className="text-sm text-muted-foreground">Nothing to do yet</p>
         )}
       </div>
 
-      <div className="text-right text-xs tabular-nums">
-        <p className="text-muted-foreground">{agent.done} done</p>
+      {/* The lifetime tally, quiet until it is bad news. */}
+      <p className="mt-2 text-xs tabular-nums text-muted-foreground">
+        {agent.done} done
         {agent.failed > 0 && (
-          <p className="text-red-700 dark:text-red-400">{agent.failed} failed</p>
+          <span className="text-red-700 dark:text-red-400"> · {agent.failed} failed</span>
         )}
-      </div>
+      </p>
     </li>
   )
 }
@@ -323,12 +470,12 @@ function Elapsed({ since }: { since: number }) {
 }
 
 /**
- * A small text button for a row action.
+ * A command you can run on a log line, written like one.
  *
- * Quiet on purpose — these sit on every failed or queued row, and a column of solid buttons would
+ * Quiet on purpose — these sit on every failed or queued line, and a column of solid buttons would
  * shout louder than the statuses they act on. The *visible* button stays small; the hit area does
  * not. A `before` layer extends it to 44px tall, because a small target on a phone is a mis-tap on
- * the row below, and a mis-tapped Retry re-sends a message.
+ * the line below, and a mis-tapped retry re-sends a message.
  */
 function JobButton({ label, busy, onClick }: { label: string; busy: boolean; onClick: () => void }) {
   return (
@@ -336,9 +483,12 @@ function JobButton({ label, busy, onClick }: { label: string; busy: boolean; onC
       type="button"
       onClick={onClick}
       disabled={busy}
-      className="relative -my-1 rounded px-2 py-1 text-xs font-medium text-primary before:absolute before:-inset-x-1 before:-inset-y-2.5 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50"
+      // The brackets are typography, not the name of the thing. A screen reader should hear
+      // "Retry", which is also what the tests ask for it by.
+      aria-label={label}
+      className="relative -my-1 shrink-0 rounded px-1 text-sky-400 underline-offset-2 before:absolute before:-inset-x-1 before:-inset-y-2.5 hover:underline focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:outline-none disabled:opacity-50"
     >
-      {busy ? `${label}…` : label}
+      [{busy ? `${label.toLowerCase()}…` : label.toLowerCase()}]
     </button>
   )
 }

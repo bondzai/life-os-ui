@@ -743,9 +743,9 @@ mod tests {
 
     use super::*;
     use crate::tools::{
-        AnalysisAnchor, AnalysisDraft, AnalysisQuery, AnalysisRecord, BotRow, Coverage,
-        DeskConfig, Domain, LifeAgenda, LifePage, LifeQuery, PoolCandidate, PortfolioHolding,
-        Snapshot, ToolError, registry,
+        AnalysisAnchor, AnalysisDraft, AnalysisQuery, AnalysisRecord, BotRow, Coverage, DeskConfig,
+        Domain, LifeAgenda, LifePage, LifeQuery, PoolCandidate, PortfolioHolding, Snapshot,
+        ToolError, registry,
     };
     use lyra_analytics::envelope::TokenAmount;
 
@@ -1025,7 +1025,10 @@ mod tests {
         let asked = fake.asked.lock().unwrap();
         let q = asked.last().expect("the desk asked the store something");
         assert_eq!(q.kind.as_deref(), Some("task"));
-        assert_eq!(q.statuses, vec!["todo".to_string(), "in-progress".to_string()]);
+        assert_eq!(
+            q.statuses,
+            vec!["todo".to_string(), "in-progress".to_string()]
+        );
         assert_eq!(q.project_id.as_deref(), Some("p1"));
         assert_eq!(q.due_to.as_deref(), Some("2026-09-30"));
         assert_eq!(q.order, crate::tools::LifeOrder::Due);
@@ -1052,7 +1055,10 @@ mod tests {
         let result = tool(&s, "entity_list", json!({ "order": "alphabetical" })).await;
         assert_eq!(result["isError"], true);
         let text = result["content"][0]["text"].as_str().unwrap();
-        assert!(text.contains("recent"), "the message must say what to use: {text}");
+        assert!(
+            text.contains("recent"),
+            "the message must say what to use: {text}"
+        );
     }
 
     #[tokio::test]
@@ -1117,7 +1123,11 @@ mod tests {
         });
         let result = tool(&s, "tracker_series", json!({ "entity_id": "h1" })).await;
         let out = &result["structuredContent"];
-        assert_eq!(out["points"].as_array().unwrap().len(), 3, "the note is kept");
+        assert_eq!(
+            out["points"].as_array().unwrap().len(),
+            3,
+            "the note is kept"
+        );
         let summary = &out["summary"];
         assert_eq!(summary["count"], 2, "but it is not counted as a zero");
         assert_eq!(summary["sum"], 40.0);
@@ -1132,7 +1142,10 @@ mod tests {
         let result = tool(&s, "tracker_series", json!({ "entity_id": "h1" })).await;
         let summary = &result["structuredContent"]["summary"];
         assert_eq!(summary["count"], 0);
-        assert!(summary.get("mean").is_none(), "a mean of nothing is not zero");
+        assert!(
+            summary.get("mean").is_none(),
+            "a mean of nothing is not zero"
+        );
     }
 
     #[tokio::test]
@@ -1237,7 +1250,10 @@ mod tests {
     }
 
     impl LifeSource for FakeDesk {
-        fn list(&self, query: LifeQuery) -> impl Future<Output = Result<LifePage, ToolError>> + Send {
+        fn list(
+            &self,
+            query: LifeQuery,
+        ) -> impl Future<Output = Result<LifePage, ToolError>> + Send {
             // A child or project-member lookup asks for one id; the plain list asks for none.
             // Returning the rows only for the unfiltered case keeps `entity_get`'s three lists
             // distinguishable in a test without the double growing a query engine.
@@ -1251,11 +1267,7 @@ mod tests {
             async move { Ok(LifePage { rows, next }) }
         }
         fn get(&self, id: &str) -> impl Future<Output = Result<Option<Value>, ToolError>> + Send {
-            let found = self
-                .entities
-                .iter()
-                .find(|e| e["id"] == id)
-                .cloned();
+            let found = self.entities.iter().find(|e| e["id"] == id).cloned();
             async move { Ok(found) }
         }
         fn relations(

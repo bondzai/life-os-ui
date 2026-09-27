@@ -905,10 +905,16 @@ export function DeepWorkPage() {
     navigate(-1)
   }, [pauseTimer, navigate])
 
-  // Explicitly end the session (stop button)
+  // Explicitly end the session (stop button).
+  //
+  // `navigate(-1)` is a no-op when this page is the first entry in the history stack — opened by
+  // ⌘⇧D in a fresh tab, or from a bookmark. That left you pressing End and going nowhere, which
+  // looks exactly like the button not working even though the session did end. React Router
+  // keeps its position in `history.state.idx`, so 0 means there is nothing behind us.
   const handleEnd = useCallback(() => {
     endDeepWork()
-    navigate(-1)
+    if (window.history.state?.idx) navigate(-1)
+    else navigate('/')
   }, [endDeepWork, navigate])
 
   useEffect(() => {
@@ -1105,10 +1111,21 @@ export function DeepWorkPage() {
   const phaseLabel = phase === 'work' ? 'Focus' : phase === 'break' ? 'Break' : phase === 'long-break' ? 'Long Break' : 'Ready'
   const style = PHASE_STYLES[phase]
 
-  // No focus tasks — show Session Planner or manual fallback
+  // No focus tasks — show Session Planner or manual fallback.
+  //
+  // A session can be open here. `emperorEntityIds` is never pruned, so if the tasks it points at
+  // are deleted, archived, or simply have not loaded yet, this branch renders instead of the
+  // timer — while the sidebar, the tab title and Today all still say a session is running,
+  // because their predicate is `sessionId && emperorEntityIds.length`. Every control that could
+  // end it lives below this return, so the session became genuinely unkillable from the UI: the
+  // only way out was to clear localStorage.
+  //
+  // It cannot prune the ids to fix this — `allEntities` is also empty while the query is loading
+  // or logged out, and pruning then would throw away a live session. So it offers the exit
+  // instead and says plainly what is going on.
   if (emperorEntities.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f]">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-[#0a0a0f]">
         {!plannerSkipped ? (
           <SessionPlanner
             onStartSession={(entityIds) => {
@@ -1124,6 +1141,20 @@ export function DeepWorkPage() {
             <Button variant="outline" onClick={() => navigate('/')} className="border-zinc-800 text-zinc-300 hover:bg-zinc-900">
               Back to Today
             </Button>
+          </div>
+        )}
+
+        {sessionId && (
+          <div className="text-center space-y-2">
+            <p className="text-xs text-zinc-600">
+              A session is still open, but the tasks it was for are gone.
+            </p>
+            <button
+              onClick={handleEnd}
+              className="text-xs text-zinc-500 underline-offset-4 hover:text-red-400 hover:underline focus-visible:ring-2 focus-visible:ring-red-500/50 focus-visible:outline-none cursor-pointer"
+            >
+              End session
+            </button>
           </div>
         )}
       </div>
@@ -1236,6 +1267,22 @@ export function DeepWorkPage() {
                 <Play className="h-4 w-4" />
                 Start Focus
               </Button>
+              {/* The way out of an idle session.
+                  A session is open whenever `sessionId` is set, but the timer sits at `idle`
+                  three times over its life: the moment Emperor Time starts, after a break
+                  finishes, and after a work block when auto-start-break is off. The End button
+                  used to live only in the running branch, so in all three the sidebar said a
+                  session was running and this page offered no way to stop it — the only exit was
+                  to start a block you did not want in order to end it. Quiet, because the
+                  primary action here is still Start Focus. */}
+              {sessionId && (
+                <button
+                  onClick={handleEnd}
+                  className="text-xs text-zinc-600 underline-offset-4 hover:text-red-400 hover:underline focus-visible:ring-2 focus-visible:ring-red-500/50 focus-visible:outline-none cursor-pointer"
+                >
+                  End session
+                </button>
+              )}
             </div>
           ) : (
             <>

@@ -1,0 +1,66 @@
+# Every setting the installed service is given, and nothing else.
+#
+# One list, read by every installer: `ops/lyra-server.sh` (macOS launchd) and
+# `ops/lyra-server-linux.sh` (systemd). It used to be a `for key in ...` loop inside the macOS
+# script, which meant a second platform was a second copy — and a copy of a list like this is how
+# one of them ends up missing a key. A variable absent here is not an error anywhere: it is set in
+# `.env.local`, it works under `cargo run`, and it is silently gone in production with nothing
+# saying why. That has already happened once, to DISCORD_WEBHOOK_URL and the Google OAuth keys.
+#
+# `the_install_script_forwards_every_setting_the_server_reads` in crates/lyra-api/src/main.rs reads
+# this file and fails, naming the variable and the source file, if the code grows a setting that is
+# not listed. Add it here, or add it to that test's `excluded` list with a reason.
+#
+# Deliberately NOT here:
+#   PORT, LYRA_DB, LYRA_UI_DIR   set by each installer from its own install layout
+#   LYRA_HTTP_CACHE              points the chain client at recorded test responses
+#   LYRA_HTTP_FIXTURES           likewise — forwarding either would let a stray line in
+#                                .env.local make production report fixture balances as your money
+#
+# Blank lines and #-comments are ignored. One KEY per line, no values.
+
+# Refuses to start without this; rotating it logs everyone out.
+JWT_SECRET
+
+# Wealth — the book, and the exchange it reads (read-only keys; nothing here places an order).
+ALERT_WALLETS
+KUCOIN_API_KEY
+KUCOIN_API_SECRET
+KUCOIN_API_PASSPHRASE
+
+# Delivery. Unset, the sweep still runs and records state without sending, which is what you
+# want on a first boot.
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
+TELEGRAM_OWNER_USER_ID
+DISCORD_WEBHOOK_URL
+
+# When the box does things on its own. DIGEST_HOUR and HABITS_NUDGE_HOUR are *local* hours, so
+# they depend on the host's timezone being right.
+ALERT_INTERVAL
+ALERT_FEE_USD
+ALERT_HF
+ALERT_REPORT_CCY
+DIGEST_HOUR
+HABITS_NUDGE_HOUR
+SNAPSHOT_INTERVAL
+SNAPSHOT_GROUP
+LYRA_JOBS
+
+# Knowledge notes — a git repo the module commits into.
+LYRA_KNOWLEDGE_PATH
+
+# Google Calendar. Without the first three the OAuth endpoints answer "not configured" and the
+# rest of the app is unaffected. GOOGLE_REDIRECT_URI must match the Console byte for byte.
+GCAL_API_KEY
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+GOOGLE_REDIRECT_URI
+
+# Where the OAuth callback sends the browser, and who may call the API cross-origin. Serving the
+# UI from the binary makes the browser same-origin, so CORS_ORIGINS only matters for direct API
+# access — a phone on the LAN, or a local `npm run dev` pointed at this host.
+FRONTEND_URL
+CORS_ORIGINS
+
+RUST_LOG

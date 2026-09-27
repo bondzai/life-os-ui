@@ -360,10 +360,16 @@ mod tests {
             name: pair.into(),
             id: Some(Some("1".into())),
             via: None,
-            tokens: vec![token("ETH", 1.0, Some(usd / 2.0)), token("USDC", 1.0, Some(usd / 2.0))],
+            tokens: vec![
+                token("ETH", 1.0, Some(usd / 2.0)),
+                token("USDC", 1.0, Some(usd / 2.0)),
+            ],
             usd: Some(usd),
             in_range,
-            rewards: Some(vec![token("AERO", 3.0, Some(fees)), token("OP", 0.0, Some(0.0))]),
+            rewards: Some(vec![
+                token("AERO", 3.0, Some(fees)),
+                token("OP", 0.0, Some(0.0)),
+            ]),
             rewards_usd: Some(Some(fees)),
             ..Default::default()
         }
@@ -439,7 +445,10 @@ mod tests {
     fn holdings_carry_spot_and_defi_but_never_a_borrow_line() {
         let snap = walk(
             vec![spot("ETH", 400.0, Some(2.5))],
-            vec![lp("ETH/USDC", 600.0, 5.0, Some(true)), borrow("Aave v3", Some(1.8), -400.0)],
+            vec![
+                lp("ETH/USDC", 600.0, 5.0, Some(true)),
+                borrow("Aave v3", Some(1.8), -400.0),
+            ],
         );
         assert_eq!(snap.holdings.len(), 2);
         // The borrow is netted through `lending`, never listed as an asset — its collateral is
@@ -490,7 +499,10 @@ mod tests {
     fn a_position_of_unknown_range_is_not_treated_as_broken() {
         let snap = walk(
             vec![],
-            vec![lp("A/B", 100.0, 1.0, None), lp("C/D", 100.0, 0.5, Some(false))],
+            vec![
+                lp("A/B", 100.0, 1.0, None),
+                lp("C/D", 100.0, 0.5, Some(false)),
+            ],
         );
         // Only an explicit `false` sorts to the front: "we could not tell" is not "it is out".
         assert_eq!(snap.positions[0].pair_raw, "C/D");
@@ -545,8 +557,18 @@ mod tests {
     #[test]
     fn a_rebalance_basket_unwraps_through_its_weights() {
         let weights = vec![
-            BotWeight { symbol: "BTC".into(), amount: 1.0, usd: 600.0, pct: 60.0 },
-            BotWeight { symbol: "ETH".into(), amount: 1.0, usd: 400.0, pct: 40.0 },
+            BotWeight {
+                symbol: "BTC".into(),
+                amount: 1.0,
+                usd: 600.0,
+                pct: 60.0,
+            },
+            BotWeight {
+                symbol: "ETH".into(),
+                amount: 1.0,
+                usd: 400.0,
+                pct: 40.0,
+            },
         ];
         let snap = walk(vec![], vec![bot("basket", 1_000.0, Some(weights))]);
         let legs = &snap.defi[0].bot_weights;

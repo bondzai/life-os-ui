@@ -1,5 +1,11 @@
 # The MCP research desk
 
+> **Three unrelated things in this repo are called MCP.** `lyra-mcp`, which is this document. The
+> browser's AI tool registry in `src/core/ai/`, which runs in the page and is unreachable from
+> anything outside the tab. And vfat's hosted MCP server upstream. "Expand MCP to cover all
+> features" has always meant this one. (Carried here from `docs/ai-layer.md`, deleted 2026-09-25 —
+> it was the only part of that document still true.)
+
 `lyra-mcp` is a **separate stdio binary**, not a service. An MCP client — Claude Desktop, Claude
 Code — launches it as a child process and speaks JSON-RPC over its stdin and stdout. It reads the
 same SQLite file the API owns, and it is the only way a model outside the browser can see Lyra's

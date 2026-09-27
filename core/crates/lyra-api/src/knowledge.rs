@@ -20,15 +20,11 @@ use std::process::Command;
 use crate::AppState;
 use crate::auth::AuthUser;
 
-pub fn knowledge_root() -> PathBuf {
-    match std::env::var("LYRA_KNOWLEDGE_PATH") {
-        Ok(path) if !path.is_empty() => PathBuf::from(path),
-        _ => std::env::current_dir()
-            .unwrap_or_default()
-            .join("..")
-            .join("lyra-knowledge"),
-    }
-}
+// `knowledge_root`, the frontmatter parser and the traversal guard now live in `lyra-context`,
+// because `lyra-mcp` needs them too and `lyra-api` is a binary crate nothing can link. Re-exported
+// rather than wrapped so the call sites below — and their tests — are unchanged, and so there is
+// exactly one parser to be right about.
+pub use lyra_context::{knowledge_root, parse_frontmatter, resolve_within, serialize_frontmatter};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct KnowledgeFile {
@@ -53,105 +49,7 @@ impl KnowledgeFile {
 
 /* ─── Frontmatter ─── */
 
-/// `parseValue` — a bracketed value is a list. JSON is tried first so commas inside quoted items
-/// survive; the bare `[a, b]` form is the legacy fallback, and `[]` yields an empty list rather
-/// than `[""]`.
-pub fn parse_value(raw: &str) -> Value {
-    let value = raw.trim();
-    if value.starts_with('[') && value.ends_with(']') {
-        if let Ok(parsed) = serde_json::from_str::<Value>(value)
-            && parsed.is_array()
-        {
-            return parsed;
-        }
-        let inner = value[1..value.len() - 1].trim();
-        if inner.is_empty() {
-            return json!([]);
-        }
-        return Value::Array(
-            inner
-                .split(',')
-                .map(|s| Value::String(s.trim().replace(['\'', '"'], "")))
-                .collect(),
-        );
-    }
-    Value::String(value.to_string())
-}
-
-/// Splits a `---` delimited header from the body. A file without a header is all body.
-pub fn parse_frontmatter(content: &str) -> (Map<String, Value>, String) {
-    let normalized = content.replace("\r\n", "\n");
-    let Some(rest) = normalized.strip_prefix("---\n") else {
-        return (Map::new(), content.to_string());
-    };
-    let Some(end) = rest.find("\n---") else {
-        return (Map::new(), content.to_string());
-    };
-
-    let header = &rest[..end];
-    let body = rest[end + 4..].trim_start_matches('\n');
-
-    let mut frontmatter = Map::new();
-    for line in header.split('\n') {
-        let Some((key, value)) = line.split_once(':') else {
-            continue;
-        };
-        let key = key.trim();
-        if key.is_empty()
-            || !key
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-            || value.trim().is_empty()
-        {
-            continue;
-        }
-        frontmatter.insert(key.to_string(), parse_value(value));
-    }
-    (frontmatter, body.trim().to_string())
-}
-
-/// `serializeFrontmatter` — arrays are JSON-encoded so commas and quotes round-trip.
-pub fn serialize_frontmatter(frontmatter: &Map<String, Value>, body: &str) -> String {
-    let mut lines = vec!["---".to_string()];
-    for (key, value) in frontmatter {
-        let rendered = match value {
-            Value::Array(_) => serde_json::to_string(value).unwrap_or_else(|_| "[]".into()),
-            Value::String(s) => s.clone(),
-            other => other.to_string(),
-        };
-        lines.push(format!("{key}: {rendered}"));
-    }
-    lines.push("---".into());
-    lines.push(String::new());
-    lines.push(body.to_string());
-    lines.push(String::new());
-    lines.join("\n")
-}
-
 /* ─── Filesystem ─── */
-
-/// Resolves a client path against the root, refusing anything that escapes it.
-pub fn resolve_within(root: &Path, relative: &str) -> Option<PathBuf> {
-    let root = normalize(root);
-    let candidate = normalize(&root.join(relative));
-    (candidate == root || candidate.starts_with(&root)).then_some(candidate)
-}
-
-/// Lexical `..`/`.` resolution — deliberately not `canonicalize`, which requires the path to
-/// exist and would therefore reject the traversal check for a file being created.
-fn normalize(path: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for component in path.components() {
-        match component {
-            std::path::Component::ParentDir => {
-                out.pop();
-            }
-            std::path::Component::CurDir => {}
-            other => out.push(other.as_os_str()),
-        }
-    }
-    out
-}
 
 /// Recursively collects `.md` files, skipping dotfiles and the `templates` directory.
 pub fn collect_files(dir: &Path) -> Vec<PathBuf> {
@@ -457,25 +355,10 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    #[test]
-    fn parses_a_json_list_keeping_commas_inside_items() {
-        assert_eq!(parse_value(r#"["a, b", "c"]"#), json!(["a, b", "c"]));
-    }
-
-    #[test]
-    fn parses_the_legacy_bare_list_form() {
-        assert_eq!(parse_value("[a, b]"), json!(["a", "b"]));
-    }
-
-    #[test]
-    fn an_empty_list_is_empty_not_a_blank_string() {
-        assert_eq!(parse_value("[]"), json!([]));
-    }
-
-    #[test]
-    fn a_plain_value_stays_a_string() {
-        assert_eq!(parse_value("  hello  "), json!("hello"));
-    }
+    // The four `parse_value` cases that used to live here moved to `lyra-context` with the
+    // function itself — see `the_legacy_bare_list_form_still_parses_and_loses_commas` and
+    // `a_plain_value_stays_a_trimmed_string` there. The frontmatter tests below stay, because they
+    // exercise this module's use of it rather than the parser.
 
     #[test]
     fn splits_frontmatter_from_body() {

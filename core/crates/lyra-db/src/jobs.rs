@@ -52,9 +52,13 @@ use crate::wealth::new_id;
 
 /// How many times a job is attempted before it is set aside as failed.
 ///
-/// Five, with the backoff below, spans about twenty minutes — long enough to ride out a router
-/// reboot or a Telegram blip, short enough that a genuinely broken job is visible the same hour
-/// rather than retrying into next week.
+/// Five, with the backoff below, spans **150 seconds** — four waits of 10, 20, 40 and 80. Long
+/// enough to ride out a Telegram blip, and deliberately short: anything that needs to outlast a
+/// router reboot sets its own budget, which is what `digest::ATTEMPTS` does and why it exists.
+///
+/// (This said "about twenty minutes" for a while, which is not a number this backoff can produce at
+/// five attempts. Worth being exact: a handler author reading it as twenty minutes would pick this
+/// default for work that needs twenty minutes, and get two and a half.)
 pub const DEFAULT_MAX_ATTEMPTS: i64 = 5;
 
 /// How long a claim is good for before the reaper may take it back.
@@ -742,9 +746,12 @@ impl Queue for SqliteQueue {
     /// Retry by **copying**, not by resetting the failed row.
     ///
     /// Resetting would be the obvious build and it destroys the one thing a dead job is kept for:
-    /// its `last_error`, its attempt count, the fact that it happened at all. Dead rows are kept
-    /// far longer than done ones precisely because they are evidence, and a retry that overwrote
-    /// them would make "why did this fail on Tuesday" unanswerable by Wednesday.
+    /// its `last_error`, its attempt count, the fact that it happened at all. A retry that
+    /// overwrote the row would make "why did this fail on Tuesday" unanswerable by Wednesday.
+    ///
+    /// Note that `prune` gives `done`, `failed` and `cancelled` the **same** cutoff — a dead row is
+    /// evidence for exactly as long as a successful one, not longer. Keeping failures around longer
+    /// would be reasonable; it is simply not what the code does today.
     ///
     /// So the copy carries the work — kind, lane, payload, priority, attempt budget — and points
     /// back at the original through `parent_id`. It is keyed `retry:<original id>`, so a button
@@ -1041,7 +1048,11 @@ mod tests {
         let second = q.enqueue(&job("two"), 1001).await.unwrap();
 
         // Touch the older one, which should bring it to the front.
-        let claimed = q.claim("w", &[Lane::Interactive], 60, 2000).await.unwrap().unwrap();
+        let claimed = q
+            .claim("w", &[Lane::Interactive], 60, 2000)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(claimed.id, first.id, "priority order claims the first one");
 
         let recent = q.recent(10).await.unwrap();
@@ -1058,8 +1069,16 @@ mod tests {
         for n in 0..5 {
             q.enqueue(&job(&format!("k{n}")), 1000 + n).await.unwrap();
         }
-        assert_eq!(q.recent(0).await.unwrap().len(), 1, "zero is clamped up to one");
-        assert_eq!(q.recent(usize::MAX).await.unwrap().len(), 5, "and huge is capped, not refused");
+        assert_eq!(
+            q.recent(0).await.unwrap().len(),
+            1,
+            "zero is clamped up to one"
+        );
+        assert_eq!(
+            q.recent(usize::MAX).await.unwrap().len(),
+            5,
+            "and huge is capped, not refused"
+        );
     }
 
     #[tokio::test]
@@ -1112,7 +1131,9 @@ mod tests {
         let (_dir, q) = fresh().await;
         let first = q
             .enqueue(
-                &job("deliver.telegram").key("brief:2026-09-21").max_attempts(1),
+                &job("deliver.telegram")
+                    .key("brief:2026-09-21")
+                    .max_attempts(1),
                 1000,
             )
             .await
@@ -1126,7 +1147,10 @@ mod tests {
         let now = 1100 + 10_000;
         q.reap(now).await.unwrap();
 
-        assert_eq!(q.get(&first.id).await.unwrap().unwrap().status, Status::Failed);
+        assert_eq!(
+            q.get(&first.id).await.unwrap().unwrap().status,
+            Status::Failed
+        );
         assert!(
             q.enqueue(&job("deliver.telegram").key("brief:2026-09-21"), now)
                 .await
@@ -1526,9 +1550,18 @@ mod tests {
     #[tokio::test]
     async fn a_retry_is_a_new_job_and_the_dead_one_is_kept_as_evidence() {
         let (_dir, q) = fresh().await;
-        let dead = q.enqueue(&job("deliver.telegram").max_attempts(1), 1000).await.unwrap();
-        let claimed = q.claim("w", &[Lane::Interactive], 60, 1100).await.unwrap().unwrap();
-        q.fail("w", &claimed.id, "telegram is down", Failure::Retry, 1200).await.unwrap();
+        let dead = q
+            .enqueue(&job("deliver.telegram").max_attempts(1), 1000)
+            .await
+            .unwrap();
+        let claimed = q
+            .claim("w", &[Lane::Interactive], 60, 1100)
+            .await
+            .unwrap()
+            .unwrap();
+        q.fail("w", &claimed.id, "telegram is down", Failure::Retry, 1200)
+            .await
+            .unwrap();
 
         let Retried::Queued(copy) = q.retry(&dead.id, 2000).await.unwrap() else {
             panic!("a failed job must be retryable");
@@ -1552,11 +1585,21 @@ mod tests {
         // A button double-clicked, or `/retry` sent twice from a phone on a bad connection.
         let (_dir, q) = fresh().await;
         let dead = q.enqueue(&job("x").max_attempts(1), 1000).await.unwrap();
-        let claimed = q.claim("w", &[Lane::Interactive], 60, 1100).await.unwrap().unwrap();
-        q.fail("w", &claimed.id, "boom", Failure::Retry, 1200).await.unwrap();
+        let claimed = q
+            .claim("w", &[Lane::Interactive], 60, 1100)
+            .await
+            .unwrap()
+            .unwrap();
+        q.fail("w", &claimed.id, "boom", Failure::Retry, 1200)
+            .await
+            .unwrap();
 
-        let Retried::Queued(a) = q.retry(&dead.id, 2000).await.unwrap() else { panic!() };
-        let Retried::Queued(b) = q.retry(&dead.id, 2001).await.unwrap() else { panic!() };
+        let Retried::Queued(a) = q.retry(&dead.id, 2000).await.unwrap() else {
+            panic!()
+        };
+        let Retried::Queued(b) = q.retry(&dead.id, 2001).await.unwrap() else {
+            panic!()
+        };
         assert_eq!(a.id, b.id);
         assert!(a.created && !b.created);
     }
@@ -1570,7 +1613,10 @@ mod tests {
             Retried::NotRetryable(Status::Queued),
             "retrying a job that has not run yet would run it twice"
         );
-        assert_eq!(q.retry("no-such-job", 1100).await.unwrap(), Retried::NotFound);
+        assert_eq!(
+            q.retry("no-such-job", 1100).await.unwrap(),
+            Retried::NotFound
+        );
     }
 
     #[tokio::test]
@@ -1578,7 +1624,10 @@ mod tests {
         let (_dir, q) = fresh().await;
         let queued = q.enqueue(&job("x"), 1000).await.unwrap();
         assert!(q.cancel(&queued.id, 1100).await.unwrap());
-        assert!(matches!(q.retry(&queued.id, 1200).await.unwrap(), Retried::Queued(_)));
+        assert!(matches!(
+            q.retry(&queued.id, 1200).await.unwrap(),
+            Retried::Queued(_)
+        ));
     }
 
     #[tokio::test]

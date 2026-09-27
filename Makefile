@@ -1,5 +1,6 @@
 .PHONY: help dev dev-safe dev-ui dev-api install install-ui build build-ui build-api \
        server-install server-status server-restart server-stop server-logs \
+       server-setup-linux server-update-linux server-rollback-linux \
        lint typecheck typecheck-w check test clean docker-up docker-down docker-build docker-logs \
        preview core-build core-test core-check parity oracle oracle-clone mcp visual
 
@@ -128,8 +129,19 @@ parity: ## Diff the Rust port against the Python oracle (green with no endpoints
 # ──────────────────────────────────────────────
 # Docker
 # ──────────────────────────────────────────────
-server-install: ## Install Lyra as a local service (builds, then starts on login)
+server-install: ## Install Lyra as a local service (macOS/launchd; builds, then starts on login)
 	./ops/lyra-server.sh install
+
+# The mini PC deliberately has no build target: GitHub Actions builds the x86_64 tarball and
+# ops/lyra-update.sh installs it. `setup` only needs .env.local. See docs/deployment.md.
+server-setup-linux: ## Install Lyra as a systemd service (the mini PC; needs sudo)
+	sudo ./ops/lyra-server-linux.sh setup
+
+server-update-linux: ## Pull and install the latest release now instead of waiting for the timer
+	sudo /opt/lyra/bin/lyra-update.sh
+
+server-rollback-linux: ## Put the previous release back
+	sudo ./ops/lyra-server-linux.sh rollback
 
 server-status: ## Is the local service up?
 	@./ops/lyra-server.sh status

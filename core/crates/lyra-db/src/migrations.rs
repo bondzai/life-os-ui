@@ -205,8 +205,11 @@ pub const MIGRATIONS: &[&[&str]] = &[
     //   column, so the claim is always "the oldest runnable job" and never a join.
     //
     // `schedules` is deliberately not this table and never becomes it — see `docs/core-engine.md`.
-    // Its `nextDue` is *rendered to the user* on the habits page; a failed job writing a backoff
-    // into it would make the user watch their chores silently slide.
+    // Its `nextDue` is the recurrence's own state, read by the `schedule_list` MCP tool and by
+    // `schedule.tick`; a failed job writing a backoff into it would silently slide the user's
+    // chores. (This comment used to say the habits page renders it. Nothing in `src/` reads
+    // `schedules` at all today — the SPA does recurrence on a task's `dueDate` instead — so do not
+    // go looking for that reader.)
     &[
         r#"CREATE TABLE IF NOT EXISTS jobs (
                id              TEXT    PRIMARY KEY,

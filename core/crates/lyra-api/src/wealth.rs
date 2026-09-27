@@ -756,7 +756,11 @@ fn addresses(
     configured: &str,
 ) -> Result<Vec<String>, String> {
     let raw = raw.unwrap_or_default();
-    let raw = if raw.trim().is_empty() { configured } else { &raw };
+    let raw = if raw.trim().is_empty() {
+        configured
+    } else {
+        &raw
+    };
     if raw.trim().is_empty() {
         return Err(
             "no address supplied and no wallets are configured — pass ?address= or set \
@@ -858,7 +862,9 @@ async fn seed_wallets_from_env(pool: &sqlx::SqlitePool) {
             tracing::warn!(%address, "skipping an ALERT_WALLETS entry that is not a readable address");
             continue;
         };
-        if let Err(e) = store::create_wallet(pool, &address, Some("from ALERT_WALLETS"), kind, None).await {
+        if let Err(e) =
+            store::create_wallet(pool, &address, Some("from ALERT_WALLETS"), kind, None).await
+        {
             tracing::warn!(error = %e, %address, "could not seed a wallet from the environment");
         }
     }
@@ -2137,7 +2143,12 @@ pub(crate) async fn bot_market_line() -> String {
         ("puell", "puell"),
     ] {
         if let Some(model) = sentiment.get(key) {
-            row(&mut out, title, model["value"].to_string(), model["label"].as_str());
+            row(
+                &mut out,
+                title,
+                model["value"].to_string(),
+                model["label"].as_str(),
+            );
         }
     }
     if let Some(rainbow) = sentiment.get("btc_rainbow") {
@@ -2160,7 +2171,14 @@ pub(crate) async fn bot_market_line() -> String {
 pub(crate) async fn bot_book_line(state: &AppState, command: &str) -> Option<String> {
     if !matches!(
         command,
-        "nw" | "networth" | "tiers" | "positions" | "pos" | "rewards" | "risk" | "sats" | "bots"
+        "nw" | "networth"
+            | "tiers"
+            | "positions"
+            | "pos"
+            | "rewards"
+            | "risk"
+            | "sats"
+            | "bots"
             | "digest"
     ) {
         return None;
@@ -2244,17 +2262,17 @@ pub(crate) async fn bot_book_line(state: &AppState, command: &str) -> Option<Str
             None => "No borrow positions — nothing to liquidate.".into(),
         },
         "sats" => match figures.btc_sats {
-            Some(sats) => format!(
-                "Bitcoin\n{sats:.0} sats\n{}\n",
-                chat_usd(figures.btc_usd)
-            ),
+            Some(sats) => format!("Bitcoin\n{sats:.0} sats\n{}\n", chat_usd(figures.btc_usd)),
             None => format!("Bitcoin reserves: {}\n", chat_usd(figures.btc_usd)),
         },
         "bots" => {
             if !lyra_chain::kucoin::configured() {
                 return Some("No exchange key configured, so there are no bots to report.".into());
             }
-            format!("Bot equity is included in the book: {}", chat_usd(figures.total))
+            format!(
+                "Bot equity is included in the book: {}",
+                chat_usd(figures.total)
+            )
         }
         // The same brief the daily digest sends, on demand. `render_digest` returns `None` for
         // an empty book, which `collect_figures` has already ruled out — but saying so beats an
@@ -3184,12 +3202,7 @@ mod tests {
 
     /* ─── Off-chain assets ─── */
 
-    async fn put_json(
-        router: &Router,
-        path: &str,
-        token: &str,
-        body: &str,
-    ) -> (StatusCode, Value) {
+    async fn put_json(router: &Router, path: &str, token: &str, body: &str) -> (StatusCode, Value) {
         call(router, "PUT", path, Some(token), body).await
     }
 
@@ -3231,8 +3244,13 @@ mod tests {
         .await;
 
         let object = created.as_object().unwrap();
-        for key in ["kind", "ccy", "code", "chain", "note", "custody", "value", "units"] {
-            assert!(!object.contains_key(key), "{key} should be absent, not null");
+        for key in [
+            "kind", "ccy", "code", "chain", "note", "custody", "value", "units",
+        ] {
+            assert!(
+                !object.contains_key(key),
+                "{key} should be absent, not null"
+            );
         }
         assert!(object.contains_key("id"));
         assert_eq!(created["tier"], "trading");
@@ -3340,13 +3358,17 @@ mod tests {
         for (body, wanted) in [
             (r#"{"tier":"store"}"#, "name is required"),
             (r#"{"name":"x","tier":"savings"}"#, "tier must be one of"),
-            (r#"{"name":"x","tier":"store","ccy":"eur"}"#, "ccy must be one of"),
+            (
+                r#"{"name":"x","tier":"store","ccy":"eur"}"#,
+                "ccy must be one of",
+            ),
             (
                 r#"{"name":"x","tier":"store","custody":"warm"}"#,
                 "custody must be one of",
             ),
         ] {
-            let (status, value) = post_json(&router, "/api/wealth/manual-assets", &token, body).await;
+            let (status, value) =
+                post_json(&router, "/api/wealth/manual-assets", &token, body).await;
             assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
             let message = value["error"].as_str().unwrap_or_default();
             assert!(message.starts_with(wanted), "{body} said {message:?}");
@@ -3355,7 +3377,6 @@ mod tests {
         let (_, listed) = get_json(&router, "/api/wealth/manual-assets", &token).await;
         assert!(listed["assets"].as_array().unwrap().is_empty());
     }
-
 
     /* ─── The wallet list ─── */
 
@@ -3414,7 +3435,10 @@ mod tests {
             .iter()
             .map(|w| w["address"].as_str().unwrap())
             .collect();
-        assert!(addresses.contains(&A_BTC_ADDRESS), "the new wallet: {addresses:?}");
+        assert!(
+            addresses.contains(&A_BTC_ADDRESS),
+            "the new wallet: {addresses:?}"
+        );
         assert!(
             addresses.iter().any(|a| a.eq_ignore_ascii_case(evm)) || !DEFAULT_WALLETS.contains(evm),
             "the environment's wallets should have come across: {addresses:?}"
@@ -3426,8 +3450,13 @@ mod tests {
     #[tokio::test]
     async fn a_refused_address_does_not_flip_the_list_to_the_database() {
         let (_dir, _pool, router, token) = test_app().await;
-        let (status, _) =
-            post_json(&router, "/api/wealth/wallets", &token, r#"{"address":"nope"}"#).await;
+        let (status, _) = post_json(
+            &router,
+            "/api/wealth/wallets",
+            &token,
+            r#"{"address":"nope"}"#,
+        )
+        .await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 
         let (_, listed) = get_json(&router, "/api/wealth/wallets", &token).await;
@@ -3437,11 +3466,18 @@ mod tests {
     #[tokio::test]
     async fn an_address_the_fan_out_cannot_read_is_refused() {
         let (_dir, _pool, router, token) = test_app().await;
-        for bad in [r#"{"address":"not-an-address"}"#, r#"{"address":""}"#, r#"{}"#] {
+        for bad in [
+            r#"{"address":"not-an-address"}"#,
+            r#"{"address":""}"#,
+            r#"{}"#,
+        ] {
             let (status, body) = post_json(&router, "/api/wealth/wallets", &token, bad).await;
             assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{bad}");
             assert!(
-                body["error"].as_str().unwrap_or_default().contains("address"),
+                body["error"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("address"),
                 "{bad} said {body}"
             );
         }
@@ -3494,5 +3530,4 @@ mod tests {
         let (_, listed) = get_json(&router, "/api/wealth/wallets", &token).await;
         assert!(listed["wallets"].as_array().unwrap().is_empty());
     }
-
 }

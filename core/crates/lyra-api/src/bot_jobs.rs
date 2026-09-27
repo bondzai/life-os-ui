@@ -59,7 +59,12 @@ async fn list(queue: &SqliteQueue) -> String {
     }
     out.push('\n');
     for job in &recent {
-        out.push_str(&format!("{}  {}  {}\n", short(&job.id), job.status.as_str(), job.kind));
+        out.push_str(&format!(
+            "{}  {}  {}\n",
+            short(&job.id),
+            job.status.as_str(),
+            job.kind
+        ));
     }
     // Said once, at the bottom, rather than as a column: the reason is what you act on, and only
     // failures have one.
@@ -86,7 +91,9 @@ async fn resolve(queue: &SqliteQueue, argument: Option<&str>, verb: &str) -> Res
         .recent(SEARCH)
         .await
         .map_err(|_| "I could not read the queue.".to_string())?;
-    let mut matches = recent.into_iter().filter(|j| j.id.to_lowercase().starts_with(&prefix));
+    let mut matches = recent
+        .into_iter()
+        .filter(|j| j.id.to_lowercase().starts_with(&prefix));
 
     match (matches.next(), matches.next()) {
         (Some(job), None) => Ok(job),
@@ -145,14 +152,25 @@ mod tests {
 
     async fn fresh() -> (TempDir, SqliteQueue) {
         let dir = TempDir::new().unwrap();
-        let pool = lyra_db::open_and_migrate(&dir.path().join("lyra.db")).await.unwrap();
+        let pool = lyra_db::open_and_migrate(&dir.path().join("lyra.db"))
+            .await
+            .unwrap();
         (dir, SqliteQueue::new(pool))
     }
 
     async fn dead(q: &SqliteQueue, kind: &str) -> String {
-        let job = q.enqueue(&NewJob::new(kind, Lane::Deliver).max_attempts(1), 1000).await.unwrap();
-        let claimed = q.claim("w", &[Lane::Deliver], 60, 1100).await.unwrap().unwrap();
-        q.fail("w", &claimed.id, "telegram is down", Failure::Retry, 1200).await.unwrap();
+        let job = q
+            .enqueue(&NewJob::new(kind, Lane::Deliver).max_attempts(1), 1000)
+            .await
+            .unwrap();
+        let claimed = q
+            .claim("w", &[Lane::Deliver], 60, 1100)
+            .await
+            .unwrap()
+            .unwrap();
+        q.fail("w", &claimed.id, "telegram is down", Failure::Retry, 1200)
+            .await
+            .unwrap();
         job.id
     }
 
@@ -173,7 +191,11 @@ mod tests {
         let reply = retry(&q, Some(short(&id))).await;
         assert!(reply.starts_with("Retrying deliver.telegram"), "{reply}");
         // Sent twice from a bad connection: one retry, and it says so.
-        assert!(retry(&q, Some(short(&id))).await.starts_with("Already retrying"));
+        assert!(
+            retry(&q, Some(short(&id)))
+                .await
+                .starts_with("Already retrying")
+        );
     }
 
     #[tokio::test]
@@ -195,7 +217,10 @@ mod tests {
 
         let reply = retry(&q, Some("abc")).await;
         assert!(reply.contains("matches more than one"), "{reply}");
-        assert!(reply.contains("abc111") && reply.contains("abc222"), "and it names both: {reply}");
+        assert!(
+            reply.contains("abc111") && reply.contains("abc222"),
+            "and it names both: {reply}"
+        );
 
         // One more character and it is no longer a guess.
         assert!(retry(&q, Some("abc1")).await.starts_with("Retrying a"));
@@ -207,8 +232,15 @@ mod tests {
     #[tokio::test]
     async fn a_waiting_job_can_be_cancelled_and_a_dead_one_cannot() {
         let (_dir, q) = fresh().await;
-        let waiting = q.enqueue(&NewJob::new("digest.daily", Lane::Batch), 1000).await.unwrap();
-        assert!(cancel(&q, Some(short(&waiting.id))).await.starts_with("Cancelled"));
+        let waiting = q
+            .enqueue(&NewJob::new("digest.daily", Lane::Batch), 1000)
+            .await
+            .unwrap();
+        assert!(
+            cancel(&q, Some(short(&waiting.id)))
+                .await
+                .starts_with("Cancelled")
+        );
 
         let id = dead(&q, "deliver.telegram").await;
         let reply = cancel(&q, Some(short(&id))).await;
@@ -219,7 +251,11 @@ mod tests {
     #[tokio::test]
     async fn an_unknown_prefix_says_so() {
         let (_dir, q) = fresh().await;
-        assert!(retry(&q, Some("zzzzzz")).await.contains("No recent job starts with zzzzzz"));
+        assert!(
+            retry(&q, Some("zzzzzz"))
+                .await
+                .contains("No recent job starts with zzzzzz")
+        );
     }
 
     #[tokio::test]

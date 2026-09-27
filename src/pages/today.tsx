@@ -41,6 +41,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useFocusStore } from '@/stores/focus-store'
+import { useFocusCountdown } from '@/hooks/use-focus-countdown'
 import { DailyProtocol } from './today/daily-protocol'
 import { HabitStrip } from './today/habit-strip'
 import { PriorityPicker } from './today/priority-picker'
@@ -291,7 +292,7 @@ export function TodayPage() {
   const { cascadeTree, topBlockedGoal, stats } = useCommandCenter()
 
   const hasActiveSession = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)
-  const focusSecondsLeft = useFocusStore((s) => s.secondsLeft)
+  const focusSecondsLeft = useFocusCountdown()
 
   const [priorities, setPriorities] = useState<string[]>(() => getTodayPriorities())
   const [addingStory, setAddingStory] = useState(false)

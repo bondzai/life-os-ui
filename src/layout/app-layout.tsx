@@ -11,6 +11,7 @@ import { CommandBar } from '@/pages/ai/command-bar'
 import { DataModeNotice } from '@/components/data-mode-notice'
 import { useUiStore } from '@/stores/ui-store'
 import { useFocusStore } from '@/stores/focus-store'
+import { useFocusCountdown } from '@/hooks/use-focus-countdown'
 import { LyraPageLoader } from '@/components/lyra-loader'
 import { useLyraPulse } from '@/hooks/use-lyra-pulse'
 import { useSessionSummary } from '@/hooks/use-session-summary'
@@ -46,7 +47,7 @@ export function AppLayout() {
   const clock = useClock()
   // Browser tab title — show focus timer when session is active
   const focusSessionActive = useFocusStore((s) => !!s.sessionId && s.emperorEntityIds.length > 0)
-  const focusSeconds = useFocusStore((s) => s.secondsLeft)
+  const focusSeconds = useFocusCountdown()
   const focusPhase = useFocusStore((s) => s.phase)
 
   useEffect(() => {

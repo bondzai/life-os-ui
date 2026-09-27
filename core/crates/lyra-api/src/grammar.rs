@@ -42,11 +42,41 @@ pub struct Rule {
 
 /// The single-character prefixes, in the TypeScript's order.
 pub const PREFIXES: &[Rule] = &[
-    Rule { token: "!", label: "Task",     entity_type: "task",  priority: "medium", tags: &[] },
-    Rule { token: "?", label: "Question", entity_type: "note",  priority: "medium", tags: &["question"] },
-    Rule { token: "*", label: "Idea",     entity_type: "note",  priority: "medium", tags: &["idea"] },
-    Rule { token: "@", label: "Goal",     entity_type: "goal",  priority: "medium", tags: &[] },
-    Rule { token: "#", label: "Habit",    entity_type: "habit", priority: "medium", tags: &[] },
+    Rule {
+        token: "!",
+        label: "Task",
+        entity_type: "task",
+        priority: "medium",
+        tags: &[],
+    },
+    Rule {
+        token: "?",
+        label: "Question",
+        entity_type: "note",
+        priority: "medium",
+        tags: &["question"],
+    },
+    Rule {
+        token: "*",
+        label: "Idea",
+        entity_type: "note",
+        priority: "medium",
+        tags: &["idea"],
+    },
+    Rule {
+        token: "@",
+        label: "Goal",
+        entity_type: "goal",
+        priority: "medium",
+        tags: &[],
+    },
+    Rule {
+        token: "#",
+        label: "Habit",
+        entity_type: "habit",
+        priority: "medium",
+        tags: &[],
+    },
 ];
 
 /// A slash command and the short forms that mean the same thing.
@@ -58,26 +88,206 @@ pub struct Command {
 
 /// The slash commands, in the TypeScript's order.
 pub const COMMANDS: &[Command] = &[
-    Command { aliases: &["/t"],     rule: Rule { token: "/task",     label: "Task",       entity_type: "task",  priority: "medium", tags: &[] } },
-    Command { aliases: &["/n"],     rule: Rule { token: "/note",     label: "Note",       entity_type: "note",  priority: "medium", tags: &[] } },
-    Command { aliases: &[],         rule: Rule { token: "/bug",      label: "Bug",        entity_type: "task",  priority: "high",   tags: &["bug"] } },
-    Command { aliases: &["/q"],     rule: Rule { token: "/question", label: "Question",   entity_type: "note",  priority: "medium", tags: &["question"] } },
-    Command { aliases: &["/mtg"],   rule: Rule { token: "/meeting",  label: "Meeting",    entity_type: "note",  priority: "medium", tags: &["meeting"] } },
-    Command { aliases: &["/url"],   rule: Rule { token: "/link",     label: "Link",       entity_type: "note",  priority: "medium", tags: &["link"] } },
-    Command { aliases: &["/code"],  rule: Rule { token: "/snippet",  label: "Snippet",    entity_type: "note",  priority: "medium", tags: &["snippet"] } },
-    Command { aliases: &["/ev"],    rule: Rule { token: "/event",    label: "Event",      entity_type: "event", priority: "medium", tags: &[] } },
-    Command { aliases: &["/bm"],    rule: Rule { token: "/bookmark", label: "Bookmark",   entity_type: "note",  priority: "low",    tags: &["bookmark"] } },
-    Command { aliases: &["/i"],     rule: Rule { token: "/idea",     label: "Idea",       entity_type: "note",  priority: "medium", tags: &["idea"] } },
-    Command { aliases: &["/g"],     rule: Rule { token: "/goal",     label: "Goal",       entity_type: "goal",  priority: "medium", tags: &[] } },
-    Command { aliases: &["/h"],     rule: Rule { token: "/habit",    label: "Habit",      entity_type: "habit", priority: "medium", tags: &[] } },
-    Command { aliases: &[],         rule: Rule { token: "/someday",  label: "Someday",    entity_type: "task",  priority: "low",    tags: &["someday"] } },
-    Command { aliases: &["/d"],     rule: Rule { token: "/decide",   label: "Decision",   entity_type: "note",  priority: "high",   tags: &["decision"] } },
-    Command { aliases: &["/block"], rule: Rule { token: "/blocker",  label: "Blocker",    entity_type: "task",  priority: "urgent", tags: &["blocker"] } },
-    Command { aliases: &[],         rule: Rule { token: "/spark",    label: "Spark",      entity_type: "note",  priority: "medium", tags: &["spark"] } },
-    Command { aliases: &[],         rule: Rule { token: "/think",    label: "Think",      entity_type: "note",  priority: "medium", tags: &["think"] } },
-    Command { aliases: &[],         rule: Rule { token: "/rant",     label: "Rant",       entity_type: "note",  priority: "low",    tags: &["rant"] } },
-    Command { aliases: &["/ann"],   rule: Rule { token: "/announce", label: "Announce",   entity_type: "note",  priority: "medium", tags: &["announce"] } },
-    Command { aliases: &["/exp"],   rule: Rule { token: "/experiment", label: "Experiment", entity_type: "note", priority: "medium", tags: &["experiment"] } },
+    Command {
+        aliases: &["/t"],
+        rule: Rule {
+            token: "/task",
+            label: "Task",
+            entity_type: "task",
+            priority: "medium",
+            tags: &[],
+        },
+    },
+    Command {
+        aliases: &["/n"],
+        rule: Rule {
+            token: "/note",
+            label: "Note",
+            entity_type: "note",
+            priority: "medium",
+            tags: &[],
+        },
+    },
+    Command {
+        aliases: &[],
+        rule: Rule {
+            token: "/bug",
+            label: "Bug",
+            entity_type: "task",
+            priority: "high",
+            tags: &["bug"],
+        },
+    },
+    Command {
+        aliases: &["/q"],
+        rule: Rule {
+            token: "/question",
+            label: "Question",
+            entity_type: "note",
+            priority: "medium",
+            tags: &["question"],
+        },
+    },
+    Command {
+        aliases: &["/mtg"],
+        rule: Rule {
+            token: "/meeting",
+            label: "Meeting",
+            entity_type: "note",
+            priority: "medium",
+            tags: &["meeting"],
+        },
+    },
+    Command {
+        aliases: &["/url"],
+        rule: Rule {
+            token: "/link",
+            label: "Link",
+            entity_type: "note",
+            priority: "medium",
+            tags: &["link"],
+        },
+    },
+    Command {
+        aliases: &["/code"],
+        rule: Rule {
+            token: "/snippet",
+            label: "Snippet",
+            entity_type: "note",
+            priority: "medium",
+            tags: &["snippet"],
+        },
+    },
+    Command {
+        aliases: &["/ev"],
+        rule: Rule {
+            token: "/event",
+            label: "Event",
+            entity_type: "event",
+            priority: "medium",
+            tags: &[],
+        },
+    },
+    Command {
+        aliases: &["/bm"],
+        rule: Rule {
+            token: "/bookmark",
+            label: "Bookmark",
+            entity_type: "note",
+            priority: "low",
+            tags: &["bookmark"],
+        },
+    },
+    Command {
+        aliases: &["/i"],
+        rule: Rule {
+            token: "/idea",
+            label: "Idea",
+            entity_type: "note",
+            priority: "medium",
+            tags: &["idea"],
+        },
+    },
+    Command {
+        aliases: &["/g"],
+        rule: Rule {
+            token: "/goal",
+            label: "Goal",
+            entity_type: "goal",
+            priority: "medium",
+            tags: &[],
+        },
+    },
+    Command {
+        aliases: &["/h"],
+        rule: Rule {
+            token: "/habit",
+            label: "Habit",
+            entity_type: "habit",
+            priority: "medium",
+            tags: &[],
+        },
+    },
+    Command {
+        aliases: &[],
+        rule: Rule {
+            token: "/someday",
+            label: "Someday",
+            entity_type: "task",
+            priority: "low",
+            tags: &["someday"],
+        },
+    },
+    Command {
+        aliases: &["/d"],
+        rule: Rule {
+            token: "/decide",
+            label: "Decision",
+            entity_type: "note",
+            priority: "high",
+            tags: &["decision"],
+        },
+    },
+    Command {
+        aliases: &["/block"],
+        rule: Rule {
+            token: "/blocker",
+            label: "Blocker",
+            entity_type: "task",
+            priority: "urgent",
+            tags: &["blocker"],
+        },
+    },
+    Command {
+        aliases: &[],
+        rule: Rule {
+            token: "/spark",
+            label: "Spark",
+            entity_type: "note",
+            priority: "medium",
+            tags: &["spark"],
+        },
+    },
+    Command {
+        aliases: &[],
+        rule: Rule {
+            token: "/think",
+            label: "Think",
+            entity_type: "note",
+            priority: "medium",
+            tags: &["think"],
+        },
+    },
+    Command {
+        aliases: &[],
+        rule: Rule {
+            token: "/rant",
+            label: "Rant",
+            entity_type: "note",
+            priority: "low",
+            tags: &["rant"],
+        },
+    },
+    Command {
+        aliases: &["/ann"],
+        rule: Rule {
+            token: "/announce",
+            label: "Announce",
+            entity_type: "note",
+            priority: "medium",
+            tags: &["announce"],
+        },
+    },
+    Command {
+        aliases: &["/exp"],
+        rule: Rule {
+            token: "/experiment",
+            label: "Experiment",
+            entity_type: "note",
+            priority: "medium",
+            tags: &["experiment"],
+        },
+    },
 ];
 
 /// No prefix at all. The TypeScript's `NOTE_RULE`.
@@ -128,7 +338,13 @@ fn match_command(lower: &str) -> Option<(Rule, usize)> {
 pub fn parse(raw: &str, today: NaiveDate) -> Parsed {
     let text = raw.trim();
     if text.is_empty() {
-        return Parsed { rule: NOTE, title: String::new(), due: None, due_phrase: None, project: None };
+        return Parsed {
+            rule: NOTE,
+            title: String::new(),
+            due: None,
+            due_phrase: None,
+            project: None,
+        };
     }
 
     let lower = text.to_lowercase();
@@ -144,7 +360,13 @@ pub fn parse(raw: &str, today: NaiveDate) -> Parsed {
     let (rest, project) = take_project(rest);
     let (title, due, due_phrase) = take_date(&rest, today);
 
-    Parsed { rule, title, due, due_phrase, project }
+    Parsed {
+        rule,
+        title,
+        due,
+        due_phrase,
+        project,
+    }
 }
 
 /// Pull an `@name` out of the middle of a line.
@@ -157,7 +379,11 @@ fn take_project(text: &str) -> (String, Option<String>) {
         .split_whitespace()
         .filter(|word| {
             if project.is_none() && word.len() > 1 && word.starts_with('@') {
-                project = Some(word[1..].trim_matches(|c: char| !c.is_alphanumeric()).to_string());
+                project = Some(
+                    word[1..]
+                        .trim_matches(|c: char| !c.is_alphanumeric())
+                        .to_string(),
+                );
                 return false;
             }
             true
@@ -169,10 +395,24 @@ fn take_project(text: &str) -> (String, Option<String>) {
 /// Date phrases, longest first so `next friday` is not eaten by `friday`.
 const PHRASES: &[&str] = &[
     "the day after tomorrow",
-    "next monday", "next tuesday", "next wednesday", "next thursday",
-    "next friday", "next saturday", "next sunday", "next week",
-    "tomorrow", "today", "tonight",
-    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "next monday",
+    "next tuesday",
+    "next wednesday",
+    "next thursday",
+    "next friday",
+    "next saturday",
+    "next sunday",
+    "next week",
+    "tomorrow",
+    "today",
+    "tonight",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
 ];
 
 /// Pull a trailing date phrase off the end of a line.
@@ -233,7 +473,9 @@ fn resolve_phrase(phrase: &str, today: NaiveDate) -> NaiveDate {
                 Some(name) => (name, true),
                 None => (other, false),
             };
-            let Some(target) = weekday(name) else { return today };
+            let Some(target) = weekday(name) else {
+                return today;
+            };
             // The *coming* one. "friday" on a Friday means next Friday, not today: someone typing
             // a weekday is naming a day they are not currently in the middle of.
             let ahead = (target.num_days_from_monday() as i64
@@ -269,13 +511,23 @@ fn iso(date: NaiveDate) -> String {
 /// saved — a reply that looks like a confirmation, for an action that did not happen, is worse
 /// than no reply.
 pub fn echo(parsed: &Parsed) -> String {
-    let mut out = format!("{}: {}\n", parsed.rule.label, if parsed.title.is_empty() { "(no title)" } else { &parsed.title });
+    let mut out = format!(
+        "{}: {}\n",
+        parsed.rule.label,
+        if parsed.title.is_empty() {
+            "(no title)"
+        } else {
+            &parsed.title
+        }
+    );
 
     if let (Some(due), Some(phrase)) = (&parsed.due, &parsed.due_phrase) {
         out.push_str(&format!("due: {due}  (from \"{phrase}\")\n"));
     }
     if let Some(project) = &parsed.project {
-        out.push_str(&format!("project: @{project}  (not yet matched to a real project)\n"));
+        out.push_str(&format!(
+            "project: @{project}  (not yet matched to a real project)\n"
+        ));
     }
     if !parsed.rule.tags.is_empty() {
         out.push_str(&format!("tags: {}\n", parsed.rule.tags.join(", ")));
@@ -310,8 +562,9 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../../src/core/config/capture-protocol.ts"
         );
-        let source = std::fs::read_to_string(path)
-            .unwrap_or_else(|e| panic!("the grammar's source of truth must be readable: {path}: {e}"));
+        let source = std::fs::read_to_string(path).unwrap_or_else(|e| {
+            panic!("the grammar's source of truth must be readable: {path}: {e}")
+        });
 
         // One regex over the literal table, rather than a TypeScript parser: the table is one entry
         // per line by convention, and a reformat that breaks this test is a reformat worth seeing.
@@ -329,8 +582,16 @@ mod tests {
                 .find(|c| c.rule.token == command)
                 .unwrap_or_else(|| panic!("{command} exists in the TypeScript and not here"));
 
-            assert_eq!(ours.rule.entity_type, caps.name("kind").unwrap().as_str(), "{command}: type");
-            assert_eq!(ours.rule.priority, caps.name("priority").unwrap().as_str(), "{command}: priority");
+            assert_eq!(
+                ours.rule.entity_type,
+                caps.name("kind").unwrap().as_str(),
+                "{command}: type"
+            );
+            assert_eq!(
+                ours.rule.priority,
+                caps.name("priority").unwrap().as_str(),
+                "{command}: priority"
+            );
 
             let quoted = |raw: &str| -> Vec<String> {
                 raw.split(',')
@@ -338,11 +599,22 @@ mod tests {
                     .filter(|s| !s.is_empty())
                     .collect()
             };
-            assert_eq!(quoted(caps.name("aliases").unwrap().as_str()), ours.aliases, "{command}: aliases");
-            assert_eq!(quoted(caps.name("tags").unwrap().as_str()), ours.rule.tags, "{command}: tags");
+            assert_eq!(
+                quoted(caps.name("aliases").unwrap().as_str()),
+                ours.aliases,
+                "{command}: aliases"
+            );
+            assert_eq!(
+                quoted(caps.name("tags").unwrap().as_str()),
+                ours.rule.tags,
+                "{command}: tags"
+            );
         }
 
-        assert!(seen >= 20, "only matched {seen} commands — has the table been reformatted?");
+        assert!(
+            seen >= 20,
+            "only matched {seen} commands — has the table been reformatted?"
+        );
         assert_eq!(seen, COMMANDS.len(), "the two tables are different lengths");
     }
 
@@ -399,8 +671,14 @@ mod tests {
 
     #[test]
     fn an_alias_means_the_same_thing_as_the_command() {
-        assert_eq!(parse("/t ship it", monday()).rule, parse("/task ship it", monday()).rule);
-        assert_eq!(parse("/block waiting on legal", monday()).rule.priority, "urgent");
+        assert_eq!(
+            parse("/t ship it", monday()).rule,
+            parse("/task ship it", monday()).rule
+        );
+        assert_eq!(
+            parse("/block waiting on legal", monday()).rule.priority,
+            "urgent"
+        );
     }
 
     #[test]
@@ -440,18 +718,27 @@ mod tests {
     #[test]
     fn a_weekday_means_the_coming_one() {
         // Monday the 21st; Friday is the 25th.
-        assert_eq!(parse("!invoice friday", monday()).due.as_deref(), Some("2026-09-25"));
+        assert_eq!(
+            parse("!invoice friday", monday()).due.as_deref(),
+            Some("2026-09-25")
+        );
     }
 
     #[test]
     fn a_weekday_on_that_weekday_means_next_week() {
         // Someone typing "monday" on a Monday is naming a day they are not in the middle of.
-        assert_eq!(parse("!standup monday", monday()).due.as_deref(), Some("2026-09-28"));
+        assert_eq!(
+            parse("!standup monday", monday()).due.as_deref(),
+            Some("2026-09-28")
+        );
     }
 
     #[test]
     fn next_friday_is_a_week_past_friday() {
-        assert_eq!(parse("!review next friday", monday()).due.as_deref(), Some("2026-10-02"));
+        assert_eq!(
+            parse("!review next friday", monday()).due.as_deref(),
+            Some("2026-10-02")
+        );
     }
 
     #[test]
@@ -473,7 +760,10 @@ mod tests {
     #[test]
     fn a_date_word_glued_to_another_word_is_not_a_date() {
         let parsed = parse("!check onfriday", monday());
-        assert_eq!(parsed.due, None, "a suffix match inside a word is not a date");
+        assert_eq!(
+            parsed.due, None,
+            "a suffix match inside a word is not a date"
+        );
     }
 
     // ---------- projects ----------
@@ -508,7 +798,10 @@ mod tests {
     #[test]
     fn an_email_address_is_not_a_project() {
         let parsed = parse("!mail bob@example.com", monday());
-        assert_eq!(parsed.project, None, "@ must be the first character of the word");
+        assert_eq!(
+            parsed.project, None,
+            "@ must be the first character of the word"
+        );
         assert_eq!(parsed.title, "mail bob@example.com");
     }
 

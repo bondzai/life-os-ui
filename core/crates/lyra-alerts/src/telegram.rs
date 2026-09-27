@@ -547,7 +547,11 @@ mod tests {
                 "every part must be sendable"
             );
         }
-        assert_eq!(parts.concat(), text, "and nothing may be lost or duplicated");
+        assert_eq!(
+            parts.concat(),
+            text,
+            "and nothing may be lost or duplicated"
+        );
     }
 
     #[test]
@@ -577,7 +581,10 @@ mod tests {
         // Every char here is 4 bytes. Counting bytes would split a message that fits, and — worse
         // — could split it mid-codepoint.
         let text = "🙂".repeat(TELEGRAM_LIMIT);
-        assert!(text.len() > TELEGRAM_LIMIT * 3, "the byte length is far over");
+        assert!(
+            text.len() > TELEGRAM_LIMIT * 3,
+            "the byte length is far over"
+        );
         assert_eq!(
             split_for_telegram(&text).len(),
             1,

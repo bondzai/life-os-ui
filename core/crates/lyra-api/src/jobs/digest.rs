@@ -51,10 +51,14 @@ pub fn key_for(day: &str) -> String {
 /// hour of trying" into "two and a half minutes of trying", which is worse in every case anyone
 /// cares about.
 ///
-/// The backoff is 10s doubling to a 900s cap, so the cumulative span runs
-/// 10, 30, 70, 150, 310, 630, 1270, 2170, 3070, 3970, 4870, **5770**. Twelve attempts is a little
-/// over an hour and a half of trying: it comfortably outlasts the hour the loop was confined to,
-/// and it still ends, so a permanently broken channel dead-letters instead of retrying forever.
+/// The backoff is 10s doubling to a 900s cap. Twelve attempts means **eleven** waits, not twelve —
+/// `fail` dead-letters on the last attempt instead of scheduling another one — so the cumulative
+/// span runs 10, 30, 70, 150, 310, 630, 1270, 2170, 3070, 3970, **4870**: a little over eighty
+/// minutes. It comfortably outlasts the hour the loop was confined to, and it still ends, so a
+/// permanently broken channel dead-letters instead of retrying forever.
+///
+/// (This list previously ran one entry further, to 5770, by counting a wait after the final
+/// attempt. The off-by-one did not change behaviour, only what the comment promised.)
 pub const ATTEMPTS: i64 = 12;
 
 /// Today's brief, as a job — kind, lane, key and attempt budget in one place.
@@ -110,11 +114,15 @@ impl Handler for DailyDigest {
                     AlertStore::new(&self.state.pool)
                         .set_digest_day(&day, wealth::now_secs())
                         .await
-                        .map_err(|e| HandlerError::Retry(anyhow!("stamping the digest day: {e}")))?;
+                        .map_err(|e| {
+                            HandlerError::Retry(anyhow!("stamping the digest day: {e}"))
+                        })?;
                     Ok(())
                 }
                 // Reachable and refused. The world, not the job.
-                Ok(DigestOutcome::Refused) => Err(HandlerError::Retry(anyhow!("the channel refused the brief"))),
+                Ok(DigestOutcome::Refused) => Err(HandlerError::Retry(anyhow!(
+                    "the channel refused the brief"
+                ))),
                 // Retryable, and this is the interesting case. "Nothing to report" at 08:00 is
                 // almost always an upstream that flaked, not a portfolio that vanished, and the
                 // loop version retried it every tick for exactly this reason. Five attempts with
@@ -162,7 +170,10 @@ mod tests {
         let (_dir, q) = fresh().await;
         let mut ids = std::collections::BTreeSet::new();
         for tick in 0..120 {
-            let enqueued = q.enqueue(&brief("2026-09-21"), 1000 + tick * 30).await.unwrap();
+            let enqueued = q
+                .enqueue(&brief("2026-09-21"), 1000 + tick * 30)
+                .await
+                .unwrap();
             ids.insert(enqueued.id);
         }
         assert_eq!(ids.len(), 1, "120 ticks must produce one job");
@@ -199,7 +210,13 @@ mod tests {
             };
             attempts += 1;
             let status = q
-                .fail("w", &claimed.id, "the channel refused the brief", lyra_db::jobs::Failure::Retry, now)
+                .fail(
+                    "w",
+                    &claimed.id,
+                    "the channel refused the brief",
+                    lyra_db::jobs::Failure::Retry,
+                    now,
+                )
                 .await
                 .unwrap();
             if status == Some(Status::Failed) {
@@ -225,14 +242,30 @@ mod tests {
             .enqueue(&brief("2026-09-21").max_attempts(1), 1_000)
             .await
             .unwrap();
-        let claimed = q.claim("w", &[Lane::Batch], 60, 1_100).await.unwrap().unwrap();
-        q.fail("w", &claimed.id, "refused", lyra_db::jobs::Failure::Retry, 1_200)
+        let claimed = q
+            .claim("w", &[Lane::Batch], 60, 1_100)
             .await
+            .unwrap()
             .unwrap();
-        assert_eq!(q.get(&first.id).await.unwrap().unwrap().status, Status::Failed);
+        q.fail(
+            "w",
+            &claimed.id,
+            "refused",
+            lyra_db::jobs::Failure::Retry,
+            1_200,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            q.get(&first.id).await.unwrap().unwrap().status,
+            Status::Failed
+        );
 
         let again = q.enqueue(&brief("2026-09-21"), 5_000).await.unwrap();
-        assert!(again.created, "a dead brief must not block asking for it again");
+        assert!(
+            again.created,
+            "a dead brief must not block asking for it again"
+        );
     }
 
     #[tokio::test]
@@ -240,7 +273,11 @@ mod tests {
         // The other half of the rule. Two briefs in one morning is the failure everyone notices.
         let (_dir, q) = fresh().await;
         let first = q.enqueue(&brief("2026-09-21"), 1_000).await.unwrap();
-        let claimed = q.claim("w", &[Lane::Batch], 60, 1_100).await.unwrap().unwrap();
+        let claimed = q
+            .claim("w", &[Lane::Batch], 60, 1_100)
+            .await
+            .unwrap()
+            .unwrap();
         q.complete("w", &claimed.id, &[], 1_200).await.unwrap();
 
         let again = q.enqueue(&brief("2026-09-21"), 20_000).await.unwrap();
@@ -252,7 +289,9 @@ mod tests {
     async fn a_payload_with_no_day_fails_permanently_rather_than_retrying() {
         // The payload is written at enqueue and never changes, so retrying cannot grow a `day`.
         let dir = TempDir::new().unwrap();
-        let pool = lyra_db::open_and_migrate(&dir.path().join("lyra.db")).await.unwrap();
+        let pool = lyra_db::open_and_migrate(&dir.path().join("lyra.db"))
+            .await
+            .unwrap();
         let state = crate::AppState::new(pool, "test-secret".into());
         let handler = DailyDigest::new(state.clone());
 
@@ -261,7 +300,11 @@ mod tests {
             .enqueue(&NewJob::new(KIND, Lane::Batch), 1_000)
             .await
             .unwrap();
-        let claimed = queue.claim("w", &[Lane::Batch], 60, 1_100).await.unwrap().unwrap();
+        let claimed = queue
+            .claim("w", &[Lane::Batch], 60, 1_100)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(claimed.id, enqueued.id);
 
         let ctx = crate::jobs::JobCtx::for_test(queue, claimed, "w".into(), 1_100);

@@ -533,8 +533,11 @@ pub enum Capability {
 
 /// Every rung, in order. A test asserts this list against the match below, so the two cannot
 /// disagree about what the ladder contains.
-pub const ALL_CAPABILITIES: [Capability; 3] =
-    [Capability::Read, Capability::WriteOwnData, Capability::Reach];
+pub const ALL_CAPABILITIES: [Capability; 3] = [
+    Capability::Read,
+    Capability::WriteOwnData,
+    Capability::Reach,
+];
 
 impl Capability {
     /// What this rung means, in one phrase.
@@ -1877,7 +1880,10 @@ impl<P: PortfolioSource, M: MarketSource, A: AnalysisStore, L: LifeSource> Desk<
             Some(day) => (day, "caller"),
             None => (today_local(), "server-local"),
         };
-        let agenda = self.life.agenda(day.clone(), arg_usize(args, "limit")).await?;
+        let agenda = self
+            .life
+            .agenda(day.clone(), arg_usize(args, "limit"))
+            .await?;
 
         Ok(json!({
             "schema_version": SCHEMA_VERSION,
@@ -2023,10 +2029,7 @@ mod tests {
         // the tool — and this asserts the ladder is the three rungs it is documented to be, so
         // the exhaustive match cannot be quietly widened either.
         assert_eq!(ALL_CAPABILITIES.len(), 3);
-        let described: Vec<&str> = ALL_CAPABILITIES
-            .iter()
-            .map(|c| c.blast_radius())
-            .collect();
+        let described: Vec<&str> = ALL_CAPABILITIES.iter().map(|c| c.blast_radius()).collect();
         assert_eq!(
             described,
             [
@@ -2057,8 +2060,19 @@ mod tests {
         }
         // And the gate must be shut by anything that is not an explicit yes — including a typo,
         // because the failure that matters is a box writable while its operator believes not.
-        for value in [None, Some(""), Some("0"), Some("false"), Some("ture"), Some("on")] {
-            assert_eq!(WriteMode::from_var(value), WriteMode::JournalOnly, "{value:?}");
+        for value in [
+            None,
+            Some(""),
+            Some("0"),
+            Some("false"),
+            Some("ture"),
+            Some("on"),
+        ] {
+            assert_eq!(
+                WriteMode::from_var(value),
+                WriteMode::JournalOnly,
+                "{value:?}"
+            );
         }
         for value in ["1", "true", "YES", " yes "] {
             assert_eq!(WriteMode::from_var(Some(value)), WriteMode::Life, "{value}");
@@ -2119,7 +2133,10 @@ mod tests {
                     .any(|kind| t.name.starts_with(kind) || t.name.ends_with(kind))
             })
             .count();
-        assert_eq!(per_type, 0, "entity types belong in an argument, not in a tool name");
+        assert_eq!(
+            per_type, 0,
+            "entity types belong in an argument, not in a tool name"
+        );
         let schema = (find("entity_list").unwrap().input_schema)().to_string();
         for kind in ["task", "project", "goal", "habit", "note", "event", "chore"] {
             assert!(schema.contains(kind), "entity_list does not mention {kind}");
