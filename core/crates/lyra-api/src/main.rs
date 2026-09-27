@@ -11,6 +11,7 @@ mod auth;
 mod bot_jobs;
 mod bot_life;
 mod bot_text;
+mod channels;
 mod collect;
 mod common;
 mod entities;
@@ -18,6 +19,7 @@ mod gcal;
 mod grammar;
 mod jobs;
 mod knowledge;
+mod notify;
 mod relations;
 mod schedules;
 mod search;
@@ -56,6 +58,10 @@ pub struct AppState {
     /// One-shot tickets for the fleet socket. See [`agents::Tickets`] for why the JWT is not
     /// simply passed in the query string.
     pub tickets: agents::Tickets,
+    /// The key that seals credentials stored in the database. Resolved once, here, rather than read
+    /// from the environment at each use — the store learned that lesson the hard way, where a
+    /// global read made its own tests race.
+    pub secret_key: Option<Arc<Vec<u8>>>,
 }
 
 impl AppState {
@@ -68,7 +74,15 @@ impl AppState {
             alert_meta: alert_loop::SharedMeta::default(),
             fleet: agents::Fleet::new(),
             tickets: agents::Tickets::default(),
+            secret_key: lyra_db::secrets::key_from_env().map(Arc::new),
         }
+    }
+
+    /// Override the sealing key. For tests, which must not touch the process environment: doing so
+    /// makes every test running beside them observe the change.
+    pub fn with_secret_key(mut self, key: Option<Vec<u8>>) -> Self {
+        self.secret_key = key.map(Arc::new);
+        self
     }
 }
 
@@ -148,6 +162,17 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
         )
         // The workspace's authored context. Registered before the knowledge routes it reads
         // from, so the narrower path is the one a reader meets first.
+        // Where notifications can go, and which groups go there.
+        .route("/api/channels", get(channels::index).post(channels::create))
+        .route(
+            "/api/channels/{id}",
+            axum::routing::patch(channels::update).delete(channels::delete),
+        )
+        .route("/api/channels/{id}/test", post(channels::test))
+        .route(
+            "/api/routes",
+            get(channels::routes_index).put(channels::routes_replace),
+        )
         .route("/api/workspaces", get(workspaces::index))
         .route("/api/workspaces/{slug}/context", get(workspaces::context))
         .route("/api/knowledge", get(knowledge::list))
@@ -392,7 +417,11 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let state = AppState::new(pool.clone(), "test-secret".into());
+        // A fixed sealing key, so tests that store a credential exercise the real path rather than
+        // the "no key configured" refusal. Injected rather than set in the environment, which every
+        // test in this binary shares.
+        let state =
+            AppState::new(pool.clone(), "test-secret".into()).with_secret_key(Some(vec![5u8; 32]));
         let router = app(state, vec!["http://localhost:5173".into()]);
         (dir, pool, router)
     }
@@ -481,7 +510,11 @@ mod tests {
         assert_eq!(login(router, "1234").await.0, StatusCode::OK);
 
         // Second login goes down the bcrypt path against the freshly written hash.
-        let state = AppState::new(pool.clone(), "test-secret".into());
+        // A fixed sealing key, so tests that store a credential exercise the real path rather than
+        // the "no key configured" refusal. Injected rather than set in the environment, which every
+        // test in this binary shares.
+        let state =
+            AppState::new(pool.clone(), "test-secret".into()).with_secret_key(Some(vec![5u8; 32]));
         let router = app(state, vec![]);
         assert_eq!(login(router, "1234").await.0, StatusCode::OK);
         drop(dir);
@@ -637,6 +670,136 @@ mod tests {
              or to `excluded` here with a reason:\n  {}",
             missing.into_iter().collect::<Vec<_>>().join("\n  ")
         );
+    }
+
+    const WEBHOOK: &str = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz";
+
+    /// The one test most worth having on this surface: a credential goes in and never comes out.
+    ///
+    /// It checks the raw response bodies rather than the typed struct, because the leak that would
+    /// actually happen is a serialization change — a field added, a preview set to the wrong thing —
+    /// and a typed assertion would still compile through it.
+    #[tokio::test]
+    async fn no_channel_response_ever_contains_the_webhook_url() {
+        let (_dir, _pool, router) = test_app(&[]).await;
+        let token = token_for("u1");
+
+        let (status, made) = authed(
+            router.clone(),
+            "POST",
+            "/api/channels",
+            Some(&token),
+            Some(&json!({ "name": "money", "transport": "discord", "url": WEBHOOK }).to_string()),
+        )
+        .await;
+        // Without a sealing key the create is refused, by name — which is itself the correct
+        // behaviour and worth asserting rather than skipping the test.
+        if status != StatusCode::CREATED {
+            assert!(
+                made["error"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("LYRA_SECRET_KEY"),
+                "the only acceptable refusal here names the key: {made}"
+            );
+            return;
+        }
+
+        let id = made["id"].as_str().unwrap().to_string();
+        let (_, list) = authed(router.clone(), "GET", "/api/channels", Some(&token), None).await;
+        let (_, patched) = authed(
+            router.clone(),
+            "PATCH",
+            &format!("/api/channels/{id}"),
+            Some(&token),
+            Some(&json!({ "name": "money and fees" }).to_string()),
+        )
+        .await;
+
+        for body in [&made, &list, &patched] {
+            let rendered = body.to_string();
+            assert!(
+                !rendered.contains("abcdefghij"),
+                "a response carried the webhook token: {rendered}"
+            );
+        }
+        assert!(
+            list["channels"][0]["preview"]
+                .as_str()
+                .unwrap()
+                .contains("wxyz"),
+            "but the preview should still identify which webhook it is: {list}"
+        );
+    }
+
+    /// A refusal has to say which rule, because a pasted webhook is usually right and the mistake
+    /// is usually specific.
+    #[tokio::test]
+    async fn a_bad_webhook_is_refused_by_rule_and_a_bad_group_by_name() {
+        let (_dir, _pool, router) = test_app(&[]).await;
+        let token = token_for("u1");
+
+        let (status, body) = authed(
+            router.clone(),
+            "POST",
+            "/api/channels",
+            Some(&token),
+            Some(
+                &json!({ "name": "x", "transport": "discord", "url": "https://evil.test/a/b" })
+                    .to_string(),
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(
+            body["error"].as_str().unwrap().contains("discord.com"),
+            "the message must name the host rule: {body}"
+        );
+
+        let (status, body) = authed(
+            router.clone(),
+            "POST",
+            "/api/channels",
+            Some(&token),
+            Some(&json!({ "name": "x", "transport": "carrier-pigeon" }).to_string()),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(body["error"].as_str().unwrap().contains("carrier-pigeon"));
+
+        // A route to a group nothing delivers to is refused rather than stored and ignored.
+        let (status, body) = authed(
+            router.clone(),
+            "PUT",
+            "/api/routes",
+            Some(&token),
+            Some(
+                &json!({ "routes": [{ "group": "nonsense", "channel_id": "chan-1" }] }).to_string(),
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(body["error"].as_str().unwrap().contains("nonsense"));
+    }
+
+    /// Reading and writing channels needs the token, like every other setting.
+    #[tokio::test]
+    async fn channels_and_routes_sit_behind_the_token() {
+        let (_dir, _pool, router) = test_app(&[]).await;
+        for (method, uri) in [
+            ("GET", "/api/channels"),
+            ("POST", "/api/channels"),
+            ("GET", "/api/routes"),
+            ("PUT", "/api/routes"),
+            ("POST", "/api/channels/chan-1/test"),
+        ] {
+            let (status, _) = authed(router.clone(), method, uri, None, Some("{}")).await;
+            assert_eq!(
+                status,
+                StatusCode::UNAUTHORIZED,
+                "{method} {uri} must require a token"
+            );
+        }
     }
 
     /// Every relative link in every Markdown file points at something that exists.
