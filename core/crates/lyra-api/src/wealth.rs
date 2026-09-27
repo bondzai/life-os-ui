@@ -1879,18 +1879,34 @@ pub(crate) enum DigestOutcome {
     Nothing(&'static str),
 }
 
-/// Build and send the daily brief.
+/// A brief that is ready to go out, and the baseline it would consume.
 ///
-/// Shared by the on-demand endpoint and the scheduled sweep, so the two cannot drift: a brief you
-/// preview by hand is the same brief the box sends at 08:00. The caller owns the *decision* to
-/// send (an hour check, or a button); this owns everything after it.
-pub(crate) async fn deliver_digest(
-    state: &AppState,
-    sender: &Channels,
-) -> anyhow::Result<DigestOutcome> {
+/// The two travel together because they must be applied together: the snapshot is what makes
+/// tomorrow's brief show *changes*, so advancing it for a brief nobody received would silently eat a
+/// day of deltas.
+pub(crate) struct BuiltDigest {
+    pub text: String,
+    /// The new baseline, to be stored **only** once the brief has reached somebody.
+    pub snapshot: serde_json::Value,
+}
+
+/// What building the brief came to. Distinct from sending it.
+pub(crate) enum DigestBuild {
+    Ready(BuiltDigest),
+    /// Nothing worth sending. Not a failure.
+    Nothing(&'static str),
+}
+
+/// Build the daily brief, without sending anything.
+///
+/// Separated from the send so a job can build once and then deliver to several channels, each with
+/// its own retry. That split is also strictly better on a retry than the combined version was: the
+/// text and the baseline are computed once and carried, so an attempt an hour later sends the brief
+/// that was built at 08:00 rather than rebuilding it against a portfolio that has since moved.
+pub(crate) async fn build_digest(state: &AppState) -> anyhow::Result<DigestBuild> {
     let addresses = watched_wallets();
     if addresses.is_empty() {
-        return Ok(DigestOutcome::Nothing("no watched wallets"));
+        return Ok(DigestBuild::Nothing("no watched wallets"));
     }
 
     let snapshot = build_portfolios(Arc::clone(&UPSTREAMS.sources), &addresses, &AGGREGATE).await;
@@ -1899,7 +1915,7 @@ pub(crate) async fn deliver_digest(
 
     // The Python's `if s["total"] <= 0: return False`.
     if input.total <= 0.0 {
-        return Ok(DigestOutcome::Nothing(
+        return Ok(DigestBuild::Nothing(
             "nothing to report — the portfolio read returned no value",
         ));
     }
@@ -1928,27 +1944,54 @@ pub(crate) async fn deliver_digest(
         &header_date(&now),
         config.fee_threshold(),
     ) else {
-        return Ok(DigestOutcome::Nothing("the brief rendered empty"));
+        return Ok(DigestBuild::Nothing("the brief rendered empty"));
+    };
+
+    Ok(DigestBuild::Ready(BuiltDigest {
+        text,
+        snapshot: digest_snapshot_json(&DigestSnapshot::of(&input)),
+    }))
+}
+
+/// Store the baseline a delivered brief consumed.
+///
+/// Call this **only** after the brief has reached at least one channel. A failure here is logged
+/// rather than returned: the brief did go out, and the cost is one repeated delta tomorrow, which is
+/// not worth turning a delivered message into an error.
+pub(crate) async fn advance_digest_snapshot(state: &AppState, snapshot: &serde_json::Value) {
+    if let Err(e) = AlertStore::new(&state.pool)
+        .put_json(DIGEST_SNAPSHOT_KEY, snapshot, now_secs())
+        .await
+    {
+        tracing::error!(error = %e, "digest sent but its snapshot could not be saved");
+    }
+}
+
+/// Build and send the daily brief to every configured channel.
+///
+/// The on-demand endpoint's path, unchanged in behaviour: one send to the whole fan-out, and the
+/// baseline advances if anyone took it. The scheduled brief goes through the queue instead, one job
+/// per routed channel — see [`crate::jobs::digest`].
+pub(crate) async fn deliver_digest(
+    state: &AppState,
+    sender: &Channels,
+) -> anyhow::Result<DigestOutcome> {
+    let built = match build_digest(state).await? {
+        DigestBuild::Ready(built) => built,
+        DigestBuild::Nothing(why) => return Ok(DigestOutcome::Nothing(why)),
     };
 
     // `render_digest` authors its own emphasis and strips the untrusted parts on the way in.
-    if !sender.send(&Message::telegram_markup(text)).await.is_sent() {
+    if !sender
+        .send(&Message::telegram_markup(built.text))
+        .await
+        .is_sent()
+    {
         return Ok(DigestOutcome::Refused);
     }
 
     // Only now. A brief nobody received must not consume the deltas it would have shown.
-    if let Err(e) = store
-        .put_json(
-            DIGEST_SNAPSHOT_KEY,
-            &digest_snapshot_json(&DigestSnapshot::of(&input)),
-            now_secs(),
-        )
-        .await
-    {
-        // The brief was delivered, so this succeeded. The cost is one repeated delta next time,
-        // which is worth a log and not an error.
-        tracing::error!(error = %e, "digest sent but its snapshot could not be saved");
-    }
+    advance_digest_snapshot(state, &built.snapshot).await;
     Ok(DigestOutcome::Sent)
 }
 

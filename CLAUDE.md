@@ -52,11 +52,11 @@ something.
 
 | Check | Command | Baseline |
 |---|---|---|
-| Rust tests | `cd core && cargo test --workspace` | **1365 pass** |
+| Rust tests | `cd core && cargo test --workspace` | **1402 pass** |
 | Clippy | `cd core && cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | Rust format | `cd core && cargo fmt --all --check` | clean |
 | Types | `npm run typecheck` | clean |
-| Frontend tests | `npm test` | **335 pass, 11 skipped** |
+| Frontend tests | `npm test` | **341 pass, 11 skipped** |
 | Lint | `npm run lint` | **58 errors — pre-existing, not a gate** |
 
 `npm run lint` is red and has been for a long time. It runs in CI reporting-only. Do not "fix" it as
@@ -110,7 +110,12 @@ bundle built without `VITE_API_URL=/api` sends every request to a port with noth
 page renders its error state against a perfectly healthy server.
 
 **Entities are one table.** `entities` holds every type — task, note, goal, asset — with
-type-specific fields in a `metadata` JSON blob. Do not add a table for a new entity type.
+type-specific fields in a `metadata` JSON blob. Do not add a table for a new entity *type*.
+
+Infrastructure is the exception, and it is a real one rather than a loophole: `jobs`, `job_effects`,
+`schedules`, `alert_state`, `channels` and `routes` are all their own tables. The line is whether the
+thing is something in your life or something the machine needs to do its work. A task is an entity; a
+notification channel is plumbing.
 
 ## Conventions that are not optional
 
@@ -148,7 +153,8 @@ them to build.
 | the backend's shape | `docs/architecture.md`, `docs/api-server.md` |
 | the job queue | `docs/jobs.md` |
 | workspaces and authored context | `docs/workspaces.md` |
-| alerts and delivery | `docs/alerts.md` |
+| notifications, routing, channels | `docs/notifications.md` |
+| alert rules | `docs/alerts.md` |
 | the Telegram surface | `docs/telegram.md` |
 | the MCP server | `docs/mcp.md` |
 | entities, schema | `docs/core-engine.md` |
