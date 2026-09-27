@@ -144,7 +144,15 @@ pub async fn deliveries(
             severity = severity.as_str(),
             "nothing is routed for this group — sending to every configured channel instead"
         );
-        return vec![crate::jobs::deliver::job(text.to_string(), markup)];
+        // The key travels onto the fallback too. Dropped here at first, which meant a caller asking
+        // for exactly-once got it on the routed path and silently not on this one — two paths
+        // disagreeing about whether a repeat is a repeat. Callers that *want* every copy, like the
+        // range alerts, pass `None` and are unaffected.
+        let job = crate::jobs::deliver::job(text.to_string(), markup);
+        return vec![match key {
+            Some(key) => job.key(key),
+            None => job,
+        }];
     }
 
     destinations

@@ -12,8 +12,8 @@ delivery is the `notify.deliver` job.
 | Group | Kinds | Why together |
 |---|---|---|
 | `money` | out-of-range, back-in-range, fees ready, health factor | Time-sensitive, about real positions |
-| `day` | the daily brief, the habits nudge | Scheduled and expected. The only group where quiet hours are the point |
-| `system` | reserved: dead letters, deploys, restarts | About the box rather than about you. **Nothing produces this yet** |
+| `day` | the daily brief, the habits nudge, your own schedules | Scheduled and expected. The only group where quiet hours are the point |
+| `system` | dead-lettered jobs; deploys and restarts are not wired yet | About the box rather than about you |
 
 Groups are declared in `notify::GROUPS`, and the HTTP layer refuses a route to a group not on that
 list rather than storing one nothing would ever deliver to.
@@ -65,6 +65,11 @@ The cost: **"I route nothing here on purpose" cannot yet be said.** It reads as 
 That is the right trade while the tables are empty and the wrong one once they are not. Three tests
 pin the behaviour so removing it is a decision rather than a regression — search for
 `falls_back_rather_than_disappearing`.
+
+The fallback job carries the caller's idempotency key. It did not at first, which meant a caller
+asking for exactly-once got it on the routed path and silently not on this one — two paths disagreeing
+about whether a repeat is a repeat. Callers that want every copy, like the range alerts, pass no key
+and are unaffected.
 
 ## The credential
 
@@ -182,6 +187,36 @@ their hours from the environment. Migrating them is a separate deliberate change
 the morning brief and moving them in the same breath as introducing the machinery would mean a bug
 here is a brief that never arrives.
 
+## When the queue gives up
+
+`system`'s first producer. `dead_letters::report` runs last on the sweep's tick and sends one message
+for whatever the queue has set aside since the previous one, grouped by kind:
+
+```
+3 jobs were set aside after failing.
+
+wealth.snapshot ×2 — kucoin: 401 Unauthorized
+digest.daily — telegram: connection timed out
+
+They are kept as evidence — retry or discard them on the Jobs page.
+```
+
+**A dead delivery job is never reported.** The report is itself a delivery job, so reporting a dead
+`notify.deliver` would send the news down the path that just failed, die the same way, and report
+*that* — one failure becoming an unbounded chain. The delivery kinds are named in
+`dead_letters::SILENT` and marked without a message. That loses nothing: a failing channel already
+carries its `last_error` and `failing_since` on its own row, which is what the channels list shows.
+
+Severity is `warning` and never `critical`: a job that failed at 3am is not worth waking for, and
+critical is the level that pierces quiet hours.
+
+The mechanics — one message per tick however many died, and the `job_effects` mark that makes
+"already mentioned" per job rather than per timestamp — are in `docs/jobs.md` §5.
+
+**The first report after deploying this may name several jobs at once**, because the queue keeps dead
+rows for fourteen days and nothing has ever reported them. That is a backlog being drained, not a new
+fault.
+
 ## Settings you need
 
 | | |
@@ -192,8 +227,9 @@ here is a brief that never arrives.
 
 ## What is not built
 
-- **Nothing produces `system`.** A dead-lettered job should say so, and that is the obvious next
-  producer — it is also the group that most wants a channel you can ignore until you care.
+- **`system` has one producer, not three.** Dead-lettered jobs report themselves (below). Deploys
+  and restarts do not yet, and a restart is the one most worth having: the box rebooting at 4am is
+  invisible right now.
 - **No in-app notifications.** The frontend `notification-store` is local-only: zustand and
   localStorage, nothing fetches it from the server. An inbox is a store rather than a transport, so it
   is not a `MessageSender` and not a channel.

@@ -52,7 +52,7 @@ something.
 
 | Check | Command | Baseline |
 |---|---|---|
-| Rust tests | `cd core && cargo test --workspace` | **1419 pass** |
+| Rust tests | `cd core && cargo test --workspace` | **1427 pass** |
 | Clippy | `cd core && cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | Rust format | `cd core && cargo fmt --all --check` | clean |
 | Types | `npm run typecheck` | clean |

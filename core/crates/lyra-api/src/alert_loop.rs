@@ -150,6 +150,11 @@ async fn run(state: AppState) {
         // the environment, and migrating them onto this is a separate deliberate change — they
         // carry the morning brief, and a bug here must not be able to stop it.
         crate::crons::run_due(&state).await;
+        // Last, and after the crons on purpose: a cron that queues a job this tick has not had a
+        // chance to fail yet, so there is nothing to say about it, and running the reporter first
+        // would only shorten the window by one tick in the other direction. It is cheap — one
+        // indexed read that finds nothing on almost every tick.
+        crate::dead_letters::report(&state).await;
 
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }

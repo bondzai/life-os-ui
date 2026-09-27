@@ -15,6 +15,7 @@ mod channels;
 mod collect;
 mod common;
 mod crons;
+mod dead_letters;
 mod entities;
 mod gcal;
 mod grammar;

@@ -1120,6 +1120,21 @@ mod tests {
         );
     }
 
+    /// The dead-letter reporter refuses to report the kinds that carry its own message, by name.
+    /// Renaming one of them would disarm that guard silently and turn one delivery failure into an
+    /// unbounded chain of reports about it.
+    #[tokio::test]
+    async fn every_silent_kind_is_one_this_binary_runs() {
+        let kinds = handlers(test_state().await).kinds();
+        for silent in crate::dead_letters::SILENT {
+            assert!(
+                kinds.contains(&silent),
+                "{silent} is on the dead-letter reporter's silent list but is not a registered \
+                 kind — if it was renamed, rename it there too"
+            );
+        }
+    }
+
     #[test]
     #[should_panic(expected = "two handlers registered")]
     fn registering_one_kind_twice_is_caught_at_startup() {
