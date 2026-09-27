@@ -122,6 +122,66 @@ meaning of "sent" — while the channels still owed it keep retrying on their ow
 The on-demand `/api/wealth/alerts/digest` endpoint still uses the whole fan-out in one call, because a
 button press wants an answer rather than a queue.
 
+## Schedules
+
+**Settings → Schedules** is a table of things Lyra does on its own. Tables are `crons` (migration v9);
+the tick is `crons::run_due`, called from `alert_loop` on the same thirty-second beat as the alert
+sweep. A schedule decides *when* and *what*; the routing above decides *where*.
+
+### Not a cron string
+
+The schedule is a tagged union — `daily` / `weekly` / `every` — so the form renders it without a
+parser and there is nothing to mis-type. That matters more here than elsewhere: a wrong
+`30 7 * * 1-5` fails by **a message silently never arriving**, which is the one failure a schedule
+cannot have.
+
+`Schedule::validate` refuses one that could never fire as written — a weekly with no days, or an
+`every` shorter than a minute, which the thirty-second tick could not honour anyway — and the refusal
+names the rule rather than saying "invalid".
+
+### The occurrence is the name of a firing
+
+A due schedule becomes a job keyed `<action>:<cron id>:<occurrence>`, where the occurrence is its
+**scheduled** time — `2026-09-27T09:30` — not the moment the tick noticed. The tick runs every thirty
+seconds, so every tick inside the window produces the same key and the queue's partial unique index
+turns all but the first into a no-op. Exactly-once needs no new machinery: it is the same mechanism
+the daily brief has always used.
+
+`last_occurrence` is what stops a fired slot firing again. Changing a schedule clears it, because the
+old occurrence is not a statement about the new times.
+
+### A missed firing is counted, not dropped
+
+If the box was off past `catch_up_minutes`, the slot is recorded as **missed** — once, not once per
+tick — and shown on the row. Silently skipping it is what makes a schedule that has stopped look like
+one that is working, and the `missed` column exists for exactly that.
+
+The default catch-up is an hour: long enough that a reboot does not lose the morning, short enough
+that a nudge does not turn up at lunchtime. Zero means "only on time".
+
+### Run now does not use up the day
+
+The **Run now** button keys its job `manual:<epoch>` and does not touch `last_occurrence`, so pressing
+it while testing still leaves the real firing to happen. A button that consumed the morning brief to
+prove the morning brief works would be worse than no button.
+
+### The action is an allowlist
+
+`crons::ACTIONS` holds one entry, `notify.message`, and it is checked on write. "Any registered job
+kind" was the other option and is the worse one: a kind that exists is not necessarily one that makes
+sense on a timer, and a cron pointed at the wrong one produces jobs that fail forever. Adding one is a
+line in that array, deliberately.
+
+`notify.message` is a **producer**: it resolves the routing and enqueues one `notify.deliver` follow-up
+per channel rather than sending inline, so a partial delivery retries per channel like everything else.
+
+### Not the built-in three
+
+The brief, the habits nudge and the net-worth snapshot are **not** rows in this table. They still read
+their hours from the environment. Migrating them is a separate deliberate change, because they carry
+the morning brief and moving them in the same breath as introducing the machinery would mean a bug
+here is a brief that never arrives.
+
 ## Settings you need
 
 | | |

@@ -459,3 +459,90 @@ mod tests {
         );
     }
 }
+
+/// `notify.message` — a scheduled message, fanned out to whatever its group is routed to.
+///
+/// This is the action a cron you create in Settings uses. It is a *producer*, not a delivery: it
+/// turns one scheduled firing into one `notify.deliver` per routed channel.
+///
+/// The fan-out is enqueued as **follow-ups**, written in the same commit as this job's completion, so
+/// the queue can never hold a message job that ran and deliveries that were never queued. That is why
+/// it uses `crate::notify::deliveries` rather than `notify`, which would enqueue immediately and
+/// outside that commit.
+pub mod message {
+    use super::*;
+    use lyra_db::channels::Severity;
+
+    pub const KIND: &str = "notify.message";
+
+    /// A message to send on a schedule. `group` and `severity` decide where it lands.
+    pub fn job(text: impl Into<String>, group: &str, severity: Severity) -> NewJob {
+        NewJob::new(KIND, Lane::Deliver).payload(json!({
+            "text": text.into(),
+            "group": group,
+            "severity": severity.as_str(),
+        }))
+    }
+
+    pub struct NotifyMessage {
+        state: AppState,
+    }
+
+    impl NotifyMessage {
+        pub fn new(state: AppState) -> Self {
+            Self { state }
+        }
+    }
+
+    impl Handler for NotifyMessage {
+        fn kind(&self) -> &'static str {
+            KIND
+        }
+
+        fn run<'a>(&'a self, ctx: &'a JobCtx) -> BoxFuture<'a, HandlerResult> {
+            Box::pin(async move {
+                let text = ctx.require_str("text")?.trim().to_string();
+                if text.is_empty() {
+                    return Err(HandlerError::Permanent(anyhow!(
+                        "notify.message: payload.text is empty"
+                    )));
+                }
+                let group = ctx
+                    .payload()
+                    .get("group")
+                    .and_then(|g| g.as_str())
+                    .unwrap_or("day")
+                    .to_string();
+                let severity = Severity::parse(
+                    ctx.payload()
+                        .get("severity")
+                        .and_then(|s| s.as_str())
+                        .unwrap_or("info"),
+                );
+
+                // Keyed by this job's own id, so a retry of *this* job lands as the same deliveries
+                // rather than a second copy. The cron's own key already made this job unique for its
+                // occurrence; this makes the fan-out unique for this job.
+                let key = format!("message:{}", ctx.job.id);
+                let jobs = crate::notify::deliveries(
+                    &self.state,
+                    &group,
+                    severity,
+                    Some(&key),
+                    &text,
+                    Markup::Plain,
+                )
+                .await;
+                if jobs.is_empty() {
+                    return Err(HandlerError::Retry(anyhow!(
+                        "nowhere to send a {group} message"
+                    )));
+                }
+                for job in jobs {
+                    ctx.enqueue(job);
+                }
+                Ok(())
+            })
+        }
+    }
+}

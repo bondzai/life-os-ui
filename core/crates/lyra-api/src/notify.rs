@@ -91,9 +91,39 @@ pub async fn notify(
 ) -> usize {
     use lyra_db::jobs::{Queue, SqliteQueue};
 
-    let store = ChannelStore::new(state.pool.clone(), state.secret_key.as_deref().cloned());
     let queue = SqliteQueue::new(state.pool.clone());
     let now = lyra_db::jobs::now_secs();
+
+    let mut queued = 0;
+    for job in deliveries(state, group, severity, key, text, markup).await {
+        match queue.enqueue(&job, now).await {
+            Ok(_) => queued += 1,
+            // One channel failing to queue must not stop the others: the point of separate jobs is
+            // that they are independent, and that starts here.
+            Err(e) => {
+                tracing::error!(kind = %job.kind, error = %e, "queueing a delivery failed")
+            }
+        }
+    }
+    queued
+}
+
+/// The delivery jobs a notification becomes, without enqueueing them.
+///
+/// Returned rather than queued because two callers are *inside* a job and must write their sends in
+/// the same transaction as their own completion — the habits nudge and `notify.message` both use
+/// `ctx.enqueue` for exactly that reason, and calling [`notify`] there would put the message outside
+/// the commit their atomicity depends on. [`notify`] is this plus an enqueue, for callers that are
+/// not in a job.
+pub async fn deliveries(
+    state: &crate::AppState,
+    group: &str,
+    severity: Severity,
+    key: Option<&str>,
+    text: &str,
+    markup: Markup,
+) -> Vec<lyra_db::jobs::NewJob> {
+    let store = ChannelStore::new(state.pool.clone(), state.secret_key.as_deref().cloned());
     // Local, because quiet hours are a wall-clock idea: "do not wake me" means the hour on the
     // clock in the room, not an offset from UTC.
     let hour = i64::from(chrono::Timelike::hour(&chrono::Local::now()));
@@ -114,27 +144,13 @@ pub async fn notify(
             severity = severity.as_str(),
             "nothing is routed for this group — sending to every configured channel instead"
         );
-        let job = crate::jobs::deliver::job(text.to_string(), markup);
-        if let Err(e) = queue.enqueue(&job, now).await {
-            tracing::error!(group, error = %e, "queueing the fallback delivery failed");
-            return 0;
-        }
-        return 1;
+        return vec![crate::jobs::deliver::job(text.to_string(), markup)];
     }
 
-    let mut queued = 0;
-    for channel_id in &destinations {
-        let job = crate::jobs::notify::job(channel_id, key, text.to_string(), markup);
-        match queue.enqueue(&job, now).await {
-            Ok(_) => queued += 1,
-            // One channel failing to queue must not stop the others: the point of separate jobs is
-            // that they are independent, and that starts here.
-            Err(e) => {
-                tracing::error!(channel = %channel_id, error = %e, "queueing a delivery failed")
-            }
-        }
-    }
-    queued
+    destinations
+        .iter()
+        .map(|channel_id| crate::jobs::notify::job(channel_id, key, text.to_string(), markup))
+        .collect()
 }
 
 /// Which group and how loud an alert is.

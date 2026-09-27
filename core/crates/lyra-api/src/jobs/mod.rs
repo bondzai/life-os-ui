@@ -273,7 +273,8 @@ pub fn handlers(state: AppState) -> Handlers {
         .with(Arc::new(digest::DailyDigest::new(state.clone())))
         .with(Arc::new(snapshot::NetWorthSnapshot::new(state.clone())))
         .with(Arc::new(schedule::ScheduleTick::new(state.clone())))
-        .with(Arc::new(notify::NotifyDeliver::new(state)))
+        .with(Arc::new(notify::NotifyDeliver::new(state.clone())))
+        .with(Arc::new(notify::message::NotifyMessage::new(state)))
 }
 
 /// Where a worker reads the time from.
@@ -1112,6 +1113,7 @@ mod tests {
                 "deliver.telegram",
                 "digest.daily",
                 "notify.deliver",
+                "notify.message",
                 "schedule.tick",
                 "snapshot.networth"
             ]

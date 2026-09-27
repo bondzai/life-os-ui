@@ -14,6 +14,7 @@ mod bot_text;
 mod channels;
 mod collect;
 mod common;
+mod crons;
 mod entities;
 mod gcal;
 mod grammar;
@@ -173,6 +174,13 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
             "/api/routes",
             get(channels::routes_index).put(channels::routes_replace),
         )
+        // Schedules you can change without a reinstall.
+        .route("/api/crons", get(crons::index).post(crons::create))
+        .route(
+            "/api/crons/{id}",
+            axum::routing::patch(crons::update).delete(crons::delete),
+        )
+        .route("/api/crons/{id}/run", post(crons::run_now))
         .route("/api/workspaces", get(workspaces::index))
         .route("/api/workspaces/{slug}/context", get(workspaces::context))
         .route("/api/knowledge", get(knowledge::list))

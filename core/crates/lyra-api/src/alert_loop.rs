@@ -145,6 +145,11 @@ async fn run(state: AppState) {
         maybe_digest(&state, &config).await;
         maybe_snapshot(&state, &config).await;
         maybe_nudge(&state).await;
+        // The fifth `maybe_*`, except that its list is a table rather than four environment
+        // variables. It fires only rows you created; the three above still read their hours from
+        // the environment, and migrating them onto this is a separate deliberate change — they
+        // carry the morning brief, and a bug here must not be able to stop it.
+        crate::crons::run_due(&state).await;
 
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }

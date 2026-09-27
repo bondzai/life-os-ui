@@ -9,6 +9,7 @@ import { APP_VERSION } from '@/lib/changelog-data'
 import { generateMockData, clearMockData } from '@/lib/mock-data'
 import { ACTIONS, useKeybindings, comboToDisplay, checkConflict } from '@/hooks/use-keybindings'
 import { NotificationSettings } from '@/pages/settings/notifications'
+import { ScheduleSettings } from '@/pages/settings/schedules'
 
 type DataMode = 'local' | 'api' | 'demo'
 
@@ -74,6 +75,11 @@ export function SettingsPage() {
       {/* Notifications first. Everything else on this page changes how the app looks to you; this
           changes what leaves the box and reaches your phone. */}
       <NotificationSettings />
+
+      {/* Schedules sit directly under routing because a schedule's only output is a notification:
+          it decides *when* and *what*, and the grid above decides *where*. Reading them apart makes
+          "why did that arrive in the wrong room" a two-page question. */}
+      <ScheduleSettings />
 
       <section className="max-w-lg space-y-3">
         <Label className="text-xs tracking-wider text-muted-foreground uppercase">Lyra</Label>
