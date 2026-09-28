@@ -98,10 +98,39 @@ impl Handler for ScheduleTick {
                 return Ok(());
             };
 
-            // A follow-up rather than a send: it is written in the same commit as this job's
-            // completion, so the queue cannot end up holding a tick that ran and a message that
-            // was never queued. And the send retries on its own schedule — see [`super::deliver`].
-            ctx.enqueue(super::deliver::job(text, super::deliver::Markup::Plain));
+            // Follow-ups rather than sends: they are written in the same commit as this job's
+            // completion, so the queue cannot end up holding a tick that ran and a message that was
+            // never queued. Each send then retries on its own schedule.
+            //
+            // One per routed channel. Resolving here rather than inside `notify` because that
+            // function enqueues immediately, which would put the message outside the transaction
+            // this job's atomicity depends on — the whole reason the nudge uses a follow-up.
+            let store = lyra_db::channels::ChannelStore::new(
+                self.state.pool.clone(),
+                self.state.secret_key.as_deref().cloned(),
+            );
+            let hour = i64::from(chrono::Timelike::hour(&chrono::Local::now()));
+            let routed = store
+                .destinations("day", lyra_db::channels::Severity::Info, hour)
+                .await
+                .unwrap_or_default();
+
+            if routed.is_empty() {
+                // The transitional fallback, as everywhere else: a box that has not configured
+                // routing keeps getting its nudge where it always arrived.
+                ctx.enqueue(super::deliver::job(text, super::deliver::Markup::Plain));
+            } else {
+                for channel_id in &routed {
+                    // Keyed by the day, per channel: the tick is already once-a-day by its own key,
+                    // and this makes a re-run of it land as the same message rather than a second.
+                    ctx.enqueue(super::notify::job(
+                        channel_id,
+                        Some(&format!("habits:{day}")),
+                        text.clone(),
+                        super::deliver::Markup::Plain,
+                    ));
+                }
+            }
             Ok(())
         })
     }

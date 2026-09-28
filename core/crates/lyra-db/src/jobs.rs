@@ -391,6 +391,20 @@ pub trait Queue {
     /// is what you open a queue page to find out.
     fn recent(&self, limit: usize) -> impl Future<Output = Result<Vec<Job>>> + Send;
 
+    /// Dead-lettered jobs carrying no effect under `key`, oldest first.
+    ///
+    /// For something that reports failures onward — a Telegram message, a webhook — where "which
+    /// ones have I already mentioned" has to survive a restart. Using `job_effects` for that mark
+    /// rather than a watermark column means the answer is per job rather than per point in time, so
+    /// a row that dies out of order is not skipped, and `prune` takes the marks away with the jobs.
+    ///
+    /// The caller owns the key and the marking; this only says which rows are still unmarked.
+    fn failed_without(
+        &self,
+        key: &str,
+        limit: usize,
+    ) -> impl Future<Output = Result<Vec<Job>>> + Send;
+
     fn get(&self, id: &str) -> impl Future<Output = Result<Option<Job>>> + Send;
 
     /// Take a queued job off the queue. A running job is left alone: cancelling it would mean
@@ -676,6 +690,31 @@ impl Queue for SqliteQueue {
         .fetch_all(&self.pool)
         .await
         .context("listing recent jobs")?;
+        rows.into_iter().map(row_to_job).collect()
+    }
+
+    async fn failed_without(&self, key: &str, limit: usize) -> Result<Vec<Job>> {
+        let limit = limit.clamp(1, 200);
+        // `finished_at ASC`, so a report reads in the order things broke. The `id` tiebreak matters
+        // more than it looks: a reaper dead-letters a whole batch of expired leases in one statement
+        // and they all carry the same second.
+        // `NOT EXISTS` rather than a `LEFT JOIN … IS NULL`: `COLUMNS` is unqualified and
+        // `job_effects` also has a `created_at`, so the join spelling fails to prepare with
+        // "ambiguous column name". The subquery keeps one table in scope for the projection.
+        let rows = sqlx::query(AssertSqlSafe(format!(
+            "SELECT {COLUMNS} FROM jobs
+              WHERE status = 'failed'
+                AND NOT EXISTS (
+                      SELECT 1 FROM job_effects
+                       WHERE job_effects.job_id = jobs.id AND job_effects.key = ?
+                    )
+              ORDER BY finished_at ASC, id ASC
+              LIMIT {limit}"
+        )))
+        .bind(key)
+        .fetch_all(&self.pool)
+        .await
+        .context("listing unreported dead letters")?;
         rows.into_iter().map(row_to_job).collect()
     }
 
@@ -1517,6 +1556,48 @@ mod tests {
             Some(J::from("message-1"))
         );
         assert_eq!(q.recall(&id, "never-ran").await.unwrap(), None);
+    }
+
+    /// The reader a failure reporter needs: dead letters it has not marked, and only those.
+    #[tokio::test]
+    async fn a_dead_letter_stops_being_unreported_once_it_is_marked() {
+        let (_dir, q) = fresh().await;
+        const KEY: &str = "reported";
+
+        // One that died, one still queued, one that finished well.
+        let dead = q
+            .enqueue(&job("wealth.snapshot").max_attempts(1), 1000)
+            .await
+            .unwrap()
+            .id;
+        let claimed = q
+            .claim("w", &[Lane::Interactive], 60, 1000)
+            .await
+            .unwrap()
+            .unwrap();
+        q.fail("w", &claimed.id, "kucoin: 401", Failure::Retry, 1001)
+            .await
+            .unwrap();
+        let queued = q.enqueue(&job("defi.refresh"), 1002).await.unwrap().id;
+
+        let unreported = q.failed_without(KEY, 20).await.unwrap();
+        assert_eq!(unreported.len(), 1, "only the dead one is owed a report");
+        assert_eq!(unreported[0].id, dead);
+        assert_eq!(unreported[0].last_error.as_deref(), Some("kucoin: 401"));
+        assert_ne!(unreported[0].id, queued);
+
+        // An effect under a *different* key is not this reporter's mark and must not hide the row —
+        // `notify.deliver` writes a "sent" effect on jobs all the time.
+        q.remember(&dead, "sent", &J::from("elsewhere"), 1003)
+            .await
+            .unwrap();
+        assert_eq!(q.failed_without(KEY, 20).await.unwrap().len(), 1);
+
+        q.remember(&dead, KEY, &J::Bool(true), 1004).await.unwrap();
+        assert!(
+            q.failed_without(KEY, 20).await.unwrap().is_empty(),
+            "a marked dead letter is not reported twice"
+        );
     }
 
     #[tokio::test]

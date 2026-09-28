@@ -18,6 +18,7 @@ you where things are documented; that file tells you what will bite you.
 | [API server](./api-server.md) | The Rust API — stack, route groups, auth, and the two hazards |
 | [MCP](./mcp.md) | The research desk: seventeen tools, the read-only invariant, and the three things called "MCP" here |
 | [Telegram](./telegram.md) | The command bot — the assistant's front door: money, life and queue commands |
+| [Notifications](./notifications.md) | Groups, routing, channels, schedules, and the sealed webhook credential — how anything reaches your phone |
 | [Alerts](./alerts.md) | `lyra-alerts`: rules, digests, the Telegram and Discord channels, and their containment |
 | [Core engine](./core-engine.md) | Entity, Tracker, Schedule and Relation — and why `schedules` is not the job queue |
 | [Jobs](./jobs.md) | The queue: lanes, leases, idempotency, backoff, the dead letter, and how to add a kind |

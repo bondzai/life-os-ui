@@ -8,10 +8,13 @@
 //! One file, no daemon, and a small enough surface that graduating to Postgres later would touch
 //! only this crate.
 
+pub mod channels;
+pub mod crons;
 pub mod import;
 pub mod jobs;
 pub mod life;
 pub mod migrations;
+pub mod secrets;
 pub mod wealth;
 
 use anyhow::{Context, Result};

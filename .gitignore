@@ -24,6 +24,13 @@ dist-ssr
 *.sw?
 
 .env
+# The whole family, not just `.env`. `.env.local` was covered and a `.env.local.bak-…`, a
+# `.env.production` or a `.env.local.old` was not — and this repository is public, so an ignore
+# pattern that covers only the exact name is one careless `cp` away from publishing a credential.
+# `.env.example` is the one that is meant to be tracked, so it is excepted rather than the rule
+# being loosened.
+.env.*
+!.env.example
 
 # Rust core
 core/target

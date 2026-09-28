@@ -271,6 +271,78 @@ pub const MIGRATIONS: &[&[&str]] = &[
     // It is written on every claim and heartbeat, so it costs a little on the write side; at a
     // few hundred jobs a day that is nothing.
     &["CREATE INDEX IF NOT EXISTS idx_jobs_updated ON jobs(updated_at DESC, id DESC)"],
+    // v7 -> v8: notification channels, and which groups reach which of them.
+    //
+    // Two tables rather than entity rows, because a channel is plumbing: `jobs`, `schedules` and
+    // `alert_state` are all infrastructure the same way. `entities` is for life data.
+    &[
+        r#"CREATE TABLE IF NOT EXISTS channels (
+               id          TEXT    PRIMARY KEY,
+               name        TEXT    NOT NULL,
+               -- 'telegram' | 'discord'. Not an enum: SQLite has none, and the sender registry in
+               -- lyra-alerts is the real authority for which transports exist.
+               transport   TEXT    NOT NULL,
+               -- The credential, sealed (see `secrets.rs`). NULL for a channel whose credential
+               -- still comes from the environment, which is how the seeded Telegram row works —
+               -- a bot token is a stronger credential than a room webhook and there is no reason
+               -- to move it.
+               secret       TEXT,
+               -- What the UI renders in place of the credential. Never the credential.
+               preview      TEXT,
+               enabled      INTEGER NOT NULL DEFAULT 1,
+               -- Why the last send failed, and since when, so "Discord has been down since
+               -- Tuesday" is answerable from the row instead of from the log.
+               last_error   TEXT,
+               failing_since INTEGER,
+               created_at   INTEGER NOT NULL,
+               updated_at   INTEGER NOT NULL
+           )"#,
+        r#"CREATE TABLE IF NOT EXISTS routes (
+               id           TEXT    PRIMARY KEY,
+               -- `group` is reserved in SQL, so the column is `grp`. Named here rather than quoted
+               -- everywhere, because a quoted identifier is a thing someone forgets to quote once.
+               grp          TEXT    NOT NULL,
+               channel_id   TEXT    NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+               -- 'info' | 'warning' | 'critical'. A route delivers this level and above.
+               min_severity TEXT    NOT NULL DEFAULT 'info',
+               -- Local hours, inclusive-exclusive, or NULL for always. Local because the point is
+               -- "do not wake me", which is a wall-clock idea.
+               quiet_from   INTEGER,
+               quiet_to     INTEGER,
+               UNIQUE (grp, channel_id)
+           )"#,
+        // The lookup every notification does: given a group, which channels and at what threshold.
+        "CREATE INDEX IF NOT EXISTS idx_routes_grp ON routes(grp)",
+    ],
+    // v8 -> v9: schedules you can configure, rather than restart to change.
+    //
+    // Not the `schedules` table, which is habit recurrence and deliberately not a queue — see
+    // `docs/core-engine.md`. This is the tick's own list: what to enqueue, and when.
+    &[r#"CREATE TABLE IF NOT EXISTS crons (
+               id               TEXT    PRIMARY KEY,
+               name             TEXT    NOT NULL,
+               -- The schedule, as JSON: {"kind":"daily","at_minute":450}. JSON because a cron
+               -- expression is a likely fourth variant and a column per field would not hold it.
+               schedule         TEXT    NOT NULL,
+               -- The job kind to enqueue. Checked against the handler registry on write: an
+               -- unregistered kind produces jobs that dead-letter forever, quietly.
+               action           TEXT    NOT NULL,
+               payload          TEXT    NOT NULL DEFAULT '{}',
+               enabled          INTEGER NOT NULL DEFAULT 1,
+               -- How late a firing may be and still happen. A brief at 11:00 is useful; a
+               -- "start your day" nudge at 11:00 is noise, so it belongs to the cron.
+               catch_up_minutes INTEGER NOT NULL DEFAULT 60,
+               -- The last occurrence this fired *or* missed, so neither is counted twice. The
+               -- exactly-once guarantee is the job's idempotency key, not this column.
+               last_occurrence  TEXT,
+               last_fired_at    INTEGER,
+               -- Slots that went by unfired. Visible, because a schedule that silently stops is
+               -- the failure this table exists to prevent.
+               missed           INTEGER NOT NULL DEFAULT 0,
+               last_missed_at   INTEGER,
+               created_at       INTEGER NOT NULL,
+               updated_at       INTEGER NOT NULL
+           )"#],
 ];
 
 /// Applies every migration the database has not seen yet. Returns the resulting `user_version`.

@@ -29,6 +29,7 @@
 
 pub mod deliver;
 pub mod digest;
+pub mod notify;
 pub mod schedule;
 pub mod snapshot;
 
@@ -271,7 +272,9 @@ pub fn handlers(state: AppState) -> Handlers {
         .with(Arc::new(deliver::DeliverTelegram::from_env()))
         .with(Arc::new(digest::DailyDigest::new(state.clone())))
         .with(Arc::new(snapshot::NetWorthSnapshot::new(state.clone())))
-        .with(Arc::new(schedule::ScheduleTick::new(state)))
+        .with(Arc::new(schedule::ScheduleTick::new(state.clone())))
+        .with(Arc::new(notify::NotifyDeliver::new(state.clone())))
+        .with(Arc::new(notify::message::NotifyMessage::new(state)))
 }
 
 /// Where a worker reads the time from.
@@ -1109,10 +1112,27 @@ mod tests {
             vec![
                 "deliver.telegram",
                 "digest.daily",
+                "notify.deliver",
+                "notify.message",
                 "schedule.tick",
                 "snapshot.networth"
             ]
         );
+    }
+
+    /// The dead-letter reporter refuses to report the kinds that carry its own message, by name.
+    /// Renaming one of them would disarm that guard silently and turn one delivery failure into an
+    /// unbounded chain of reports about it.
+    #[tokio::test]
+    async fn every_silent_kind_is_one_this_binary_runs() {
+        let kinds = handlers(test_state().await).kinds();
+        for silent in crate::dead_letters::SILENT {
+            assert!(
+                kinds.contains(&silent),
+                "{silent} is on the dead-letter reporter's silent list but is not a registered \
+                 kind — if it was renamed, rename it there too"
+            );
+        }
     }
 
     #[test]

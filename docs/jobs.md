@@ -194,6 +194,34 @@ stays small forever. One cutoff covers `done`, `failed` and `cancelled` alike: a
 evidence for exactly as long as a successful one, not longer. Keeping failures around longer would
 be reasonable and is simply not what the code does.
 
+### The dead letter now says so out loud
+
+Keeping the evidence was never the same as telling anybody. A snapshot that stopped recording, a
+brief that never rendered, a webhook deleted in Discord: each dead-lettered correctly and silently,
+and the only way to find out was to open `/jobs` on a hunch.
+
+`dead_letters::report` runs last on the sweep's tick and sends one `system` notification for whatever
+the queue has given up on since the previous one, grouped by kind. Three things shape it:
+
+- **It cannot loop.** The report is itself a delivery job, so reporting a dead `notify.deliver` would
+  send the news down the path that just failed, die the same way, and report that — one failure
+  becoming an unbounded chain. `dead_letters::SILENT` names the delivery kinds and they are marked
+  without a message. Nothing is lost by it: a failing channel already carries `last_error` and
+  `failing_since` on its own row, which is where Settings shows it. **Adding a delivery kind means
+  adding it to that list** — `every_silent_kind_is_one_this_binary_runs` only catches a rename.
+- **It cannot flood.** One tick sends one message however many jobs died. A router outage that kills
+  thirty jobs is one thing that happened, not thirty. Twenty per report, and the message says when it
+  is only part of the story.
+- **"Already mentioned" is an effect, not a watermark.** The mark is a `job_effects` row keyed
+  `system_reported` on the dead job itself, which `Queue::failed_without` filters on. A
+  `reported_through` timestamp would have been the obvious build and it is wrong here: the reaper
+  dead-letters a batch of expired leases in one statement, all carrying the same second, and a
+  timestamp skips whichever of them lands on the wrong side of it. The effect also needs no migration
+  and `prune` takes the marks away with the jobs.
+
+Severity is `warning`, never `critical` — critical pierces quiet hours, and a job that failed at 3am
+is not worth waking someone for. It will still be there at breakfast.
+
 ## 6. Lanes, seats, and the supervisor
 
 Lanes are **not** priorities. `priority` orders work *within* a lane; a lane is a separate queue

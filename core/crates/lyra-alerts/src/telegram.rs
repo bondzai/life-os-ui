@@ -236,6 +236,13 @@ impl TelegramSender {
             credentials,
             client: reqwest::Client::builder()
                 .timeout(SEND_TIMEOUT)
+                // Redirects are not followed. This mattered little while the URL came from
+                // `.env.local` — a string the owner of the box typed — but a webhook configured
+                // from the UI is input, and a URL on an allowed host that answers 302 would
+                // otherwise be followed to wherever it points, with the home network on the other
+                // side. The host check happens once, at write time; without this, the host that is
+                // finally posted to is whatever the redirect chain ends at.
+                .redirect(reqwest::redirect::Policy::none())
                 .build()
                 .ok(),
             api_base: API_BASE.to_string(),

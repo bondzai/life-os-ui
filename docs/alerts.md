@@ -61,20 +61,50 @@ emphasises every digest heading the wrong way — quietly, and visible only by c
 channels side by side. `telegram_to_discord` is deliberately conservative: an unpaired marker is
 left alone, and emphasis never spans a line.
 
-## 3. Delivered means delivered *somewhere*
+## 3. Delivered to every channel — and the argument that used to say otherwise
 
 `Channels::from_env` reads every channel and keeps only the configured ones, so `can_send` is a
-question about the list's length rather than a poll of its members. `Channels::send` fans out
-**sequentially** — there are two of them, each already has a 12s timeout, and parallel fan-out
-would need the senders behind an `Arc` for no gain anyone could measure.
+question about the list's length rather than a poll of its members.
 
-It reports success when **any** channel took the message. That is the whole point of having two: an
-alert that reached your phone has done its job, and failing the sweep because Discord was down
-would turn redundancy into a new way to lose an alert. A channel that fails is logged by name, so
-an outage stays visible without masking a delivery that worked.
+**`deliver.telegram` now holds each channel to its own outcome.** The handler loops over
+`Channels::each()` and wraps every send in `ctx.once("sent:<channel>")`. Because `once` records only
+a step that returned `Ok`, a channel that failed is the only one a retry attempts — delivery is
+exactly-once *per channel*, using `job_effects` exactly as it already was. The key is the handler's
+to choose, and choosing the channel name was the whole fix; there was no schema change. The job stays
+unfinished while any channel is still owed the message, and `last_error` names which one.
+
+### Why the old rule was defensible, and what changed
+
+`Channels::send` reports success when **any** channel took the message, and this document used to
+argue for that: an alert that reached your phone has done its job, and failing a sweep because
+Discord was down would turn redundancy into a new way to lose an alert.
+
+That argument is sound **while the channels are redundant** — two roads to the same person. It stops
+being sound the moment they are different destinations. Once money alerts go to one Discord room and
+the daily brief goes to Telegram, "any channel took it" is not a success condition at all: the room
+that failed is the only one that was supposed to hear. Redundancy and routing want opposite verdicts
+from the same function, which is why the verdict moved out of `Channels` and into the caller that
+knows which it is doing.
+
+`Channels::send` is still there and still all-or-nothing. It is used by the digest
+(`jobs/digest.rs`), the alert sweep's inline sends, and the `/alerts/test` endpoints
+(`wealth.rs`) — **so a Discord failure on the daily brief is still masked.** That is not an oversight
+left lying around: `wealth::deliver_digest` owns building *and* sending because it advances the delta
+snapshot only after a successful send, so "successful" there has to mean something specific before it
+can be made per-channel. It is the right thing to settle when delivery becomes routed rather than
+fanned out.
 
 The inverse matters as much: when *nothing* is configured the result is `Delivery::NotConfigured`,
-never a failure. A box with no channels is the ordinary state of a fresh install, not a fault.
+never a failure, and the job records that as a completed step. A box with no channels is the ordinary
+state of a fresh install, not a fault.
+
+### Testing a channel that fails
+
+`SendError` cannot be built outside `lyra-alerts` — its constructor takes a scrubber so an unscrubbed
+failure message cannot exist. So the crate hands out the double instead of the key:
+`channels::testing::ScriptedSender` returns outcomes from a script and counts what it was asked to
+send. That count is usually the assertion that matters, because "was Telegram asked twice" is a
+question no amount of checking a job's status can answer.
 
 ### One known wart, documented rather than papered over
 

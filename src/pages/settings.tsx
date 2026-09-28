@@ -8,6 +8,8 @@ import { Separator } from '@/components/ui/separator'
 import { APP_VERSION } from '@/lib/changelog-data'
 import { generateMockData, clearMockData } from '@/lib/mock-data'
 import { ACTIONS, useKeybindings, comboToDisplay, checkConflict } from '@/hooks/use-keybindings'
+import { NotificationSettings } from '@/pages/settings/notifications'
+import { ScheduleSettings } from '@/pages/settings/schedules'
 
 type DataMode = 'local' | 'api' | 'demo'
 
@@ -61,13 +63,25 @@ export function SettingsPage() {
   }, [recording, setCombo])
 
   return (
-    <div className="max-w-lg space-y-8">
+    // Notifications need the width — a routing matrix is a table — so the page is no longer capped
+    // at `max-w-lg`. Every other section keeps its own narrow measure, because a line of settings
+    // text stretched to a table's width is harder to read, not easier.
+    <div className="space-y-10">
       {/* Lyra — the AI's persona, agents and context.
 
           It used to sit in the sidebar under Plan, next to Notes, labelled "Knowledge", which is
           where you would look for something you wrote rather than for how the assistant behaves.
           It is configuration, so it lives here. Its own page is unchanged; only the way in moved. */}
-      <section className="space-y-3">
+      {/* Notifications first. Everything else on this page changes how the app looks to you; this
+          changes what leaves the box and reaches your phone. */}
+      <NotificationSettings />
+
+      {/* Schedules sit directly under routing because a schedule's only output is a notification:
+          it decides *when* and *what*, and the grid above decides *where*. Reading them apart makes
+          "why did that arrive in the wrong room" a two-page question. */}
+      <ScheduleSettings />
+
+      <section className="max-w-lg space-y-3">
         <Label className="text-xs tracking-wider text-muted-foreground uppercase">Lyra</Label>
         <Link
           to="/knowledge"
@@ -85,7 +99,7 @@ export function SettingsPage() {
       <Separator />
 
       {/* Data Mode */}
-      <section className="space-y-3">
+      <section className="max-w-lg space-y-3">
         <Label className="text-xs uppercase tracking-wider text-muted-foreground">Data Mode</Label>
         <div className="grid grid-cols-3 gap-2">
           {MODES.map(({ mode, icon: Icon, label, desc }) => (
@@ -118,7 +132,7 @@ export function SettingsPage() {
       <Separator />
 
       {/* Keyboard Shortcuts */}
-      <section className="space-y-3">
+      <section className="max-w-lg space-y-3">
         <div className="flex items-center justify-between">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <Keyboard className="h-3 w-3" />
@@ -160,7 +174,7 @@ export function SettingsPage() {
       <Separator />
 
       {/* About */}
-      <section className="space-y-3">
+      <section className="max-w-lg space-y-3">
         <Label className="text-xs uppercase tracking-wider text-muted-foreground">About</Label>
         <div className="rounded-lg border p-4 space-y-2.5">
           <div className="flex items-center justify-between">

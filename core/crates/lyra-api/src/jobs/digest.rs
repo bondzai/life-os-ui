@@ -24,11 +24,15 @@
 use anyhow::anyhow;
 use lyra_alerts::channels::Channels;
 use lyra_alerts::config::ProcessEnv;
+use lyra_alerts::message::Message;
 use lyra_alerts::state::AlertStore;
+use lyra_alerts::telegram::Delivery;
+use lyra_db::channels::{ChannelStore, Severity};
+use serde_json::{Value as JsonValue, json};
 
 use super::{BoxFuture, Handler, HandlerError, HandlerResult, JobCtx};
 use crate::AppState;
-use crate::wealth::{self, DigestOutcome};
+use crate::wealth;
 
 /// The job kind. A wire contract: renaming it strands whatever is already queued.
 pub const KIND: &str = "digest.daily";
@@ -94,46 +98,171 @@ impl Handler for DailyDigest {
             // one — `require_str` makes that permanent rather than five identical failures.
             let day = ctx.require_str("day")?.to_string();
 
-            // Built here rather than held on the struct: `from_env` reads the environment, and a
-            // token rotated while the box is up should take effect on the next brief.
-            let channels = Channels::from_env(&ProcessEnv);
-            if !channels.can_send() {
-                return Err(HandlerError::Permanent(anyhow!(
-                    "no channel is configured, so there is nowhere to send the brief"
-                )));
+            // Built once and remembered, then delivered per channel.
+            //
+            // `ctx.once` is what makes the split safe. Building used to be fused to sending
+            // precisely so the delta baseline could not advance for a brief nobody received — and
+            // that reasoning was right about the risk and wrong about the remedy. Recording the
+            // built text as a step means a retry an hour later sends **the brief that was built at
+            // 08:00**, rather than rebuilding it against a portfolio that has since moved. The
+            // baseline still advances only after somebody has taken it; see below.
+            let built = ctx
+                .once("built", || async {
+                    match wealth::build_digest(&self.state).await {
+                        Ok(wealth::DigestBuild::Ready(built)) => Ok(json!({
+                            "text": built.text,
+                            "snapshot": built.snapshot,
+                        })),
+                        // "Nothing to report" at 08:00 is almost always an upstream that flaked, not
+                        // a portfolio that vanished, and the loop version retried it every tick for
+                        // exactly this reason. Not recorded, so the next attempt builds again.
+                        Ok(wealth::DigestBuild::Nothing(why)) => {
+                            Err(anyhow!("nothing to send yet: {why}"))
+                        }
+                        Err(e) => Err(e),
+                    }
+                })
+                .await
+                .map_err(HandlerError::Retry)?;
+
+            let text = built
+                .get("text")
+                .and_then(|t| t.as_str())
+                .ok_or_else(|| HandlerError::Retry(anyhow!("the built brief has no text")))?
+                .to_string();
+            let snapshot = built.get("snapshot").cloned().unwrap_or(JsonValue::Null);
+            let message = Message::telegram_markup(text.clone());
+
+            // Where it goes. The `day` group at `info`, or — while nothing is routed — every
+            // configured channel, which is where the brief has always gone. Same transitional
+            // fallback as `notify`, and for the same reason: a box that has not been to Settings
+            // yet must not quietly stop receiving its morning brief.
+            let store = ChannelStore::new(
+                self.state.pool.clone(),
+                self.state.secret_key.as_deref().cloned(),
+            );
+            let hour = i64::from(chrono::Timelike::hour(&chrono::Local::now()));
+            let routed = store
+                .destinations("day", Severity::Info, hour)
+                .await
+                .unwrap_or_default();
+
+            let mut delivered = false;
+            let mut failures: Vec<String> = Vec::new();
+
+            if routed.is_empty() {
+                let channels = Channels::from_env(&ProcessEnv);
+                if !channels.can_send() {
+                    return Err(HandlerError::Permanent(anyhow!(
+                        "no channel is configured, so there is nowhere to send the brief"
+                    )));
+                }
+                for sender in channels.each() {
+                    match send_once(ctx, sender.name(), sender, &message).await {
+                        Ok(()) => delivered = true,
+                        Err(e) => failures.push(format!("{}: {e}", sender.name())),
+                    }
+                }
+            } else {
+                for channel_id in &routed {
+                    match sender_for_channel(&store, channel_id).await {
+                        Ok(sender) => {
+                            match send_once(ctx, channel_id, sender.as_ref(), &message).await {
+                                Ok(()) => {
+                                    delivered = true;
+                                    let _ =
+                                        store.record_success(channel_id, wealth::now_secs()).await;
+                                }
+                                Err(e) => {
+                                    let _ = store
+                                        .record_failure(
+                                            channel_id,
+                                            &format!("{e}"),
+                                            wealth::now_secs(),
+                                        )
+                                        .await;
+                                    failures.push(format!("{channel_id}: {e}"));
+                                }
+                            }
+                        }
+                        Err(why) => failures.push(format!("{channel_id}: {why}")),
+                    }
+                }
             }
 
-            // `deliver_digest` owns building *and* sending, and it is left that way on purpose: it
-            // advances the delta snapshot only after a successful send, so a brief nobody received
-            // does not consume the changes it would have shown. Splitting build from send would
-            // put that rule on the wrong side of a retry.
-            match wealth::deliver_digest(&self.state, &channels).await {
-                Ok(DigestOutcome::Sent) => {
-                    // The day is stamped by the handler, not the tick, so the flag and the send
-                    // cannot disagree — there is no window where one happened and not the other.
+            // Advanced when **somebody** has it, which is exactly the old rule. Not "everybody": a
+            // brief that reached the phone has done its job, and holding the baseline back because a
+            // second channel is down would show tomorrow's reader two days of deltas as if they were
+            // one.
+            if delivered {
+                ctx.once("advanced", || async {
+                    wealth::advance_digest_snapshot(&self.state, &snapshot).await;
+                    // The day is stamped here too, so the flag and the send cannot disagree — there
+                    // is no window where one happened and not the other.
                     AlertStore::new(&self.state.pool)
                         .set_digest_day(&day, wealth::now_secs())
                         .await
-                        .map_err(|e| {
-                            HandlerError::Retry(anyhow!("stamping the digest day: {e}"))
-                        })?;
-                    Ok(())
-                }
-                // Reachable and refused. The world, not the job.
-                Ok(DigestOutcome::Refused) => Err(HandlerError::Retry(anyhow!(
-                    "the channel refused the brief"
+                        .map(|_| json!({ "advanced": true }))
+                        .map_err(|e| anyhow!("stamping the digest day: {e}"))
+                })
+                .await
+                .map_err(HandlerError::Retry)?;
+            }
+
+            match (delivered, failures.is_empty()) {
+                // Everyone took it.
+                (true, true) => Ok(()),
+                // Somebody took it and somebody did not: the brief is out, and the channels still
+                // owed it keep their own retry. Returning `Ok` here would abandon them.
+                (_, false) => Err(HandlerError::Retry(anyhow!("{}", failures.join("; ")))),
+                // Nobody took it and nobody reported why, which should not happen.
+                (false, true) => Err(HandlerError::Retry(anyhow!(
+                    "the brief reached no channel and none said why"
                 ))),
-                // Retryable, and this is the interesting case. "Nothing to report" at 08:00 is
-                // almost always an upstream that flaked, not a portfolio that vanished, and the
-                // loop version retried it every tick for exactly this reason. Five attempts with
-                // backoff is that same intent, no longer stopping at the top of the hour.
-                Ok(DigestOutcome::Nothing(why)) => {
-                    Err(HandlerError::Retry(anyhow!("nothing to send yet: {why}")))
-                }
-                Err(e) => Err(HandlerError::Retry(e)),
             }
         })
     }
+}
+
+/// One channel's send, recorded so a retry does not repeat it.
+///
+/// Keyed by the channel, which is what makes a partial delivery resumable: the channel that took the
+/// brief is skipped on the next attempt, and only the one that failed is tried again.
+async fn send_once(
+    ctx: &JobCtx,
+    key: &str,
+    sender: &dyn lyra_alerts::telegram::MessageSender,
+    message: &Message,
+) -> anyhow::Result<()> {
+    ctx.once(&format!("sent:{key}"), || async {
+        match sender.send(message).await {
+            Delivery::Sent => Ok(json!({ "delivered": true })),
+            Delivery::NotConfigured => {
+                Ok(json!({ "delivered": false, "reason": "not configured" }))
+            }
+            Delivery::Failed(e) => Err(anyhow!("{}", e.message())),
+        }
+    })
+    .await
+    .map(|_| ())
+}
+
+/// Build a sender for a stored channel, unsealing its credential.
+async fn sender_for_channel(
+    store: &ChannelStore,
+    channel_id: &str,
+) -> anyhow::Result<Box<dyn lyra_alerts::telegram::MessageSender>> {
+    let channel = store
+        .get(channel_id)
+        .await?
+        .ok_or_else(|| anyhow!("no such channel"))?;
+    if !channel.enabled {
+        anyhow::bail!("the channel is disabled");
+    }
+    let transport = lyra_alerts::channels::Transport::parse(&channel.transport)
+        .ok_or_else(|| anyhow!("unknown transport {:?}", channel.transport))?;
+    let secret = store.secret_of(channel_id).await?;
+    crate::notify::sender_for(transport, secret.as_deref()).map_err(|why| anyhow!("{why}"))
 }
 
 #[cfg(test)]
