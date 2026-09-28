@@ -398,6 +398,27 @@ pub const MIGRATIONS: &[&[&str]] = &[
         // The delivery sweep: answered but not yet confirmed by the origin.
         "CREATE INDEX IF NOT EXISTS idx_decisions_owed ON decisions(delivered_at, answered_at)",
     ],
+    // v10 -> v11: the same rows, now also a way in.
+    //
+    // A launcher tile and a system Lyra talks to are the same thing at different depths, so this
+    // is five columns rather than a second table. Two tables would mean registering the factory
+    // twice and two health dots that can disagree about it.
+    &[
+        // `system` — Lyra polls it for decisions. `link` — a tile only, checked for liveness.
+        // A router admin page has no /decisions, and polling one paints a permanent red dot from
+        // a 404 on a service that is perfectly healthy.
+        "ALTER TABLE systems ADD COLUMN kind TEXT NOT NULL DEFAULT 'system'",
+        // Where *you* go. `base_url` is where *Lyra* goes, and they are routinely different: the
+        // API door is http://factory:8080 while the tile opens https://factory.tailnet.ts.net.
+        // Conflating them gives a tile that opens JSON, or a poll aimed at a web page.
+        "ALTER TABLE systems ADD COLUMN url TEXT",
+        // A lucide name, resolved in the front end. Not a URL: the page is served by the same
+        // binary with no internet dependency, and a dashboard full of broken images when the
+        // house internet is down is worse than one with letters in circles.
+        "ALTER TABLE systems ADD COLUMN icon TEXT",
+        "ALTER TABLE systems ADD COLUMN category TEXT",
+        "ALTER TABLE systems ADD COLUMN sort INTEGER NOT NULL DEFAULT 0",
+    ],
 ];
 
 /// Applies every migration the database has not seen yet. Returns the resulting `user_version`.

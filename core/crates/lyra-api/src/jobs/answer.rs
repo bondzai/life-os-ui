@@ -145,7 +145,7 @@ pub async fn sweep(state: &AppState) -> usize {
 mod tests {
     use super::*;
     use lyra_db::jobs::{Queue, SqliteQueue};
-    use lyra_db::systems::{Option_, Raised, SystemInput};
+    use lyra_db::systems::{Kind, Option_, Raised, SystemInput};
     use tempfile::TempDir;
 
     async fn app() -> (TempDir, AppState, DecisionStore, String) {
@@ -160,10 +160,10 @@ mod tests {
             .create(
                 &SystemInput {
                     name: "content-factory".into(),
+                    kind: Kind::System,
                     // The stub accepts, which is what lets this exercise the whole leg.
                     base_url: "fixture:///dev/null".into(),
-                    token: None,
-                    scopes: vec![],
+                    ..Default::default()
                 },
                 1000,
             )

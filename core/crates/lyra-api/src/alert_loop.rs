@@ -157,6 +157,9 @@ async fn run(state: AppState) {
         // Ask the other systems what is new. Before the dead-letter report rather than after, so a
         // poll that fails on this tick is named in the same tick's report instead of the next one.
         crate::systems::poll_all(&state).await;
+        // The dots, on their own slower clock and all at once — see `check_health` for the
+        // arithmetic that makes sequential probing eat the sweep once there are ten of them.
+        crate::systems::check_health(&state).await;
         // Anything you answered that the origin has not confirmed yet.
         crate::jobs::answer::sweep(&state).await;
         crate::dead_letters::report(&state).await;
