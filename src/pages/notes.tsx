@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useEntities } from '@/core/hooks'
+import { NoteSearch } from '@/pages/notes/note-search'
 import { useAuthStore } from '@/stores/auth-store'
 import { EntityDialog } from '@/core/components/entity-dialog'
 import { StatusBadge } from '@/core/components/status-badge'
@@ -358,6 +359,10 @@ export function NotesPage() {
 
   return (
     <div className="space-y-4">
+      {/* Above the tabs, because it searches across all of them — and across the markdown files,
+          which no tab here shows at all. */}
+      <NoteSearch />
+
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="notes">Notes</TabsTrigger>

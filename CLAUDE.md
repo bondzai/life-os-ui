@@ -52,11 +52,11 @@ something.
 
 | Check | Command | Baseline |
 |---|---|---|
-| Rust tests | `cd core && cargo test --workspace` | **1457 pass** |
+| Rust tests | `cd core && cargo test --workspace` | **1469 pass** |
 | Clippy | `cd core && cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | Rust format | `cd core && cargo fmt --all --check` | clean |
 | Types | `npm run typecheck` | clean |
-| Frontend tests | `npm test` | **373 pass, 11 skipped** |
+| Frontend tests | `npm test` | **381 pass, 11 skipped** |
 | Lint | `npm run lint` | **58 errors — pre-existing, not a gate** |
 
 `npm run lint` is red and has been for a long time. It runs in CI reporting-only. Do not "fix" it as
@@ -180,6 +180,7 @@ them to build.
 | the job queue | `docs/jobs.md` |
 | workspaces and authored context | `docs/workspaces.md` |
 | notifications, routing, channels, schedules | `docs/notifications.md` |
+| notes, search, the second brain | `docs/second-brain.md` |
 | other systems, the decision inbox | `docs/systems.md` |
 | alert rules | `docs/alerts.md` |
 | the Telegram surface | `docs/telegram.md` |

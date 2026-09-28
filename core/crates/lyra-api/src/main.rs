@@ -22,6 +22,7 @@ mod gcal;
 mod grammar;
 mod jobs;
 mod knowledge;
+mod notes;
 mod notify;
 mod relations;
 mod schedules;
@@ -192,6 +193,10 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
             axum::routing::patch(systems::update).delete(systems::delete),
         )
         .route("/api/systems/{id}/probe", post(systems::probe))
+        // Search over everything you have written — both the entity notes and the markdown
+        // files — as one ranked query. Not `/api/search`, which is a DuckDuckGo proxy.
+        .route("/api/notes/search", get(notes::search))
+        .route("/api/notes/reindex", post(notes::reindex))
         .route("/api/decisions", get(decisions::index))
         .route("/api/decisions/{id}/answer", post(decisions::answer))
         .route("/api/workspaces", get(workspaces::index))
@@ -367,6 +372,9 @@ async fn main() -> Result<()> {
     // here and not in `app()` so that the router the tests build stays inert. It no-ops when
     // nothing is configured for it to do.
     alert_loop::spawn(state.clone());
+    // Its own task, not a step in the alert loop: the file half is disk work on a slower clock,
+    // and threading a second timer through that loop would make both harder to read.
+    notes::spawn(state.clone());
 
     // The other half of Telegram: `alert_loop` pushes, this pulls commands in. Idle unless a bot
     // token and chat id are both configured.
