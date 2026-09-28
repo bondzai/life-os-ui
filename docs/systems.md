@@ -197,6 +197,29 @@ reason the two sweeps have different cadences.
 A `link` is checked for liveness only, and **any answer that is not a 5xx is alive**: a 401, or a
 redirect to a login page, means the service is up and doing its job.
 
+### Everything red at once is one fault
+
+Two services failing in the same minute is possible; eight is Tailscale on the box. When every
+enabled system has failed its last check **and more than one exists**, the hub says so once instead
+of painting N separate faults — reporting it the other way sends you to check N things.
+
+The threshold matters both ways: one system down is one system down, and a banner that cries wolf
+is a banner nobody reads.
+
+### Filtering is `/`, not a palette
+
+A box on the page, focused by `/` from anywhere, matching name, group **or address** — the address
+is often the only thing anyone remembers about a box they visit twice a year. Enter opens the top
+hit. It appears only past six tiles, because below that hunting is faster than typing.
+
+Deliberately not ⌘K. This app already navigates with `g <key>`, and a second global mechanism
+competing with it is the more complicated answer to "typing beats hunting". It would also be a new
+dependency for one page.
+
+The header counts the **whole network**, not the filter, so "6 up" keeps meaning the network while
+you type. That is one memo reading the full list and another reading the filtered one; keep them
+separate or the number moves as you narrow.
+
 ### Not an icon CDN
 
 Icons are lucide names resolved against a small bundled set, with the first letter of the name as

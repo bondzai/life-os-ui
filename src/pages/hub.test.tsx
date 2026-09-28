@@ -7,7 +7,7 @@
  * green. And **grouping keeps the server's order**, so `sort` means something.
  */
 
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,7 +44,13 @@ beforeEach(() => {
   useAuthStore.setState({ isAuthenticated: true })
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => ({ ok: true, json: async () => payload })),
+    // Routed by URL: the hub renders `WaitingOnYou`, which asks for decisions on the same client.
+    // Answering both from one blob is how a test starts depending on which query resolves first.
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url.endsWith('/decisions') ? { decisions: [], waiting: 0 } : payload,
+    })),
   )
 })
 
@@ -148,5 +154,106 @@ describe('when there is nothing', () => {
     mount()
     expect(await screen.findByText('Nothing on the network yet')).toBeDefined()
     await waitFor(() => expect(screen.queryByText(/Reading the network/)).toBeNull())
+  })
+})
+
+describe('everything red at once', () => {
+  it('reads as one fault, not many', async () => {
+    // Two services failing in the same minute is possible. Eight is Tailscale on the box, and
+    // reporting that as eight faults sends you to check eight things.
+    payload = {
+      systems: [
+        system({ id: 'a', name: 'Alpha', last_ok_at: null, last_error: 'connection refused' }),
+        system({ id: 'b', name: 'Beta', last_ok_at: null, last_error: 'connection refused' }),
+        system({ id: 'c', name: 'Gamma', last_ok_at: null, last_error: 'timed out' }),
+      ],
+      scopes: [],
+    }
+    mount()
+    const banner = await screen.findByRole('alert')
+    expect(within(banner).getByText(/Nothing on the network is answering/)).toBeDefined()
+    expect(banner.textContent).toContain('tailscale status')
+  })
+
+  it('says nothing when one is down and another is up', async () => {
+    // One service down is one service down. The banner must not cry wolf.
+    payload = {
+      systems: [
+        system({ id: 'a', name: 'Alpha', last_error: 'connection refused', last_ok_at: null }),
+        system({ id: 'b', name: 'Beta' }),
+      ],
+      scopes: [],
+    }
+    mount()
+    await screen.findByText('Beta')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('says nothing when only one system exists at all', async () => {
+    payload = { systems: [system({ last_error: 'refused', last_ok_at: null })], scopes: [] }
+    mount()
+    await screen.findByText('content-factory')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
+describe('filtering', () => {
+  const many = Array.from({ length: 8 }, (_, n) =>
+    system({ id: `s${n}`, name: `Service ${n}`, category: n < 4 ? 'First' : 'Second' }),
+  )
+
+  it('stays out of the way until there are enough tiles to hunt through', async () => {
+    payload = { systems: [system()], scopes: [] }
+    mount()
+    await screen.findByText('content-factory')
+    expect(screen.queryByLabelText('Filter the network')).toBeNull()
+  })
+
+  it('narrows by name, group or address', async () => {
+    payload = { systems: many, scopes: [] }
+    mount()
+    const box = await screen.findByLabelText('Filter the network')
+
+    fireEvent.change(box, { target: { value: 'Service 7' } })
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+
+    // The group you filed it under.
+    fireEvent.change(box, { target: { value: 'second' } })
+    expect(screen.getAllByRole('link')).toHaveLength(4)
+
+    // And the address, which is often the only thing you remember about a box you visit twice
+    // a year.
+    fireEvent.change(box, { target: { value: 'tailnet.ts.net' } })
+    expect(screen.getAllByRole('link')).toHaveLength(8)
+  })
+
+  it('counts the whole network, not the filter', async () => {
+    // "3 up" has to mean the network. Counting the filter would make the header change as you type.
+    payload = { systems: many, scopes: [] }
+    mount()
+    const box = await screen.findByLabelText('Filter the network')
+    fireEvent.change(box, { target: { value: 'Service 7' } })
+    expect(screen.getByText(/8 up/)).toBeDefined()
+  })
+
+  it('says so when nothing matches, rather than looking empty', async () => {
+    payload = { systems: many, scopes: [] }
+    mount()
+    fireEvent.change(await screen.findByLabelText('Filter the network'), {
+      target: { value: 'zzzz' },
+    })
+    expect(screen.getByText(/Nothing matches/)).toBeDefined()
+    expect(screen.queryByText('Nothing on the network yet')).toBeNull()
+  })
+
+  it('opens the top hit on Enter', async () => {
+    payload = { systems: many, scopes: [] }
+    const open = vi.fn()
+    vi.stubGlobal('open', open)
+    mount()
+    const box = await screen.findByLabelText('Filter the network')
+    fireEvent.change(box, { target: { value: 'Service 5' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(open).toHaveBeenCalledWith('https://factory.tailnet.ts.net', '_blank', 'noreferrer')
   })
 })

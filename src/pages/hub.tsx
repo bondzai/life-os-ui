@@ -19,9 +19,17 @@
  * keeps the order the server sorted them in.
  *
  * **Tiles open `url`, never `base_url`.** The API door answers JSON.
+ *
+ * **Everything red at once is one fault, not many.** Two services failing in the same minute is
+ * possible; eight is Tailscale on the box. Saying so is the difference between checking one thing
+ * and checking eight.
+ *
+ * Filtering is `/` and a box, not a command palette. This app already navigates with `g <key>`, and
+ * a second global mechanism competing with it would be the more complicated answer to "at fifteen
+ * tiles, typing beats hunting".
  */
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   Bot,
@@ -37,6 +45,7 @@ import {
   Home,
   Loader2,
   Network,
+  Search,
   Router,
   Server,
   Shield,
@@ -86,6 +95,20 @@ function healthOf(system: System): Health {
   return system.last_ok_at ? 'up' : 'unknown'
 }
 
+/**
+ * Whether a tile survives the filter.
+ *
+ * Name, group and address, because you reach for a tile by whichever of those you remember — and
+ * the address is often the only thing you can recall about a box you visit twice a year.
+ */
+function matches(system: System, needle: string): boolean {
+  return (
+    system.name.toLowerCase().includes(needle) ||
+    (system.category?.toLowerCase().includes(needle) ?? false) ||
+    (system.url ?? system.base_url).toLowerCase().includes(needle)
+  )
+}
+
 const DOT: Record<Health, string> = {
   up: 'bg-emerald-500',
   down: 'bg-red-500',
@@ -95,33 +118,60 @@ const DOT: Record<Health, string> = {
 export function HubPage() {
   const systems = useSystems()
   const list = systems.data?.systems
+  const [query, setQuery] = useState('')
+  const search = useRef<HTMLInputElement>(null)
 
-  // One pass. Grouped in the order the server sorted them, so `sort` means something and the
-  // categories appear in the order their first tile does rather than alphabetically.
+  // `/` to search, the way every list on the web has for thirty years. Not ⌘K: this app navigates
+  // with `g <key>`, and a second global mechanism competing with it is the more complicated answer.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
+      const target = e.target as HTMLElement | null
+      // Not while someone is typing somewhere else, or `/` stops being typeable.
+      if (target?.matches('input, textarea, [contenteditable]')) return
+      e.preventDefault()
+      search.current?.focus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Filtered and grouped in **one** pass, in the order the server sorted them — so `sort` means
+  // something and a category appears where its first tile does rather than alphabetically.
   const grouped = useMemo(() => {
+    const needle = query.trim().toLowerCase()
     const groups = new Map<string, System[]>()
     for (const system of list ?? []) {
       if (!system.enabled) continue
+      if (needle && !matches(system, needle)) continue
       const key = system.category?.trim() || UNFILED
       const bucket = groups.get(key)
       if (bucket) bucket.push(system)
       else groups.set(key, [system])
     }
     return [...groups]
-  }, [list])
+  }, [list, query])
 
+  /** The first tile the current filter leaves, so Enter can open it. */
+  const top = grouped[0]?.[1]?.[0]
+
+  // Counted over everything enabled rather than over the filter, because "3 up" has to mean the
+  // network, not whatever you happen to have typed.
   const counts = useMemo(() => {
     let up = 0
     let down = 0
-    for (const [, tiles] of grouped) {
-      for (const tile of tiles) {
-        const health = healthOf(tile)
-        if (health === 'up') up += 1
-        else if (health === 'down') down += 1
-      }
+    for (const system of list ?? []) {
+      if (!system.enabled) continue
+      const health = healthOf(system)
+      if (health === 'up') up += 1
+      else if (health === 'down') down += 1
     }
     return { up, down }
-  }, [grouped])
+  }, [list])
+
+  // Two services failing in the same minute is possible. Eight is the box losing the tailnet, and
+  // reporting that as eight separate faults sends you to check eight things.
+  const allDown = counts.down > 1 && counts.up === 0
 
   if (systems.isError) {
     return (
@@ -154,15 +204,59 @@ export function HubPage() {
         )}
       </header>
 
+      {allDown && (
+        <p
+          role="alert"
+          className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-500"
+        >
+          <strong className="font-medium">Nothing on the network is answering.</strong> All{' '}
+          {counts.down} of them failed their last check, which is almost always Tailscale on the box
+          rather than {counts.down} services going down together. Check{' '}
+          <code className="font-mono text-xs">tailscale status</code> there first.
+        </p>
+      )}
+
       {/* What needs you, before where to go. Renders nothing when nothing is waiting. */}
       <WaitingOnYou />
 
+      {/* Only once there are enough tiles for hunting to be slower than typing. */}
+      {(list.length > 6 || query !== '') && (
+        <div className="relative max-w-sm">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <input
+            ref={search}
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setQuery('')
+              // Enter opens the top hit, so the whole interaction is type-three-letters-enter.
+              if (e.key === 'Enter' && top) {
+                window.open(top.url ?? top.base_url, '_blank', 'noreferrer')
+              }
+            }}
+            placeholder="Filter — press / from anywhere"
+            aria-label="Filter the network"
+            className="w-full rounded-md border bg-background py-2 pr-3 pl-9 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          />
+        </div>
+      )}
+
       {grouped.length === 0 ? (
-        <EmptyState
-          icon={Boxes}
-          title="Nothing on the network yet"
-          description="Add a system in Settings and it turns up here. A fixture:// address stands in for one that is still being built."
-        />
+        query !== '' ? (
+          <p className="text-sm text-muted-foreground">
+            Nothing matches &ldquo;{query}&rdquo;.
+          </p>
+        ) : (
+          <EmptyState
+            icon={Boxes}
+            title="Nothing on the network yet"
+            description="Add a system in Settings and it turns up here. A fixture:// address stands in for one that is still being built."
+          />
+        )
       ) : (
         grouped.map(([category, tiles]) => (
           <section key={category} className="space-y-3" aria-labelledby={`cat-${category}`}>

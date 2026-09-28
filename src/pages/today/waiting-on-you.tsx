@@ -24,9 +24,13 @@ export function WaitingOnYou() {
   const decisions = useDecisions()
 
   // Open ones only. What you already decided belongs in a history, not at the top of Today.
-  const waiting = decisions.data?.decisions.filter((d) => d.answered_at === null) ?? []
-  const onItsWay =
-    decisions.data?.decisions.filter((d) => d.answered_at !== null && d.delivered_at === null) ?? []
+  //
+  // `?.decisions?.` on both links, not just the first. Written `data?.decisions.filter(...)` at
+  // first, which guards a missing response and not a response missing the key — and this component
+  // sits at the top of Today, so the one shape it cannot handle takes the whole page with it.
+  const all = decisions.data?.decisions ?? []
+  const waiting = all.filter((d) => d.answered_at === null)
+  const onItsWay = all.filter((d) => d.answered_at !== null && d.delivered_at === null)
 
   // Nothing waiting renders nothing — including while the first read is in flight, because a
   // skeleton above your day for a panel that is usually empty is worse than a beat of nothing.
