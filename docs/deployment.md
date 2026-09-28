@@ -216,6 +216,13 @@ schema on first boot. An **older** binary refuses to open a newer database — w
 
 ## 5. Backups and restore
 
+**`deploy` takes its own copy first**, `pre-<tag>.db`, before it swaps anything. A migration is a
+one-way door: a release that moves `user_version` forward leaves a database the previous binary
+refuses to open, so the automatic rollback would put an older binary on a newer file and the service
+would not start at all. Restoring that copy is the way out, and the failure message prints the three
+commands. It refuses to deploy if the backup fails, because a box where `sqlite3` is missing is a box
+whose nightly backups have been failing too.
+
 `lyra-backup.timer` runs nightly at 03:30: `VACUUM INTO /opt/lyra/backups/lyra-YYYYMMDD.db`, keeping
 14 days. One consistent, compacted file per night, no sidecars, safe to run against a live database.
 
