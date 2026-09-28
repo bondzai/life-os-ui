@@ -29,7 +29,7 @@ use serde_json::{Value, json};
 
 use crate::config::EnvSource;
 use crate::digest::strip_markdown;
-use crate::message::{Markup, Message};
+use crate::message::{Button, Markup, Message};
 
 /// Telegram's API host. A constant, not configuration: a "which host do we post the token to"
 /// setting is a credential-exfiltration switch.
@@ -292,8 +292,16 @@ impl TelegramSender {
         // never arrived. Split rather than clamp: unlike a Discord embed's description, the tail
         // of a digest is the part with the positions in it.
         let mut delivery = Delivery::NotConfigured;
-        for part in split_for_telegram(&Self::rendered(message)) {
-            delivery = self.post_one(credentials, client, &part).await;
+        let parts = split_for_telegram(&Self::rendered(message));
+        let last = parts.len().saturating_sub(1);
+        for (index, part) in parts.iter().enumerate() {
+            // Buttons go on the **last** part. A split message is read top to bottom, and an
+            // inline keyboard halfway up asks you to answer before you have seen the rest.
+            let buttons = match index == last {
+                true => message.buttons(),
+                false => &[],
+            };
+            delivery = self.post_one(credentials, client, part, buttons).await;
             // Stop at the first failure. Parts two and three of a message whose first part did
             // not arrive are worse than nothing: they read as a reply to something you never saw.
             if !matches!(delivery, Delivery::Sent) {
@@ -308,10 +316,11 @@ impl TelegramSender {
         credentials: &Credentials,
         client: &reqwest::Client,
         text: &str,
+        buttons: &[Button],
     ) -> Delivery {
         let request = client
             .post(credentials.method_url(&self.api_base, "sendMessage"))
-            .json(&send_message_body(credentials.chat_id(), text));
+            .json(&send_message_body(credentials.chat_id(), text, buttons));
 
         match request.send().await {
             // `without_url` first (the URL contains the token), then scrub whatever is left in
@@ -408,13 +417,24 @@ impl MessageSender for TelegramSender {
 /// unescaped `*` in an on-chain token name able to break a message (see
 /// [`crate::digest::strip_markdown`]). `disable_web_page_preview` keeps a pasted URL from
 /// expanding into a card.
-pub fn send_message_body(chat_id: &str, text: &str) -> Value {
-    json!({
+pub fn send_message_body(chat_id: &str, text: &str, buttons: &[Button]) -> Value {
+    let mut body = json!({
         "chat_id": chat_id,
         "text": text,
         "parse_mode": "Markdown",
         "disable_web_page_preview": true,
-    })
+    });
+    if !buttons.is_empty() {
+        // One button per row. Telegram lays a row out side by side and shrinks the labels to fit,
+        // which turns "Alliances" into an ellipsis on a phone — and a decision you cannot read is
+        // a decision you should not be tapping.
+        let rows: Vec<Value> = buttons
+            .iter()
+            .map(|button| json!([{ "text": button.label, "callback_data": button.data }]))
+            .collect();
+        body["reply_markup"] = json!({ "inline_keyboard": rows });
+    }
+    body
 }
 
 // ===========================================================================
@@ -747,7 +767,7 @@ mod tests {
 
     #[test]
     fn the_payload_matches_what_notify_py_posts() {
-        let body = send_message_body(DUMMY_CHAT, "*hi*");
+        let body = send_message_body(DUMMY_CHAT, "*hi*", &[]);
         assert_eq!(
             body,
             json!({
@@ -756,6 +776,38 @@ mod tests {
                 "parse_mode": "Markdown",
                 "disable_web_page_preview": true,
             })
+        );
+        // No buttons means **no `reply_markup` at all**, not an empty one. Telegram treats an
+        // empty keyboard as an instruction to clear the previous message's, which is a visible
+        // change to every message this has ever sent.
+        assert!(body.get("reply_markup").is_none());
+    }
+
+    #[test]
+    fn buttons_become_one_row_each() {
+        let body = send_message_body(
+            DUMMY_CHAT,
+            "castles or alliances?",
+            &[
+                Button {
+                    label: "Castles".into(),
+                    data: "d:dec-1:0".into(),
+                },
+                Button {
+                    label: "Alliances".into(),
+                    data: "d:dec-1:1".into(),
+                },
+            ],
+        );
+        assert_eq!(
+            body["reply_markup"],
+            json!({
+                "inline_keyboard": [
+                    [{ "text": "Castles", "callback_data": "d:dec-1:0" }],
+                    [{ "text": "Alliances", "callback_data": "d:dec-1:1" }]
+                ]
+            }),
+            "one per row — side by side, a phone truncates the labels"
         );
     }
 

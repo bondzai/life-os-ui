@@ -137,14 +137,39 @@ alone". See `docs/notifications.md` § The credential for what that protects and
 A system with **no** token is allowed: a service on the same host behind Tailscale may not want one,
 and the row says so plainly rather than looking configured.
 
+## Answering from your phone
+
+A raised decision is announced to the `day` group at `info` severity, keyed by the decision so it is
+sent once however many times something notices it. On Telegram it arrives with a button per option;
+everywhere else it arrives as text.
+
+**The options are spelled out in the message as well as attached as buttons.** Every channel but
+Telegram ignores an inline keyboard, so without the words a Discord reader gets a question with no
+visible choices.
+
+**A tap carries the decision id and the option's index**, never the answer's text: Telegram caps
+`callback_data` at 64 bytes and an id already spends 36 of them. An answer like "hold until the Q3
+numbers land" would not fit, and the API rejects the send rather than truncating.
+
+**`answerCallbackQuery` is always called**, whatever the outcome. An unanswered callback leaves the
+button spinning on the phone until Telegram times it out, which reads as a broken bot even when the
+answer was recorded perfectly.
+
+The tap goes through the same `DecisionStore::answer` the web inbox uses, so the two cannot disagree
+about what "answered" means — including that the first one wins. Tapping a second time replies
+"Already answered: Castles" rather than sending a different instruction.
+
+One thing worth knowing about the fallback: while routing is empty **everything** falls back to
+`deliver.telegram`, and that path carries the buttons too. It did not at first, which meant the one
+box that most needed them — a fresh one, with nothing configured — got the inbox as flat text.
+
 ## What is not built
 
-- **Telegram buttons.** The inbox is answerable in the browser; one-tap from your phone is the next
-  slice, and it is the one that makes this feel like an assistant rather than a page.
 - **A Discord tap is not possible as things stand.** A webhook is outbound-only — it has no
   interaction callback. Real buttons need a Discord *application* with a gateway connection, which
-  is its own decision. Discord tells you; Telegram will ask you.
+  is its own decision. Discord tells you; Telegram asks you.
+- **The message is not edited after a tap.** The buttons stay on screen and a second tap says
+  "already answered" rather than the keyboard disappearing. `editMessageReplyMarkup` is the fix and
+  it needs the message id kept somewhere.
 - **The brief does not mention decisions yet.** Deliberate: it goes cross-system once there is a
   second real source.
-- **Nothing notifies on a raised decision.** The poll fills the inbox; routing it to the `day` group
-  is one call to `notify` and lands with the Telegram slice.

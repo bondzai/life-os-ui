@@ -15,6 +15,7 @@ use axum::Json;
 use axum::extract::{Path as AxumPath, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use lyra_alerts::message::Button;
 use lyra_db::jobs::now_secs;
 use lyra_db::systems::{Decision, DecisionStore};
 use serde::Deserialize;
@@ -113,6 +114,93 @@ fn offered(decision: &Decision, answer: &str) -> Result<(), String> {
     ))
 }
 
+/* ─── reaching you ─── */
+
+/// The prefix on a Telegram button's `callback_data`.
+///
+/// Short because the whole field is capped at **64 bytes** and a decision id already spends 36 of
+/// them. That cap is also why the button carries an option *index* rather than the answer's text:
+/// an answer like "hold until the Q3 numbers land" would not fit, and Telegram rejects the send
+/// rather than truncating.
+pub const TAP: &str = "d:";
+
+/// Build the taps for one decision.
+pub fn buttons(decision: &Decision) -> Vec<Button> {
+    decision
+        .options
+        .iter()
+        .enumerate()
+        .map(|(index, option)| Button {
+            label: option.label.clone(),
+            data: format!("{TAP}{}:{index}", decision.id),
+        })
+        .collect()
+}
+
+/// Read a tap back. `None` for anything that is not one of ours.
+pub fn parse_tap(data: &str) -> Option<(String, usize)> {
+    let rest = data.strip_prefix(TAP)?;
+    // `rsplit_once`, not `split_once`: the index is the last field and a decision id is opaque, so
+    // splitting from the left would break the day an id contains a colon.
+    let (id, index) = rest.rsplit_once(':')?;
+    Some((id.to_string(), index.parse().ok()?))
+}
+
+/// What the message says.
+///
+/// The evidence is in the text rather than only in the app, because the whole point of a tap is
+/// answering without opening anything — and answering without the reason is a coin flip.
+pub fn announcement(decision: &Decision) -> String {
+    let mut out = decision.question.clone();
+    if let Some(detail) = &decision.detail {
+        out.push_str(&format!("\n{detail}"));
+    }
+    if let Some(evidence) = &decision.evidence {
+        out.push_str(&format!("\n\n{evidence}"));
+    }
+    // Spelled out as well as attached, so a channel that cannot render buttons — which is every
+    // channel but Telegram — still says what the choices are.
+    if !decision.options.is_empty() {
+        let labels: Vec<&str> = decision.options.iter().map(|o| o.label.as_str()).collect();
+        out.push_str(&format!("\n\n{}?", labels.join(" or ")));
+    }
+    out
+}
+
+/// Send one raised decision to whatever the `day` group is routed to.
+///
+/// Keyed by the decision, so the announcement is queued exactly once however many times something
+/// notices it — the same mechanism the daily brief uses. Severity is `info`: a question is not an
+/// emergency, and `critical` is the only level that pierces quiet hours.
+pub async fn announce(state: &AppState, decision: &Decision) -> usize {
+    use lyra_db::channels::Severity;
+    use lyra_db::jobs::{Queue, SqliteQueue};
+
+    let queue = SqliteQueue::new(state.pool.clone());
+    let now = now_secs();
+    let key = format!("decision:{}", decision.id);
+    let jobs = crate::notify::deliveries_with(
+        state,
+        "day",
+        Severity::Info,
+        Some(&key),
+        &announcement(decision),
+        crate::jobs::deliver::Markup::Plain,
+        &buttons(decision),
+    )
+    .await;
+
+    let mut queued = 0;
+    for job in jobs {
+        match queue.enqueue(&job, now).await {
+            Ok(enqueued) if enqueued.created => queued += 1,
+            Ok(_) => {}
+            Err(e) => tracing::error!(decision = %decision.id, error = %e, "announcing a decision"),
+        }
+    }
+    queued
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,6 +255,51 @@ mod tests {
             .unwrap();
         let id = decisions.open().await.unwrap()[0].id.clone();
         (dir, state, decisions, id)
+    }
+
+    #[tokio::test]
+    async fn a_tap_carries_an_index_because_sixty_four_bytes_is_the_whole_budget() {
+        let (_dir, _state, decisions, id) = app().await;
+        let decision = decisions.get(&id).await.unwrap().unwrap();
+        let taps = buttons(&decision);
+
+        assert_eq!(taps.len(), 2);
+        assert_eq!(taps[0].label, "Castles");
+        for tap in &taps {
+            assert!(
+                tap.data.len() <= 64,
+                "Telegram rejects callback_data over 64 bytes: {} is {}",
+                tap.data,
+                tap.data.len()
+            );
+        }
+        assert_eq!(parse_tap(&taps[0].data), Some((id.clone(), 0)));
+        assert_eq!(parse_tap(&taps[1].data), Some((id, 1)));
+    }
+
+    #[test]
+    fn a_tap_that_is_not_ours_is_not_mistaken_for_one() {
+        assert_eq!(parse_tap("something:else"), None);
+        assert_eq!(parse_tap("d:no-index"), None);
+        assert_eq!(parse_tap("d:dec-1:notanumber"), None);
+        // An id containing a colon still parses, because the index is taken from the right.
+        assert_eq!(
+            parse_tap("d:dec:with:colons:2"),
+            Some(("dec:with:colons".to_string(), 2))
+        );
+    }
+
+    #[tokio::test]
+    async fn the_message_spells_out_the_options_as_well_as_attaching_them() {
+        let (_dir, _state, decisions, id) = app().await;
+        let decision = decisions.get(&id).await.unwrap().unwrap();
+        let text = announcement(&decision);
+
+        assert!(text.contains("castles or alliances?"), "{text}");
+        // The evidence travels with the question — answering without it is a coin flip.
+        assert!(text.contains("castles tested 9% better"), "{text}");
+        // In words too, because every channel but Telegram ignores the buttons entirely.
+        assert!(text.contains("Castles or Alliances?"), "{text}");
     }
 
     #[tokio::test]

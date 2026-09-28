@@ -29,10 +29,28 @@ pub const KIND: &str = "notify.deliver";
 /// goes out of range, comes back, and goes out again has two things to say rather than one. A key
 /// there would swallow the second.
 pub fn job(channel_id: &str, key: Option<&str>, text: impl Into<String>, markup: Markup) -> NewJob {
+    job_with(channel_id, key, text, markup, &[])
+}
+
+/// The same, carrying taps.
+///
+/// Separate rather than a fifth argument on `job`, because every existing producer has nothing to
+/// attach and threading an empty slice through all of them would only make them harder to read.
+pub fn job_with(
+    channel_id: &str,
+    key: Option<&str>,
+    text: impl Into<String>,
+    markup: Markup,
+    buttons: &[lyra_alerts::message::Button],
+) -> NewJob {
     let job = NewJob::new(KIND, Lane::Deliver).payload(json!({
         "channel_id": channel_id,
         "text": text.into(),
         "markup": markup.as_str(),
+        "buttons": buttons
+            .iter()
+            .map(|b| json!({ "label": b.label, "data": b.data }))
+            .collect::<Vec<_>>(),
     }));
     match key {
         // Per channel, so one notification's two deliveries are two jobs rather than one that
@@ -118,7 +136,8 @@ impl Handler for NotifyDeliver {
                 lyra_alerts::message::Message::telegram_markup(text)
             } else {
                 lyra_alerts::message::Message::plain(text)
-            };
+            }
+            .with_buttons(buttons_of(ctx.payload()));
 
             let now = now_secs();
             let outcome = ctx
@@ -469,6 +488,29 @@ mod tests {
 /// the queue can never hold a message job that ran and deliveries that were never queued. That is why
 /// it uses `crate::notify::deliveries` rather than `notify`, which would enqueue immediately and
 /// outside that commit.
+/// The taps a job carries, if any.
+///
+/// Absent, malformed or empty all mean the same thing: no buttons. A notification that arrives
+/// without its buttons is still the notification; refusing to send it because a label was missing
+/// would trade the whole message for a tap.
+pub(crate) fn buttons_of(payload: &serde_json::Value) -> Vec<lyra_alerts::message::Button> {
+    payload
+        .get("buttons")
+        .and_then(|b| b.as_array())
+        .map(|buttons| {
+            buttons
+                .iter()
+                .filter_map(|button| {
+                    Some(lyra_alerts::message::Button {
+                        label: button.get("label")?.as_str()?.to_string(),
+                        data: button.get("data")?.as_str()?.to_string(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 pub mod message {
     use super::*;
     use lyra_db::channels::Severity;

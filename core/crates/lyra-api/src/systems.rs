@@ -348,6 +348,10 @@ pub async fn poll_all(state: &AppState) -> usize {
                     Ok(new) => {
                         if new > 0 {
                             tracing::info!(system = %sys.name, new, "decisions are waiting on you");
+                            // Announced only for rows that were actually new. `raise` already told
+                            // us how many, and re-announcing a question you have been asked is the
+                            // fastest way to make the channel worth muting.
+                            announce_new(&decisions, &polled.raised, state).await;
                         }
                         raised += new;
                         // The cursor moves only after the rows are committed. The other order loses
@@ -361,6 +365,28 @@ pub async fn poll_all(state: &AppState) -> usize {
         }
     }
     raised
+}
+
+/// Send the ones that are still unanswered to your phone.
+///
+/// Reads them back rather than announcing from what the system said, because only the stored row
+/// carries the id a button has to name — and because `raise` is the thing that decided which of
+/// them were new.
+async fn announce_new(decisions: &DecisionStore, raised: &[Raised], state: &AppState) {
+    let open = match decisions.open().await {
+        Ok(open) => open,
+        Err(e) => {
+            tracing::error!(error = %e, "reading the inbox to announce it");
+            return;
+        }
+    };
+    for decision in open {
+        // Only the ones this poll brought in. The announcement is keyed by decision id, so an
+        // older unanswered one would be deduped anyway — this just avoids the queue round trip.
+        if raised.iter().any(|r| r.external_id == decision.external_id) {
+            crate::decisions::announce(state, &decision).await;
+        }
+    }
 }
 
 async fn record(
@@ -701,6 +727,70 @@ mod tests {
         let after = systems.list().await.unwrap();
         assert_eq!(after[0].cursor.as_deref(), Some("evt-42"));
         assert_eq!(after[0].last_error, None);
+    }
+
+    /// Raising a decision reaches the phone, with its taps attached — and only once.
+    #[tokio::test]
+    async fn a_new_decision_is_announced_with_its_buttons_and_not_again() {
+        use lyra_db::jobs::{Queue, SqliteQueue};
+
+        let (dir, state) = app().await;
+        let fixture = dir.path().join("factory.json");
+        std::fs::write(&fixture, WIRE).unwrap();
+        store(&state)
+            .create(
+                &SystemInput {
+                    name: "content-factory".into(),
+                    base_url: format!("fixture://{}", fixture.display()),
+                    token: None,
+                    scopes: vec![],
+                },
+                1000,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(poll_all(&state).await, 1);
+
+        let queue = SqliteQueue::new(state.pool.clone());
+        let sent: Vec<_> = queue
+            .recent(20)
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|j| j.kind == crate::jobs::deliver::KIND || j.kind == crate::jobs::notify::KIND)
+            .collect();
+        assert_eq!(sent.len(), 1, "one announcement, on the fallback path");
+        let text = sent[0].payload["text"].as_str().unwrap_or_default();
+        assert!(text.contains("castles or alliances"), "{text}");
+        assert!(
+            text.contains("tested 9% better"),
+            "the evidence goes too: {text}"
+        );
+
+        // The taps ride along on the payload; only Telegram will render them.
+        let buttons = sent[0].payload["buttons"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert_eq!(buttons.len(), 2, "{:?}", sent[0].payload);
+        assert!(
+            buttons[0]["data"].as_str().unwrap_or("").starts_with("d:"),
+            "{buttons:?}"
+        );
+
+        // The sweep runs every thirty seconds against the same file. Being asked the same question
+        // every half minute is the fastest way to make a channel worth muting.
+        poll_all(&state).await;
+        poll_all(&state).await;
+        let after = queue
+            .recent(20)
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|j| j.kind == crate::jobs::deliver::KIND || j.kind == crate::jobs::notify::KIND)
+            .count();
+        assert_eq!(after, 1, "asked once");
     }
 
     /// One unreachable system must not stop the others, and must say why on its own row.
