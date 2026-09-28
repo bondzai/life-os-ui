@@ -123,6 +123,24 @@ pub async fn deliveries(
     text: &str,
     markup: Markup,
 ) -> Vec<lyra_db::jobs::NewJob> {
+    deliveries_with(state, group, severity, key, text, markup, &[]).await
+}
+
+/// The same, with taps attached.
+///
+/// Only Telegram renders them; the fallback path and every other transport send the text alone.
+/// That is the honest degradation — a message carrying buttons also spells its options out in
+/// words, so a Discord reader knows what the choices are even though the room cannot take a tap.
+#[allow(clippy::too_many_arguments)]
+pub async fn deliveries_with(
+    state: &crate::AppState,
+    group: &str,
+    severity: Severity,
+    key: Option<&str>,
+    text: &str,
+    markup: Markup,
+    buttons: &[lyra_alerts::message::Button],
+) -> Vec<lyra_db::jobs::NewJob> {
     let store = ChannelStore::new(state.pool.clone(), state.secret_key.as_deref().cloned());
     // Local, because quiet hours are a wall-clock idea: "do not wake me" means the hour on the
     // clock in the room, not an offset from UTC.
@@ -148,7 +166,7 @@ pub async fn deliveries(
         // for exactly-once got it on the routed path and silently not on this one — two paths
         // disagreeing about whether a repeat is a repeat. Callers that *want* every copy, like the
         // range alerts, pass `None` and are unaffected.
-        let job = crate::jobs::deliver::job(text.to_string(), markup);
+        let job = crate::jobs::deliver::job_with(text.to_string(), markup, buttons);
         return vec![match key {
             Some(key) => job.key(key),
             None => job,
@@ -157,7 +175,9 @@ pub async fn deliveries(
 
     destinations
         .iter()
-        .map(|channel_id| crate::jobs::notify::job(channel_id, key, text.to_string(), markup))
+        .map(|channel_id| {
+            crate::jobs::notify::job_with(channel_id, key, text.to_string(), markup, buttons)
+        })
         .collect()
 }
 

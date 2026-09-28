@@ -30,11 +30,28 @@ pub enum Markup {
     Telegram,
 }
 
+/// One thing you can tap under a message.
+///
+/// `data` is what comes back when it is tapped, and **Telegram caps it at 64 bytes** — which is why
+/// the decision inbox sends a row id and an option *index* rather than the answer's text. A longer
+/// value is silently rejected by the API, so the cap is a real constraint rather than a guideline.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Button {
+    pub label: String,
+    pub data: String,
+}
+
 /// One message, independent of who delivers it.
+///
+/// `buttons` is a Telegram capability and every other transport ignores it. That is the honest
+/// degradation rather than a gap: a message carrying buttons also spells its options out in the
+/// text, so a Discord reader sees what the choices are and answers somewhere else. A webhook has no
+/// way to send a tap back at all.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message {
     text: String,
     markup: Markup,
+    buttons: Vec<Button>,
 }
 
 impl Message {
@@ -44,6 +61,7 @@ impl Message {
         Self {
             text: text.into(),
             markup: Markup::None,
+            buttons: Vec::new(),
         }
     }
 
@@ -55,6 +73,7 @@ impl Message {
         Self {
             text: text.into(),
             markup: Markup::Telegram,
+            buttons: Vec::new(),
         }
     }
 
@@ -64,6 +83,16 @@ impl Message {
 
     pub fn markup(&self) -> Markup {
         self.markup
+    }
+
+    /// Attach taps. Ignored by every transport but Telegram.
+    pub fn with_buttons(mut self, buttons: Vec<Button>) -> Self {
+        self.buttons = buttons;
+        self
+    }
+
+    pub fn buttons(&self) -> &[Button] {
+        &self.buttons
     }
 
     /// Whether the sender has to make this safe before sending it.

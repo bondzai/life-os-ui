@@ -10,6 +10,7 @@ import { generateMockData, clearMockData } from '@/lib/mock-data'
 import { ACTIONS, useKeybindings, comboToDisplay, checkConflict } from '@/hooks/use-keybindings'
 import { NotificationSettings } from '@/pages/settings/notifications'
 import { ScheduleSettings } from '@/pages/settings/schedules'
+import { SystemSettings } from '@/pages/settings/systems'
 
 type DataMode = 'local' | 'api' | 'demo'
 
@@ -80,6 +81,11 @@ export function SettingsPage() {
           it decides *when* and *what*, and the grid above decides *where*. Reading them apart makes
           "why did that arrive in the wrong room" a two-page question. */}
       <ScheduleSettings />
+
+      {/* Systems after schedules, because a system's questions are delivered by the routing above
+          and fired on the same tick — reading them in that order is reading the path a question
+          actually takes. */}
+      <SystemSettings />
 
       <section className="max-w-lg space-y-3">
         <Label className="text-xs tracking-wider text-muted-foreground uppercase">Lyra</Label>

@@ -343,6 +343,61 @@ pub const MIGRATIONS: &[&[&str]] = &[
                created_at       INTEGER NOT NULL,
                updated_at       INTEGER NOT NULL
            )"#],
+    // v9 -> v10: the other systems Lyra speaks for, and the decisions they are waiting on.
+    //
+    // Lyra is a **courier**, not the book of record: the origin system owns the decision and what
+    // it means. These rows exist so an answer survives a reboot and a system that is down, which
+    // is the one thing a courier must not get wrong.
+    &[
+        r#"CREATE TABLE IF NOT EXISTS systems (
+               id            TEXT    PRIMARY KEY,
+               name          TEXT    NOT NULL,
+               base_url      TEXT    NOT NULL,
+               -- Sealed with LYRA_SECRET_KEY, AAD = this row's id, exactly as a channel's webhook
+               -- is. Never returned; `SystemStore::token_of` is the one door.
+               token         TEXT,
+               token_preview TEXT,
+               -- A JSON array. One coarse scope is enough while Lyra only proposes, but storing a
+               -- list from the start means tightening later is data rather than a migration.
+               scopes        TEXT    NOT NULL DEFAULT '["read","propose"]',
+               enabled       INTEGER NOT NULL DEFAULT 1,
+               -- Where the last poll got to. Opaque to Lyra: whatever the system calls a cursor.
+               cursor        TEXT,
+               last_ok_at    INTEGER,
+               last_error    TEXT,
+               failing_since INTEGER,
+               created_at    INTEGER NOT NULL,
+               updated_at    INTEGER NOT NULL
+           )"#,
+        r#"CREATE TABLE IF NOT EXISTS decisions (
+               id           TEXT    PRIMARY KEY,
+               system_id    TEXT    NOT NULL REFERENCES systems(id) ON DELETE CASCADE,
+               -- The origin's own id for this decision. Paired with the system below as a unique
+               -- key, which is what makes polling the same window twice harmless.
+               external_id  TEXT    NOT NULL,
+               question     TEXT    NOT NULL,
+               detail       TEXT,
+               -- JSON array of {"value","label"}. An answer must be one of these values.
+               options      TEXT    NOT NULL,
+               -- Why the system is asking — "castles tested 9% better". Shown with the question,
+               -- because a decision without its evidence is a guess.
+               evidence     TEXT,
+               raised_at    INTEGER NOT NULL,
+               expires_at   INTEGER,
+               answer       TEXT,
+               answered_at  INTEGER,
+               -- When the origin confirmed it. NULL with an answer set means still owed, which is
+               -- what the delivery job retries on.
+               delivered_at INTEGER,
+               created_at   INTEGER NOT NULL,
+               updated_at   INTEGER NOT NULL,
+               UNIQUE(system_id, external_id)
+           )"#,
+        // The inbox query: everything unanswered, oldest first.
+        "CREATE INDEX IF NOT EXISTS idx_decisions_open ON decisions(answered_at, raised_at)",
+        // The delivery sweep: answered but not yet confirmed by the origin.
+        "CREATE INDEX IF NOT EXISTS idx_decisions_owed ON decisions(delivered_at, answered_at)",
+    ],
 ];
 
 /// Applies every migration the database has not seen yet. Returns the resulting `user_version`.

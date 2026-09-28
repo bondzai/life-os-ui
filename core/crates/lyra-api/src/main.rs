@@ -16,6 +16,7 @@ mod collect;
 mod common;
 mod crons;
 mod dead_letters;
+mod decisions;
 mod entities;
 mod gcal;
 mod grammar;
@@ -25,6 +26,7 @@ mod notify;
 mod relations;
 mod schedules;
 mod search;
+mod systems;
 mod tgbot;
 mod trackers;
 mod wealth;
@@ -182,6 +184,16 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
             axum::routing::patch(crons::update).delete(crons::delete),
         )
         .route("/api/crons/{id}/run", post(crons::run_now))
+        // The other systems Lyra speaks for. `probe` is a POST because it is an action with a
+        // side effect — it writes what it found onto the row.
+        .route("/api/systems", get(systems::index).post(systems::create))
+        .route(
+            "/api/systems/{id}",
+            axum::routing::patch(systems::update).delete(systems::delete),
+        )
+        .route("/api/systems/{id}/probe", post(systems::probe))
+        .route("/api/decisions", get(decisions::index))
+        .route("/api/decisions/{id}/answer", post(decisions::answer))
         .route("/api/workspaces", get(workspaces::index))
         .route("/api/workspaces/{slug}/context", get(workspaces::context))
         .route("/api/knowledge", get(knowledge::list))

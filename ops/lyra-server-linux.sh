@@ -187,7 +187,10 @@ Group=$SVC_USER
 # VACUUM INTO, not cp: this database runs in WAL mode, so lyra.db on its own is missing whatever
 # is still in lyra.db-wal. VACUUM INTO writes one consistent, compacted file with no sidecars —
 # there is nothing left to forget to copy, which is the way this goes wrong.
-ExecStart=/bin/sh -c 'sqlite3 $PREFIX/data/lyra.db "VACUUM INTO \\'$PREFIX/backups/lyra-\$(date +%%Y%%m%%d).db\\'" && find $PREFIX/backups -name "lyra-*.db" -mtime +14 -delete'
+#
+# The prune covers `pre-*.db` too — the copies `deploy` takes before a migration. Without that
+# they are the one thing in here nothing ever deletes, and a box nobody watches fills up.
+ExecStart=/bin/sh -c 'sqlite3 $PREFIX/data/lyra.db "VACUUM INTO \\'$PREFIX/backups/lyra-\$(date +%%Y%%m%%d).db\\'" && find $PREFIX/backups \\( -name "lyra-*.db" -o -name "pre-*.db" \\) -mtime +14 -delete'
 BACKUP_EOF
 
   cat > "$BACKUP_TIMER" <<BTIMER_EOF
@@ -232,6 +235,25 @@ deploy() {
   local previous; previous="$(readlink -f "$PREFIX/current" 2>/dev/null || true)"
   [ -n "$previous" ] && [ "$previous" != "$stage" ] && echo "$previous" > "$PREFIX/.previous"
 
+  # A consistent copy taken *now*, not last night.
+  #
+  # A migration is a one-way door: a release that moves `user_version` forward leaves a database
+  # the previous binary **refuses to open**. The rollback below would then put an older binary on
+  # a newer file and the service simply would not start — with the newest nightly backup up to
+  # twenty-four hours stale. This one is seconds old.
+  #
+  # VACUUM INTO, never cp: WAL mode means lyra.db on its own is missing whatever is still in
+  # lyra.db-wal. Refusing to deploy without it is deliberate — sqlite3 is a documented
+  # prerequisite, and a box where this fails is a box whose nightly backups are failing too.
+  if [ -f "$PREFIX/data/lyra.db" ]; then
+    local before="$PREFIX/backups/pre-$tag.db"
+    rm -f "$before"
+    sudo -u "$SVC_USER" sqlite3 "$PREFIX/data/lyra.db" "VACUUM INTO '$before'" \
+      || die "could not back the database up before deploying $tag — refusing to continue. \
+Is sqlite3 installed? (apt install sqlite3)"
+    echo "==> backed up to $before"
+  fi
+
   chown -R "$SVC_USER:$SVC_USER" "$stage"
   ln -sfn "$stage" "$PREFIX/current"
   install -m 755 -o "$SVC_USER" -g "$SVC_USER" "$stage/bin/lyra-api" "$PREFIX/bin/lyra-api"
@@ -243,7 +265,13 @@ deploy() {
   wait_healthy || {
     echo "==> it did not come up; rolling back" >&2
     rollback
-    die "deploy of $tag failed and was rolled back — journalctl -u $LABEL"
+    die "deploy of $tag failed and was rolled back — journalctl -u $LABEL.
+If the rollback will not start either, this release migrated the database and the older binary
+refuses to open it. Restore the copy taken above:
+  sudo systemctl stop $LABEL
+  sudo -u $SVC_USER cp $PREFIX/backups/pre-$tag.db $PREFIX/data/lyra.db
+  sudo rm -f $PREFIX/data/lyra.db-wal $PREFIX/data/lyra.db-shm
+  sudo systemctl start $LABEL"
   }
   echo "==> $tag is live on :$PORT"
 

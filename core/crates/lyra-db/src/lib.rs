@@ -15,6 +15,7 @@ pub mod jobs;
 pub mod life;
 pub mod migrations;
 pub mod secrets;
+pub mod systems;
 pub mod wealth;
 
 use anyhow::{Context, Result};

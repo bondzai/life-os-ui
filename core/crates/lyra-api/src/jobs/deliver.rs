@@ -56,8 +56,28 @@ impl Markup {
 
 /// A message to send, as a job. The one way to build one.
 pub fn job(text: impl Into<String>, markup: Markup) -> NewJob {
-    NewJob::new(KIND, Lane::Deliver)
-        .payload(json!({ "text": text.into(), "markup": markup.as_str() }))
+    job_with(text, markup, &[])
+}
+
+/// The same, carrying taps.
+///
+/// This path matters more than it looks: while routing is empty, **everything** falls back to here,
+/// including a decision that wants buttons on the one channel that can render them. Dropping them
+/// here meant the inbox reached your phone as plain text on exactly the box that had not been
+/// configured yet — which is every box, on day one.
+pub fn job_with(
+    text: impl Into<String>,
+    markup: Markup,
+    buttons: &[lyra_alerts::message::Button],
+) -> NewJob {
+    NewJob::new(KIND, Lane::Deliver).payload(json!({
+        "text": text.into(),
+        "markup": markup.as_str(),
+        "buttons": buttons
+            .iter()
+            .map(|b| json!({ "label": b.label, "data": b.data }))
+            .collect::<Vec<_>>(),
+    }))
 }
 
 /// Sends a job's `payload.text` to every configured channel, and holds each channel to its own
@@ -123,7 +143,8 @@ impl Handler for DeliverTelegram {
                 Message::telegram_markup(text)
             } else {
                 Message::plain(text)
-            };
+            }
+            .with_buttons(crate::jobs::notify::buttons_of(ctx.payload()));
 
             // A box with no channels configured is the ordinary state of a fresh install. Recorded
             // as a completed step rather than a failure, so it does not put a row in the failed

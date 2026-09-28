@@ -144,7 +144,17 @@ async fn run(state: AppState, sender: Arc<TelegramSender>, token: String, owner:
 
         for update in updates.into_iter().take(MAX_PER_POLL) {
             let update_id = update.get("update_id").and_then(Value::as_i64).unwrap_or(0);
-            if let Some((chat, text)) = message_of(&update) {
+            if let Some(tap) = tap_of(&update) {
+                if tap.chat == owner {
+                    let said = answer_tap(&state, &tap).await;
+                    // **Always** answered, success or not. An unanswered callback leaves the
+                    // button spinning on the phone until Telegram times it out, which reads as
+                    // the bot being broken even when the answer was recorded.
+                    acknowledge(&client, &token, &tap.callback_id, &said).await;
+                } else {
+                    tracing::warn!(from = %tap.chat, "telegram tap from an unpinned chat; ignored");
+                }
+            } else if let Some((chat, text)) = message_of(&update) {
                 if chat == owner {
                     let command = command_of(&text.to_lowercase()).to_string();
                     let answering = {
@@ -244,7 +254,7 @@ fn describe(e: reqwest::Error) -> anyhow::Error {
 /// outage does. Nothing in the log said "bad URL"; it said "error sending request".
 fn updates_url(token: &str, offset: i64) -> String {
     format!(
-        "{API_BASE}/bot{token}/getUpdates?timeout={LONG_POLL_SECS}&offset={offset}&allowed_updates=%5B%22message%22%5D"
+        "{API_BASE}/bot{token}/getUpdates?timeout={LONG_POLL_SECS}&offset={offset}&allowed_updates=%5B%22message%22%2C%22callback_query%22%5D"
     )
 }
 
@@ -271,6 +281,101 @@ async fn poll(client: &reqwest::Client, token: &str, offset: i64) -> anyhow::Res
 }
 
 /// `(chat id, text)` for an update this bot can act on.
+/// One tap on an inline button.
+struct Tap {
+    /// Telegram's id for the callback, which has to be answered or the button spins.
+    callback_id: String,
+    chat: String,
+    data: String,
+}
+
+fn tap_of(update: &Value) -> Option<Tap> {
+    let query = update.get("callback_query")?;
+    let chat = query.get("message")?.get("chat")?.get("id")?;
+    let chat = chat
+        .as_i64()
+        .map(|n| n.to_string())
+        .or_else(|| chat.as_str().map(str::to_string))?;
+    Some(Tap {
+        callback_id: query.get("id")?.as_str()?.to_string(),
+        chat,
+        data: query.get("data")?.as_str()?.to_string(),
+    })
+}
+
+/// Record what the tap chose, and say what to show on the phone.
+///
+/// The answer goes through the same store call the web inbox uses, so the two cannot disagree
+/// about what "answered" means — including the rule that the **first** answer wins.
+async fn answer_tap(state: &AppState, tap: &Tap) -> String {
+    use lyra_db::systems::DecisionStore;
+
+    let Some((id, index)) = crate::decisions::parse_tap(&tap.data) else {
+        // Not one of ours. Some other feature's buttons, or a payload from a previous version.
+        tracing::warn!(data = %tap.data, "a tap Lyra does not recognise");
+        return "That button is from an older message.".into();
+    };
+
+    let store = DecisionStore::new(state.pool.clone());
+    let Ok(Some(decision)) = store.get(&id).await else {
+        // The system was removed and took its questions with it. The message is still on the
+        // phone; saying so is better than a silent no-op.
+        return "That decision is gone.".into();
+    };
+    let Some(option) = decision.options.get(index) else {
+        // The origin cannot rewrite a question once raised, so this means a message older than
+        // the row it names — worth saying rather than guessing at which option was meant.
+        return "That option no longer exists.".into();
+    };
+
+    if let Some(already) = &decision.answer {
+        let label = decision
+            .options
+            .iter()
+            .find(|o| &o.value == already)
+            .map_or(already.as_str(), |o| o.label.as_str());
+        return format!("Already answered: {label}");
+    }
+
+    match store.answer(&id, &option.value, wealth::now_secs()).await {
+        Ok(Some(_)) => {
+            // Queued, not sent — the row is written and the tick's sweep is the safety net. Saying
+            // "sent" here would be a lie exactly when the origin is down.
+            use lyra_db::jobs::{Queue, SqliteQueue};
+            if let Err(e) = SqliteQueue::new(state.pool.clone())
+                .enqueue(&crate::jobs::answer::job(&id), wealth::now_secs())
+                .await
+            {
+                tracing::error!(decision = %id, error = %e, "queueing the answer for delivery");
+            }
+            tracing::info!(decision = %id, answer = %option.value, "answered from Telegram");
+            format!("{} — on its way", option.label)
+        }
+        Ok(None) => "That decision is gone.".into(),
+        Err(e) => {
+            tracing::error!(decision = %id, error = %e, "recording a tap");
+            "Could not record that — try the app.".into()
+        }
+    }
+}
+
+/// Tell Telegram the tap was handled, and flash a line on the phone.
+///
+/// Best effort: the answer is already committed, so a failure here costs the toast and nothing
+/// else. What it must not do is not happen at all — see the call site.
+async fn acknowledge(client: &reqwest::Client, token: &str, callback_id: &str, text: &str) {
+    let url = format!("{API_BASE}/bot{token}/answerCallbackQuery");
+    let sent = client
+        .post(url)
+        .json(&json!({ "callback_query_id": callback_id, "text": text }))
+        .send()
+        .await;
+    if let Err(e) = sent {
+        // `without_url`, because the URL carries the bot token.
+        tracing::warn!(error = %e.without_url(), "acknowledging a tap");
+    }
+}
+
 fn message_of(update: &Value) -> Option<(String, String)> {
     let message = update.get("message")?;
     let chat = message.get("chat")?.get("id")?;
@@ -444,6 +549,44 @@ fn capture_echo(text: &str, attempted_command: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_tap_is_read_from_a_callback_query_and_a_message_is_not() {
+        let update = json!({
+            "update_id": 7,
+            "callback_query": {
+                "id": "cb-99",
+                "data": "d:dec-1:0",
+                "message": { "chat": { "id": 4242 } }
+            }
+        });
+        let tap = tap_of(&update).expect("a callback query is a tap");
+        assert_eq!(tap.callback_id, "cb-99");
+        assert_eq!(tap.chat, "4242");
+        assert_eq!(tap.data, "d:dec-1:0");
+        // The two update kinds must not be confused: a tap carries no text, and reading it as a
+        // message would run it through the command grammar.
+        assert!(message_of(&update).is_none());
+
+        let typed = json!({
+            "update_id": 8,
+            "message": { "chat": { "id": 4242 }, "text": "/today" }
+        });
+        assert!(tap_of(&typed).is_none());
+        assert_eq!(
+            message_of(&typed),
+            Some(("4242".to_string(), "/today".to_string()))
+        );
+    }
+
+    #[test]
+    fn the_poll_asks_for_taps_as_well_as_messages() {
+        // Without `callback_query` in `allowed_updates`, Telegram never delivers a tap and the
+        // button spins forever — with no error anywhere to say why.
+        let url = updates_url("123:ABC", 42);
+        assert!(url.contains("%22callback_query%22"), "{url}");
+    }
+
     use super::*;
 
     #[test]
@@ -592,7 +735,7 @@ mod tests {
         assert_eq!(
             url,
             "https://api.telegram.org/bot123:ABC/getUpdates\
-             ?timeout=25&offset=42&allowed_updates=%5B%22message%22%5D"
+             ?timeout=25&offset=42&allowed_updates=%5B%22message%22%2C%22callback_query%22%5D"
                 .replace(' ', "")
         );
         assert!(

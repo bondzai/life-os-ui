@@ -154,6 +154,11 @@ async fn run(state: AppState) {
         // chance to fail yet, so there is nothing to say about it, and running the reporter first
         // would only shorten the window by one tick in the other direction. It is cheap — one
         // indexed read that finds nothing on almost every tick.
+        // Ask the other systems what is new. Before the dead-letter report rather than after, so a
+        // poll that fails on this tick is named in the same tick's report instead of the next one.
+        crate::systems::poll_all(&state).await;
+        // Anything you answered that the origin has not confirmed yet.
+        crate::jobs::answer::sweep(&state).await;
         crate::dead_letters::report(&state).await;
 
         tokio::time::sleep(Duration::from_secs(interval)).await;
