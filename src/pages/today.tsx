@@ -38,6 +38,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useEntities, useTrackers } from '@/core/hooks'
 import { useICalEvents } from '@/hooks/use-ical-events'
 import { useAuthStore } from '@/stores/auth-store'
+import { WaitingOnYou } from '@/pages/today/waiting-on-you'
 import { notify } from '@/lib/notify'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useFocusStore } from '@/stores/focus-store'
@@ -519,8 +520,16 @@ export function TodayPage() {
         </div>
       </header>
 
+      {/* ─── Waiting on you ─── */}
+      {/* Above the tabs, because a decision another system is blocked on outranks your own list —
+          and it renders nothing at all when there is nothing waiting, so it costs no space on the
+          days there isn't. */}
+      <div className="shrink-0">
+        <WaitingOnYou />
+      </div>
+
       {/* ─── Tab Bar ─── */}
-      <div className="shrink-0 pb-4">
+      <div className="shrink-0 py-4">
         <FocusTabBar
           activeTab={activeTab}
           onTabChange={setActiveTab}

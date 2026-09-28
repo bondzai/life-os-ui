@@ -52,11 +52,11 @@ something.
 
 | Check | Command | Baseline |
 |---|---|---|
-| Rust tests | `cd core && cargo test --workspace` | **1427 pass** |
+| Rust tests | `cd core && cargo test --workspace` | **1450 pass** |
 | Clippy | `cd core && cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | Rust format | `cd core && cargo fmt --all --check` | clean |
 | Types | `npm run typecheck` | clean |
-| Frontend tests | `npm test` | **349 pass, 11 skipped** |
+| Frontend tests | `npm test` | **357 pass, 11 skipped** |
 | Lint | `npm run lint` | **58 errors — pre-existing, not a gate** |
 
 `npm run lint` is red and has been for a long time. It runs in CI reporting-only. Do not "fix" it as
@@ -113,9 +113,9 @@ page renders its error state against a perfectly healthy server.
 type-specific fields in a `metadata` JSON blob. Do not add a table for a new entity *type*.
 
 Infrastructure is the exception, and it is a real one rather than a loophole: `jobs`, `job_effects`,
-`schedules`, `alert_state`, `channels` and `routes` are all their own tables. The line is whether the
-thing is something in your life or something the machine needs to do its work. A task is an entity; a
-notification channel is plumbing.
+`schedules`, `alert_state`, `channels`, `routes`, `crons`, `systems` and `decisions` are all their
+own tables. The line is whether the thing is something in your life or something the machine needs
+to do its work. A task is an entity; a notification channel is plumbing.
 
 ## Conventions that are not optional
 
@@ -154,6 +154,7 @@ them to build.
 | the job queue | `docs/jobs.md` |
 | workspaces and authored context | `docs/workspaces.md` |
 | notifications, routing, channels, schedules | `docs/notifications.md` |
+| other systems, the decision inbox | `docs/systems.md` |
 | alert rules | `docs/alerts.md` |
 | the Telegram surface | `docs/telegram.md` |
 | the MCP server | `docs/mcp.md` |

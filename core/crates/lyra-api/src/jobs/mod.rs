@@ -27,6 +27,7 @@
 //! gives it back, and takes one again for each heartbeat and the completion — so four workers cost
 //! four connections in bursts rather than four for as long as their handlers run.
 
+pub mod answer;
 pub mod deliver;
 pub mod digest;
 pub mod notify;
@@ -274,7 +275,8 @@ pub fn handlers(state: AppState) -> Handlers {
         .with(Arc::new(snapshot::NetWorthSnapshot::new(state.clone())))
         .with(Arc::new(schedule::ScheduleTick::new(state.clone())))
         .with(Arc::new(notify::NotifyDeliver::new(state.clone())))
-        .with(Arc::new(notify::message::NotifyMessage::new(state)))
+        .with(Arc::new(notify::message::NotifyMessage::new(state.clone())))
+        .with(Arc::new(answer::DeliverAnswer::new(state)))
 }
 
 /// Where a worker reads the time from.
@@ -1115,7 +1117,8 @@ mod tests {
                 "notify.deliver",
                 "notify.message",
                 "schedule.tick",
-                "snapshot.networth"
+                "snapshot.networth",
+                "system.answer"
             ]
         );
     }
