@@ -163,6 +163,70 @@ One thing worth knowing about the fallback: while routing is empty **everything*
 `deliver.telegram`, and that path carries the buttons too. It did not at first, which meant the one
 box that most needed them — a fresh one, with nothing configured — got the inbox as flat text.
 
+## The hub
+
+**Settings → Systems** is where you edit them; **Network** (`/hub`) is where you use them. One page,
+one click to anything on the tailnet, and the dot tells you before you click.
+
+Tiles come from the same rows, which is the whole point: the dot that says the factory is up is the
+*same fact* the decision inbox is working from. Two tables would have meant two dots that can
+disagree about one service.
+
+**A row is a `link` or a `system`.** A link is a tile only — a router page, Grafana, a media server.
+A system is a link that Lyra also asks for decisions. A row added without saying is a `link`, because
+the other default would have Lyra asking a media server for decisions the moment you bookmarked it.
+
+**`url` is where you go; `base_url` is where Lyra goes.** They are routinely different — the API
+door is `http://factory:8080` while the tile opens `https://factory.tailnet.ts.net`. Conflating them
+gives a tile that shows you JSON, or a poll aimed at a web page and marked failing forever.
+
+**Use Tailscale names, never IPs.** A lease moves and an IP tile breaks. It is also the honest
+boundary: a tailnet name resolves only on the tailnet, so a wall of red seen from a café means you
+are off the network, not that the house is down.
+
+### Health is on its own clock
+
+The dots are refreshed every two minutes, not every tick, and **all at once**. Sequentially each
+unreachable row costs the five-second timeout: fine at two systems, fifty seconds inside a
+thirty-second tick at ten — which surfaces as the morning brief arriving late, long after anyone
+would connect it to adding a tile. A `tokio::task::JoinSet` makes it five seconds whatever the count.
+
+A decision has to reach you in thirty seconds. A green dot does not. That difference is the whole
+reason the two sweeps have different cadences.
+
+A `link` is checked for liveness only, and **any answer that is not a 5xx is alive**: a 401, or a
+redirect to a login page, means the service is up and doing its job.
+
+### Everything red at once is one fault
+
+Two services failing in the same minute is possible; eight is Tailscale on the box. When every
+enabled system has failed its last check **and more than one exists**, the hub says so once instead
+of painting N separate faults — reporting it the other way sends you to check N things.
+
+The threshold matters both ways: one system down is one system down, and a banner that cries wolf
+is a banner nobody reads.
+
+### Filtering is `/`, not a palette
+
+A box on the page, focused by `/` from anywhere, matching name, group **or address** — the address
+is often the only thing anyone remembers about a box they visit twice a year. Enter opens the top
+hit. It appears only past six tiles, because below that hunting is faster than typing.
+
+Deliberately not ⌘K. This app already navigates with `g <key>`, and a second global mechanism
+competing with it is the more complicated answer to "typing beats hunting". It would also be a new
+dependency for one page.
+
+The header counts the **whole network**, not the filter, so "6 up" keeps meaning the network while
+you type. That is one memo reading the full list and another reading the filtered one; keep them
+separate or the number moves as you narrow.
+
+### Not an icon CDN
+
+Icons are lucide names resolved against a small bundled set, with the first letter of the name as
+the fallback. A dashboard full of broken images when the house internet is down — exactly when you
+would open it to find out why — is worse than one with letters in circles. Importing all of lucide
+to render eight tiles would cost more than the page does.
+
 ## What is not built
 
 - **A Discord tap is not possible as things stand.** A webhook is outbound-only — it has no

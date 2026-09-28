@@ -19,12 +19,53 @@ use sqlx::{Row, SqlitePool};
 use crate::channels::random_id;
 use crate::secrets;
 
+/// What a row is for.
+///
+/// The same table holds both because a launcher tile and a system Lyra talks to are the same thing
+/// at different depths. What separates them is whether Lyra asks it questions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Kind {
+    /// Lyra polls it for decisions, and it is a tile.
+    System,
+    /// A tile only, checked for liveness. A router admin page has no `/decisions`, and polling one
+    /// paints a permanent red dot from a 404 on a service that is perfectly healthy.
+    Link,
+}
+
+impl Kind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Kind::System => "system",
+            Kind::Link => "link",
+        }
+    }
+
+    /// Anything unrecognised reads as `link`, which is the safe direction: a row Lyra does not
+    /// understand gets a tile and is never asked a question it cannot answer.
+    pub fn parse(raw: &str) -> Self {
+        match raw {
+            "system" => Kind::System,
+            _ => Kind::Link,
+        }
+    }
+}
+
 /// A system as the API and the UI see it. **No token.**
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct System {
     pub id: String,
     pub name: String,
+    pub kind: Kind,
+    /// Where *Lyra* goes: the API door.
     pub base_url: String,
+    /// Where *you* go. Different from `base_url` more often than not — the API is
+    /// `http://factory:8080` while the tile opens `https://factory.tailnet.ts.net`.
+    pub url: Option<String>,
+    /// A lucide name, resolved in the front end. Never a URL: the page has no internet dependency.
+    pub icon: Option<String>,
+    pub category: Option<String>,
+    pub sort: i64,
     /// What to show instead of the token — enough to tell two apart, useless to anyone else.
     pub token_preview: Option<String>,
     pub stored_token: bool,
@@ -75,13 +116,34 @@ impl Decision {
 }
 
 /// What to write when registering or editing a system.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SystemInput {
     pub name: String,
+    pub kind: Kind,
     pub base_url: String,
+    pub url: Option<String>,
+    pub icon: Option<String>,
+    pub category: Option<String>,
     /// The token in the clear. Sealed before it is stored, and never read back.
     pub token: Option<String>,
     pub scopes: Vec<String>,
+}
+
+impl Default for SystemInput {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            // A row you add without saying is a tile. Defaulting the other way would have Lyra
+            // asking a media server for decisions the moment you bookmarked it.
+            kind: Kind::Link,
+            base_url: String::new(),
+            url: None,
+            icon: None,
+            category: None,
+            token: None,
+            scopes: Vec::new(),
+        }
+    }
 }
 
 /// A partial edit. `None` everywhere means "change nothing", and `token: None` in particular means
@@ -89,7 +151,12 @@ pub struct SystemInput {
 #[derive(Debug, Clone, Default)]
 pub struct SystemPatch {
     pub name: Option<String>,
+    pub kind: Option<Kind>,
     pub base_url: Option<String>,
+    pub url: Option<String>,
+    pub icon: Option<String>,
+    pub category: Option<String>,
+    pub sort: Option<i64>,
     pub token: Option<String>,
     pub scopes: Option<Vec<String>>,
     pub enabled: Option<bool>,
@@ -126,9 +193,9 @@ impl SystemStore {
 
     pub async fn list(&self) -> Result<Vec<System>> {
         let rows = sqlx::query(
-            "SELECT id, name, base_url, token, token_preview, scopes, enabled, cursor,
+            "SELECT id, name, kind, base_url, url, icon, category, sort, token, token_preview, scopes, enabled, cursor,
                     last_ok_at, last_error, failing_since
-               FROM systems ORDER BY name COLLATE NOCASE",
+               FROM systems ORDER BY sort, name COLLATE NOCASE",
         )
         .fetch_all(&self.pool)
         .await
@@ -136,8 +203,21 @@ impl SystemStore {
         Ok(rows.iter().map(row_to_system).collect())
     }
 
-    /// Only the ones a sweep should talk to.
+    /// Only the ones the **decision** sweep should talk to.
+    ///
+    /// `kind = link` is excluded by design: a tile has no `/decisions`, and asking it for some
+    /// would mark a perfectly healthy service as failing on every tick.
     pub async fn enabled(&self) -> Result<Vec<System>> {
+        Ok(self
+            .list()
+            .await?
+            .into_iter()
+            .filter(|s| s.enabled && s.kind == Kind::System)
+            .collect())
+    }
+
+    /// Everything a health check should reach — tiles included.
+    pub async fn reachable(&self) -> Result<Vec<System>> {
         Ok(self
             .list()
             .await?
@@ -148,7 +228,7 @@ impl SystemStore {
 
     pub async fn get(&self, id: &str) -> Result<Option<System>> {
         let row = sqlx::query(
-            "SELECT id, name, base_url, token, token_preview, scopes, enabled, cursor,
+            "SELECT id, name, kind, base_url, url, icon, category, sort, token, token_preview, scopes, enabled, cursor,
                     last_ok_at, last_error, failing_since
                FROM systems WHERE id = ?",
         )
@@ -164,13 +244,17 @@ impl SystemStore {
         let (sealed, preview) = self.seal_for(&id, input.token.as_deref())?;
 
         sqlx::query(
-            "INSERT INTO systems (id, name, base_url, token, token_preview, scopes, enabled,
-                                  created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
+            "INSERT INTO systems (id, name, kind, base_url, url, icon, category, token,
+                                  token_preview, scopes, enabled, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
         )
         .bind(&id)
         .bind(input.name.trim())
+        .bind(input.kind.as_str())
         .bind(input.base_url.trim_end_matches('/'))
+        .bind(input.url.as_deref().map(|u| u.trim_end_matches('/')))
+        .bind(input.icon.as_deref())
+        .bind(input.category.as_deref())
         .bind(&sealed)
         .bind(&preview)
         .bind(scopes_json(&input.scopes))
@@ -231,6 +315,51 @@ impl SystemStore {
             .execute(&self.pool)
             .await
             .context("storing a system token")?;
+        }
+        if let Some(kind) = patch.kind {
+            sqlx::query("UPDATE systems SET kind = ?, updated_at = ? WHERE id = ?")
+                .bind(kind.as_str())
+                .bind(now)
+                .bind(id)
+                .execute(&self.pool)
+                .await
+                .context("changing what a system is")?;
+        }
+        if let Some(url) = &patch.url {
+            sqlx::query("UPDATE systems SET url = ?, updated_at = ? WHERE id = ?")
+                .bind(url.trim_end_matches('/'))
+                .bind(now)
+                .bind(id)
+                .execute(&self.pool)
+                .await
+                .context("setting where a tile goes")?;
+        }
+        if let Some(icon) = &patch.icon {
+            sqlx::query("UPDATE systems SET icon = ?, updated_at = ? WHERE id = ?")
+                .bind(icon)
+                .bind(now)
+                .bind(id)
+                .execute(&self.pool)
+                .await
+                .context("setting a tile's icon")?;
+        }
+        if let Some(category) = &patch.category {
+            sqlx::query("UPDATE systems SET category = ?, updated_at = ? WHERE id = ?")
+                .bind(category)
+                .bind(now)
+                .bind(id)
+                .execute(&self.pool)
+                .await
+                .context("filing a tile")?;
+        }
+        if let Some(sort) = patch.sort {
+            sqlx::query("UPDATE systems SET sort = ?, updated_at = ? WHERE id = ?")
+                .bind(sort)
+                .bind(now)
+                .bind(id)
+                .execute(&self.pool)
+                .await
+                .context("reordering a tile")?;
         }
         if let Some(scopes) = &patch.scopes {
             sqlx::query("UPDATE systems SET scopes = ?, updated_at = ? WHERE id = ?")
@@ -489,7 +618,12 @@ fn row_to_system(row: &sqlx::sqlite::SqliteRow) -> System {
     System {
         id: row.get("id"),
         name: row.get("name"),
+        kind: Kind::parse(&row.try_get::<String, _>("kind").unwrap_or_default()),
         base_url: row.get("base_url"),
+        url: row.try_get("url").unwrap_or(None),
+        icon: row.try_get("icon").unwrap_or(None),
+        category: row.try_get("category").unwrap_or(None),
+        sort: row.try_get("sort").unwrap_or(0),
         token_preview: row.try_get("token_preview").unwrap_or(None),
         stored_token: sealed.is_some(),
         scopes: serde_json::from_str(&scopes).unwrap_or_default(),
@@ -541,9 +675,11 @@ mod tests {
     fn factory() -> SystemInput {
         SystemInput {
             name: "content-factory".into(),
+            kind: Kind::System,
             base_url: "http://factory.tail-scale.ts.net:8080/".into(),
+            url: Some("https://factory.tail-scale.ts.net/".into()),
             token: Some("ceo-token-abcdef123456".into()),
-            scopes: vec![],
+            ..Default::default()
         }
     }
 

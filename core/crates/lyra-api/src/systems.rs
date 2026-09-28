@@ -31,7 +31,7 @@ use axum::extract::{Path as AxumPath, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use lyra_db::systems::{
-    Decision, DecisionStore, Option_, Raised, System, SystemInput, SystemPatch, SystemStore,
+    Decision, DecisionStore, Kind, Option_, Raised, System, SystemInput, SystemPatch, SystemStore,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -191,16 +191,28 @@ impl Adapter for HttpAdapter {
         token: Option<&'a str>,
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
-            let response = Self::authed(
-                Self::client()?.get(format!("{}/healthz", sys.base_url)),
-                token,
-            )
-            .send()
-            .await
-            .map_err(|e| trim(&e.to_string()))?;
-            match response.status().is_success() {
+            // A `link` has no `/healthz` — it is a router page or a media server. Asking for one
+            // would report a perfectly healthy service as failing, forever, from a 404.
+            let (url, what) = match sys.kind {
+                Kind::System => (format!("{}/healthz", sys.base_url), "/healthz"),
+                Kind::Link => (
+                    sys.url.clone().unwrap_or_else(|| sys.base_url.clone()),
+                    "it",
+                ),
+            };
+            let response = Self::authed(Self::client()?.get(url), token)
+                .send()
+                .await
+                .map_err(|e| trim(&e.to_string()))?;
+            // Any answer at all is alive for a link: a login page returning 401, or a redirect to
+            // one, means the service is up and doing its job. Only a 5xx is the service failing.
+            let ok = match sys.kind {
+                Kind::System => response.status().is_success(),
+                Kind::Link => !response.status().is_server_error(),
+            };
+            match ok {
                 true => Ok(()),
-                false => Err(format!("{} from /healthz", response.status())),
+                false => Err(format!("{} from {what}", response.status())),
             }
         })
     }
@@ -313,6 +325,66 @@ impl Adapter for FixtureAdapter {
 }
 
 /* ─── the tick ─── */
+
+/// How often the dots are refreshed.
+///
+/// Not every tick. A decision has to reach you in thirty seconds; a green dot does not, and
+/// checking a dozen tiles on the sweep's clock is how the alert loop starts running late.
+const HEALTH_EVERY: i64 = 120;
+
+/// Check everything at once and write what each one said.
+///
+/// **Concurrently, under one wall-clock budget.** Sequentially this costs `TIMEOUT` per unreachable
+/// row — fine at two, and fifty seconds inside a thirty-second tick at ten. That arithmetic is
+/// invisible until the day you add the tenth tile, and then it looks like the brief being late.
+pub async fn check_health(state: &AppState) -> usize {
+    let systems = SystemStore::new(state.pool.clone(), state.secret_key.as_deref().cloned());
+    let now = lyra_db::jobs::now_secs();
+
+    let rows = match systems.reachable().await {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::error!(error = %e, "could not read the systems to check them");
+            return 0;
+        }
+    };
+
+    // Only the ones nobody has heard from recently. A row checked by hand thirty seconds ago does
+    // not need checking again, and skipping it keeps the fan-out small on a busy tailnet.
+    let due: Vec<System> = rows
+        .into_iter()
+        .filter(|sys| sys.last_ok_at.is_none_or(|at| now - at >= HEALTH_EVERY))
+        .collect();
+    if due.is_empty() {
+        return 0;
+    }
+
+    // `JoinSet` rather than a crate for it: tokio is already here, and the only thing being asked
+    // for is "all of these at once, then tell me when they are done".
+    let mut checking = tokio::task::JoinSet::new();
+    for sys in due {
+        let systems = SystemStore::new(state.pool.clone(), state.secret_key.as_deref().cloned());
+        checking.spawn(async move {
+            let token = systems.token_of(&sys.id).await.unwrap_or(None);
+            let outcome = adapter_for(&sys.base_url)
+                .health(&sys, token.as_deref())
+                .await
+                .map(|()| None);
+            record(&systems, &sys, outcome, now).await;
+        });
+    }
+
+    let mut checked = 0;
+    while let Some(done) = checking.join_next().await {
+        match done {
+            Ok(()) => checked += 1,
+            // A panicked check costs one dot, never the sweep. Logged so it is not silent.
+            Err(e) => tracing::error!(error = %e, "a health check panicked"),
+        }
+    }
+    tracing::debug!(checked, "health checked");
+    checked
+}
 
 /// Ask every enabled system what is new. Returns how many decisions were raised.
 ///
@@ -430,7 +502,13 @@ pub async fn index(_user: AuthUser, State(state): State<AppState>) -> Response {
 #[derive(Debug, Deserialize)]
 pub struct NewSystem {
     pub name: String,
+    /// `system` or `link`. Absent means `link` — a row you add without saying is a tile, and
+    /// defaulting the other way would have Lyra asking a media server for decisions.
+    pub kind: Option<String>,
     pub base_url: String,
+    pub url: Option<String>,
+    pub icon: Option<String>,
+    pub category: Option<String>,
     pub token: Option<String>,
     #[serde(default)]
     pub scopes: Vec<String>,
@@ -454,7 +532,11 @@ pub async fn create(
         .create(
             &SystemInput {
                 name: body.name,
+                kind: Kind::parse(body.kind.as_deref().unwrap_or("link")),
                 base_url: body.base_url,
+                url: body.url,
+                icon: body.icon,
+                category: body.category,
                 token: body.token,
                 scopes: body.scopes,
             },
@@ -472,7 +554,12 @@ pub async fn create(
 #[derive(Debug, Deserialize)]
 pub struct SystemBody {
     pub name: Option<String>,
+    pub kind: Option<String>,
     pub base_url: Option<String>,
+    pub url: Option<String>,
+    pub icon: Option<String>,
+    pub category: Option<String>,
+    pub sort: Option<i64>,
     pub token: Option<String>,
     pub scopes: Option<Vec<String>>,
     pub enabled: Option<bool>,
@@ -499,7 +586,12 @@ pub async fn update(
             .name
             .map(|n| n.trim().to_string())
             .filter(|n| !n.is_empty()),
+        kind: body.kind.as_deref().map(Kind::parse),
         base_url: body.base_url,
+        url: body.url,
+        icon: body.icon,
+        category: body.category,
+        sort: body.sort,
         token: body.token,
         scopes: body.scopes,
         enabled: body.enabled,
@@ -699,9 +791,9 @@ mod tests {
             .create(
                 &SystemInput {
                     name: "content-factory (stub)".into(),
+                    kind: Kind::System,
                     base_url: format!("fixture://{}", fixture.display()),
-                    token: None,
-                    scopes: vec![],
+                    ..Default::default()
                 },
                 1000,
             )
@@ -741,9 +833,9 @@ mod tests {
             .create(
                 &SystemInput {
                     name: "content-factory".into(),
+                    kind: Kind::System,
                     base_url: format!("fixture://{}", fixture.display()),
-                    token: None,
-                    scopes: vec![],
+                    ..Default::default()
                 },
                 1000,
             )
@@ -805,9 +897,9 @@ mod tests {
             .create(
                 &SystemInput {
                     name: "aaa-missing".into(),
+                    kind: Kind::System,
                     base_url: "fixture:///nowhere/at/all.json".into(),
-                    token: None,
-                    scopes: vec![],
+                    ..Default::default()
                 },
                 1000,
             )
@@ -817,9 +909,9 @@ mod tests {
             .create(
                 &SystemInput {
                     name: "zzz-working".into(),
+                    kind: Kind::System,
                     base_url: format!("fixture://{}", fixture.display()),
-                    token: None,
-                    scopes: vec![],
+                    ..Default::default()
                 },
                 1000,
             )
@@ -856,9 +948,9 @@ mod tests {
             .create(
                 &SystemInput {
                     name: "content-factory".into(),
+                    kind: Kind::System,
                     base_url: format!("fixture://{}", fixture.display()),
-                    token: None,
-                    scopes: vec![],
+                    ..Default::default()
                 },
                 1000,
             )

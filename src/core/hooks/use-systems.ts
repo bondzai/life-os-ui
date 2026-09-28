@@ -10,10 +10,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiGet, apiSend } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 
+/** `system` — Lyra polls it for decisions, and it is a tile. `link` — a tile only. */
+export type SystemKind = 'system' | 'link'
+
 export interface System {
   id: string
   name: string
+  kind: SystemKind
+  /** Where *Lyra* goes: the API door. */
   base_url: string
+  /** Where *you* go. Usually not `base_url` — that one answers JSON. */
+  url: string | null
+  /** A lucide name, resolved against a small bundled set. Never a URL. */
+  icon: string | null
+  category: string | null
+  sort: number
   /** Enough to tell two tokens apart, useless to anyone else. The real one never leaves the box. */
   token_preview: string | null
   stored_token: boolean
@@ -73,7 +84,11 @@ export function useCreateSystem() {
   return useMutation({
     mutationFn: (body: {
       name: string
+      kind?: SystemKind
       base_url: string
+      url?: string
+      icon?: string
+      category?: string
       token?: string
       scopes?: string[]
     }) => apiSend<System>('POST', 'systems', body),
@@ -82,9 +97,9 @@ export function useCreateSystem() {
 }
 
 /** `token` absent means "leave the stored one alone" — the screen was never given it. */
-export type SystemPatch = Partial<Pick<System, 'name' | 'base_url' | 'scopes' | 'enabled'>> & {
-  token?: string
-}
+export type SystemPatch = Partial<
+  Pick<System, 'name' | 'kind' | 'base_url' | 'url' | 'icon' | 'category' | 'sort' | 'scopes' | 'enabled'>
+> & { token?: string }
 
 export function useUpdateSystem() {
   const client = useQueryClient()

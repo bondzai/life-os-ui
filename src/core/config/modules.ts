@@ -11,6 +11,7 @@ import {
   Inbox,
   Layers,
   LayoutDashboard,
+  Network,
   NotebookPen,
   Repeat,
   SlidersHorizontal,
@@ -66,6 +67,9 @@ export const modules: ModuleConfig[] = [
   { id: 'deep-work', label: 'Deep Work', icon: Timer, path: '/deep-work', goKey: 'd', group: 'Now', entityTypes: [] },
   { id: 'inbox', label: 'Inbox', icon: Inbox, path: '/inbox', goKey: 'i', group: 'Now', entityTypes: [] },
   { id: 'agents', label: 'Agents', icon: Bot, path: '/agents', goKey: 'a', group: 'Now', entityTypes: [] },
+  // The way out to everything else on the tailnet. In Now because it is a place you pass
+  // through, not a thing you plan.
+  { id: 'hub', label: 'Network', icon: Network, path: '/hub', goKey: 'k', group: 'Now', entityTypes: [] },
 
   // Plan — what you are working towards, and the surfaces that review it
   { id: 'tasks', label: 'Tasks', icon: CheckSquare, path: '/tasks', goKey: 't', group: 'Plan', entityTypes: ['task', 'chore'] },

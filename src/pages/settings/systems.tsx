@@ -27,6 +27,7 @@ import {
   useSystems,
   useUpdateSystem,
   type System,
+  type SystemKind,
 } from '@/core/hooks/use-systems'
 
 const INPUT =
@@ -98,6 +99,11 @@ function SystemRow({ system }: { system: System }) {
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-2 font-medium">
             {system.name}
+            {system.kind === 'link' && (
+              <span className="rounded-full border border-muted-foreground/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                link
+              </span>
+            )}
             {isStub(system.base_url) && (
               <span className="rounded-full border border-muted-foreground/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                 stub
@@ -110,7 +116,7 @@ function SystemRow({ system }: { system: System }) {
             )}
           </p>
           <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-            {system.base_url}
+            {system.url ?? system.base_url}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {system.stored_token
@@ -239,7 +245,11 @@ function AddSystem() {
   const create = useCreateSystem()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
+  const [kind, setKind] = useState<SystemKind>('link')
   const [baseUrl, setBaseUrl] = useState('')
+  const [url, setUrl] = useState('')
+  const [icon, setIcon] = useState('')
+  const [category, setCategory] = useState('')
   const [token, setToken] = useState('')
 
   if (!open) {
@@ -250,7 +260,9 @@ function AddSystem() {
     )
   }
 
-  const ready = name.trim() !== '' && baseUrl.trim() !== ''
+  // A link only needs somewhere to go; a system also needs the door Lyra polls.
+  const ready =
+    name.trim() !== '' && (kind === 'link' ? url.trim() !== '' : baseUrl.trim() !== '')
 
   return (
     <form
@@ -261,13 +273,22 @@ function AddSystem() {
         create
           .mutateAsync({
             name: name.trim(),
-            base_url: baseUrl.trim(),
+            kind,
+            // A link has no API door, so its address is the one you click. Sending it as both
+            // keeps one column authoritative instead of leaving `base_url` empty and special.
+            base_url: (kind === 'link' ? url || baseUrl : baseUrl).trim(),
+            url: (url || baseUrl).trim() || undefined,
+            icon: icon.trim() || undefined,
+            category: category.trim() || undefined,
             token: token.trim() || undefined,
           })
           .then(() => {
             setOpen(false)
             setName('')
+            setUrl('')
             setBaseUrl('')
+            setIcon('')
+            setCategory('')
             setToken('')
           })
           .catch(() => {
@@ -288,23 +309,87 @@ function AddSystem() {
             className={`mt-1 w-full ${INPUT}`}
           />
         </div>
+        <div>
+          <label className="block text-xs font-medium" htmlFor="system-kind">
+            What is it
+          </label>
+          <select
+            id="system-kind"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as SystemKind)}
+            className={`mt-1 ${INPUT}`}
+          >
+            <option value="link">A link — just a tile</option>
+            <option value="system">A system — Lyra asks it things</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
         <div className="min-w-[14rem] flex-[2]">
-          <label className="block text-xs font-medium" htmlFor="system-url">
-            Address
+          <label className="block text-xs font-medium" htmlFor="system-open-url">
+            Opens
           </label>
           <input
-            id="system-url"
+            id="system-open-url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://factory.tailnet.ts.net"
+            className={`mt-1 w-full ${INPUT}`}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Where the tile takes you. Use the Tailscale name, not an IP — a lease moves and the
+            tile breaks.
+          </p>
+        </div>
+        <div className="min-w-[8rem] flex-1">
+          <label className="block text-xs font-medium" htmlFor="system-category">
+            Group
+          </label>
+          <input
+            id="system-category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="Home server"
+            className={`mt-1 w-full ${INPUT}`}
+          />
+        </div>
+        <div className="min-w-[8rem] flex-1">
+          <label className="block text-xs font-medium" htmlFor="system-icon">
+            Icon
+          </label>
+          <input
+            id="system-icon"
+            value={icon}
+            onChange={(e) => setIcon(e.target.value)}
+            placeholder="server"
+            className={`mt-1 w-full ${INPUT}`}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            A name, not a URL. Anything unknown shows the first letter.
+          </p>
+        </div>
+      </div>
+
+      {kind === 'system' && (
+        <div>
+          <label className="block text-xs font-medium" htmlFor="system-api-url">
+            API door
+          </label>
+          <input
+            id="system-api-url"
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
             placeholder="http://factory:8080"
             className={`mt-1 w-full ${INPUT}`}
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            Or <code className="font-mono">fixture:///path/to/decisions.json</code> to stand in for
-            a system that is still being built.
+            Where Lyra polls, which is usually not where you go — that one answers JSON. Or{' '}
+            <code className="font-mono">fixture:///path/to/decisions.json</code> to stand in for a
+            system that is still being built.
           </p>
         </div>
-      </div>
+      )}
 
       <div>
         <label className="block text-xs font-medium" htmlFor="system-token">

@@ -204,7 +204,7 @@ pub async fn announce(state: &AppState, decision: &Decision) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lyra_db::systems::{Option_, Raised, SystemInput, SystemStore};
+    use lyra_db::systems::{Kind, Option_, Raised, SystemInput, SystemStore};
     use tempfile::TempDir;
 
     async fn app() -> (TempDir, AppState, DecisionStore, String) {
@@ -219,9 +219,9 @@ mod tests {
             .create(
                 &SystemInput {
                     name: "content-factory".into(),
+                    kind: Kind::System,
                     base_url: "fixture:///tmp/x.json".into(),
-                    token: None,
-                    scopes: vec![],
+                    ..Default::default()
                 },
                 1000,
             )
