@@ -197,6 +197,8 @@ pub fn app(state: AppState, origins: Vec<String>) -> Router {
         // files — as one ranked query. Not `/api/search`, which is a DuckDuckGo proxy.
         .route("/api/notes/search", get(notes::search))
         .route("/api/notes/reindex", post(notes::reindex))
+        .route("/api/notes/unwritten", get(notes::unwritten))
+        .route("/api/notes/{id}/links", get(notes::links))
         .route("/api/decisions", get(decisions::index))
         .route("/api/decisions/{id}/answer", post(decisions::answer))
         .route("/api/workspaces", get(workspaces::index))

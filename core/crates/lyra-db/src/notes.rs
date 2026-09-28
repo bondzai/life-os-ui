@@ -256,6 +256,271 @@ pub fn to_match(query: &str) -> Option<String> {
     }
 }
 
+/* ─── links ─── */
+
+/// One `[[wikilink]]` found in a body.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Link {
+    /// What the brackets said, normalised for matching: trimmed, `|alias` and `#heading` removed.
+    pub target: String,
+    /// The note it resolves to, or `None` for something not written yet.
+    pub to_note: Option<String>,
+}
+
+/// A note pointing at this one.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Backlink {
+    pub id: String,
+    pub source: Source,
+    pub reference: String,
+    pub title: String,
+}
+
+/// Something linked to but never written, and how many notes want it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Unwritten {
+    pub target: String,
+    pub wanted_by: i64,
+}
+
+/// Pull the `[[wikilinks]]` out of a body.
+///
+/// Handles Obsidian's forms: `[[Note]]`, `[[Note|shown as this]]`, `[[Note#heading]]` and the
+/// `![[embed]]` prefix. The target is everything before a `|` or `#`, trimmed.
+///
+/// **Fenced code is skipped.** A `[[` inside a code sample is not a link, and indexing it creates
+/// an edge to a note nobody meant — which then shows up as an unwritten note you never intended to
+/// write. Inline backticks are not handled: a single-backtick span containing a whole wikilink is
+/// rare enough that the extra parser state is not worth it, and the cost of being wrong is one
+/// spurious edge rather than a broken note.
+pub fn links_in(body: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut fenced = false;
+
+    for line in body.lines() {
+        let trimmed = line.trim_start();
+        // ``` or ~~~, and any info string after it.
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            fenced = !fenced;
+            continue;
+        }
+        if fenced {
+            continue;
+        }
+
+        let bytes: Vec<char> = line.chars().collect();
+        let mut i = 0;
+        while i + 1 < bytes.len() {
+            if bytes[i] == '['
+                && bytes[i + 1] == '['
+                && let Some(end) = find_close(&bytes, i + 2)
+            {
+                let inner: String = bytes[i + 2..end].iter().collect();
+                if let Some(target) = normalise(&inner) {
+                    found.push(target);
+                }
+                i = end + 2;
+                continue;
+            }
+            i += 1;
+        }
+    }
+
+    // De-duplicated, because `(from_note, target)` is the primary key and one note mentioning
+    // another three times is still one edge.
+    found.sort();
+    found.dedup();
+    found
+}
+
+fn find_close(chars: &[char], from: usize) -> Option<usize> {
+    let mut i = from;
+    while i + 1 < chars.len() {
+        if chars[i] == ']' && chars[i + 1] == ']' {
+            return Some(i);
+        }
+        // An unclosed `[[` that runs into the next one is a typo, not a link across two targets.
+        if chars[i] == '[' && chars[i + 1] == '[' {
+            return None;
+        }
+        i += 1;
+    }
+    None
+}
+
+/// `Note|alias` and `Note#heading` both point at `Note`.
+fn normalise(inner: &str) -> Option<String> {
+    let target = inner
+        .split(['|', '#'])
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    (!target.is_empty()).then_some(target)
+}
+
+impl NoteStore {
+    /// Rebuild every derived link, resolving each target against the index.
+    ///
+    /// Run after a sweep rather than inside it, because a link can point at a note the sweep has
+    /// not reached yet — resolving as you go would leave the first half of an alphabet unable to
+    /// see the second.
+    ///
+    /// Resolution is **by title**, case-insensitively, and for files also by filename stem. That
+    /// is what makes this work whichever editor you use: a title is the one thing both stores
+    /// have, so `[[KuCoin fees]]` finds the note wherever it lives.
+    pub async fn relink(&self) -> Result<usize> {
+        let rows = sqlx::query("SELECT id, source, ref, title, body FROM notes")
+            .fetch_all(&self.pool)
+            .await
+            .context("reading notes to link")?;
+
+        // One lowercase lookup built once, rather than a query per link. At a few thousand notes
+        // this is a few hundred kilobytes and turns an O(links x notes) job into O(links).
+        let mut by_name: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        for row in &rows {
+            let id: String = row.get("id");
+            let title: String = row.get("title");
+            if !title.trim().is_empty() {
+                by_name
+                    .entry(title.trim().to_lowercase())
+                    .or_insert(id.clone());
+            }
+            // `wealth/exchanges.md` is also reachable as `exchanges`, which is how anyone
+            // actually writes the link.
+            if Source::parse(&row.try_get::<String, _>("source").unwrap_or_default())
+                == Source::File
+            {
+                let reference: String = row.get("ref");
+                if let Some(stem) = reference
+                    .rsplit('/')
+                    .next()
+                    .and_then(|f| f.strip_suffix(".md"))
+                {
+                    by_name.entry(stem.trim().to_lowercase()).or_insert(id);
+                }
+            }
+        }
+
+        let mut tx = self.pool.begin().await.context("relinking")?;
+        // Derived wholesale, so rebuilt wholesale. This is exactly why these edges are not in
+        // `relations`: doing this to that table would delete what you drew by hand.
+        sqlx::query("DELETE FROM note_links")
+            .execute(&mut *tx)
+            .await
+            .context("clearing derived links")?;
+
+        let mut written = 0;
+        for row in &rows {
+            let from: String = row.get("id");
+            let body: String = row.get("body");
+            for target in links_in(&body) {
+                let to = by_name.get(&target.to_lowercase());
+                // A note linking to itself is a typo or a heading reference, never an edge worth
+                // drawing — and it would put every note in its own backlinks.
+                if to == Some(&from) {
+                    continue;
+                }
+                sqlx::query(
+                    "INSERT INTO note_links (from_note, target, to_note) VALUES (?, ?, ?)
+                     ON CONFLICT(from_note, target) DO NOTHING",
+                )
+                .bind(&from)
+                .bind(&target)
+                .bind(to)
+                .execute(&mut *tx)
+                .await
+                .context("writing a derived link")?;
+                written += 1;
+            }
+        }
+
+        tx.commit().await.context("committing derived links")?;
+        Ok(written)
+    }
+
+    /// The index's id for a note, given where it came from.
+    ///
+    /// Callers hold an entity id or a file path; every link call wants the index id. Without this
+    /// they pass what they have, get an empty list rather than an error, and ship a backlinks
+    /// panel that is simply always empty.
+    pub async fn id_of(&self, source: Source, reference: &str) -> Result<Option<String>> {
+        sqlx::query_scalar("SELECT id FROM notes WHERE source = ? AND ref = ?")
+            .bind(source.as_str())
+            .bind(reference)
+            .fetch_optional(&self.pool)
+            .await
+            .context("looking up an indexed note")
+    }
+
+    /// What this note points at. `id` is the **index** id — see [`Self::id_of`].
+    pub async fn links_from(&self, id: &str) -> Result<Vec<Link>> {
+        let rows = sqlx::query(
+            "SELECT target, to_note FROM note_links WHERE from_note = ? ORDER BY target",
+        )
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await
+        .context("reading a note's links")?;
+        Ok(rows
+            .iter()
+            .map(|row| Link {
+                target: row.get("target"),
+                to_note: row.try_get("to_note").unwrap_or(None),
+            })
+            .collect())
+    }
+
+    /// What points at this note. The indexed direction.
+    pub async fn backlinks(&self, id: &str) -> Result<Vec<Backlink>> {
+        let rows = sqlx::query(
+            "SELECT notes.id, notes.source, notes.ref, notes.title
+               FROM note_links
+               JOIN notes ON notes.id = note_links.from_note
+              WHERE note_links.to_note = ?
+              ORDER BY notes.title COLLATE NOCASE",
+        )
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await
+        .context("reading backlinks")?;
+        Ok(rows
+            .iter()
+            .map(|row| Backlink {
+                id: row.get("id"),
+                source: Source::parse(&row.try_get::<String, _>("source").unwrap_or_default()),
+                reference: row.get("ref"),
+                title: row.get("title"),
+            })
+            .collect())
+    }
+
+    /// Linked to, never written — the notes you meant to write, most-wanted first.
+    pub async fn unwritten(&self, limit: usize) -> Result<Vec<Unwritten>> {
+        let limit = limit.clamp(1, 200) as i64;
+        let rows = sqlx::query(
+            "SELECT target, COUNT(*) AS wanted_by
+               FROM note_links
+              WHERE to_note IS NULL
+              GROUP BY target COLLATE NOCASE
+              ORDER BY wanted_by DESC, target COLLATE NOCASE
+              LIMIT ?",
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .context("reading unwritten notes")?;
+        Ok(rows
+            .iter()
+            .map(|row| Unwritten {
+                target: row.get("target"),
+                wanted_by: row.try_get("wanted_by").unwrap_or(0),
+            })
+            .collect())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,6 +673,191 @@ mod tests {
         assert_eq!(gone.removed, 1);
         assert_eq!(notes.count().await.unwrap(), 1);
         assert_eq!(notes.search("entity", 5).await.unwrap().len(), 1);
+    }
+
+    /* ─── links ─── */
+
+    #[test]
+    fn every_form_of_wikilink_resolves_to_the_same_target() {
+        assert_eq!(links_in("see [[KuCoin fees]] today"), vec!["KuCoin fees"]);
+        // An alias and a heading both point at the note, not at the alias or the heading.
+        assert_eq!(links_in("[[KuCoin fees|the fees]]"), vec!["KuCoin fees"]);
+        assert_eq!(links_in("[[KuCoin fees#taker]]"), vec!["KuCoin fees"]);
+        assert_eq!(
+            links_in("![[KuCoin fees]]"),
+            vec!["KuCoin fees"],
+            "an embed is a link"
+        );
+        assert_eq!(links_in("[[ spaced ]]"), vec!["spaced"], "trimmed");
+        // Three mentions is one edge — `(from_note, target)` is the primary key.
+        assert_eq!(links_in("[[a]] [[a]] [[a]]"), vec!["a"]);
+    }
+
+    /// A `[[` in a code sample is not a link. Indexing it invents an edge nobody meant, which
+    /// then shows up as a note you are told you meant to write.
+    #[test]
+    fn brackets_inside_fenced_code_are_not_links() {
+        let body = "real [[Alpha]]\n```rust\nlet x = arr[[0]];\n// [[Beta]]\n```\nalso [[Gamma]]";
+        assert_eq!(links_in(body), vec!["Alpha", "Gamma"]);
+
+        // Tildes fence too, and an info string after the ticks still opens one.
+        let tilde = "~~~\n[[Hidden]]\n~~~\n[[Shown]]";
+        assert_eq!(links_in(tilde), vec!["Shown"]);
+        let info = "```python\n[[Hidden]]\n```\n[[Shown]]";
+        assert_eq!(links_in(info), vec!["Shown"]);
+    }
+
+    #[test]
+    fn a_broken_bracket_is_not_a_link_across_two_targets() {
+        // Unclosed: the scan must not run on and swallow the next link's opening.
+        assert_eq!(links_in("[[unclosed and [[Alpha]]"), vec!["Alpha"]);
+        assert_eq!(links_in("[[]]"), Vec::<String>::new(), "empty is nothing");
+        assert_eq!(links_in("[single]"), Vec::<String>::new());
+    }
+
+    #[tokio::test]
+    async fn a_link_resolves_by_title_across_both_stores() {
+        let (_dir, notes) = store().await;
+        notes
+            .sweep(
+                Source::Entity,
+                &[note(
+                    Source::Entity,
+                    "e1",
+                    "Daily log",
+                    "see [[KuCoin fees]] and [[exchanges]]",
+                    1000,
+                )],
+                1000,
+            )
+            .await
+            .unwrap();
+        notes
+            .sweep(
+                Source::File,
+                &[
+                    note(
+                        Source::File,
+                        "money/kucoin-fees.md",
+                        "KuCoin fees",
+                        "0.1%",
+                        1000,
+                    ),
+                    note(
+                        Source::File,
+                        "money/exchanges.md",
+                        "Where I trade",
+                        "kucoin, binance",
+                        1000,
+                    ),
+                ],
+                1000,
+            )
+            .await
+            .unwrap();
+        notes.relink().await.unwrap();
+
+        let log = notes.id_of(Source::Entity, "e1").await.unwrap().unwrap();
+        let from = notes.links_from(&log).await.unwrap();
+        assert_eq!(from.len(), 2);
+        // By title...
+        assert!(
+            from.iter()
+                .any(|l| l.target == "KuCoin fees" && l.to_note.is_some())
+        );
+        // ...and for a file, by its filename stem too, which is how anyone writes the link.
+        assert!(
+            from.iter()
+                .any(|l| l.target == "exchanges" && l.to_note.is_some())
+        );
+
+        // And the edge is readable from the other end, which is the whole point.
+        let target = notes.search("0.1%", 5).await.unwrap();
+        let back = notes.backlinks(&target[0].id).await.unwrap();
+        assert_eq!(back.len(), 1);
+        assert_eq!(back[0].title, "Daily log");
+    }
+
+    #[tokio::test]
+    async fn a_link_to_something_unwritten_is_kept_and_counted() {
+        let (_dir, notes) = store().await;
+        notes
+            .sweep(
+                Source::Entity,
+                &[
+                    note(
+                        Source::Entity,
+                        "a",
+                        "A",
+                        "[[Tax plan]] and [[Only once]]",
+                        1000,
+                    ),
+                    note(Source::Entity, "b", "B", "also [[tax plan]]", 1000),
+                ],
+                1000,
+            )
+            .await
+            .unwrap();
+        notes.relink().await.unwrap();
+
+        let wanted = notes.unwritten(10).await.unwrap();
+        // Two notes want it, and the count is case-insensitive — "Tax plan" and "tax plan" are
+        // the same missing note, not two.
+        assert_eq!(wanted[0].wanted_by, 2, "{wanted:?}");
+        assert_eq!(wanted[0].target.to_lowercase(), "tax plan");
+        assert_eq!(wanted[1].wanted_by, 1);
+    }
+
+    /// Derived means rebuilt, and a note that goes takes its edges with it.
+    #[tokio::test]
+    async fn relinking_reflects_the_index_rather_than_accumulating() {
+        let (_dir, notes) = store().await;
+        notes
+            .sweep(
+                Source::Entity,
+                &[note(Source::Entity, "a", "A", "[[B]]", 1000)],
+                1000,
+            )
+            .await
+            .unwrap();
+        notes.relink().await.unwrap();
+        let a = notes.id_of(Source::Entity, "a").await.unwrap().unwrap();
+        assert_eq!(notes.links_from(&a).await.unwrap().len(), 1);
+
+        // The link is edited out. A second relink must drop the edge, not leave it behind.
+        notes
+            .sweep(
+                Source::Entity,
+                &[note(Source::Entity, "a", "A", "no links now", 1100)],
+                1100,
+            )
+            .await
+            .unwrap();
+        notes.relink().await.unwrap();
+        assert!(notes.links_from(&a).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_note_is_never_its_own_backlink() {
+        let (_dir, notes) = store().await;
+        notes
+            .sweep(
+                Source::Entity,
+                &[note(
+                    Source::Entity,
+                    "a",
+                    "Alpha",
+                    "see [[Alpha]] above",
+                    1000,
+                )],
+                1000,
+            )
+            .await
+            .unwrap();
+        notes.relink().await.unwrap();
+        let a = notes.id_of(Source::Entity, "a").await.unwrap().unwrap();
+        // Otherwise every note with a heading reference lists itself, and the panel is noise.
+        assert!(notes.backlinks(&a).await.unwrap().is_empty());
     }
 
     /// FTS5 `MATCH` is a query language. Handing it raw input is a syntax error waiting for a

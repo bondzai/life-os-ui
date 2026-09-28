@@ -85,10 +85,45 @@ page moves across; it should go then.
 
 `GET /api/search` is unrelated and stays: despite the name it proxies DuckDuckGo.
 
+## Links, and the notes you meant to write
+
+`[[wikilinks]]` are parsed out of every body during the sweep and resolved into edges. Obsidian's
+forms all work: `[[Note]]`, `[[Note|shown as this]]`, `[[Note#heading]]` and `![[embed]]`.
+
+**Resolution is by title**, case-insensitively, and for a file by its filename stem as well — so
+`[[exchanges]]` finds `money/exchanges.md`. A title is the one thing both stores have, which is
+what makes this work whichever editor you use.
+
+**Not in `relations`.** That table holds edges between *entities*, by entity id; these are edges
+between *indexed notes*, by index id. Mixing the two id spaces would make `relations::list` join
+against rows that are not there. It also keeps the separation that matters: `relations` is what you
+drew by hand and must survive a re-index, `note_links` is derived and is rebuilt wholesale with the
+index it came from.
+
+**A link to a note that does not exist is kept, not dropped.** Those are the notes you meant to
+write — `GET /api/notes/unwritten` lists them, most-wanted first, counted case-insensitively so
+`[[Tax plan]]` and `[[tax plan]]` are one missing note rather than two. Write it and the edge
+resolves on the next sweep with nothing else to do.
+
+Three details that are each a bug if got wrong:
+
+- **Fenced code is skipped.** A `[[` in a code sample is not a link; indexing it invents an edge
+  and then tells you about a note you never meant to write. Inline backticks are *not* handled —
+  a single-backtick span holding a whole wikilink is rare, and the cost is one spurious edge.
+- **A note is never its own backlink.** Otherwise every note with a heading reference lists itself
+  and the panel is noise.
+- **Relinking runs after both ingesters**, never inside one: a link can point at a note the other
+  has not reached yet, and resolving as you go leaves half an alphabet unable to see the rest. It
+  runs only when a sweep actually changed something, because it rebuilds every edge.
+
+`NoteStore::id_of` converts an entity id or a file path into the index id the link calls want.
+Without it a caller passes what it has, gets an empty list rather than an error, and ships a
+backlinks panel that is simply always empty.
+
 ## Not built
 
-- **Backlinks.** `relations` now has indexes on `fromId` and `toId` (it had none, so every
-  traversal was a full scan) but nothing yet parses `[[wikilinks]]` out of a body into edges.
+- **Any UI for links.** The edges, the backlinks and the unwritten list are all reachable over
+  HTTP and none of them is on a screen yet. That is the next slice.
 - **A graph view.** When it happens it should draw the neighbourhood of the note you are reading,
   depth one or two. A global graph is a dead tab by a few thousand nodes.
 - **Embeddings and "related notes".** A BLOB of f32 and a brute-force cosine: about 4ms at ten

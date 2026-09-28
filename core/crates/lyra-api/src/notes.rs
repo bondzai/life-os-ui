@@ -68,6 +68,17 @@ pub async fn sweep(state: &AppState) -> Swept {
         }
     }
 
+    // After both stores, never inside one: a link can point at a note the other ingester has not
+    // reached yet, and resolving as you go leaves half an alphabet unable to see the other half.
+    // Only when something moved — relinking rebuilds every edge, so doing it on an idle sweep is
+    // the one expensive thing in an otherwise free loop.
+    if total != Swept::default() {
+        match store.relink().await {
+            Ok(links) => tracing::debug!(links, "derived links rebuilt"),
+            Err(e) => tracing::error!(error = %e, "rebuilding derived links"),
+        }
+    }
+
     if total != Swept::default() {
         tracing::info!(
             added = total.added,
@@ -208,6 +219,33 @@ pub async fn search(
     }
 }
 
+/// `GET /api/notes/{id}/links` — what it points at, and what points back.
+pub async fn links(
+    _user: AuthUser,
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Response {
+    let store = NoteStore::new(state.pool.clone());
+    match (store.links_from(&id).await, store.backlinks(&id).await) {
+        (Ok(out), Ok(back)) => Json(json!({ "links": out, "backlinks": back })).into_response(),
+        (Err(e), _) | (_, Err(e)) => error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("reading links: {e}"),
+        ),
+    }
+}
+
+/// `GET /api/notes/unwritten` — linked to, never written. The notes you meant to write.
+pub async fn unwritten(_user: AuthUser, State(state): State<AppState>) -> Response {
+    match NoteStore::new(state.pool.clone()).unwritten(50).await {
+        Ok(wanted) => Json(json!({ "unwritten": wanted })).into_response(),
+        Err(e) => error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("reading unwritten notes: {e}"),
+        ),
+    }
+}
+
 /// `POST /api/notes/reindex` — catch up now rather than waiting for the clock.
 pub async fn reindex(_user: AuthUser, State(state): State<AppState>) -> Response {
     let swept = sweep(&state).await;
@@ -338,6 +376,59 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    /// The sweep and the relink are one operation from the caller's side: index, then resolve.
+    #[tokio::test]
+    async fn a_swept_note_has_its_links_resolved() {
+        let (_dir, state) = app().await;
+        add_note(
+            &state,
+            "log",
+            "Daily log",
+            "see [[Fees]]",
+            "2026-09-01T10:00:00Z",
+        )
+        .await;
+        add_note(&state, "fees", "Fees", "0.1% taker", "2026-09-01T10:00:00Z").await;
+
+        sweep(&state).await;
+
+        let store = NoteStore::new(state.pool.clone());
+        let fees = store.id_of(Source::Entity, "fees").await.unwrap().unwrap();
+        let back = store.backlinks(&fees).await.unwrap();
+        assert_eq!(back.len(), 1, "the link was resolved as part of the sweep");
+        assert_eq!(back[0].title, "Daily log");
+    }
+
+    /// Writing the missing note makes the edge resolve, with no other change.
+    #[tokio::test]
+    async fn an_unwritten_note_stops_being_unwritten_when_you_write_it() {
+        let (_dir, state) = app().await;
+        add_note(
+            &state,
+            "log",
+            "Daily log",
+            "see [[Tax plan]]",
+            "2026-09-01T10:00:00Z",
+        )
+        .await;
+        sweep(&state).await;
+
+        let store = NoteStore::new(state.pool.clone());
+        let wanted = store.unwritten(10).await.unwrap();
+        assert_eq!(wanted.len(), 1);
+        assert_eq!(wanted[0].target, "Tax plan");
+
+        add_note(&state, "tax", "Tax plan", "later", "2026-09-01T11:00:00Z").await;
+        sweep(&state).await;
+
+        assert!(
+            store.unwritten(10).await.unwrap().is_empty(),
+            "the link resolved once the note existed"
+        );
+        let tax = store.id_of(Source::Entity, "tax").await.unwrap().unwrap();
+        assert_eq!(store.backlinks(&tax).await.unwrap().len(), 1);
     }
 
     #[test]

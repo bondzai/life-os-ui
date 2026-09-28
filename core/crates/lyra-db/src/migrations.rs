@@ -472,6 +472,29 @@ pub const MIGRATIONS: &[&[&str]] = &[
                INSERT INTO notes_fts(rowid, title, body) VALUES (new.rowid, new.title, new.body);
            END"#,
     ],
+    // v12 -> v13: the links you wrote inside your notes, as edges.
+    //
+    // **Not `relations`.** That table holds edges between *entities*, by entity id, and these are
+    // edges between *indexed notes*, by index id — two id spaces, and mixing them would make
+    // `relations::list` join against rows that are not there. It also keeps the more important
+    // separation: `relations` is what you drew by hand and must survive a re-index, this is
+    // derived and is rebuilt with the index it came from.
+    &[
+        r#"CREATE TABLE IF NOT EXISTS note_links (
+               from_note TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+               -- What the [[brackets]] actually said, always. Kept even once resolved, because it
+               -- is what to re-resolve against when a note is renamed or finally written.
+               target    TEXT NOT NULL,
+               -- The note it points at, or NULL for a link to something not written yet. Those
+               -- are worth keeping rather than dropping: they are the notes you meant to write.
+               to_note   TEXT REFERENCES notes(id) ON DELETE SET NULL,
+               PRIMARY KEY (from_note, target)
+           )"#,
+        // Backlinks read this the other way round, and without it that is a full scan — the exact
+        // mistake `relations` shipped with.
+        "CREATE INDEX IF NOT EXISTS idx_note_links_to ON note_links(to_note)",
+        "CREATE INDEX IF NOT EXISTS idx_note_links_target ON note_links(target)",
+    ],
 ];
 
 /// Applies every migration the database has not seen yet. Returns the resulting `user_version`.
