@@ -133,6 +133,32 @@ is believed. Delete a key, invert a condition, confirm the failure names the pro
 **Say what you did not verify.** If a check was skipped or a claim is inferred rather than tested,
 write that down. Confident wrongness costs more here than an admitted gap.
 
+## Working efficiently — tool discipline, not terseness
+
+Most of an agent's tokens in this repo are **tool output**, not prose. Measured on 2026-09-28,
+`cargo test --workspace` prints 112KB — about 28,000 tokens — and the same run piped to a pass count
+is 17 bytes. That one habit is worth more than every style rule put together, so:
+
+| Instead of | Do | Measured |
+|---|---|---|
+| `cargo test --workspace` | pipe it: `\| grep -E "^test result" \| awk -F'[ ;]' '{s+=$4} END {print s}'` | 112KB → 17 B |
+| `cargo clippy …` | `\| grep -cE "^(error\|warning:)"`, then re-run unfiltered only if non-zero | 947 B → 2 B |
+| reading a whole file | `sed -n 'A,Bp'` or `grep -n … -A N` once you know where to look | 37KB → 1.5KB |
+| `git diff` | `git diff --stat`, then the one file | 28KB → 515 B |
+
+Read the filtered form first and the raw form only when it is non-zero. A green gate needs one
+number; a red one needs the whole message.
+
+**What not to import.** There is a popular `CLAUDE.md` going around that also asks for 8–10 word
+sentences, no explanation unless asked, and no comments beyond the minimum. **Do not apply that
+here.** It is tuned for chat-style Q&A, where prose is the whole output; in this repo prose is a
+rounding error and two of its rules contradict the conventions above — comments that record *why*,
+and saying plainly what you did not verify. Those exist because this box messages a real person
+about real money, and a terse wrong answer costs more than a long right one.
+
+Style is the part worth taking: no preamble, no restating the question, no closing filler, and never
+assert an API, flag, version or SHA you have not read. That last one is not about tokens.
+
 ## Deploying
 
 Push to `master`. That is the whole procedure: `release.yml` gates the commit, builds the x86_64
