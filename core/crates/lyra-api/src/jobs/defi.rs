@@ -297,87 +297,88 @@ pub fn report(
         .filter(|p| p.in_range == Some(false))
         .count();
 
-    let mut out = format!(
-        "DeFi {} across {} position{}",
+    // One section per idea, separated by a blank line, and every line short enough to read on a
+    // phone without wrapping. Structure comes from newlines rather than from separator characters
+    // — `·` between four facts is four pieces of punctuation to skip past on a message that
+    // arrives every ten minutes.
+    let mut out = String::from("DEFI\n");
+    out.push_str(&format!(
+        "{} in {} position{}\n",
         money.show(total),
         positions.len(),
         if positions.len() == 1 { "" } else { "s" }
-    );
-    if out_of_range > 0 {
-        out.push_str(&format!(" · {out_of_range} out of range"));
-    }
-
-    // The rewards total gets its own line rather than a clause, because on a ten-minute schedule
-    // it is the number you came for — the book barely moves between firings and the claimable does.
+    ));
+    // The claimable total goes in the headline block, because on a ten-minute schedule it is the
+    // number you came for — the book barely moves between firings and this does.
     if rewards > 0.0 {
-        out.push_str(&format!("\nUnclaimed {}", money.show(rewards)));
+        out.push_str(&format!("{} unclaimed", money.show(rewards)));
         if total > 0.0 {
-            out.push_str(&format!(" ({:.2}% of the book)", rewards / total * 100.0));
+            out.push_str(&format!(" ({:.2}%)", rewards / total * 100.0));
         }
+        out.push('\n');
     }
-    out.push('\n');
+    if out_of_range > 0 {
+        out.push_str(&format!("{out_of_range} out of range\n"));
+    }
 
+    out.push_str("\nPOSITIONS\n");
     for position in positions.iter().take(SHOWN) {
-        out.push_str(&format!(
-            "\n{} · {}  {}",
-            position.protocol,
-            position.name,
-            money.show(position.usd.unwrap_or(0.0))
-        ));
+        // Two lines: what it is, then what it is doing. Three only when there are reward tokens
+        // to name.
+        out.push_str(&format!("\n{} {}\n", position.protocol, position.name));
+
+        let mut facts = vec![money.show(position.usd.unwrap_or(0.0))];
         // Only when the position has a range at all. A lending position is never "in range", and
         // printing it against one is a sentence that is not true.
         match position.in_range {
-            Some(true) => out.push_str("  in range"),
-            Some(false) => out.push_str("  OUT OF RANGE"),
+            Some(true) => facts.push("in range".into()),
+            Some(false) => facts.push("OUT OF RANGE".into()),
             None => {}
         }
         if let Some(lending) = &position.health
             && let Some(hf) = lending.hf
         {
-            out.push_str(&format!("  HF {hf:.2}"));
+            facts.push(format!("HF {hf:.2}"));
         }
-        if let Some(line) = reward_line(position, &money) {
-            out.push_str(&format!("\n    {line}"));
+        if let Some(reward) = position.rewards_usd.flatten().filter(|r| *r > 0.0) {
+            facts.push(format!("+{} claimable", money.show(reward)));
+        }
+        out.push_str(&facts.join(", "));
+        out.push('\n');
+
+        if let Some(tokens) = reward_tokens(position) {
+            out.push_str(&format!("{tokens}\n"));
         }
     }
 
     if positions.len() > SHOWN {
-        out.push_str(&format!("\n…and {} more", positions.len() - SHOWN));
+        out.push_str(&format!("\nand {} more\n", positions.len() - SHOWN));
     }
     out.push_str(&provenance(health, rates, &money));
-    out
+    // A single trailing newline, never a run of them: blank lines at the end of a message are
+    // noise that pushes the next one further down the chat.
+    out.trim_end().to_string()
 }
 
-/// The reward leg for one position: what it is worth, and which tokens it is in.
+/// Which tokens a position's reward is in, if any.
 ///
-/// The tokens matter as much as the total. "+$12" tells you to claim; "0.5 AERO" tells you what
-/// you will be holding afterwards, which is the part that decides whether to sell it.
-fn reward_line(position: &lyra_chain::model::Position, money: &Converter) -> Option<String> {
-    let usd = position.rewards_usd.flatten().filter(|r| *r > 0.0);
-    let tokens = position.rewards.as_ref().filter(|r| !r.is_empty());
-    if usd.is_none() && tokens.is_none() {
+/// The tokens matter as much as the value. "+$12" tells you to claim; "0.5234 AERO" tells you what
+/// you will be holding afterwards, which is the part that decides whether to sell it. A reward leg
+/// with **no** price still gets named — an unpriced token is exactly the one you would never
+/// notice you were owed.
+fn reward_tokens(position: &lyra_chain::model::Position) -> Option<String> {
+    let tokens = position.rewards.as_ref().filter(|r| !r.is_empty())?;
+    let named: Vec<String> = tokens
+        .iter()
+        .take(REWARD_TOKENS)
+        .map(|t| format!("{} {}", token_amount(t.amount), t.symbol))
+        .collect();
+    if named.is_empty() {
         return None;
     }
-
-    let mut line = match usd {
-        Some(usd) => format!("+{} claimable", money.show(usd)),
-        // A reward leg with no price is still worth naming: an unpriced token is exactly the one
-        // you would otherwise never notice you were owed.
-        None => "claimable".to_string(),
-    };
-
-    if let Some(tokens) = tokens {
-        let named: Vec<String> = tokens
-            .iter()
-            .take(REWARD_TOKENS)
-            .map(|t| format!("{} {}", token_amount(t.amount), t.symbol))
-            .collect();
-        if !named.is_empty() {
-            line.push_str(&format!(" — {}", named.join(", ")));
-            if tokens.len() > REWARD_TOKENS {
-                line.push_str(&format!(" +{} more", tokens.len() - REWARD_TOKENS));
-            }
-        }
+    let mut line = named.join(", ");
+    if tokens.len() > REWARD_TOKENS {
+        line.push_str(&format!(" and {} more", tokens.len() - REWARD_TOKENS));
     }
     Some(line)
 }
@@ -388,43 +389,37 @@ fn reward_line(position: &lyra_chain::model::Position, money: &Converter) -> Opt
 /// "10/12" mean something. A footer that only appears when something is wrong is one nobody
 /// learns to look for.
 fn provenance(health: &FetchHealth, rates: &Rates, money: &Converter) -> String {
-    let mut out = String::from("\n\n—");
+    let mut out = String::from("\nSOURCES\n");
 
     if health.requested > 0 {
         out.push_str(&format!(
-            "\nSources: {}/{} chain reads answered",
+            "{} of {} chains answered\n",
             health.completed, health.requested
         ));
     }
 
-    // Named, not counted. "2 failed" sends you to check twelve things; "base (timeout)" sends you
-    // to check one.
-    let mut broken: Vec<String> = health
-        .failures
-        .iter()
-        .map(|f| format!("{} ({})", f.task.chain, first_line(&f.error)))
-        .collect();
-    broken.extend(
-        health
-            .abandoned
-            .iter()
-            .map(|t| format!("{} (timed out)", t.chain)),
-    );
-    if !broken.is_empty() {
-        out.push_str(&format!("\nMissing: {}", broken.join(", ")));
+    // One per line, named with its reason. "2 failed" sends you to check twelve things;
+    // "arbitrum: 429" sends you to check one.
+    for failure in &health.failures {
+        out.push_str(&format!(
+            "{}: {}\n",
+            failure.task.chain,
+            first_line(&failure.error)
+        ));
     }
-    if !health.adapter_failures.is_empty() {
-        // Sub-chain: the chain answered but one protocol inside it did not, so the total is short
-        // by an amount nothing else would reveal.
-        let adapters: Vec<String> = health
-            .adapter_failures
-            .iter()
-            .map(|a| format!("{} on {}", a.adapter, a.chain))
-            .collect();
-        out.push_str(&format!("\nPartial: {}", adapters.join(", ")));
+    for task in &health.abandoned {
+        out.push_str(&format!("{}: timed out\n", task.chain));
+    }
+    // Sub-chain: the chain answered but one protocol inside it did not, so the total is short by
+    // an amount nothing else would reveal.
+    for adapter in &health.adapter_failures {
+        out.push_str(&format!(
+            "{} on {}: skipped\n",
+            adapter.adapter, adapter.chain
+        ));
     }
     if health.deadline_hit {
-        out.push_str("\nThe read hit its deadline, so this total is incomplete.");
+        out.push_str("the read hit its deadline, so this total is short\n");
     }
 
     // The rate is evidence too: a figure in baht is only as good as the number it was multiplied
@@ -432,19 +427,19 @@ fn provenance(health: &FetchHealth, rates: &Rates, money: &Converter) -> String 
     if money.wanted != Currency::Usd {
         if money.effective() == Currency::Usd {
             out.push_str(&format!(
-                "\nNo {} rate available, so these are US dollars.",
+                "no {} rate, so these are dollars\n",
                 money.wanted.as_str().to_uppercase()
             ));
         } else {
             match money.wanted {
                 Currency::Thb => {
                     if let Some(thb) = rates.thb {
-                        out.push_str(&format!("\nRate: 1 USD = {thb:.2} THB"));
+                        out.push_str(&format!("1 USD = {thb:.2} THB\n"));
                     }
                 }
                 Currency::Sats => {
                     if let Some(btc) = rates.btc_usd {
-                        out.push_str(&format!("\nRate: BTC {}", usd_short(btc)));
+                        out.push_str(&format!("BTC {}\n", usd_short(btc)));
                     }
                 }
                 Currency::Usd => {}
@@ -452,7 +447,7 @@ fn provenance(health: &FetchHealth, rates: &Rates, money: &Converter) -> String 
         }
     }
     if health.rates_degraded {
-        out.push_str("\nFX and BTC rates fell back to defaults.");
+        out.push_str("FX and BTC rates fell back to defaults\n");
     }
 
     out
@@ -530,39 +525,80 @@ mod tests {
         )
     }
 
+    /// The whole message, so a change to its shape is visible as a change to this test rather
+    /// than as six assertions that each still pass.
     #[test]
-    fn the_unclaimed_total_gets_its_own_line_at_the_top() {
-        // On a ten-minute schedule the book barely moves and the claimable does, so it is the
-        // number you came for.
+    fn the_message_is_sections_separated_by_blank_lines() {
+        let mut uni = lp("Uniswap", "ETH/USDC", 4200.0, Some(false), Some(12.4));
+        uni.rewards = Some(vec![token("AERO", 0.5234), token("USDC", 2.1)]);
+        let aero = lp("Aerodrome", "WETH/USDC", 3100.0, Some(true), Some(3.1));
+
         let text = report(
-            &[wallet(vec![
-                lp("Uniswap", "ETH/USDC", 4200.0, Some(false), Some(12.4)),
-                lp("Aerodrome", "WETH/USDC", 3100.0, Some(true), Some(3.1)),
-            ])],
+            &[wallet(vec![uni, aero])],
             &clean(),
             &rates(),
             Currency::Usd,
         );
-        let headline = text.lines().next().unwrap();
-        assert!(headline.contains("$7.3k across 2 positions"), "{headline}");
-        assert!(headline.contains("1 out of range"), "{headline}");
+        assert_eq!(
+            text,
+            "DEFI\n\
+             $7.3k in 2 positions\n\
+             $16 unclaimed (0.21%)\n\
+             1 out of range\n\
+             \n\
+             POSITIONS\n\
+             \n\
+             Uniswap ETH/USDC\n\
+             $4.2k, OUT OF RANGE, +$12 claimable\n\
+             0.5234 AERO, 2.10 USDC\n\
+             \n\
+             Aerodrome WETH/USDC\n\
+             $3.1k, in range, +$3 claimable\n\
+             \n\
+             SOURCES\n\
+             12 of 12 chains answered",
+            "\n--- actual ---\n{text}"
+        );
+    }
 
-        let unclaimed = text.lines().nth(1).unwrap();
-        assert!(unclaimed.starts_with("Unclaimed $16"), "{unclaimed}");
-        assert!(unclaimed.contains("0.21% of the book"), "{unclaimed}");
+    /// **Discord collapses runs of spaces in a normal message.** Columns aligned with padding
+    /// look right in Telegram and arrive as a jumble there, so the structure has to come from
+    /// newlines alone.
+    #[test]
+    fn nothing_is_aligned_with_runs_of_spaces() {
+        let mut position = lp("Aerodrome", "WETH/USDC", 3100.0, Some(true), Some(12.0));
+        position.rewards = Some(vec![token("AERO", 0.5), token("USDC", 2.1)]);
+        let health = FetchHealth {
+            requested: 12,
+            completed: 10,
+            failures: vec![ChainFailure {
+                task: ChainTask {
+                    chain: "arbitrum",
+                    address: "0xabc".into(),
+                },
+                error: "429 Too Many Requests".into(),
+            }],
+            ..FetchHealth::default()
+        };
+        let text = report(&[wallet(vec![position])], &health, &rates(), Currency::Thb);
+
+        assert!(!text.contains("  "), "two spaces in a row:\n{text}");
+        // And no blank line left dangling at either end — those push the next message down.
+        assert_eq!(text.trim(), text);
+        // Nor three newlines, which is a blank line nobody asked for.
+        assert!(!text.contains("\n\n\n"), "{text}");
     }
 
     #[test]
     fn a_positions_rewards_name_the_tokens_not_just_the_value() {
-        // "+$12" says claim it; "0.5 AERO" says what you will be holding afterwards, which is
+        // "+$12" says claim it; "0.5234 AERO" says what you will be holding afterwards, which is
         // what decides whether to sell.
         let mut position = lp("Aerodrome", "WETH/USDC", 3100.0, Some(true), Some(12.0));
         position.rewards = Some(vec![token("AERO", 0.5234), token("USDC", 2.1)]);
         let text = report(&[wallet(vec![position])], &clean(), &rates(), Currency::Usd);
 
         assert!(text.contains("+$12 claimable"), "{text}");
-        assert!(text.contains("0.5234 AERO"), "{text}");
-        assert!(text.contains("2.10 USDC"), "{text}");
+        assert!(text.contains("0.5234 AERO, 2.10 USDC"), "{text}");
     }
 
     #[test]
@@ -571,7 +607,7 @@ mod tests {
         let mut position = lp("Somewhere", "farm", 100.0, None, None);
         position.rewards = Some(vec![token("NEWCOIN", 1234.0)]);
         let text = report(&[wallet(vec![position])], &clean(), &rates(), Currency::Usd);
-        assert!(text.contains("claimable — 1.2k NEWCOIN"), "{text}");
+        assert!(text.contains("1.2k NEWCOIN"), "{text}");
     }
 
     #[test]
@@ -590,7 +626,7 @@ mod tests {
         // $1000 at $100k/BTC is 0.01 BTC, which is 1,000,000 sats.
         let sats = report(&[wallet(positions)], &clean(), &rates(), Currency::Sats);
         assert!(sats.contains("1.00M sats"), "{sats}");
-        assert!(sats.contains("Rate: BTC $100.0k"), "{sats}");
+        assert!(sats.contains("BTC $100.0k"), "{sats}");
     }
 
     /// The rule `market::Rates` already documents for the THB column, applied to a message: never
@@ -610,27 +646,24 @@ mod tests {
         );
         assert!(text.contains("$1.0k"), "dollars, not invented baht: {text}");
         assert!(!text.contains('฿'), "{text}");
-        assert!(text.contains("No THB rate available"), "{text}");
+        assert!(text.contains("no THB rate, so these are dollars"), "{text}");
     }
 
-    /// Always present, even when nothing is wrong — a footer that only appears on failure is one
+    /// Always present, even when nothing is wrong — a section that only appears on failure is one
     /// nobody learns to read.
     #[test]
-    fn the_provenance_footer_is_there_on_a_clean_read_too() {
+    fn the_sources_section_is_there_on_a_clean_read_too() {
         let text = report(
             &[wallet(vec![lp("Uniswap", "ETH/USDC", 100.0, None, None)])],
             &clean(),
             &rates(),
             Currency::Usd,
         );
-        assert!(
-            text.contains("Sources: 12/12 chain reads answered"),
-            "{text}"
-        );
-        assert!(!text.contains("Missing:"), "{text}");
+        assert!(text.contains("SOURCES\n12 of 12 chains answered"), "{text}");
+        assert!(!text.contains("timed out"), "{text}");
     }
 
-    /// Named, not counted. "2 failed" sends you to check twelve things.
+    /// Named, not counted, and one per line.
     #[test]
     fn a_failed_source_is_named_with_its_reason() {
         let health = FetchHealth {
@@ -656,11 +689,11 @@ mod tests {
             &rates(),
             Currency::Usd,
         );
-        assert!(text.contains("10/12 chain reads answered"), "{text}");
-        assert!(text.contains("arbitrum (429 Too Many Requests)"), "{text}");
+        assert!(text.contains("10 of 12 chains answered"), "{text}");
+        assert!(text.contains("arbitrum: 429 Too Many Requests"), "{text}");
         // Only the first line of the error — a provider's HTML page is unreadable on a phone.
         assert!(!text.contains("from the provider"), "{text}");
-        assert!(text.contains("base (timed out)"), "{text}");
+        assert!(text.contains("base: timed out"), "{text}");
         assert!(text.contains("hit its deadline"), "{text}");
     }
 
@@ -717,8 +750,8 @@ mod tests {
             })
             .collect();
         let text = report(&[wallet(many)], &clean(), &rates(), Currency::Usd);
-        assert!(text.contains("across 40 positions"), "{text}");
-        assert!(text.contains("…and 30 more"), "{text}");
+        assert!(text.contains("in 40 positions"), "{text}");
+        assert!(text.contains("and 30 more"), "{text}");
         // Telegram rejects the whole message past 4096 rather than truncating it.
         assert!(text.chars().count() < 4096, "{}", text.chars().count());
     }
@@ -748,7 +781,7 @@ mod tests {
             &rates(),
             Currency::Usd,
         );
-        assert!(!text.contains("Unclaimed"), "{text}");
+        assert!(!text.contains("unclaimed"), "{text}");
         assert!(!text.contains("claimable"), "{text}");
     }
 }

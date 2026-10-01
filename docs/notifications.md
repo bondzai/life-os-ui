@@ -214,6 +214,37 @@ twelve things. It distinguishes a chain that errored, one that timed out, and on
 answered but a single adapter inside it did not — that last is money missing from the total with
 nothing else to reveal it.
 
+### The shape of a message
+
+Sections, blank lines between them, and **structure from newlines rather than separators**. A `·`
+between four facts is four pieces of punctuation to skip past on something that arrives every ten
+minutes.
+
+```
+DEFI
+$7.3k in 2 positions
+$16 unclaimed (0.21%)
+1 out of range
+
+POSITIONS
+
+Uniswap ETH/USDC
+$4.2k, OUT OF RANGE, +$12 claimable
+0.5234 AERO, 2.10 USDC
+
+SOURCES
+12 of 12 chains answered
+```
+
+**Nothing is aligned with runs of spaces.** Discord collapses them in a normal message, so columns
+that look right in Telegram arrive there as a jumble. `nothing_is_aligned_with_runs_of_spaces`
+pins it, along with no trailing blank line and no double blank line — both just push the next
+message further down the chat.
+
+`the_message_is_sections_separated_by_blank_lines` asserts the **whole** rendered message rather
+than six separate substrings, so a change to its shape shows up as a change to that test instead
+of as six assertions that each still pass.
+
 ### Currencies
 
 `usd`, `thb` or `sats`, chosen per schedule. Sats because a Bitcoin-denominated view answers what

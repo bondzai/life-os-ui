@@ -5,7 +5,7 @@
  * lands on is decided by the routing grid above rather than here. A schedule says *when* and *what*;
  * routing says *where*.
  *
- * Two things this screen is built around:
+ * Three things this screen is built around:
  *
  * **A schedule is picked, not typed.** No cron expression. A mis-typed `30 7 * * 1-5` fails by the
  * message silently never arriving, which is the one failure a schedule cannot have, so the form
@@ -13,6 +13,10 @@
  *
  * **A missed firing is shown.** If the box was off past the catch-up window, the row says so and
  * counts it. A schedule that quietly stopped is the thing this screen exists to make visible.
+ *
+ * **Adding and editing are one form.** They ask for exactly the same things, and the version with
+ * two forms drifts: a field gets added to one, a validation rule to the other, and which of them
+ * you are looking at starts to matter. [`CronForm`] is used by both.
  */
 
 import { useState } from 'react'
@@ -62,6 +66,15 @@ const CURRENCIES: { value: string; label: string }[] = [
 const INPUT =
   'rounded-md border bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
 
+/** What the form hands back. The caller decides whether that is a POST or a PATCH. */
+interface Draft {
+  name: string
+  action: string
+  schedule: Schedule
+  payload: Record<string, unknown>
+  catch_up_minutes: number
+}
+
 export function ScheduleSettings() {
   const crons = useCrons()
 
@@ -85,6 +98,9 @@ export function ScheduleSettings() {
     )
   }
 
+  const actions = crons.data?.actions ?? []
+  const groups = crons.data?.groups ?? []
+
   return (
     <section className="space-y-3">
       <div>
@@ -103,20 +119,29 @@ export function ScheduleSettings() {
       ) : (
         <ul className="space-y-2">
           {list.map((cron) => (
-            <CronRow key={cron.id} cron={cron} />
+            <CronRow key={cron.id} cron={cron} actions={actions} groups={groups} />
           ))}
         </ul>
       )}
 
-      <AddCron groups={crons.data?.groups ?? []} actions={crons.data?.actions ?? []} />
+      <AddCron groups={groups} actions={actions} />
     </section>
   )
 }
 
-function CronRow({ cron }: { cron: Cron }) {
+function CronRow({
+  cron,
+  actions,
+  groups,
+}: {
+  cron: Cron
+  actions: string[]
+  groups: string[]
+}) {
   const update = useUpdateCron()
   const remove = useDeleteCron()
   const run = useRunCron()
+  const [editing, setEditing] = useState(false)
   const error = update.error ?? remove.error ?? run.error
 
   return (
@@ -172,6 +197,9 @@ function CronRow({ cron }: { cron: Cron }) {
           >
             {run.isPending ? 'Running…' : 'Run now'}
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setEditing(!editing)}>
+            {editing ? 'Close' : 'Edit'}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -194,6 +222,35 @@ function CronRow({ cron }: { cron: Cron }) {
         </div>
       </div>
 
+      {editing && (
+        <div className="mt-3 border-t pt-3">
+          <CronForm
+            // Remounted when the saved row changes, so a background refetch cannot wipe an edit
+            // in progress — the same reason the routing matrix above is keyed.
+            key={`${cron.schedule.kind}-${cron.catch_up_minutes}-${cron.name}`}
+            cron={cron}
+            actions={actions}
+            groups={groups}
+            submitting={update.isPending}
+            onCancel={() => setEditing(false)}
+            onSubmit={(draft) =>
+              update
+                .mutateAsync({
+                  id: cron.id,
+                  name: draft.name,
+                  schedule: draft.schedule,
+                  payload: draft.payload,
+                  catch_up_minutes: draft.catch_up_minutes,
+                })
+                .then(() => setEditing(false))
+                .catch(() => {
+                  /* the error renders below; the form keeps what was typed */
+                })
+            }
+          />
+        </div>
+      )}
+
       {run.isSuccess && !run.isPending && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-500">
           <Check className="size-3.5" aria-hidden /> queued — it will arrive on whatever this group
@@ -212,18 +269,6 @@ function CronRow({ cron }: { cron: Cron }) {
 function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
   const create = useCreateCron()
   const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [action, setAction] = useState('notify.message')
-  const [text, setText] = useState('')
-  const [group, setGroup] = useState('day')
-  const [currency, setCurrency] = useState('usd')
-  const [kind, setKind] = useState<Schedule['kind']>('daily')
-  const [clock, setClock] = useState('09:00')
-  const [days, setDays] = useState<number[]>([0, 1, 2, 3, 4])
-  const [everyMinutes, setEveryMinutes] = useState(60)
-  // An hour by default: long enough that a reboot does not lose the morning, short enough that a
-  // nudge does not turn up at lunchtime.
-  const [catchUp, setCatchUp] = useState(60)
 
   if (!open) {
     return (
@@ -232,6 +277,85 @@ function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
       </Button>
     )
   }
+
+  return (
+    <div className="rounded-lg border border-dashed p-4">
+      <CronForm
+        actions={actions}
+        groups={groups}
+        submitting={create.isPending}
+        onCancel={() => setOpen(false)}
+        onSubmit={(draft) =>
+          create
+            .mutateAsync({
+              name: draft.name,
+              schedule: draft.schedule,
+              action: draft.action,
+              payload: draft.payload,
+              catch_up_minutes: draft.catch_up_minutes,
+            })
+            .then(() => setOpen(false))
+            .catch(() => {
+              /* the error renders below; the form keeps what was typed */
+            })
+        }
+      />
+      {create.error && (
+        <p role="alert" className="mt-2 text-xs text-red-700 dark:text-red-400">
+          {create.error.message}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The one form, for both adding and editing.
+ *
+ * `cron` absent means adding. The only thing editing cannot change is the **action**: the server's
+ * patch has no field for it, and it should not — the payload's shape follows from the action, so
+ * changing one without the other produces a schedule that runs and does nothing. Delete and re-add
+ * instead, which the disabled control says.
+ */
+function CronForm({
+  cron,
+  actions,
+  groups,
+  submitting,
+  onSubmit,
+  onCancel,
+}: {
+  cron?: Cron
+  actions: string[]
+  groups: string[]
+  submitting: boolean
+  onSubmit: (draft: Draft) => void
+  onCancel: () => void
+}) {
+  const editing = cron !== undefined
+  const [name, setName] = useState(cron?.name ?? '')
+  const [action, setAction] = useState(cron?.action ?? 'notify.message')
+  const [text, setText] = useState(cron?.payload.text ?? '')
+  const [group, setGroup] = useState(cron?.payload.group ?? 'day')
+  const [currency, setCurrency] = useState(cron?.payload.currency ?? 'usd')
+  const [kind, setKind] = useState<Schedule['kind']>(cron?.schedule.kind ?? 'daily')
+  const [clock, setClock] = useState(
+    cron?.schedule.kind === 'daily' || cron?.schedule.kind === 'weekly'
+      ? toClock(cron.schedule.at_minute)
+      : '09:00',
+  )
+  const [days, setDays] = useState<number[]>(
+    cron?.schedule.kind === 'weekly' ? cron.schedule.days : [0, 1, 2, 3, 4],
+  )
+  const [everyMinutes, setEveryMinutes] = useState(
+    cron?.schedule.kind === 'every' ? Math.max(1, Math.round(cron.schedule.seconds / 60)) : 60,
+  )
+  // An hour by default: long enough that a reboot does not lose the morning, short enough that a
+  // nudge does not turn up at lunchtime.
+  const [catchUp, setCatchUp] = useState(cron?.catch_up_minutes ?? 60)
+
+  const fetches = FETCHES.has(action)
+  const priced = IN_A_CURRENCY.has(action)
 
   const at_minute = fromClock(clock)
   const schedule: Schedule | null =
@@ -247,32 +371,29 @@ function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
 
   // An action that fetches has nothing for you to type, so requiring a message would make it
   // unsubmittable.
-  const fetches = FETCHES.has(action)
-  const priced = IN_A_CURRENCY.has(action)
   const ready = name.trim() !== '' && (fetches || text.trim() !== '') && schedule != null
+
+  // Changing the time clears the server's record of the last occurrence, so the next firing is
+  // recomputed from scratch. Worth saying: otherwise moving a daily from 09:00 to 08:00 looks
+  // like it skipped a day.
+  const timeChanged =
+    editing &&
+    JSON.stringify(schedule) !== JSON.stringify(cron.schedule) &&
+    schedule !== null
 
   return (
     <form
-      className="space-y-3 rounded-lg border border-dashed p-4"
+      className="space-y-3"
       onSubmit={(e) => {
         e.preventDefault()
         if (!schedule || !ready) return
-        create
-          .mutateAsync({
-            name: name.trim(),
-            schedule,
-            action,
-            payload: priced ? { currency } : fetches ? {} : { text: text.trim(), group },
-            catch_up_minutes: catchUp,
-          })
-          .then(() => {
-            setOpen(false)
-            setName('')
-            setText('')
-          })
-          .catch(() => {
-            /* the error renders below; the form keeps what was typed */
-          })
+        onSubmit({
+          name: name.trim(),
+          action,
+          schedule,
+          payload: priced ? { currency } : fetches ? {} : { text: text.trim(), group },
+          catch_up_minutes: catchUp,
+        })
       }}
     >
       <div className="flex flex-wrap gap-3">
@@ -315,7 +436,8 @@ function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
           id="cron-action"
           value={action}
           onChange={(e) => setAction(e.target.value)}
-          className={`mt-1 w-full ${INPUT}`}
+          disabled={editing}
+          className={`mt-1 w-full ${INPUT} ${editing ? 'opacity-60' : ''}`}
         >
           {actions.map((id) => (
             <option key={id} value={id}>
@@ -323,6 +445,12 @@ function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
             </option>
           ))}
         </select>
+        {editing && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            What a schedule does cannot be changed — the settings below belong to it. Delete and
+            add a new one instead.
+          </p>
+        )}
       </div>
 
       {priced && (
@@ -462,11 +590,18 @@ function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
         </fieldset>
       )}
 
+      {timeChanged && (
+        <p className="text-xs text-muted-foreground">
+          Changing when it runs resets what it last fired, so the next one is worked out from the
+          new time.
+        </p>
+      )}
+
       <div className="flex items-center gap-3">
-        <Button type="submit" size="sm" disabled={!ready || create.isPending}>
-          {create.isPending ? 'Saving…' : 'Add schedule'}
+        <Button type="submit" size="sm" disabled={!ready || submitting}>
+          {submitting ? 'Saving…' : editing ? 'Save changes' : 'Add schedule'}
         </Button>
-        <Button variant="outline" size="sm" type="button" onClick={() => setOpen(false)}>
+        <Button variant="outline" size="sm" type="button" onClick={onCancel}>
           Cancel
         </Button>
         {schedule && (
@@ -479,12 +614,6 @@ function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
           </span>
         )}
       </div>
-
-      {create.error && (
-        <p role="alert" className="text-xs text-red-700 dark:text-red-400">
-          {create.error.message}
-        </p>
-      )}
     </form>
   )
 }

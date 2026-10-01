@@ -276,3 +276,72 @@ describe('an action that fetches', () => {
     )
   })
 })
+
+describe('editing one', () => {
+  it('opens seeded with what is already saved', async () => {
+    mount()
+    const [standUp] = await rows()
+    fireEvent.click(within(standUp).getByRole('button', { name: 'Edit' }))
+
+    // Not an empty form: the point of Edit is changing one thing, not retyping five.
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Stand up')
+    expect((screen.getByLabelText('Message') as HTMLInputElement).value).toBe(
+      'Stand up and stretch',
+    )
+    expect((screen.getByLabelText('When') as HTMLSelectElement).value).toBe('daily')
+    expect((screen.getByLabelText('At') as HTMLInputElement).value).toBe('09:30')
+    expect((screen.getByLabelText('Still send if late by') as HTMLSelectElement).value).toBe('60')
+  })
+
+  it('patches only the schedule fields, never the action', async () => {
+    mount()
+    const [standUp] = await rows()
+    fireEvent.click(within(standUp).getByRole('button', { name: 'Edit' }))
+    fireEvent.change(screen.getByLabelText('At'), { target: { value: '08:00' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      const patch = sent.find((r) => r.method === 'PATCH')
+      expect(patch).toBeDefined()
+      expect(patch!.url.endsWith('/crons/cron-1')).toBe(true)
+      expect(patch!.body).toEqual({
+        name: 'Stand up',
+        schedule: { kind: 'daily', at_minute: 8 * 60 },
+        payload: { text: 'Stand up and stretch', group: 'day' },
+        catch_up_minutes: 60,
+      })
+      // The server's patch has no `action` field, and the payload's shape follows from it.
+      expect(Object.keys(patch!.body as object)).not.toContain('action')
+    })
+  })
+
+  it('will not let the action change, and says why', async () => {
+    mount()
+    const [standUp] = await rows()
+    fireEvent.click(within(standUp).getByRole('button', { name: 'Edit' }))
+    expect((screen.getByLabelText('What it does') as HTMLSelectElement).disabled).toBe(true)
+    expect(screen.getByText(/Delete and add a new one instead/)).toBeDefined()
+  })
+
+  it('warns that moving the time resets what it last fired', async () => {
+    // Otherwise moving a daily from 09:30 to 08:00 looks like it skipped a day.
+    mount()
+    const [standUp] = await rows()
+    fireEvent.click(within(standUp).getByRole('button', { name: 'Edit' }))
+    expect(screen.queryByText(/resets what it last fired/)).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('At'), { target: { value: '08:00' } })
+    expect(screen.getByText(/resets what it last fired/)).toBeDefined()
+  })
+
+  it('seeds a weekly schedule with its own days, not the default', async () => {
+    mount()
+    const review = (await rows())[1]
+    fireEvent.click(within(review).getByRole('button', { name: 'Edit' }))
+
+    expect((screen.getByLabelText('When') as HTMLSelectElement).value).toBe('weekly')
+    // The fixture is Sunday only, index 6 — not the Mon-Fri the add form starts with.
+    expect(screen.getByRole('button', { name: 'Sun' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Mon' }).getAttribute('aria-pressed')).toBe('false')
+  })
+})
