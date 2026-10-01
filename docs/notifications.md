@@ -172,6 +172,30 @@ prove the morning brief works would be worse than no button.
 
 ### The action is an allowlist
 
+`crons::ACTIONS` holds two, and it is checked on write. "Any registered job kind" was the other
+option and is the worse one: a kind that exists is not necessarily one that makes sense on a timer,
+and a cron pointed at the wrong one produces jobs that fail forever.
+
+| Action | What it does |
+|---|---|
+| `notify.message` | Sends text you wrote. Needs a message and a group. |
+| `wealth.defi` | **Reads the chains**, then reports positions and unclaimed rewards. Takes no payload — there is nothing for a person to get wrong. |
+
+That split is the whole difference between the two: one sends what you typed, the other goes and
+finds out. The Settings form follows it — choosing an action that fetches hides the message field,
+because requiring a message for it would make the form unsubmittable.
+
+`wealth.defi` runs on `Lane::Batch`, not `Deliver`: building a wallet is several seconds of RPC
+across every chain, and a delivery worker blocked on that is a Telegram reply nobody gets. It
+routes to the **`money`** group at `info` — a scheduled read is not an alert, and the alert rules
+are what decide something is wrong.
+
+It reports how many chains it could **not** read. A provider rate-limiting you otherwise shows up
+as a total that quietly shrank, which reads as having lost money.
+
+### How an action sends
+
+
 `crons::ACTIONS` holds one entry, `notify.message`, and it is checked on write. "Any registered job
 kind" was the other option and is the worse one: a kind that exists is not necessarily one that makes
 sense on a timer, and a cron pointed at the wrong one produces jobs that fail forever. Adding one is a

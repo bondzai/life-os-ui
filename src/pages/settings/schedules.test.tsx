@@ -46,7 +46,7 @@ const CRONS = {
       last_missed_at: Math.floor(Date.now() / 1000) - 86400,
     },
   ],
-  actions: ['notify.message'],
+  actions: ['notify.message', 'wealth.defi'],
   groups: ['money', 'day', 'system'],
 }
 
@@ -206,5 +206,48 @@ describe('running one by hand', () => {
       expect(patch!.url.endsWith('/crons/cron-2')).toBe(true)
       expect(patch!.body).toEqual({ enabled: true })
     })
+  })
+})
+
+describe('an action that fetches', () => {
+  it('asks for no message, and sends an empty payload', async () => {
+    // `wealth.defi` reads the chains. There is nothing for a person to type, so requiring a
+    // message would make the form unsubmittable.
+    mount()
+    await rows()
+    fireEvent.click(screen.getByRole('button', { name: 'Add a schedule' }))
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'DeFi check' } })
+    fireEvent.change(screen.getByLabelText('What it does'), {
+      target: { value: 'wealth.defi' },
+    })
+
+    expect(screen.queryByLabelText('Message')).toBeNull()
+    fireEvent.change(screen.getByLabelText('When'), { target: { value: 'every' } })
+    fireEvent.change(screen.getByLabelText('Minutes apart'), { target: { value: '10' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add schedule' }))
+
+    await waitFor(() => {
+      const post = sent.find((r) => r.method === 'POST')
+      expect(post).toBeDefined()
+      expect(post!.body).toEqual({
+        name: 'DeFi check',
+        schedule: { kind: 'every', seconds: 600 },
+        action: 'wealth.defi',
+        payload: {},
+        catch_up_minutes: 60,
+      })
+    })
+  })
+
+  it('still requires a message for an action that sends one', async () => {
+    mount()
+    await rows()
+    fireEvent.click(screen.getByRole('button', { name: 'Add a schedule' }))
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Stand up' } })
+    // notify.message is the default, so the message field is there and the form is not ready.
+    expect(screen.getByLabelText('Message')).toBeDefined()
+    expect((screen.getByRole('button', { name: 'Add schedule' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
   })
 })

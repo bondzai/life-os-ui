@@ -28,7 +28,7 @@ use crate::common::{error, not_found};
 /// exists is not necessarily one that makes sense on a timer, and a cron pointed at the wrong one
 /// produces jobs that fail forever. `notify.message` is the one a person wants; the rest of the
 /// registry is reachable by adding a line here, deliberately.
-pub const ACTIONS: [&str; 1] = ["notify.message"];
+pub const ACTIONS: [&str; 2] = ["notify.message", "wealth.defi"];
 
 /// Local clock facts for the schedules, from `chrono`.
 ///
@@ -145,6 +145,7 @@ fn job_for(cron: &Cron, occurrence: &str) -> NewJob {
             );
             crate::jobs::notify::message::job(text, group, severity).key(key)
         }
+        crate::jobs::defi::KIND => crate::jobs::defi::job().key(key),
         // Unreachable while `ACTIONS` is the allowlist and it is checked on write. Built anyway
         // rather than skipped, so a row that predates a change to that list fails loudly as a job
         // with no handler instead of disappearing from the tick with no trace.
@@ -326,6 +327,8 @@ fn check(action: &str, payload: &serde_json::Value) -> Result<String, String> {
             ACTIONS.join(", ")
         ));
     }
+    // `wealth.defi` takes no payload: what it reports is whatever the chains say, and there is
+    // nothing for a person to get wrong. Only `notify.message` has something to validate.
     if action == crate::jobs::notify::message::KIND {
         let text = payload
             .get("text")

@@ -39,6 +39,15 @@ const GROUP_LABEL: Record<string, string> = {
   system: 'The box',
 }
 
+/** What each action does, in words. The ids are what the server runs. */
+const ACTION_LABEL: Record<string, string> = {
+  'notify.message': 'Send a message I write',
+  'wealth.defi': 'Report my DeFi positions and rewards',
+}
+
+/** Actions that go and read something, so there is no message to type. */
+const FETCHES = new Set(['wealth.defi'])
+
 const INPUT =
   'rounded-md border bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
 
@@ -88,7 +97,7 @@ export function ScheduleSettings() {
         </ul>
       )}
 
-      <AddCron groups={crons.data?.groups ?? []} />
+      <AddCron groups={crons.data?.groups ?? []} actions={crons.data?.actions ?? []} />
     </section>
   )
 }
@@ -115,8 +124,10 @@ function CronRow({ cron }: { cron: Cron }) {
             {cron.describes}
             {cron.payload.group && ` → ${GROUP_LABEL[cron.payload.group] ?? cron.payload.group}`}
           </p>
-          {cron.payload.text && (
+          {cron.payload.text ? (
             <p className="mt-1 truncate text-sm">“{cron.payload.text}”</p>
+          ) : (
+            <p className="mt-1 truncate text-sm">{ACTION_LABEL[cron.action] ?? cron.action}</p>
           )}
           <p className="mt-1 text-xs text-muted-foreground">
             {cron.last_fired_at
@@ -182,10 +193,11 @@ function CronRow({ cron }: { cron: Cron }) {
   )
 }
 
-function AddCron({ groups }: { groups: string[] }) {
+function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
   const create = useCreateCron()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
+  const [action, setAction] = useState('notify.message')
   const [text, setText] = useState('')
   const [group, setGroup] = useState('day')
   const [kind, setKind] = useState<Schedule['kind']>('daily')
@@ -216,7 +228,10 @@ function AddCron({ groups }: { groups: string[] }) {
           : { kind: 'weekly', days, at_minute }
         : { kind: 'every', seconds: everyMinutes * 60 }
 
-  const ready = name.trim() !== '' && text.trim() !== '' && schedule != null
+  // An action that fetches has nothing for you to type, so requiring a message would make it
+  // unsubmittable.
+  const fetches = FETCHES.has(action)
+  const ready = name.trim() !== '' && (fetches || text.trim() !== '') && schedule != null
 
   return (
     <form
@@ -228,8 +243,8 @@ function AddCron({ groups }: { groups: string[] }) {
           .mutateAsync({
             name: name.trim(),
             schedule,
-            action: 'notify.message',
-            payload: { text: text.trim(), group },
+            action,
+            payload: fetches ? {} : { text: text.trim(), group },
             catch_up_minutes: catchUp,
           })
           .then(() => {
@@ -255,7 +270,7 @@ function AddCron({ groups }: { groups: string[] }) {
             className={`mt-1 w-full ${INPUT}`}
           />
         </div>
-        <div>
+        <div hidden={fetches}>
           <label className="block text-xs font-medium" htmlFor="cron-group">
             Goes to
           </label>
@@ -275,17 +290,39 @@ function AddCron({ groups }: { groups: string[] }) {
       </div>
 
       <div>
-        <label className="block text-xs font-medium" htmlFor="cron-text">
-          Message
+        <label className="block text-xs font-medium" htmlFor="cron-action">
+          What it does
         </label>
-        <input
-          id="cron-text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Stand up and stretch"
+        <select
+          id="cron-action"
+          value={action}
+          onChange={(e) => setAction(e.target.value)}
           className={`mt-1 w-full ${INPUT}`}
-        />
+        >
+          {actions.map((id) => (
+            <option key={id} value={id}>
+              {ACTION_LABEL[id] ?? id}
+            </option>
+          ))}
+        </select>
       </div>
+
+      {/* Only for an action that sends what you wrote. One that reads the chains has nothing
+          for you to type here. */}
+      {!fetches && (
+        <div>
+          <label className="block text-xs font-medium" htmlFor="cron-text">
+            Message
+          </label>
+          <input
+            id="cron-text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Stand up and stretch"
+            className={`mt-1 w-full ${INPUT}`}
+          />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-end gap-3">
         <div>
