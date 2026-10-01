@@ -52,11 +52,11 @@ something.
 
 | Check | Command | Baseline |
 |---|---|---|
-| Rust tests | `cd core && cargo test --workspace` | **1484 pass** |
+| Rust tests | `cd core && cargo test --workspace` | **1491 pass** |
 | Clippy | `cd core && cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | Rust format | `cd core && cargo fmt --all --check` | clean |
 | Types | `npm run typecheck` | clean |
-| Frontend tests | `npm test` | **383 pass, 11 skipped** |
+| Frontend tests | `npm test` | **385 pass, 11 skipped** |
 | Lint | `npm run lint` | **58 errors — pre-existing, not a gate** |
 
 `npm run lint` is red and has been for a long time. It runs in CI reporting-only. Do not "fix" it as

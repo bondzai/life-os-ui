@@ -145,7 +145,9 @@ fn job_for(cron: &Cron, occurrence: &str) -> NewJob {
             );
             crate::jobs::notify::message::job(text, group, severity).key(key)
         }
-        crate::jobs::defi::KIND => crate::jobs::defi::job().key(key),
+        crate::jobs::defi::KIND => crate::jobs::defi::job()
+            .payload(cron.payload.clone())
+            .key(key),
         // Unreachable while `ACTIONS` is the allowlist and it is checked on write. Built anyway
         // rather than skipped, so a row that predates a change to that list fails loudly as a job
         // with no handler instead of disappearing from the tick with no trace.
@@ -327,8 +329,18 @@ fn check(action: &str, payload: &serde_json::Value) -> Result<String, String> {
             ACTIONS.join(", ")
         ));
     }
-    // `wealth.defi` takes no payload: what it reports is whatever the chains say, and there is
-    // nothing for a person to get wrong. Only `notify.message` has something to validate.
+    // `wealth.defi` takes only a currency, and an unknown one reads as USD rather than failing —
+    // a report that arrives in the wrong currency is recoverable, one that never arrives is not.
+    // Refused here anyway, because this is a form someone is looking at: the right place to say
+    // "that is not a currency" is while they are typing it, not silently three hours later.
+    if action == crate::jobs::defi::KIND
+        && let Some(currency) = payload.get("currency").and_then(|c| c.as_str())
+        && !["usd", "thb", "sats"].contains(&currency.trim().to_ascii_lowercase().as_str())
+    {
+        return Err(format!(
+            "{currency:?} is not a currency this report knows — use usd, thb or sats"
+        ));
+    }
     if action == crate::jobs::notify::message::KIND {
         let text = payload
             .get("text")
@@ -472,6 +484,24 @@ mod tests {
         // The scheduled firing still happens, as its own job.
         assert_eq!(run_due(&state).await, 1);
         assert_eq!(queue.recent(10).await.unwrap().len(), 2);
+    }
+
+    #[test]
+    fn a_currency_the_report_cannot_render_is_refused_while_you_are_typing_it() {
+        // The handler falls back to USD rather than failing, because a report in the wrong
+        // currency beats one that never arrives. The form is the right place to catch it though:
+        // silently ignoring it here means finding out three hours later.
+        assert!(
+            check("wealth.defi", &json!({})).is_ok(),
+            "no currency is fine"
+        );
+        assert!(check("wealth.defi", &json!({ "currency": "thb" })).is_ok());
+        assert!(check("wealth.defi", &json!({ "currency": "SATS" })).is_ok());
+        let refused = check("wealth.defi", &json!({ "currency": "euros" })).unwrap_err();
+        assert!(
+            refused.contains("euros") && refused.contains("sats"),
+            "{refused}"
+        );
     }
 
     #[test]

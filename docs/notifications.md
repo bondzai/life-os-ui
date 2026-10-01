@@ -193,6 +193,42 @@ are what decide something is wrong.
 It reports how many chains it could **not** read. A provider rate-limiting you otherwise shows up
 as a total that quietly shrank, which reads as having lost money.
 
+### What the DeFi report says
+
+Three things beyond the totals, each because the obvious version was less useful:
+
+**Unclaimed gets its own line, not a clause.** On a ten-minute schedule the book barely moves and
+the claimable does — it is the number you came for. It carries its share of the book, because
+"$16" means something different against $7k than against $700k.
+
+**Each position names its reward tokens, not only their value.** `+$12 claimable` tells you to
+claim; `0.5234 AERO, 2.10 USDC` tells you what you will be holding afterwards, which is the part
+that decides whether to sell it. A reward leg with **no** price is still named — an unpriced token
+is exactly the one you would never notice you were owed.
+
+**A provenance footer, on every report including the clean ones.** `Sources: 12/12 chain reads
+answered` is the sentence that makes a later `10/12` mean something; a footer that only appears
+when something is wrong is one nobody learns to look for. Failures are **named with their reason**
+(`arbitrum (429 Too Many Requests)`) rather than counted, because "2 failed" sends you to check
+twelve things. It distinguishes a chain that errored, one that timed out, and one where the chain
+answered but a single adapter inside it did not — that last is money missing from the total with
+nothing else to reveal it.
+
+### Currencies
+
+`usd`, `thb` or `sats`, chosen per schedule. Sats because a Bitcoin-denominated view answers what
+dollars cannot: whether the position is outgrowing simply having held BTC.
+
+**A missing rate falls back to dollars and says so.** That is the convention `market::Rates`
+already documents for the THB column — "the UI then hides the THB column rather than showing a
+stale or invented rate" — and it matters more in a message, because a number on your phone has no
+column header to disappear. The footer prints the rate it used, so a figure in baht can be checked
+against the number it was multiplied by.
+
+The handler treats an unrecognised currency as USD rather than failing: a report in the wrong
+currency is recoverable, one that never arrives is not. The **form** refuses it anyway, because
+the right place to say "that is not a currency" is while someone is typing it.
+
 ### How an action sends
 
 

@@ -2002,6 +2002,31 @@ pub(crate) async fn deliver_digest(
 /// count is returned so the caller can say so: a range alert derived from a wallet that is missing
 /// a chain is still worth sending (the positions it did read are real), but the operator should
 /// know the sweep was not complete.
+/// Like [`build_watched_wallet`], but keeps the health detail instead of counting it.
+///
+/// The counting version is right for the sweep, which only needs "is this total short". A report
+/// that tells you *which* source was down needs the failures themselves, and throwing them away in
+/// the shared helper then rebuilding them is how two call sites start disagreeing about what
+/// "unreadable" means.
+pub(crate) async fn build_watched_wallet_with_health(
+    pool: &sqlx::SqlitePool,
+    address: &str,
+) -> (
+    lyra_chain::model::Wallet,
+    lyra_chain::aggregate::FetchHealth,
+) {
+    let outcome = build_wallet(Arc::clone(&UPSTREAMS.sources), address, &AGGREGATE).await;
+    log_health("alerts/defi", &outcome.health);
+    let mut wallet = outcome.wallet;
+    join_perf(pool, std::slice::from_mut(&mut wallet)).await;
+    (wallet, outcome.health)
+}
+
+/// The FX and BTC rates, for anything that reports in a currency other than USD.
+pub(crate) async fn rates() -> lyra_chain::market::Rates {
+    UPSTREAMS.sources.market().get_rates().await
+}
+
 pub(crate) async fn build_watched_wallet(
     pool: &sqlx::SqlitePool,
     address: &str,

@@ -233,10 +233,35 @@ describe('an action that fetches', () => {
         name: 'DeFi check',
         schedule: { kind: 'every', seconds: 600 },
         action: 'wealth.defi',
-        payload: {},
+        payload: { currency: 'usd' },
         catch_up_minutes: 60,
       })
     })
+  })
+
+  it('offers a currency, and sends the one chosen', async () => {
+    mount()
+    await rows()
+    fireEvent.click(screen.getByRole('button', { name: 'Add a schedule' }))
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'DeFi in baht' } })
+    fireEvent.change(screen.getByLabelText('What it does'), { target: { value: 'wealth.defi' } })
+    fireEvent.change(screen.getByLabelText('Reported in'), { target: { value: 'thb' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add schedule' }))
+
+    await waitFor(() => {
+      const post = sent.find((r) => r.method === 'POST')
+      expect(post).toBeDefined()
+      expect((post!.body as { payload: unknown }).payload).toEqual({ currency: 'thb' })
+    })
+  })
+
+  it('offers no currency for an action that sends text', async () => {
+    // notify.message has no money in it; a currency picker there is a control that does nothing.
+    mount()
+    await rows()
+    fireEvent.click(screen.getByRole('button', { name: 'Add a schedule' }))
+    await screen.findByLabelText('Name')
+    expect(screen.queryByLabelText('Reported in')).toBeNull()
   })
 
   it('still requires a message for an action that sends one', async () => {

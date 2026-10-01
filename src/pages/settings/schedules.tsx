@@ -48,6 +48,17 @@ const ACTION_LABEL: Record<string, string> = {
 /** Actions that go and read something, so there is no message to type. */
 const FETCHES = new Set(['wealth.defi'])
 
+/** Actions that report money, and can therefore report it in something other than dollars. */
+const IN_A_CURRENCY = new Set(['wealth.defi'])
+
+const CURRENCIES: { value: string; label: string }[] = [
+  { value: 'usd', label: 'US dollars' },
+  { value: 'thb', label: 'Thai baht' },
+  // A Bitcoin-denominated view answers what dollars cannot: whether the position is actually
+  // outgrowing simply having held BTC.
+  { value: 'sats', label: 'Sats' },
+]
+
 const INPUT =
   'rounded-md border bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
 
@@ -127,7 +138,12 @@ function CronRow({ cron }: { cron: Cron }) {
           {cron.payload.text ? (
             <p className="mt-1 truncate text-sm">“{cron.payload.text}”</p>
           ) : (
-            <p className="mt-1 truncate text-sm">{ACTION_LABEL[cron.action] ?? cron.action}</p>
+            <p className="mt-1 truncate text-sm">
+              {ACTION_LABEL[cron.action] ?? cron.action}
+              {cron.payload.currency && cron.payload.currency !== 'usd' && (
+                <span className="text-muted-foreground"> · in {cron.payload.currency}</span>
+              )}
+            </p>
           )}
           <p className="mt-1 text-xs text-muted-foreground">
             {cron.last_fired_at
@@ -200,6 +216,7 @@ function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
   const [action, setAction] = useState('notify.message')
   const [text, setText] = useState('')
   const [group, setGroup] = useState('day')
+  const [currency, setCurrency] = useState('usd')
   const [kind, setKind] = useState<Schedule['kind']>('daily')
   const [clock, setClock] = useState('09:00')
   const [days, setDays] = useState<number[]>([0, 1, 2, 3, 4])
@@ -231,6 +248,7 @@ function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
   // An action that fetches has nothing for you to type, so requiring a message would make it
   // unsubmittable.
   const fetches = FETCHES.has(action)
+  const priced = IN_A_CURRENCY.has(action)
   const ready = name.trim() !== '' && (fetches || text.trim() !== '') && schedule != null
 
   return (
@@ -244,7 +262,7 @@ function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
             name: name.trim(),
             schedule,
             action,
-            payload: fetches ? {} : { text: text.trim(), group },
+            payload: priced ? { currency } : fetches ? {} : { text: text.trim(), group },
             catch_up_minutes: catchUp,
           })
           .then(() => {
@@ -306,6 +324,30 @@ function AddCron({ groups, actions }: { groups: string[]; actions: string[] }) {
           ))}
         </select>
       </div>
+
+      {priced && (
+        <div>
+          <label className="block text-xs font-medium" htmlFor="cron-currency">
+            Reported in
+          </label>
+          <select
+            id="cron-currency"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            className={`mt-1 ${INPUT}`}
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            If the rate is unavailable when it runs, it reports dollars and says so rather than
+            using a stale one.
+          </p>
+        </div>
+      )}
 
       {/* Only for an action that sends what you wrote. One that reads the chains has nothing
           for you to type here. */}
