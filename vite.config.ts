@@ -54,6 +54,28 @@ export default defineConfig({
       },
     }),
   ],
+  server: {
+    // The dev server is HTTPS (`basicSsl` above), and the API is plain HTTP on :3001. A page
+    // served over HTTPS calling `http://localhost:3001` is mixed content, which some browsers
+    // block outright and others only tolerate because localhost is a trustworthy origin — a
+    // difference nobody should have to discover.
+    //
+    // Proxying makes the API same-origin in dev, which is also what it is in production: one
+    // binary serves the UI and the API from one port, so `/api` is the correct path in both and
+    // the dev loop stops being a special case.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        // The dev server's own certificate is self-signed; this is about the *upstream*, which
+        // is plain HTTP and has no certificate to verify.
+        secure: false,
+        // The queue and the agents page hold a socket open.
+        ws: true,
+      },
+    },
+  },
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
