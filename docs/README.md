@@ -27,6 +27,7 @@ you where things are documented; that file tells you what will bite you.
 | [Workspaces](./workspaces.md) | Context you author per area of life — where it lives, how it is assembled, and what it is for |
 | [Modules](./modules.md) | The sidebar, the Projects type, and the DeFi page rewrite |
 | [Parity harness](./parity.md) | Gating the Rust port against the Python oracle |
+| [Handoff to the mini PC](./handoff-to-the-mini-pc.md) | The one-time cutover: merge, move the database, stop the Mac, start the box — in that order |
 | [Deployment](./deployment.md) | Running it on the mini PC — the one binary, the systemd unit, the CI pipeline that feeds it, moving the database, backups |
 
 ## The plan

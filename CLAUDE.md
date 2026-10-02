@@ -197,6 +197,7 @@ them to build.
 | the frontend's modules | `docs/modules.md` |
 | wealth numbers | `docs/parity.md` — read this before changing any wealth response |
 | shipping | `docs/deployment.md` |
+| moving it to the mini PC | `docs/handoff-to-the-mini-pc.md` |
 | what happens next | `docs/assistant-roadmap.md`, `TODO.md` |
 
 `VISION.md` and the two design-intent documents in `docs/` are older than the code and describe
