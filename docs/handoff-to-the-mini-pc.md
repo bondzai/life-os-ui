@@ -56,39 +56,39 @@ or you will move everything across and arrive at last week's Lyra.
 
 ### 0.1 Merge and release
 
-```bash
-cd ~/Desktop/code/home-ai-assistant/lyra
-git checkout feat/agents-office-and-focus-timer
-gh pr create --base master --fill          # or push straight to master
-gh pr merge --merge
-```
-
-Then wait for the release — about six minutes:
+**Already done, 2026-10-02.** PR #9 merged to `master` as `0acb3c3`, and the release the box will
+install is **`build-5-0acb3c3`**. Confirm it is still the newest before you start:
 
 ```bash
-gh run watch                                # release.yml
-gh release list --limit 1                   # expect a new build-N-<sha>
+gh release list --limit 1        # expect build-5-0acb3c3 or newer
 ```
 
-**Do not continue until a release exists with that commit in its tag.** The box installs from it.
+If you push anything else before the cutover, wait for its release too — the box installs from
+`master`, not from your working copy.
 
-### 0.2 Take the database out, properly
+### 0.2 Rehearse the database copy — do not use this one
+
+Run it now to prove the method and the counts, then throw the file away. **The copy you actually
+move is taken in Phase 2, after the Mac has stopped**, because a `VACUUM INTO` is a consistent
+snapshot *of one moment* and the service keeps writing after it. Exporting today and cutting over
+tomorrow silently loses a day.
 
 ```bash
 P="$HOME/Library/Application Support/Lyra"
-sqlite3 "$P/data/lyra.db" "VACUUM INTO '$HOME/Desktop/lyra-handoff.db'"
+sqlite3 "$P/data/lyra.db" "VACUUM INTO '$HOME/Desktop/lyra-rehearsal.db'"
 
 # Prove it is complete before you trust it, not after.
-sqlite3 ~/Desktop/lyra-handoff.db "pragma integrity_check;"       # ok
-sqlite3 ~/Desktop/lyra-handoff.db "pragma user_version;"          # 13
-sqlite3 ~/Desktop/lyra-handoff.db "select count(*) from entities;"  # 85
-sqlite3 ~/Desktop/lyra-handoff.db "select count(*) from jobs;"      # 285
-sqlite3 ~/Desktop/lyra-handoff.db "select count(*) from crons;"     # 1
-sqlite3 ~/Desktop/lyra-handoff.db "select count(*) from channels;"  # 1
+sqlite3 ~/Desktop/lyra-rehearsal.db "pragma integrity_check;"         # ok
+sqlite3 ~/Desktop/lyra-rehearsal.db "pragma user_version;"            # 13
+sqlite3 ~/Desktop/lyra-rehearsal.db "select count(*) from entities;"  # 85
+sqlite3 ~/Desktop/lyra-rehearsal.db "select count(*) from jobs;"      # 285
+sqlite3 ~/Desktop/lyra-rehearsal.db "select count(*) from crons;"     # 1
+sqlite3 ~/Desktop/lyra-rehearsal.db "select count(*) from channels;"  # 1
+
+rm ~/Desktop/lyra-rehearsal.db        # it is already out of date
 ```
 
-If `integrity_check` says anything but `ok`, stop and ask. Everything after this assumes that file
-is good.
+If `integrity_check` says anything but `ok`, stop and ask.
 
 ### 0.3 Write down the secrets
 
@@ -170,11 +170,13 @@ bots and a lost afternoon.
 ```
   MacBook                              bmax-b4-1
   ───────                              ─────────
-  1. stop the service      ──────▶     (nothing running yet)
-  2. copy the .db across   ──────▶     3. put it in /opt/lyra/data
-                                       4. start the service
-                                       5. verify
-  6. uninstall for good
+  1. stop the service                  (nothing running yet)
+  2. VACUUM INTO, now that
+     nothing can write behind you
+  3. copy it across        ──────▶     4. put it in /opt/lyra/data
+                                       5. start the service
+                                       6. verify
+  7. uninstall for good
 ```
 
 ### 2.1 Stop the Mac. First.
@@ -187,7 +189,17 @@ curl -s http://localhost:3030/api/health     # must fail now
 
 From this moment Telegram has no Lyra. That is correct and it is the point.
 
-### 2.2 Move the file
+### 2.2 Now take the copy you will actually move
+
+With the service stopped nothing can write behind you, so this file is the last word.
+
+```bash
+P="$HOME/Library/Application Support/Lyra"
+sqlite3 "$P/data/lyra.db" "VACUUM INTO '$HOME/Desktop/lyra-handoff.db'"
+sqlite3 ~/Desktop/lyra-handoff.db "pragma integrity_check; select count(*) from entities;"
+```
+
+### 2.3 Move the file
 
 Tailscale is already up on both, and Taildrop needs no SSH:
 
@@ -201,7 +213,7 @@ tailscale file get ~/
 
 With SSH open, `scp ~/Desktop/lyra-handoff.db bmax-b4-1:~/` does the same thing.
 
-### 2.3 Put it in place
+### 2.4 Put it in place
 
 ```bash
 sudo systemctl stop lyra 2>/dev/null || true
@@ -215,7 +227,7 @@ sudo chown -R lyra:lyra /opt/lyra/data
 The `data/` **directory** must be writable by the service user, not just the file — otherwise the
 first write fails with `attempt to write a readonly database`.
 
-### 2.4 Start it
+### 2.5 Start it
 
 ```bash
 sudo systemctl start lyra
