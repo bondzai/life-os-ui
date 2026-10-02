@@ -172,6 +172,97 @@ prove the morning brief works would be worse than no button.
 
 ### The action is an allowlist
 
+`crons::ACTIONS` holds two, and it is checked on write. "Any registered job kind" was the other
+option and is the worse one: a kind that exists is not necessarily one that makes sense on a timer,
+and a cron pointed at the wrong one produces jobs that fail forever.
+
+| Action | What it does |
+|---|---|
+| `notify.message` | Sends text you wrote. Needs a message and a group. |
+| `wealth.defi` | **Reads the chains**, then reports positions and unclaimed rewards. Takes no payload — there is nothing for a person to get wrong. |
+
+That split is the whole difference between the two: one sends what you typed, the other goes and
+finds out. The Settings form follows it — choosing an action that fetches hides the message field,
+because requiring a message for it would make the form unsubmittable.
+
+`wealth.defi` runs on `Lane::Batch`, not `Deliver`: building a wallet is several seconds of RPC
+across every chain, and a delivery worker blocked on that is a Telegram reply nobody gets. It
+routes to the **`money`** group at `info` — a scheduled read is not an alert, and the alert rules
+are what decide something is wrong.
+
+It reports how many chains it could **not** read. A provider rate-limiting you otherwise shows up
+as a total that quietly shrank, which reads as having lost money.
+
+### What the DeFi report says
+
+Three things beyond the totals, each because the obvious version was less useful:
+
+**Unclaimed gets its own line, not a clause.** On a ten-minute schedule the book barely moves and
+the claimable does — it is the number you came for. It carries its share of the book, because
+"$16" means something different against $7k than against $700k.
+
+**Each position names its reward tokens, not only their value.** `+$12 claimable` tells you to
+claim; `0.5234 AERO, 2.10 USDC` tells you what you will be holding afterwards, which is the part
+that decides whether to sell it. A reward leg with **no** price is still named — an unpriced token
+is exactly the one you would never notice you were owed.
+
+**A provenance footer, on every report including the clean ones.** `Sources: 12/12 chain reads
+answered` is the sentence that makes a later `10/12` mean something; a footer that only appears
+when something is wrong is one nobody learns to look for. Failures are **named with their reason**
+(`arbitrum (429 Too Many Requests)`) rather than counted, because "2 failed" sends you to check
+twelve things. It distinguishes a chain that errored, one that timed out, and one where the chain
+answered but a single adapter inside it did not — that last is money missing from the total with
+nothing else to reveal it.
+
+### The shape of a message
+
+Sections, blank lines between them, and **structure from newlines rather than separators**. A `·`
+between four facts is four pieces of punctuation to skip past on something that arrives every ten
+minutes.
+
+```
+DEFI
+$7.3k in 2 positions
+$16 unclaimed (0.21%)
+1 out of range
+
+POSITIONS
+
+Uniswap ETH/USDC
+$4.2k, OUT OF RANGE, +$12 claimable
+0.5234 AERO, 2.10 USDC
+
+SOURCES
+12 of 12 chains answered
+```
+
+**Nothing is aligned with runs of spaces.** Discord collapses them in a normal message, so columns
+that look right in Telegram arrive there as a jumble. `nothing_is_aligned_with_runs_of_spaces`
+pins it, along with no trailing blank line and no double blank line — both just push the next
+message further down the chat.
+
+`the_message_is_sections_separated_by_blank_lines` asserts the **whole** rendered message rather
+than six separate substrings, so a change to its shape shows up as a change to that test instead
+of as six assertions that each still pass.
+
+### Currencies
+
+`usd`, `thb` or `sats`, chosen per schedule. Sats because a Bitcoin-denominated view answers what
+dollars cannot: whether the position is outgrowing simply having held BTC.
+
+**A missing rate falls back to dollars and says so.** That is the convention `market::Rates`
+already documents for the THB column — "the UI then hides the THB column rather than showing a
+stale or invented rate" — and it matters more in a message, because a number on your phone has no
+column header to disappear. The footer prints the rate it used, so a figure in baht can be checked
+against the number it was multiplied by.
+
+The handler treats an unrecognised currency as USD rather than failing: a report in the wrong
+currency is recoverable, one that never arrives is not. The **form** refuses it anyway, because
+the right place to say "that is not a currency" is while someone is typing it.
+
+### How an action sends
+
+
 `crons::ACTIONS` holds one entry, `notify.message`, and it is checked on write. "Any registered job
 kind" was the other option and is the worse one: a kind that exists is not necessarily one that makes
 sense on a timer, and a cron pointed at the wrong one produces jobs that fail forever. Adding one is a

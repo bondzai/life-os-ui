@@ -419,6 +419,82 @@ pub const MIGRATIONS: &[&[&str]] = &[
         "ALTER TABLE systems ADD COLUMN category TEXT",
         "ALTER TABLE systems ADD COLUMN sort INTEGER NOT NULL DEFAULT 0",
     ],
+    // v11 -> v12: making your own writing findable.
+    //
+    // Two unrelated fixes that both belong to the same idea.
+    //
+    // First, `relations` has been traversed since it was created and indexed on nothing, so every
+    // "what links here" is a full scan. Nobody notices at a few hundred edges; the note page gets
+    // slow at ten thousand and it looks like the editor.
+    &[
+        "CREATE INDEX IF NOT EXISTS idx_relations_from ON relations(fromId)",
+        "CREATE INDEX IF NOT EXISTS idx_relations_to ON relations(toId)",
+        // Second, one index over everything you have written. **It owns nothing** — every row is
+        // derived from an `entities` note or a markdown file, and the whole table can be dropped
+        // and rebuilt from those. That is the property worth protecting: a bug here costs a
+        // re-index, never a note.
+        //
+        // Both stores feed it because neither can be made subordinate without losing something:
+        // the files are git-versioned and editable in any editor, the rows are queryable and
+        // related. Indexing both is the only build that keeps both.
+        r#"CREATE TABLE IF NOT EXISTS notes (
+               id         TEXT    PRIMARY KEY,
+               -- 'entity' or 'file'. Which store to go back to, and which ingester owns the row.
+               source     TEXT    NOT NULL,
+               -- The entity id, or the path relative to LYRA_KNOWLEDGE_PATH.
+               ref        TEXT    NOT NULL,
+               title      TEXT    NOT NULL,
+               body       TEXT    NOT NULL,
+               -- Compared on each sweep, so re-indexing touches only what changed.
+               updated_at INTEGER NOT NULL,
+               indexed_at INTEGER NOT NULL,
+               UNIQUE(source, ref)
+           )"#,
+        // FTS5 with `content=` rather than its own copy of the text: an external-content index
+        // stores only the terms and reads the columns back from `notes`. A standalone FTS5 table
+        // would hold a second copy of every note, which on a box whose whole database is one file
+        // is a doubling nobody asked for.
+        r#"CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+               title, body, content='notes', content_rowid='rowid', tokenize='porter unicode61'
+           )"#,
+        // The triggers are not optional with `content=`: an external-content index is not
+        // maintained by SQLite, and without them the table silently returns stale rows forever.
+        r#"CREATE TRIGGER IF NOT EXISTS notes_ai AFTER INSERT ON notes BEGIN
+               INSERT INTO notes_fts(rowid, title, body) VALUES (new.rowid, new.title, new.body);
+           END"#,
+        r#"CREATE TRIGGER IF NOT EXISTS notes_ad AFTER DELETE ON notes BEGIN
+               INSERT INTO notes_fts(notes_fts, rowid, title, body)
+               VALUES ('delete', old.rowid, old.title, old.body);
+           END"#,
+        r#"CREATE TRIGGER IF NOT EXISTS notes_au AFTER UPDATE ON notes BEGIN
+               INSERT INTO notes_fts(notes_fts, rowid, title, body)
+               VALUES ('delete', old.rowid, old.title, old.body);
+               INSERT INTO notes_fts(rowid, title, body) VALUES (new.rowid, new.title, new.body);
+           END"#,
+    ],
+    // v12 -> v13: the links you wrote inside your notes, as edges.
+    //
+    // **Not `relations`.** That table holds edges between *entities*, by entity id, and these are
+    // edges between *indexed notes*, by index id — two id spaces, and mixing them would make
+    // `relations::list` join against rows that are not there. It also keeps the more important
+    // separation: `relations` is what you drew by hand and must survive a re-index, this is
+    // derived and is rebuilt with the index it came from.
+    &[
+        r#"CREATE TABLE IF NOT EXISTS note_links (
+               from_note TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+               -- What the [[brackets]] actually said, always. Kept even once resolved, because it
+               -- is what to re-resolve against when a note is renamed or finally written.
+               target    TEXT NOT NULL,
+               -- The note it points at, or NULL for a link to something not written yet. Those
+               -- are worth keeping rather than dropping: they are the notes you meant to write.
+               to_note   TEXT REFERENCES notes(id) ON DELETE SET NULL,
+               PRIMARY KEY (from_note, target)
+           )"#,
+        // Backlinks read this the other way round, and without it that is a full scan — the exact
+        // mistake `relations` shipped with.
+        "CREATE INDEX IF NOT EXISTS idx_note_links_to ON note_links(to_note)",
+        "CREATE INDEX IF NOT EXISTS idx_note_links_target ON note_links(target)",
+    ],
 ];
 
 /// Applies every migration the database has not seen yet. Returns the resulting `user_version`.

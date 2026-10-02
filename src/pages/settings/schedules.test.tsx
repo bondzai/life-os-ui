@@ -46,7 +46,7 @@ const CRONS = {
       last_missed_at: Math.floor(Date.now() / 1000) - 86400,
     },
   ],
-  actions: ['notify.message'],
+  actions: ['notify.message', 'wealth.defi'],
   groups: ['money', 'day', 'system'],
 }
 
@@ -206,5 +206,142 @@ describe('running one by hand', () => {
       expect(patch!.url.endsWith('/crons/cron-2')).toBe(true)
       expect(patch!.body).toEqual({ enabled: true })
     })
+  })
+})
+
+describe('an action that fetches', () => {
+  it('asks for no message, and sends an empty payload', async () => {
+    // `wealth.defi` reads the chains. There is nothing for a person to type, so requiring a
+    // message would make the form unsubmittable.
+    mount()
+    await rows()
+    fireEvent.click(screen.getByRole('button', { name: 'Add a schedule' }))
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'DeFi check' } })
+    fireEvent.change(screen.getByLabelText('What it does'), {
+      target: { value: 'wealth.defi' },
+    })
+
+    expect(screen.queryByLabelText('Message')).toBeNull()
+    fireEvent.change(screen.getByLabelText('When'), { target: { value: 'every' } })
+    fireEvent.change(screen.getByLabelText('Minutes apart'), { target: { value: '10' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add schedule' }))
+
+    await waitFor(() => {
+      const post = sent.find((r) => r.method === 'POST')
+      expect(post).toBeDefined()
+      expect(post!.body).toEqual({
+        name: 'DeFi check',
+        schedule: { kind: 'every', seconds: 600 },
+        action: 'wealth.defi',
+        payload: { currency: 'usd' },
+        catch_up_minutes: 60,
+      })
+    })
+  })
+
+  it('offers a currency, and sends the one chosen', async () => {
+    mount()
+    await rows()
+    fireEvent.click(screen.getByRole('button', { name: 'Add a schedule' }))
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'DeFi in baht' } })
+    fireEvent.change(screen.getByLabelText('What it does'), { target: { value: 'wealth.defi' } })
+    fireEvent.change(screen.getByLabelText('Reported in'), { target: { value: 'thb' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add schedule' }))
+
+    await waitFor(() => {
+      const post = sent.find((r) => r.method === 'POST')
+      expect(post).toBeDefined()
+      expect((post!.body as { payload: unknown }).payload).toEqual({ currency: 'thb' })
+    })
+  })
+
+  it('offers no currency for an action that sends text', async () => {
+    // notify.message has no money in it; a currency picker there is a control that does nothing.
+    mount()
+    await rows()
+    fireEvent.click(screen.getByRole('button', { name: 'Add a schedule' }))
+    await screen.findByLabelText('Name')
+    expect(screen.queryByLabelText('Reported in')).toBeNull()
+  })
+
+  it('still requires a message for an action that sends one', async () => {
+    mount()
+    await rows()
+    fireEvent.click(screen.getByRole('button', { name: 'Add a schedule' }))
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Stand up' } })
+    // notify.message is the default, so the message field is there and the form is not ready.
+    expect(screen.getByLabelText('Message')).toBeDefined()
+    expect((screen.getByRole('button', { name: 'Add schedule' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
+  })
+})
+
+describe('editing one', () => {
+  it('opens seeded with what is already saved', async () => {
+    mount()
+    const [standUp] = await rows()
+    fireEvent.click(within(standUp).getByRole('button', { name: 'Edit' }))
+
+    // Not an empty form: the point of Edit is changing one thing, not retyping five.
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Stand up')
+    expect((screen.getByLabelText('Message') as HTMLInputElement).value).toBe(
+      'Stand up and stretch',
+    )
+    expect((screen.getByLabelText('When') as HTMLSelectElement).value).toBe('daily')
+    expect((screen.getByLabelText('At') as HTMLInputElement).value).toBe('09:30')
+    expect((screen.getByLabelText('Still send if late by') as HTMLSelectElement).value).toBe('60')
+  })
+
+  it('patches only the schedule fields, never the action', async () => {
+    mount()
+    const [standUp] = await rows()
+    fireEvent.click(within(standUp).getByRole('button', { name: 'Edit' }))
+    fireEvent.change(screen.getByLabelText('At'), { target: { value: '08:00' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      const patch = sent.find((r) => r.method === 'PATCH')
+      expect(patch).toBeDefined()
+      expect(patch!.url.endsWith('/crons/cron-1')).toBe(true)
+      expect(patch!.body).toEqual({
+        name: 'Stand up',
+        schedule: { kind: 'daily', at_minute: 8 * 60 },
+        payload: { text: 'Stand up and stretch', group: 'day' },
+        catch_up_minutes: 60,
+      })
+      // The server's patch has no `action` field, and the payload's shape follows from it.
+      expect(Object.keys(patch!.body as object)).not.toContain('action')
+    })
+  })
+
+  it('will not let the action change, and says why', async () => {
+    mount()
+    const [standUp] = await rows()
+    fireEvent.click(within(standUp).getByRole('button', { name: 'Edit' }))
+    expect((screen.getByLabelText('What it does') as HTMLSelectElement).disabled).toBe(true)
+    expect(screen.getByText(/Delete and add a new one instead/)).toBeDefined()
+  })
+
+  it('warns that moving the time resets what it last fired', async () => {
+    // Otherwise moving a daily from 09:30 to 08:00 looks like it skipped a day.
+    mount()
+    const [standUp] = await rows()
+    fireEvent.click(within(standUp).getByRole('button', { name: 'Edit' }))
+    expect(screen.queryByText(/resets what it last fired/)).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('At'), { target: { value: '08:00' } })
+    expect(screen.getByText(/resets what it last fired/)).toBeDefined()
+  })
+
+  it('seeds a weekly schedule with its own days, not the default', async () => {
+    mount()
+    const review = (await rows())[1]
+    fireEvent.click(within(review).getByRole('button', { name: 'Edit' }))
+
+    expect((screen.getByLabelText('When') as HTMLSelectElement).value).toBe('weekly')
+    // The fixture is Sunday only, index 6 — not the Mon-Fri the add form starts with.
+    expect(screen.getByRole('button', { name: 'Sun' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Mon' }).getAttribute('aria-pressed')).toBe('false')
   })
 })

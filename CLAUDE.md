@@ -52,11 +52,11 @@ something.
 
 | Check | Command | Baseline |
 |---|---|---|
-| Rust tests | `cd core && cargo test --workspace` | **1457 pass** |
+| Rust tests | `cd core && cargo test --workspace` | **1492 pass** |
 | Clippy | `cd core && cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | Rust format | `cd core && cargo fmt --all --check` | clean |
 | Types | `npm run typecheck` | clean |
-| Frontend tests | `npm test` | **373 pass, 11 skipped** |
+| Frontend tests | `npm test` | **390 pass, 11 skipped** |
 | Lint | `npm run lint` | **58 errors — pre-existing, not a gate** |
 
 `npm run lint` is red and has been for a long time. It runs in CI reporting-only. Do not "fix" it as
@@ -105,9 +105,17 @@ works under `cargo run` and is silently absent in production. This has happened.
 (`the_install_script_forwards_every_setting_the_server_reads`) reads the list and fails naming the
 variable and its source file — if it fires, add the key, do not delete the test.
 
-**`VITE_*` variables are build-time.** Vite inlines them. Setting them at runtime does nothing; a
-bundle built without `VITE_API_URL=/api` sends every request to a port with nothing on it, and every
-page renders its error state against a perfectly healthy server.
+**`VITE_*` variables are build-time.** Vite inlines them. Setting them at runtime does nothing, so
+a `VITE_*` change needs a rebuild, not a restart.
+
+The specific trap this used to carry is defused: `api-url.ts` now defaults to `/api`, which is
+correct in production (one binary, one origin) *and* in dev (the Vite proxy in `vite.config.ts`
+puts the API at the same path). It previously defaulted to `http://localhost:3001/api`, so a
+production bundle built without `VITE_API_URL` pointed every request at a port with nothing on it
+and every page rendered its error state against a perfectly healthy server.
+
+**The dev UI is HTTPS** — `basicSsl()` in `vite.config.ts`. It is `https://localhost:5174`, and the
+browser will warn about the self-signed certificate once. `http://` simply will not connect.
 
 **Entities are one table.** `entities` holds every type — task, note, goal, asset — with
 type-specific fields in a `metadata` JSON blob. Do not add a table for a new entity *type*.
@@ -180,6 +188,7 @@ them to build.
 | the job queue | `docs/jobs.md` |
 | workspaces and authored context | `docs/workspaces.md` |
 | notifications, routing, channels, schedules | `docs/notifications.md` |
+| notes, search, the second brain | `docs/second-brain.md` |
 | other systems, the decision inbox | `docs/systems.md` |
 | alert rules | `docs/alerts.md` |
 | the Telegram surface | `docs/telegram.md` |
@@ -188,6 +197,7 @@ them to build.
 | the frontend's modules | `docs/modules.md` |
 | wealth numbers | `docs/parity.md` — read this before changing any wealth response |
 | shipping | `docs/deployment.md` |
+| moving it to the mini PC | `docs/handoff-to-the-mini-pc.md` |
 | what happens next | `docs/assistant-roadmap.md`, `TODO.md` |
 
 `VISION.md` and the two design-intent documents in `docs/` are older than the code and describe

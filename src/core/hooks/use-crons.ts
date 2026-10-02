@@ -23,7 +23,7 @@ export interface Cron {
   /** In words, rendered server-side so the two cannot disagree about "every 15 minutes". */
   describes: string
   action: string
-  payload: { text?: string; group?: string; severity?: Severity }
+  payload: { text?: string; group?: string; severity?: Severity; currency?: string }
   enabled: boolean
   /** How late a firing may be and still happen. */
   catch_up_minutes: number

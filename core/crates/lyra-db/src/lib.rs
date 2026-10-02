@@ -14,6 +14,7 @@ pub mod import;
 pub mod jobs;
 pub mod life;
 pub mod migrations;
+pub mod notes;
 pub mod secrets;
 pub mod systems;
 pub mod wealth;
